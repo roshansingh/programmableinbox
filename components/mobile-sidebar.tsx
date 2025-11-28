@@ -1,0 +1,140 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { usePathname } from 'next/navigation'
+import { Inbox, Mail, Phone, Settings, Users, ChevronDown, Plus, X } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
+
+const navigation = [
+  { name: "Dashboard", icon: Inbox, href: "/", current: false },
+  { name: "Emails", icon: Mail, href: "/emails", current: false },
+  { name: "Phone Numbers", icon: Phone, href: "#phones", current: false },
+  { name: "Team", icon: Users, href: "#team", current: false },
+  { name: "Settings", icon: Settings, href: "#settings", current: false },
+]
+
+const organizations = [
+  { id: 1, name: "Acme Corp", role: "Owner" },
+  { id: 2, name: "Tech Startup", role: "Member" },
+  { id: 3, name: "Personal", role: "Owner" },
+]
+
+interface MobileSidebarProps {
+  open: boolean
+  onClose: () => void
+}
+
+export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
+  const [currentOrg, setCurrentOrg] = useState(organizations[0])
+  const pathname = usePathname()
+
+  return (
+    <Sheet open={open} onOpenChange={onClose}>
+      <SheetContent side="left" className="p-0 w-64">
+        <div className="flex flex-col h-full bg-sidebar">
+          {/* Org Switcher */}
+          <div className="p-4 border-b border-sidebar-border">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between bg-sidebar-accent hover:bg-sidebar-accent/80"
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-sm">
+                      {currentOrg.name.charAt(0)}
+                    </div>
+                    <div className="flex flex-col items-start overflow-hidden">
+                      <span className="text-sm font-medium truncate w-full text-left">
+                        {currentOrg.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{currentOrg.role}</span>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {organizations.map((org) => (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onClick={() => setCurrentOrg(org)}
+                    className={cn(
+                      "cursor-pointer",
+                      currentOrg.id === org.id && "bg-accent"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground font-semibold text-xs">
+                        {org.name.charAt(0)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{org.name}</span>
+                        <span className="text-xs text-muted-foreground">{org.role}</span>
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Organization
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Join Organization
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  pathname === item.href
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                {item.name}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-sidebar-border">
+            <div className="flex items-center gap-3 px-3 py-2">
+              <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
+                JD
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
+                <p className="text-xs text-muted-foreground truncate">john@example.com</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
