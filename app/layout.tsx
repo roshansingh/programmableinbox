@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 // import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { AuthGuard } from '@/components/auth-guard'
+import { Toaster } from '@/components/ui/sonner'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -36,8 +38,28 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  if (typeof window !== 'undefined' && typeof chrome === 'undefined') {
+                    window.chrome = {};
+                  }
+                } catch (e) {
+                  // Ignore errors
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={`font-sans antialiased`}>
-        {children}
+        <AuthGuard>
+          {children}
+        </AuthGuard>
+        <Toaster />
         {/* <Analytics /> */}
       </body>
     </html>
