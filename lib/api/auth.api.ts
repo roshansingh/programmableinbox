@@ -1,7 +1,7 @@
 /**
  * Authentication API module
- * Handles signin, signup, and authentication-related API calls
- * Based on OpenAPI spec: /auth/signup, /auth/signin, /auth/me
+ * Handles signin, register, and authentication-related API calls
+ * Based on OpenAPI spec: /auth/register, /auth/login, /auth/me
  */
 
 import { apiClient, setAuthToken, removeAuthToken } from '../api-client'
@@ -37,6 +37,18 @@ export interface AuthResponse {
 }
 
 /**
+ * Organization information
+ */
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  role: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
  * User information
  */
 export interface User {
@@ -44,16 +56,16 @@ export interface User {
   email: string
   firstName?: string
   lastName?: string
-  name?: string
-  createdAt?: string
+  emailVerified: boolean
+  organizations: Organization[]
 }
 
 /**
  * Sign in an existing user
- * POST /auth/signin
+ * POST /auth/login
  */
 export async function signIn(credentials: SignInRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/auth/signin', credentials)
+  const response = await apiClient.post<AuthResponse>('/auth/login', credentials)
   
   // Store token after successful sign in
   // Handle different possible token field names

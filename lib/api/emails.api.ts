@@ -1,134 +1,79 @@
 /**
- * Email API module
- * Handles all email-related API calls
+ * Email Inbox API module
+ * Handles all email inbox-related API calls
+ * Based on OpenAPI spec: /v1/emailInbox
  */
 
 import { apiClient } from '../api-client'
 
-export interface Email {
+export interface InboxEmail {
   id: string
-  address: string
+  organizationId: string
+  userId: string
+  email: string
+  name?: string
   createdAt: string
-  messageCount: number
-  status: 'active' | 'expired'
-  domain?: string
-  prefix?: string
+  updatedAt: string
 }
 
-export interface EmailMessage {
-  id: string
-  from: string
-  to: string
-  subject: string
-  body: string
-  html?: string
-  text?: string
-  receivedAt: string
-  attachments?: EmailAttachment[]
+export interface CreateInboxEmailRequest {
+  organizationId: string
+  email: string
+  name?: string
 }
 
-export interface EmailAttachment {
-  id: string
-  filename: string
-  contentType: string
-  size: number
-  url: string
-}
-
-export interface CreateEmailRequest {
-  prefix?: string
-  domain?: string
-}
-
-export interface EmailListResponse {
-  emails: Email[]
-  total: number
-  page?: number
-  limit?: number
-}
-
-export interface EmailMessagesResponse {
-  messages: EmailMessage[]
-  total: number
-  page?: number
-  limit?: number
+export interface UpdateInboxEmailRequest {
+  email?: string
+  name?: string
 }
 
 /**
- * Get list of all emails
+ * Get all inbox email addresses
+ * GET /v1/emailInbox
  */
-export async function getEmails(params?: {
-  page?: number
-  limit?: number
-  status?: 'active' | 'expired'
-}): Promise<EmailListResponse> {
+export async function getEmailInboxes(params?: {
+  organizationId?: string
+}): Promise<InboxEmail[]> {
   const queryParams = new URLSearchParams()
-  if (params?.page) queryParams.append('page', params.page.toString())
-  if (params?.limit) queryParams.append('limit', params.limit.toString())
-  if (params?.status) queryParams.append('status', params.status)
-
-  const query = queryParams.toString()
-  return apiClient.get<EmailListResponse>(`/emails${query ? `?${query}` : ''}`)
-}
-
-/**
- * Get a single email by ID
- */
-export async function getEmail(id: string): Promise<Email> {
-  return apiClient.get<Email>(`/emails/${id}`)
-}
-
-/**
- * Create a new disposable email
- */
-export async function createEmail(data: CreateEmailRequest): Promise<Email> {
-  return apiClient.post<Email>('/emails', data)
-}
-
-/**
- * Delete an email
- */
-export async function deleteEmail(id: string): Promise<void> {
-  return apiClient.delete<void>(`/emails/${id}`)
-}
-
-/**
- * Get messages for a specific email
- */
-export async function getEmailMessages(
-  emailId: string,
-  params?: {
-    page?: number
-    limit?: number
+  if (params?.organizationId) {
+    queryParams.append('organizationId', params.organizationId)
   }
-): Promise<EmailMessagesResponse> {
-  const queryParams = new URLSearchParams()
-  if (params?.page) queryParams.append('page', params.page.toString())
-  if (params?.limit) queryParams.append('limit', params.limit.toString())
 
   const query = queryParams.toString()
-  return apiClient.get<EmailMessagesResponse>(
-    `/emails/${emailId}/messages${query ? `?${query}` : ''}`
-  )
+  return apiClient.get<InboxEmail[]>(`/v1/emailInbox${query ? `?${query}` : ''}`)
 }
 
 /**
- * Get a single email message
+ * Get a single inbox email address by ID
+ * GET /v1/emailInbox/{id}
  */
-export async function getEmailMessage(
-  emailId: string,
-  messageId: string
-): Promise<EmailMessage> {
-  return apiClient.get<EmailMessage>(`/emails/${emailId}/messages/${messageId}`)
+export async function getEmailInbox(id: string): Promise<InboxEmail> {
+  return apiClient.get<InboxEmail>(`/v1/emailInbox/${id}`)
 }
 
 /**
- * Delete an email message
+ * Create a new inbox email address
+ * POST /v1/emailInbox
  */
-export async function deleteEmailMessage(
-  emailId: string,
-  messageId: string
-): Promise<void> {
-  return apiClient.delete<void>(`/emails/${emailId}/messages/${messageId}`)
+export async function createEmailInbox(data: CreateInboxEmailRequest): Promise<InboxEmail> {
+  return apiClient.post<InboxEmail>('/v1/emailInbox', data)
 }
 
+/**
+ * Update an inbox email address
+ * PATCH /v1/emailInbox/{id}
+ */
+export async function updateEmailInbox(
+  id: string,
+  data: UpdateInboxEmailRequest
+): Promise<InboxEmail> {
+  return apiClient.patch<InboxEmail>(`/v1/emailInbox/${id}`, data)
+}
+
+/**
+ * Delete an inbox email address
+ * DELETE /v1/emailInbox/{id}
+ */
+export async function deleteEmailInbox(id: string): Promise<void> {
+  return apiClient.delete<void>(`/v1/emailInbox/${id}`)
+}

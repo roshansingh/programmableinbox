@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -24,85 +24,116 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-
-interface ApiKey {
-  id: string
-  name: string
-  key: string
-  createdAt: string
-  lastUsed: string | null
-  status: "active" | "inactive"
-}
+import { getApiKeys, createApiKey, deleteApiKey, type ApiKey } from "@/lib/api/api-keys.api"
+import { getCurrentUser } from "@/lib/api/auth.api"
+import { toast } from "sonner"
+import { formatDistanceToNow } from "date-fns"
 
 export default function ApiKeysPage() {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([
-    {
-      id: "1",
-      name: "Production API Key",
-      key: "pk_live_51Abc123XyZ789DefGhi456JklMno789PqrStu012VwxYza345BcdEfg678Hij901Klm234Nop567Qrs890Tuv",
-      createdAt: "2024-01-15",
-      lastUsed: "2 hours ago",
-      status: "active",
-    },
-    {
-      id: "2",
-      name: "Development API Key",
-      key: "pk_test_51Xyz987Abc123Def456Ghi789Jkl012Mno345Pqr678Stu901Vwx234Yza567Bcd890Efg123Hij456Klm789Nop",
-      createdAt: "2024-01-10",
-      lastUsed: "1 day ago",
-      status: "active",
-    },
-    {
-      id: "3",
-      name: "Testing Environment",
-      key: "pk_test_51Def123Ghi456Jkl789Mno012Pqr345Stu678Vwx901Yza234Bcd567Efg890Hij123Klm456Nop789Qrs012Tuv",
-      createdAt: "2023-12-20",
-      lastUsed: null,
-      status: "inactive",
-    },
-  ])
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [newKeyName, setNewKeyName] = useState("")
   const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get current user to get organization ID
+        const user = await getCurrentUser()
+        if (user.organizations && user.organizations.length > 0) {
+          const orgId = user.organizations[0].id
+          setCurrentOrgId(orgId)
+          
+          // Fetch API keys
+          const keys = await getApiKeys({ organizationId: orgId })
+          setApiKeys(keys)
+        }
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to load API keys")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const toggleKeyVisibility = (id: string) => {
     setVisibleKeys((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   const maskKey = (key: string) => {
+    if (key.length <= 16) return key
     return key.slice(0, 12) + "..." + key.slice(-4)
   }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
+    toast.success("Copied to clipboard")
   }
 
-  const deleteKey = (id: string) => {
-    setApiKeys((prev) => prev.filter((key) => key.id !== id))
-  }
-
-  const createApiKey = () => {
-    if (!newKeyName.trim()) return
-
-    const newKey = {
-      id: Date.now().toString(),
-      name: newKeyName,
-      key: `pk_live_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`,
-      createdAt: new Date().toISOString().split("T")[0],
-      lastUsed: null,
-      status: "active" as const,
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) {
+      return
     }
 
-    setApiKeys((prev) => [newKey, ...prev])
-    setCreatedKey(newKey.key)
-    setNewKeyName("")
+    try {
+      await deleteApiKey(id)
+      setApiKeys(apiKeys.filter((key) => key.id !== id))
+      toast.success("API key deleted successfully")
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to delete API key")
+    }
+  }
+
+  const handleCreateApiKey = async () => {
+    if (!newKeyName.trim()) {
+      toast.error("API key name is required")
+      return
+    }
+
+    if (!currentOrgId) {
+      toast.error("Organization ID is required")
+      return
+    }
+
+    try {
+      const newKey = await createApiKey({
+        organizationId: currentOrgId,
+        name: newKeyName.trim(),
+      })
+      setApiKeys([newKey, ...apiKeys])
+      setCreatedKey(newKey.apiKey)
+      setNewKeyName("")
+      toast.success("API key created successfully")
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to create API key")
+    }
   }
 
   const closeCreateDialog = () => {
     setIsCreateOpen(false)
     setCreatedKey(null)
     setNewKeyName("")
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden w-full">
+          <DashboardHeader />
+          <main className="flex-1 overflow-y-auto px-4 py-6 space-y-6 lg:px-8 lg:py-8">
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -151,7 +182,10 @@ export default function ApiKeysPage() {
                       <Button variant="outline" onClick={closeCreateDialog}>
                         Cancel
                       </Button>
-                      <Button onClick={createApiKey} disabled={!newKeyName.trim()}>
+                      <Button 
+                        onClick={handleCreateApiKey} 
+                        disabled={!newKeyName.trim() || !currentOrgId}
+                      >
                         Create Key
                       </Button>
                     </DialogFooter>
@@ -216,13 +250,9 @@ export default function ApiKeysPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-lg">{apiKey.name}</CardTitle>
-                          <Badge variant={apiKey.status === "active" ? "default" : "secondary"}>
-                            {apiKey.status}
-                          </Badge>
                         </div>
                         <CardDescription>
-                          Created on {apiKey.createdAt}
-                          {apiKey.lastUsed && ` • Last used ${apiKey.lastUsed}`}
+                          Created {formatDistanceToNow(new Date(apiKey.createdAt), { addSuffix: true })}
                         </CardDescription>
                       </div>
                       <DropdownMenu>
@@ -234,7 +264,7 @@ export default function ApiKeysPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => deleteKey(apiKey.id)}
+                            onClick={() => handleDelete(apiKey.id)}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete Key
@@ -246,7 +276,7 @@ export default function ApiKeysPage() {
                   <CardContent>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-muted rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
-                        {visibleKeys[apiKey.id] ? apiKey.key : maskKey(apiKey.key)}
+                        {visibleKeys[apiKey.id] ? apiKey.apiKey : maskKey(apiKey.apiKey)}
                       </div>
                       <Button
                         variant="outline"
@@ -262,7 +292,7 @@ export default function ApiKeysPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => copyToClipboard(apiKey.key)}
+                        onClick={() => copyToClipboard(apiKey.apiKey)}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>

@@ -1,127 +1,79 @@
 /**
- * Phone API module
- * Handles all phone number-related API calls
+ * Phone Inbox API module
+ * Handles all phone inbox-related API calls
+ * Based on OpenAPI spec: /v1/phoneInbox
  */
 
 import { apiClient } from '../api-client'
 
-export interface PhoneNumber {
+export interface InboxPhone {
   id: string
-  number: string
-  country: string
-  countryCode?: string
+  organizationId: string
+  userId: string
+  phoneNumber: string
+  countryCode: string
   createdAt: string
-  messageCount: number
-  status: 'active' | 'expired'
+  updatedAt: string
 }
 
-export interface SMSMessage {
-  id: string
-  from: string
-  to: string
-  body: string
-  receivedAt: string
-  direction: 'inbound' | 'outbound'
+export interface CreateInboxPhoneRequest {
+  organizationId: string
+  phoneNumber: string
+  countryCode: string
 }
 
-export interface CreatePhoneRequest {
-  country?: string
+export interface UpdateInboxPhoneRequest {
+  phoneNumber?: string
   countryCode?: string
 }
 
-export interface PhoneListResponse {
-  phones: PhoneNumber[]
-  total: number
-  page?: number
-  limit?: number
-}
-
-export interface SMSMessagesResponse {
-  messages: SMSMessage[]
-  total: number
-  page?: number
-  limit?: number
-}
-
 /**
- * Get list of all phone numbers
+ * Get all inbox phone numbers
+ * GET /v1/phoneInbox
  */
-export async function getPhones(params?: {
-  page?: number
-  limit?: number
-  status?: 'active' | 'expired'
-  country?: string
-}): Promise<PhoneListResponse> {
+export async function getPhoneInboxes(params?: {
+  organizationId?: string
+}): Promise<InboxPhone[]> {
   const queryParams = new URLSearchParams()
-  if (params?.page) queryParams.append('page', params.page.toString())
-  if (params?.limit) queryParams.append('limit', params.limit.toString())
-  if (params?.status) queryParams.append('status', params.status)
-  if (params?.country) queryParams.append('country', params.country)
-
-  const query = queryParams.toString()
-  return apiClient.get<PhoneListResponse>(`/phones${query ? `?${query}` : ''}`)
-}
-
-/**
- * Get a single phone number by ID
- */
-export async function getPhone(id: string): Promise<PhoneNumber> {
-  return apiClient.get<PhoneNumber>(`/phones/${id}`)
-}
-
-/**
- * Create a new disposable phone number
- */
-export async function createPhone(data: CreatePhoneRequest): Promise<PhoneNumber> {
-  return apiClient.post<PhoneNumber>('/phones', data)
-}
-
-/**
- * Delete a phone number
- */
-export async function deletePhone(id: string): Promise<void> {
-  return apiClient.delete<void>(`/phones/${id}`)
-}
-
-/**
- * Get SMS messages for a specific phone number
- */
-export async function getSMSMessages(
-  phoneId: string,
-  params?: {
-    page?: number
-    limit?: number
-    direction?: 'inbound' | 'outbound'
+  if (params?.organizationId) {
+    queryParams.append('organizationId', params.organizationId)
   }
-): Promise<SMSMessagesResponse> {
-  const queryParams = new URLSearchParams()
-  if (params?.page) queryParams.append('page', params.page.toString())
-  if (params?.limit) queryParams.append('limit', params.limit.toString())
-  if (params?.direction) queryParams.append('direction', params.direction)
 
   const query = queryParams.toString()
-  return apiClient.get<SMSMessagesResponse>(
-    `/phones/${phoneId}/messages${query ? `?${query}` : ''}`
-  )
+  return apiClient.get<InboxPhone[]>(`/v1/phoneInbox${query ? `?${query}` : ''}`)
 }
 
 /**
- * Get a single SMS message
+ * Get a single inbox phone number by ID
+ * GET /v1/phoneInbox/{id}
  */
-export async function getSMSMessage(
-  phoneId: string,
-  messageId: string
-): Promise<SMSMessage> {
-  return apiClient.get<SMSMessage>(`/phones/${phoneId}/messages/${messageId}`)
+export async function getPhoneInbox(id: string): Promise<InboxPhone> {
+  return apiClient.get<InboxPhone>(`/v1/phoneInbox/${id}`)
 }
 
 /**
- * Delete an SMS message
+ * Create a new inbox phone number
+ * POST /v1/phoneInbox
  */
-export async function deleteSMSMessage(
-  phoneId: string,
-  messageId: string
-): Promise<void> {
-  return apiClient.delete<void>(`/phones/${phoneId}/messages/${messageId}`)
+export async function createPhoneInbox(data: CreateInboxPhoneRequest): Promise<InboxPhone> {
+  return apiClient.post<InboxPhone>('/v1/phoneInbox', data)
 }
 
+/**
+ * Update an inbox phone number
+ * PATCH /v1/phoneInbox/{id}
+ */
+export async function updatePhoneInbox(
+  id: string,
+  data: UpdateInboxPhoneRequest
+): Promise<InboxPhone> {
+  return apiClient.patch<InboxPhone>(`/v1/phoneInbox/${id}`, data)
+}
+
+/**
+ * Delete an inbox phone number
+ * DELETE /v1/phoneInbox/{id}
+ */
+export async function deletePhoneInbox(id: string): Promise<void> {
+  return apiClient.delete<void>(`/v1/phoneInbox/${id}`)
+}

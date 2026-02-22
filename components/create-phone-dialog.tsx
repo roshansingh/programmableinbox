@@ -10,22 +10,66 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createPhoneInbox } from "@/lib/api/phones.api"
+import { toast } from "sonner"
 
 interface CreatePhoneDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  organizationId?: string
+  onSuccess?: () => void
 }
 
-export function CreatePhoneDialog({ open, onOpenChange }: CreatePhoneDialogProps) {
-  const [country, setCountry] = useState("US")
-  const [areaCode, setAreaCode] = useState("555")
+const COUNTRY_CODES: Record<string, string> = {
+  US: "US",
+  UK: "GB",
+  CA: "CA",
+  AU: "AU",
+}
 
-  const handleCreate = () => {
-    // Handle phone number creation logic here
-    console.log(`Creating phone number for ${country} with area code ${areaCode}`)
-    onOpenChange(false)
+export function CreatePhoneDialog({ open, onOpenChange, organizationId, onSuccess }: CreatePhoneDialogProps) {
+  const [countryCode, setCountryCode] = useState("US")
+  const [phoneNumber, setPhoneNumber] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleCreate = async () => {
+    if (!organizationId) {
+      toast.error("Organization ID is required")
+      return
+    }
+
+    if (!phoneNumber.trim()) {
+      toast.error("Phone number is required")
+      return
+    }
+
+    // Remove any non-digit characters
+    const cleanPhoneNumber = phoneNumber.replace(/\D/g, '')
+
+    if (cleanPhoneNumber.length === 0) {
+      toast.error("Please enter a valid phone number")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      await createPhoneInbox({
+        organizationId,
+        phoneNumber: cleanPhoneNumber,
+        countryCode: COUNTRY_CODES[countryCode] || countryCode,
+      })
+      toast.success("Phone inbox created successfully")
+      setPhoneNumber("")
+      onOpenChange(false)
+      onSuccess?.()
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to create phone inbox")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -39,43 +83,47 @@ export function CreatePhoneDialog({ open, onOpenChange }: CreatePhoneDialogProps
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="country" className="text-foreground">Country</Label>
-            <Select value={country} onValueChange={setCountry}>
-              <SelectTrigger id="country" className="bg-background text-foreground">
+            <Label htmlFor="countryCode" className="text-foreground">Country Code *</Label>
+            <Select value={countryCode} onValueChange={setCountryCode} disabled={isLoading}>
+              <SelectTrigger id="countryCode" className="bg-background text-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="US">United States (+1)</SelectItem>
-                <SelectItem value="UK">United Kingdom (+44)</SelectItem>
-                <SelectItem value="CA">Canada (+1)</SelectItem>
-                <SelectItem value="AU">Australia (+61)</SelectItem>
+                <SelectItem value="US">United States (US)</SelectItem>
+                <SelectItem value="UK">United Kingdom (GB)</SelectItem>
+                <SelectItem value="CA">Canada (CA)</SelectItem>
+                <SelectItem value="AU">Australia (AU)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="area" className="text-foreground">Area Code Preference</Label>
-            <Select value={areaCode} onValueChange={setAreaCode}>
-              <SelectTrigger id="area" className="bg-background text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="555">555 (Testing)</SelectItem>
-                <SelectItem value="random">Random</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/50 p-3">
-            <p className="text-sm font-medium text-muted-foreground mb-1">Info:</p>
+            <Label htmlFor="phoneNumber" className="text-foreground">Phone Number *</Label>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              placeholder="1234567890 (digits only)"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              className="bg-background text-foreground"
+              required
+              disabled={isLoading}
+            />
             <p className="text-xs text-muted-foreground">
-              A random phone number will be generated based on your preferences.
+              Enter phone number digits only (no formatting)
             </p>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Cancel
           </Button>
-          <Button onClick={handleCreate} className="bg-primary text-primary-foreground hover:bg-primary/90">Create Number</Button>
+          <Button 
+            onClick={handleCreate} 
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={isLoading || !phoneNumber.trim() || !organizationId}
+          >
+            {isLoading ? "Creating..." : "Create Number"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
