@@ -94,3 +94,5 @@ storybook-static
 tmp/
 temp/
 
+
+/lib/generated/prisma

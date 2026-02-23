@@ -3,7 +3,10 @@
  * Handles authentication, error handling, and request/response transformation
  */
 
-const API_BASE_URL = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
+const API_MODE = process.env.NEXT_PUBLIC_API_MODE || 'external'
+const API_BASE_URL = API_MODE === 'local'
+  ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000') + '/api'
+  : (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000')
 
 export interface ApiError {
   message: string

@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  memberships  Membership[]
+  emailInboxes EmailInbox[]
+  phoneInboxes PhoneInbox[]
+  apiKeys      ApiKey[]
+
+  @@map("users")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  emailInboxes  EmailInbox[]
+  phoneInboxes  PhoneInbox[]
+  apiKeys       ApiKey[]
+  webhooks      Webhook[]
+  emailMessages EmailMessage[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String   @default("owner")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("memberships")
+}
+
+model EmailInbox {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  email          String
+  name           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailMessages EmailMessage[]
+
+  @@map("email_inboxes")
+}
+
+model PhoneInbox {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  phoneNumber    String
+  countryCode    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("phone_inboxes")
+}
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  apiKey         String   @unique
+  name           String
+  organizationId String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model EmailMessage {
+  id                  String   @id @default(uuid())
+  from                String
+  to                  String[]
+  bcc                 String[]
+  cc                  String[]
+  subject             String
+  text                String
+  html                String
+  headers             Json
+  externalId          String
+  inboxEmailAddressId String
+  organizationId      String
+  threadId            String
+  parentMessageId     String?
+  messageId           String   @unique
+  inReplyTo           String?
+  references          String[]
+  createdAt           DateTime @default(now())
+
+  inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentMessage     EmailMessage?  @relation("EmailMessageReplies", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies           EmailMessage[] @relation("EmailMessageReplies")
+
+  @@unique([externalId, inboxEmailAddressId])
+  @@index([inboxEmailAddressId])
+  @@index([organizationId])
+  @@index([externalId])
+  @@index([threadId])
+  @@index([parentMessageId])
+  @@index([messageId])
+  @@map("email_messages")
+}
+
+enum WebhookStatus {
+  active
+  inactive
+  failing
+}
+
+enum WebhookEventStatus {
+  pending
+  delivered
+  failed
+}
+
+model Webhook {
+  id             String        @id @default(cuid())
+  name           String
+  url            String
+  events         String[]
+  organizationId String
+  status         WebhookStatus @default(active)
+  secret         String?
+  lastTriggered  DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  webhookEvents WebhookEvent[]
+
+  @@map("webhooks")
+}
+
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  webhookId   String
+  event       String
+  payload     Json
+  status      WebhookEventStatus @default(pending)
+  attempts    Int                @default(0)
+  createdAt   DateTime           @default(now())
+  deliveredAt DateTime?
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_events")
+}
