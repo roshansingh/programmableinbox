@@ -25,32 +25,26 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { getApiKeys, createApiKey, deleteApiKey, type ApiKey } from "@/lib/api/api-keys.api"
-import { getCurrentUser } from "@/lib/api/auth.api"
+import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 
 export default function ApiKeysPage() {
+  const { organizationId } = useAuth()
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [newKeyName, setNewKeyName] = useState("")
   const [createdKey, setCreatedKey] = useState<string | null>(null)
-  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!organizationId) return
+
     const fetchData = async () => {
       try {
-        // Get current user to get organization ID
-        const user = await getCurrentUser()
-        if (user.organizations && user.organizations.length > 0) {
-          const orgId = user.organizations[0].id
-          setCurrentOrgId(orgId)
-          
-          // Fetch API keys
-          const keys = await getApiKeys({ organizationId: orgId })
-          setApiKeys(keys)
-        }
+        const keys = await getApiKeys({ organizationId })
+        setApiKeys(keys)
       } catch (error: any) {
         toast.error(error?.message || "Failed to load API keys")
       } finally {
@@ -59,7 +53,7 @@ export default function ApiKeysPage() {
     }
 
     fetchData()
-  }, [])
+  }, [organizationId])
 
   const toggleKeyVisibility = (id: string) => {
     setVisibleKeys((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -95,14 +89,14 @@ export default function ApiKeysPage() {
       return
     }
 
-    if (!currentOrgId) {
+    if (!organizationId) {
       toast.error("Organization ID is required")
       return
     }
 
     try {
       const newKey = await createApiKey({
-        organizationId: currentOrgId,
+        organizationId,
         name: newKeyName.trim(),
       })
       setApiKeys([newKey, ...apiKeys])
@@ -184,7 +178,7 @@ export default function ApiKeysPage() {
                       </Button>
                       <Button 
                         onClick={handleCreateApiKey} 
-                        disabled={!newKeyName.trim() || !currentOrgId}
+                        disabled={!newKeyName.trim() || !organizationId}
                       >
                         Create Key
                       </Button>
