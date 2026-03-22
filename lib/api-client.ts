@@ -3,10 +3,7 @@
  * Handles authentication, error handling, and request/response transformation
  */
 
-const API_MODE = process.env.NEXT_PUBLIC_API_MODE || 'external'
-const API_BASE_URL = API_MODE === 'local'
-  ? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000') + '/api'
-  : (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000')
+const API_BASE_URL = (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000') + '/api'
 
 export interface ApiError {
   message: string
@@ -128,9 +125,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
     }
 
     // Handle 401 Unauthorized - clear token and redirect to login
+    // Skip redirect if already on an auth page to avoid reload loops
     if (response.status === 401) {
       removeAuthToken()
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/')) {
         window.location.href = '/auth/login'
       }
     }
