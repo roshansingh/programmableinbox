@@ -24,6 +24,20 @@ interface ResendEmailData {
   html?: string
   headers: Record<string, string>
   created_at: string
+  message_id?: string
+}
+
+/**
+ * Get a header value by name, case-insensitive.
+ * Email headers are case-insensitive per RFC 2822.
+ */
+function getHeader(headers: Record<string, string> | undefined, name: string): string | null {
+  if (!headers) return null
+  const lowerName = name.toLowerCase()
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName) return value
+  }
+  return null
 }
 
 function validateSignature(
@@ -59,26 +73,65 @@ function validateSignature(
   }
 }
 
-async function determineThreading(email: ResendEmailData, messageId: string) {
-  const emailMessageId = email.headers?.['message-id'] || null
-  const inReplyTo = email.headers?.['in-reply-to'] || null
-  const referencesHeader = email.headers?.['references'] || ''
+/**
+ * Strip Re:/Fwd:/Fw: prefixes from a subject line to get the base subject.
+ */
+function normalizeSubject(subject: string): string {
+  return subject.replace(/^(Re|Fwd|Fw):\s*/gi, '').trim()
+}
+
+async function determineThreading(email: ResendEmailData, dbId: string, inboxId: string) {
+  // Use the top-level message_id from Resend, or the Message-ID header, or generate a fallback
+  const emailMessageId = email.message_id
+    || getHeader(email.headers, 'message-id')
+    || `<${email.id}@inboxui.generated>`
+  const inReplyTo = getHeader(email.headers, 'in-reply-to')
+  const referencesHeader = getHeader(email.headers, 'references') || ''
   const references = referencesHeader
     ? referencesHeader.split(/\s+/).filter(Boolean)
     : []
 
+  // 1. Try matching by In-Reply-To / References headers
   if (inReplyTo || references.length > 0) {
-    const parentMessageIdHeader = inReplyTo || references[0]
+    const candidates = [inReplyTo, ...references].filter(Boolean) as string[]
 
-    const parentMessage = await prisma.emailMessage.findFirst({
-      where: { messageId: parentMessageIdHeader },
+    for (const candidate of candidates) {
+      const parentMessage = await prisma.emailMessage.findFirst({
+        where: { messageId: candidate },
+        select: { id: true, threadId: true },
+      })
+
+      if (parentMessage) {
+        return {
+          threadId: parentMessage.threadId,
+          parentMessageId: parentMessage.id,
+          messageId: emailMessageId,
+          inReplyTo,
+          references,
+        }
+      }
+    }
+  }
+
+  // 2. Fallback: match by subject within the same inbox.
+  //    This catches replies where the In-Reply-To references a Message-ID we don't have
+  //    (e.g. Resend assigns its own Message-ID to outgoing emails).
+  const baseSubject = normalizeSubject(email.subject)
+  if (baseSubject && baseSubject !== email.subject) {
+    // Subject had a Re:/Fwd: prefix, so this is likely a reply
+    const existingMessage = await prisma.emailMessage.findFirst({
+      where: {
+        inboxEmailAddressId: inboxId,
+        subject: baseSubject,
+      },
+      orderBy: { createdAt: 'asc' },
       select: { id: true, threadId: true },
     })
 
-    if (parentMessage) {
+    if (existingMessage) {
       return {
-        threadId: parentMessage.threadId,
-        parentMessageId: parentMessage.id,
+        threadId: existingMessage.threadId,
+        parentMessageId: existingMessage.id,
         messageId: emailMessageId,
         inReplyTo,
         references,
@@ -87,7 +140,7 @@ async function determineThreading(email: ResendEmailData, messageId: string) {
   }
 
   return {
-    threadId: messageId,
+    threadId: dbId,
     parentMessageId: null,
     messageId: emailMessageId,
     inReplyTo: null,
@@ -116,7 +169,7 @@ async function storeIncomingEmail(resendEmail: ResendEmailData) {
   for (const inbox of matchingInboxes) {
     try {
       const messageId = crypto.randomUUID()
-      const threading = await determineThreading(resendEmail, messageId)
+      const threading = await determineThreading(resendEmail, messageId, inbox.id)
 
       const message = await prisma.emailMessage.create({
         data: {
@@ -134,7 +187,7 @@ async function storeIncomingEmail(resendEmail: ResendEmailData) {
           organizationId: inbox.organizationId,
           threadId: threading.threadId,
           parentMessageId: threading.parentMessageId,
-          messageId: threading.messageId || '',
+          messageId: threading.messageId,
           inReplyTo: threading.inReplyTo,
           references: threading.references,
         },
@@ -194,6 +247,7 @@ export async function POST(request: NextRequest) {
       html: email.html || '',
       headers: email.headers || {},
       created_at: email.created_at || new Date().toISOString(),
+      message_id: (email as any).message_id,
     }
 
     const stored = await storeIncomingEmail(resendEmail)
