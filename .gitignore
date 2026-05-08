@@ -2,6 +2,7 @@
 
 repo-info.md
 plans/
+.worktrees/
 
 # dependencies
 /node_modules
