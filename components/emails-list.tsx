@@ -8,30 +8,24 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Mail, Copy, Trash2, ExternalLink } from 'lucide-react'
 import { CreateEmailDialog } from "@/components/create-email-dialog"
 import { getEmailInboxes, deleteEmailInbox, type InboxEmail } from "@/lib/api/emails.api"
-import { getCurrentUser } from "@/lib/api/auth.api"
+import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 
 export function EmailsList() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const router = useRouter()
+  const { organizationId } = useAuth()
   const [emails, setEmails] = useState<InboxEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!organizationId) return
+
     const fetchData = async () => {
       try {
-        // Get current user to get organization ID
-        const user = await getCurrentUser()
-        if (user.organizations && user.organizations.length > 0) {
-          const orgId = user.organizations[0].id
-          setCurrentOrgId(orgId)
-          
-          // Fetch email inboxes
-          const inboxes = await getEmailInboxes({ organizationId: orgId })
-          setEmails(inboxes)
-        }
+        const inboxes = await getEmailInboxes({ organizationId })
+        setEmails(inboxes)
       } catch (error: any) {
         toast.error(error?.message || "Failed to load email inboxes")
       } finally {
@@ -40,7 +34,7 @@ export function EmailsList() {
     }
 
     fetchData()
-  }, [])
+  }, [organizationId])
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -62,11 +56,11 @@ export function EmailsList() {
   }
 
   const handleRefresh = async () => {
-    if (!currentOrgId) return
-    
+    if (!organizationId) return
+
     setIsLoading(true)
     try {
-      const inboxes = await getEmailInboxes({ organizationId: currentOrgId })
+      const inboxes = await getEmailInboxes({ organizationId })
       setEmails(inboxes)
     } catch (error: any) {
       toast.error(error?.message || "Failed to refresh email inboxes")
@@ -196,7 +190,7 @@ export function EmailsList() {
       <CreateEmailDialog 
         open={showCreateDialog} 
         onOpenChange={setShowCreateDialog}
-        organizationId={currentOrgId || undefined}
+        organizationId={organizationId || undefined}
         onSuccess={handleRefresh}
       />
     </>

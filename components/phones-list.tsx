@@ -8,29 +8,23 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Phone, Copy, Trash2, ExternalLink } from 'lucide-react'
 import { CreatePhoneDialog } from "@/components/create-phone-dialog"
 import { getPhoneInboxes, deletePhoneInbox, type InboxPhone } from "@/lib/api/phones.api"
-import { getCurrentUser } from "@/lib/api/auth.api"
+import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 
 export function PhonesList() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const { organizationId } = useAuth()
   const [phones, setPhones] = useState<InboxPhone[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!organizationId) return
+
     const fetchData = async () => {
       try {
-        // Get current user to get organization ID
-        const user = await getCurrentUser()
-        if (user.organizations && user.organizations.length > 0) {
-          const orgId = user.organizations[0].id
-          setCurrentOrgId(orgId)
-          
-          // Fetch phone inboxes
-          const inboxes = await getPhoneInboxes({ organizationId: orgId })
-          setPhones(inboxes)
-        }
+        const inboxes = await getPhoneInboxes({ organizationId })
+        setPhones(inboxes)
       } catch (error: any) {
         toast.error(error?.message || "Failed to load phone inboxes")
       } finally {
@@ -39,7 +33,7 @@ export function PhonesList() {
     }
 
     fetchData()
-  }, [])
+  }, [organizationId])
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -61,11 +55,11 @@ export function PhonesList() {
   }
 
   const handleRefresh = async () => {
-    if (!currentOrgId) return
-    
+    if (!organizationId) return
+
     setIsLoading(true)
     try {
-      const inboxes = await getPhoneInboxes({ organizationId: currentOrgId })
+      const inboxes = await getPhoneInboxes({ organizationId })
       setPhones(inboxes)
     } catch (error: any) {
       toast.error(error?.message || "Failed to refresh phone inboxes")
@@ -200,7 +194,7 @@ export function PhonesList() {
       <CreatePhoneDialog 
         open={showCreateDialog} 
         onOpenChange={setShowCreateDialog}
-        organizationId={currentOrgId || undefined}
+        organizationId={organizationId || undefined}
         onSuccess={handleRefresh}
       />
     </>

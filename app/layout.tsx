@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 // import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { AuthProvider } from '@/components/auth-provider'
 import { AuthGuard } from '@/components/auth-guard'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -56,9 +57,11 @@ export default function RootLayout({
         />
       </head>
       <body className={`font-sans antialiased`}>
-        <AuthGuard>
-          {children}
-        </AuthGuard>
+        <AuthProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+        </AuthProvider>
         <Toaster />
         {/* <Analytics /> */}
       </body>

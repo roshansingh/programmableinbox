@@ -1,0 +1,49 @@
+import { NextRequest } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getAuthenticatedUser } from '@/lib/auth-server'
+import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+
+export async function GET(request: NextRequest) {
+  const user = await getAuthenticatedUser(request)
+  if (!user) return jsonError('Unauthorized', 401)
+
+  const organizationId = request.nextUrl.searchParams.get('organizationId')
+
+  const where: { userId: string; organizationId?: string } = { userId: user.id }
+  if (organizationId) where.organizationId = organizationId
+
+  const inboxes = await prisma.phoneInbox.findMany({ where })
+
+  return jsonSuccess(inboxes)
+}
+
+export async function POST(request: NextRequest) {
+  const user = await getAuthenticatedUser(request)
+  if (!user) return jsonError('Unauthorized', 401)
+
+  try {
+    const { organizationId, phoneNumber, countryCode } = await request.json()
+
+    if (!organizationId || !phoneNumber || !countryCode) {
+      return jsonError('organizationId, phoneNumber, and countryCode are required', 400)
+    }
+
+    const membership = user.memberships.find((m) => m.organizationId === organizationId)
+    if (!membership) {
+      return jsonError('Not a member of this organization', 403)
+    }
+
+    const inbox = await prisma.phoneInbox.create({
+      data: {
+        organizationId,
+        userId: user.id,
+        phoneNumber,
+        countryCode,
+      },
+    })
+
+    return jsonSuccess(inbox, 201)
+  } catch {
+    return jsonError('Internal server error', 500)
+  }
+}

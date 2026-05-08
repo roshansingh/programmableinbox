@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Inbox } from 'lucide-react'
-import { signIn, getCurrentUser } from "@/lib/api/auth.api"
+import { signIn } from "@/lib/api/auth.api"
+import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 
 export default function LoginPage() {
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const { refreshUser } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -25,10 +27,10 @@ export default function LoginPage() {
     try {
       // Sign in to establish session
       await signIn({ email, password })
-      
-      // Verify session by fetching user details
-      await getCurrentUser()
-      
+
+      // Update auth state so AuthGuard allows navigation
+      await refreshUser()
+
       // Redirect to the intended destination or dashboard
       const redirect = searchParams.get('redirect')
       router.push(redirect || '/')

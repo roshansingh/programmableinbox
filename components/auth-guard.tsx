@@ -1,60 +1,31 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { getCurrentUser } from '@/lib/api/auth.api'
+import { useAuth } from '@/components/auth-provider'
 
 interface AuthGuardProps {
   children: React.ReactNode
 }
 
-/**
- * AuthGuard component
- * Protects routes by checking authentication status via session
- * Verifies authentication by calling /auth/me endpoint
- * Redirects to /auth/login if not authenticated
- */
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register']
+
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isChecking, setIsChecking] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { isLoading, isAuthenticated } = useAuth()
+
+  const isPublicRoute = PUBLIC_ROUTES.some(route =>
+    pathname === route || pathname.startsWith(route + '/')
+  )
 
   useEffect(() => {
-    const verifyAuth = async () => {
-      // Public routes that don't require authentication
-      const publicRoutes = ['/auth/login', '/auth/register']
-      const isPublicRoute = publicRoutes.some(route => 
-        pathname === route || pathname.startsWith(route + '/')
-      )
-
-      // If it's a public route, allow access
-      if (isPublicRoute) {
-        setIsChecking(false)
-        setIsAuthenticated(false)
-        return
-      }
-
-      // Verify authentication by calling /auth/me
-      try {
-        await getCurrentUser()
-        // If successful, user is authenticated
-        setIsAuthenticated(true)
-        setIsChecking(false)
-      } catch (error) {
-        // If /auth/me fails, user is not authenticated
-        setIsAuthenticated(false)
-        setIsChecking(false)
-        // Redirect to login, preserving the intended destination
-        router.push(`/auth/login?redirect=${encodeURIComponent(pathname)}`)
-      }
+    if (!isLoading && !isAuthenticated && !isPublicRoute) {
+      router.push(`/auth/login?redirect=${encodeURIComponent(pathname)}`)
     }
+  }, [isLoading, isAuthenticated, isPublicRoute, pathname, router])
 
-    verifyAuth()
-  }, [pathname, router])
-
-  // Show loading state while checking
-  if (isChecking) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -62,13 +33,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     )
   }
 
-  // If not authenticated and not a public route, don't render children (redirect is happening)
-  if (!isAuthenticated && !['/auth/login', '/auth/register'].some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  )) {
+  if (!isAuthenticated && !isPublicRoute) {
     return null
   }
 
   return <>{children}</>
 }
-

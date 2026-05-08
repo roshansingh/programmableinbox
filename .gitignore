@@ -2,6 +2,7 @@
 
 repo-info.md
 plans/
+.worktrees/
 
 # dependencies
 /node_modules
@@ -94,3 +95,5 @@ storybook-static
 tmp/
 temp/
 
+
+/lib/generated/prisma
