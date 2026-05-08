@@ -21,6 +21,7 @@ model User {
   emailInboxes EmailInbox[]
   phoneInboxes PhoneInbox[]
   apiKeys      ApiKey[]
+  automationRevisionsCreated AutomationRevision[]
 
   @@map("users")
 }
@@ -38,6 +39,8 @@ model Organization {
   apiKeys       ApiKey[]
   webhooks      Webhook[]
   emailMessages EmailMessage[]
+  automations   Automation[]
+  automationRuns AutomationRun[]
 
   @@map("organizations")
 }
@@ -69,6 +72,8 @@ model EmailInbox {
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   emailMessages EmailMessage[]
+  automations   Automation[]
+  autoReplyLedgers AutoReplyLedger[]
 
   @@map("email_inboxes")
 }
@@ -120,12 +125,15 @@ model EmailMessage {
   messageId           String   @unique
   inReplyTo           String?
   references          String[]
+  tags                String[] @default([])
   createdAt           DateTime @default(now())
 
   inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
   organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   parentMessage     EmailMessage?  @relation("EmailMessageReplies", fields: [parentMessageId], references: [id], onDelete: SetNull)
   replies           EmailMessage[] @relation("EmailMessageReplies")
+  automationRuns    AutomationRun[]
+  attachments       EmailAttachment[]
 
   @@unique([externalId, inboxEmailAddressId])
   @@index([inboxEmailAddressId])
@@ -141,6 +149,15 @@ enum WebhookStatus {
   active
   inactive
   failing
+}
+
+enum AutomationRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  partial
+  skipped
 }
 
 enum WebhookEventStatus {
@@ -180,4 +197,122 @@ model WebhookEvent {
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@map("webhook_events")
+}
+
+model Automation {
+  id               String   @id @default(cuid())
+  organizationId   String
+  inboxId          String?
+  name             String
+  description      String?
+  isActive         Boolean  @default(true)
+  activeRevisionId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inbox           EmailInbox?          @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+  activeRevision  AutomationRevision?  @relation("AutomationActiveRevision", fields: [activeRevisionId], references: [id], onDelete: SetNull)
+  revisions       AutomationRevision[] @relation("AutomationRevisions")
+  runs            AutomationRun[]
+  autoReplyLedger AutoReplyLedger[]
+
+  @@index([organizationId])
+  @@index([inboxId])
+  @@map("automations")
+}
+
+model AutomationRevision {
+  id              String   @id @default(cuid())
+  automationId    String
+  revision        Int
+  schemaVersion   Int
+  config          Json
+  layout          Json?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  automation    Automation   @relation("AutomationRevisions", fields: [automationId], references: [id], onDelete: Cascade)
+  activeFor     Automation[] @relation("AutomationActiveRevision")
+  createdByUser User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  runs          AutomationRun[]
+
+  @@unique([automationId, revision])
+  @@index([automationId])
+  @@index([createdByUserId])
+  @@map("automation_revisions")
+}
+
+model AutomationRun {
+  id                   String              @id @default(cuid())
+  automationId         String
+  automationRevisionId String
+  organizationId       String
+  emailMessageId       String?
+  triggerType          String
+  status               AutomationRunStatus
+  isDryRun             Boolean             @default(false)
+  inputSnapshot        Json
+  error                Json?
+  startedAt            DateTime            @default(now())
+  finishedAt           DateTime?
+
+  automation         Automation         @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  automationRevision AutomationRevision @relation(fields: [automationRevisionId], references: [id], onDelete: Cascade)
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailMessage       EmailMessage?      @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  nodeRuns           AutomationNodeRun[]
+
+  @@index([automationId])
+  @@index([automationRevisionId])
+  @@index([organizationId])
+  @@index([emailMessageId])
+  @@map("automation_runs")
+}
+
+model AutomationNodeRun {
+  id             String              @id @default(cuid())
+  runId          String
+  configNodeId   String
+  configNodeType String
+  status         AutomationRunStatus
+  branchTaken    String?
+  input          Json?
+  output         Json?
+  error          Json?
+  startedAt      DateTime            @default(now())
+  finishedAt     DateTime?
+
+  run AutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("automation_node_runs")
+}
+
+model EmailAttachment {
+  id             String   @id @default(cuid())
+  emailMessageId String
+  filename       String
+  contentType    String?
+  sizeBytes      Int?
+  createdAt      DateTime @default(now())
+
+  emailMessage EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+
+  @@index([emailMessageId])
+  @@map("email_attachments")
+}
+
+model AutoReplyLedger {
+  id           String   @id @default(cuid())
+  automationId String
+  inboxId      String
+  fromEmail    String
+  lastSentAt   DateTime
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  inbox      EmailInbox  @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+
+  @@unique([automationId, inboxId, fromEmail])
+  @@map("auto_reply_ledgers")
 }
