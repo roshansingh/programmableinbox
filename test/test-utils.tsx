@@ -17,7 +17,7 @@ function customRender(
   ui: React.ReactElement,
   options?: Omit<RenderOptions, 'wrapper'>
 ) {
-  const user = userEvent.setup()
+  const user = userEvent.setup({ writeToClipboard: false })
   return {
     user,
     ...render(ui, { wrapper: AllProviders, ...options }),
@@ -28,7 +28,7 @@ function renderWithoutAuth(
   ui: React.ReactElement,
   options?: Omit<RenderOptions, 'wrapper'>
 ) {
-  const user = userEvent.setup()
+  const user = userEvent.setup({ writeToClipboard: false })
   return {
     user,
     ...render(ui, options),

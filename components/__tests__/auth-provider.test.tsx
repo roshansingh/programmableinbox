@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/components/auth-provider'
 import { mockUser } from '@/test/mocks/fixtures/users'
 
@@ -59,7 +59,9 @@ describe('AuthProvider', () => {
       expect(result.current.isAuthenticated).toBe(true)
     })
 
-    await result.current.refreshUser()
+    await act(async () => {
+      await result.current.refreshUser()
+    })
 
     expect(result.current.isAuthenticated).toBe(true)
     expect(result.current.user).toEqual(mockUser)
