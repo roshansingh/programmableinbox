@@ -18,8 +18,12 @@ function matchesString(operator: string, haystack: string, needle: string): bool
   switch (operator) {
     case 'equals':
       return haystack === needle
+    case 'not_equals':
+      return haystack !== needle
     case 'contains':
       return haystack.includes(needle)
+    case 'not_contains':
+      return !haystack.includes(needle)
     case 'starts_with':
       return haystack.startsWith(needle)
     case 'ends_with':
@@ -28,6 +32,8 @@ function matchesString(operator: string, haystack: string, needle: string): bool
       return new RegExp(needle).test(haystack)
     case 'exists':
       return haystack.length > 0
+    case 'not_exists':
+      return haystack.length === 0
     default:
       return false
   }
@@ -45,6 +51,12 @@ export function evaluateCondition(condition: ConditionExprV1, input: EmailAutoma
     if (condition.operator === 'exists') {
       return true
     }
+    if (condition.operator === 'not_exists') {
+      return false
+    }
+    if (condition.operator === 'not_equals') {
+      return input.hasAttachment !== Boolean(condition.value)
+    }
     return input.hasAttachment === Boolean(condition.value)
   }
 
@@ -52,6 +64,9 @@ export function evaluateCondition(condition: ConditionExprV1, input: EmailAutoma
     const headerValue = condition.headerName ? getHeaderValue(input.headers, condition.headerName) : null
     if (condition.operator === 'exists') {
       return Boolean(headerValue)
+    }
+    if (condition.operator === 'not_exists') {
+      return !headerValue
     }
     return headerValue ? matchesString(condition.operator, headerValue.toLowerCase(), String(condition.value ?? '').toLowerCase()) : false
   }
@@ -67,6 +82,9 @@ export function evaluateCondition(condition: ConditionExprV1, input: EmailAutoma
   const candidates = lookup[condition.field] ?? []
   if (condition.operator === 'exists') {
     return candidates.some((value) => value.length > 0)
+  }
+  if (condition.operator === 'not_exists') {
+    return candidates.every((value) => value.length === 0)
   }
 
   const needle = String(condition.value ?? '').toLowerCase()

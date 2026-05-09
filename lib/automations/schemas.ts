@@ -14,7 +14,17 @@ const predicateSchema: z.ZodTypeAny = z
     type: z.literal('predicate'),
     version: z.literal(1),
     field: z.enum(['from', 'to', 'cc', 'subject', 'body_text', 'header', 'has_attachment']),
-    operator: z.enum(['equals', 'contains', 'starts_with', 'ends_with', 'regex', 'exists']),
+    operator: z.enum([
+      'equals',
+      'not_equals',
+      'contains',
+      'not_contains',
+      'starts_with',
+      'ends_with',
+      'regex',
+      'exists',
+      'not_exists',
+    ]),
     value: z.union([z.string(), z.boolean()]).optional(),
     headerName: z.string().trim().min(1).optional(),
   })
@@ -24,13 +34,26 @@ const predicateSchema: z.ZodTypeAny = z
     }
 
     if (value.field === 'has_attachment') {
-      if (value.operator !== 'equals' && value.operator !== 'exists') {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'has_attachment supports equals or exists only' })
+      if (!['equals', 'not_equals', 'exists', 'not_exists'].includes(value.operator)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'has_attachment supports equals, not_equals, exists, or not_exists only',
+        })
       }
-      if (value.operator === 'equals' && typeof value.value !== 'boolean') {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'has_attachment equals requires a boolean value' })
+      if (
+        (value.operator === 'equals' || value.operator === 'not_equals') &&
+        typeof value.value !== 'boolean'
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'has_attachment equals and not_equals require a boolean value',
+        })
       }
-    } else if (value.operator !== 'exists' && typeof value.value !== 'string') {
+    } else if (
+      value.operator !== 'exists' &&
+      value.operator !== 'not_exists' &&
+      typeof value.value !== 'string'
+    ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'string predicates require a string value' })
     }
 
@@ -154,7 +177,7 @@ export const automationEdgeSchema = z.object({
   type: z.literal('edge'),
   version: z.literal(1),
   sourceNodeId: z.string().min(1),
-  sourceHandle: z.enum(['matched', 'unmatched', 'next']).optional(),
+  sourceHandle: z.literal('next').optional(),
   targetNodeId: z.string().min(1),
 })
 
@@ -184,27 +207,86 @@ export const automationConfigSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'top-level trigger must exist in nodes' })
     }
 
+    const incoming = new Map<string, typeof config.edges>()
     const outgoing = new Map<string, typeof config.edges>()
+    const seenEdgeKeys = new Set<string>()
+
     for (const edge of config.edges) {
-      if (!nodeMap.has(edge.sourceNodeId) || !nodeMap.has(edge.targetNodeId)) {
+      const source = nodeMap.get(edge.sourceNodeId)
+      const target = nodeMap.get(edge.targetNodeId)
+
+      if (!source || !target) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `edge ${edge.id} references missing node` })
+        continue
       }
+
+      if (edge.sourceNodeId === edge.targetNodeId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `edge ${edge.id} may not be a self-loop` })
+      }
+
+      const duplicateKey = `${edge.sourceNodeId}:${edge.targetNodeId}:${edge.sourceHandle ?? 'next'}`
+      if (seenEdgeKeys.has(duplicateKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `edge ${edge.id} duplicates an existing connection`,
+        })
+      }
+      seenEdgeKeys.add(duplicateKey)
+
+      const allowed =
+        (source.type === 'trigger' && (target.type === 'condition' || target.type === 'action')) ||
+        (source.type === 'condition' && (target.type === 'condition' || target.type === 'action'))
+
+      if (!allowed) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `invalid connection ${source.id} -> ${target.id}`,
+        })
+      }
+
       outgoing.set(edge.sourceNodeId, [...(outgoing.get(edge.sourceNodeId) ?? []), edge])
+      incoming.set(edge.targetNodeId, [...(incoming.get(edge.targetNodeId) ?? []), edge])
+    }
+
+    const reachable = new Set<string>()
+    const queue = [config.trigger.id]
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (!current || reachable.has(current)) continue
+      reachable.add(current)
+      for (const edge of outgoing.get(current) ?? []) {
+        queue.push(edge.targetNodeId)
+      }
     }
 
     for (const node of config.nodes) {
-      const edges = outgoing.get(node.id) ?? []
-      if (node.type === 'condition') {
-        const matched = edges.filter((edge) => edge.sourceHandle === 'matched').length
-        const unmatched = edges.filter((edge) => edge.sourceHandle === 'unmatched').length
-        if (matched > 1 || unmatched > 1) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `condition node ${node.id} may have at most one matched and one unmatched edge` })
-        }
-      } else if (node.type === 'action' && edges.length > 1) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `action node ${node.id} may have at most one outgoing edge` })
-      } else if (node.type === 'trigger' && edges.length > 1) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `trigger node ${node.id} may have at most one outgoing edge` })
+      if (node.type === 'trigger' && (incoming.get(node.id)?.length ?? 0) > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `trigger node ${node.id} cannot have incoming edges`,
+        })
       }
+
+      if (node.type === 'action' && (outgoing.get(node.id)?.length ?? 0) > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `action node ${node.id} cannot have outgoing edges`,
+        })
+      }
+
+      if (!reachable.has(node.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `node ${node.id} is disconnected` })
+      }
+    }
+
+    const hasReachableAction = config.nodes.some(
+      (node) => node.type === 'action' && reachable.has(node.id)
+    )
+    if (!hasReachableAction) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'at least one reachable action is required from the trigger',
+      })
     }
   })
 

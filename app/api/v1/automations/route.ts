@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
       inboxId,
       name,
       description,
+      isActive: false,
       revisions: {
         create: {
           revision: 1,
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
   })
 
   const revision = created.revisions[0]
-  const activated = await prisma.automation.update({
+  const finalized = await prisma.automation.update({
     where: { id: created.id },
     data: {
       activeRevisionId: revision.id,
@@ -114,5 +115,5 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return jsonSuccess(formatAutomationRecord(activated), 201)
+  return jsonSuccess(formatAutomationRecord(finalized), 201)
 }

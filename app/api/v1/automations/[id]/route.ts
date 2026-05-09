@@ -3,6 +3,7 @@ import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
+import { validateAutomationGraph } from '@/lib/automations/validation'
 import {
   formatAutomationRecord,
   loadAutomationForUser,
@@ -42,6 +43,19 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   const nextConfig = parsed.body.config ? parseAutomationConfig(parsed.body.config) : null
   const nextLayout = parsed.body.layout ? parseAutomationLayout(parsed.body.layout) : null
+  const effectiveConfig =
+    nextConfig ?? (automation.activeRevision ? parseAutomationConfig(automation.activeRevision.config) : null)
+
+  if (shellData.isActive === true) {
+    if (!effectiveConfig) {
+      return jsonError('Automation must have a saved configuration before it can be started', 400)
+    }
+
+    const validation = validateAutomationGraph(effectiveConfig)
+    if (!validation.canStart) {
+      return jsonError(validation.issues[0]?.message ?? 'Automation is not ready to start', 400)
+    }
+  }
 
   let revisionId = automation.activeRevisionId
   if (nextConfig || nextLayout) {

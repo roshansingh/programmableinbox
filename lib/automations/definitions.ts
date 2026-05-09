@@ -159,21 +159,27 @@ export function createDefaultAutomationConfig(): AutomationConfig {
         version: 1,
         sourceNodeId: 'condition_subject',
         targetNodeId: 'action_webhook',
-        sourceHandle: 'matched',
+        sourceHandle: 'next',
       },
     ],
   }
 }
 
+export const NODE_LAYOUT_START_X = 80
+export const NODE_LAYOUT_BASE_Y = 160
+export const NODE_LAYOUT_COLUMN_GAP = 360
+export const NODE_LAYOUT_ROW_GAP = 140
+
+export function defaultNodePosition(index: number) {
+  return {
+    x: NODE_LAYOUT_START_X + index * NODE_LAYOUT_COLUMN_GAP,
+    y: NODE_LAYOUT_BASE_Y,
+  }
+}
+
 export function createDefaultAutomationLayout(config: AutomationConfig): AutomationLayout {
   const positions = Object.fromEntries(
-    config.nodes.map((node, index) => [
-      node.id,
-      {
-        x: index * 260 + 80,
-        y: node.type === 'trigger' ? 120 : 180,
-      },
-    ])
+    config.nodes.map((node, index) => [node.id, defaultNodePosition(index)])
   )
 
   return {

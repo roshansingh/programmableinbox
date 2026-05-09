@@ -3,8 +3,15 @@ import type {
   AutomationFlowEdge,
   AutomationFlowNode,
   AutomationLayout,
+  AutomationNodeKind,
   AutomationNodeConfig,
 } from './types'
+import {
+  NODE_LAYOUT_BASE_Y,
+  NODE_LAYOUT_COLUMN_GAP,
+  NODE_LAYOUT_ROW_GAP,
+  NODE_LAYOUT_START_X,
+} from './definitions'
 
 function describeNode(node: AutomationNodeConfig): { label: string; subtitle: string } {
   if (node.type === 'trigger') {
@@ -28,15 +35,66 @@ function describeNode(node: AutomationNodeConfig): { label: string; subtitle: st
   }
 }
 
+function getBranchHandles(node: AutomationNodeConfig) {
+  if (node.type === 'action') return [] as const
+  return ['next'] as const
+}
+
+function getNodeKind(node: AutomationNodeConfig): AutomationNodeKind {
+  return node.type
+}
+
+function computeFallbackPositions(config: AutomationConfig) {
+  const outgoing = new Map<string, string[]>()
+  for (const edge of config.edges) {
+    const list = outgoing.get(edge.sourceNodeId) ?? []
+    list.push(edge.targetNodeId)
+    outgoing.set(edge.sourceNodeId, list)
+  }
+
+  const depthById = new Map<string, number>()
+  const queue: { id: string; depth: number }[] = [{ id: config.trigger.id, depth: 0 }]
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    if (depthById.has(current.id)) continue
+    depthById.set(current.id, current.depth)
+    for (const targetId of outgoing.get(current.id) ?? []) {
+      if (!depthById.has(targetId)) {
+        queue.push({ id: targetId, depth: current.depth + 1 })
+      }
+    }
+  }
+
+  const slotByDepth = new Map<number, number>()
+  const positions = new Map<string, { x: number; y: number }>()
+
+  for (const node of config.nodes) {
+    const depth = depthById.get(node.id) ?? depthById.size
+    const slot = slotByDepth.get(depth) ?? 0
+    slotByDepth.set(depth, slot + 1)
+    positions.set(node.id, {
+      x: NODE_LAYOUT_START_X + depth * NODE_LAYOUT_COLUMN_GAP,
+      y: NODE_LAYOUT_BASE_Y + slot * NODE_LAYOUT_ROW_GAP,
+    })
+  }
+
+  return positions
+}
+
 export function compileAutomationGraph(
   config: AutomationConfig,
   layout: AutomationLayout
 ): { nodes: AutomationFlowNode[]; edges: AutomationFlowEdge[] } {
-  const nodes = config.nodes.map((node, index) => {
-    const position = layout.positions[node.id] ?? {
-      x: node.type === 'trigger' ? 40 : 300 + index * 220,
-      y: 80 + index * 40,
-    }
+  const fallbackPositions = computeFallbackPositions(config)
+
+  const nodes = config.nodes.map((node) => {
+    const position =
+      layout.positions[node.id] ??
+      fallbackPositions.get(node.id) ?? {
+        x: NODE_LAYOUT_START_X,
+        y: NODE_LAYOUT_BASE_Y,
+      }
     const meta = describeNode(node)
     return {
       id: node.id,
@@ -50,18 +108,35 @@ export function compileAutomationGraph(
       data: {
         label: meta.label,
         subtitle: meta.subtitle,
+        nodeKind: getNodeKind(node),
+        configNodeId: node.id,
+        configNodeType:
+          node.type === 'trigger'
+            ? node.triggerType
+            : node.type === 'condition'
+              ? node.conditionType
+              : node.actionType,
+        branchHandles: [...getBranchHandles(node)],
         configNode: node,
       },
     } satisfies AutomationFlowNode
   })
 
-  const edges = config.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.sourceNodeId,
-    target: edge.targetNodeId,
-    label: edge.sourceHandle,
-    sourceHandle: edge.sourceHandle,
-  }))
+  const edges = config.edges.map((edge) => {
+    const branch = edge.sourceHandle ?? 'next'
+
+    return {
+      id: edge.id,
+      source: edge.sourceNodeId,
+      target: edge.targetNodeId,
+      sourceHandle: branch,
+      type: 'smoothstep',
+      markerEnd: { type: 'arrowclosed', width: 18, height: 18 },
+      data: {
+        branch,
+      },
+    }
+  })
 
   return { nodes, edges }
 }

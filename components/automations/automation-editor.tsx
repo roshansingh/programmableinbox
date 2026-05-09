@@ -4,15 +4,18 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Background,
   Controls,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   applyNodeChanges,
+  type Connection,
   type Node,
   type NodeChange,
+  type Edge,
+  type NodeMouseHandler,
+  type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Copy, Play, Save } from 'lucide-react'
+import { Copy, Play, Save, Square } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,8 +28,34 @@ import {
   updateAutomation,
   type AutomationRecord,
 } from '@/lib/api/automations.api'
-import type { AutomationLayout } from '@/lib/automations/types'
+import type {
+  ActionNodeConfig,
+  AutomationConfig,
+  AutomationLayout,
+  AutomationNodeConfig,
+  ConditionExprV1,
+} from '@/lib/automations/types'
+import {
+  addChildNode,
+  compileEditorGraph,
+  connectNodes,
+  getConfigNode,
+  updateActionConfig,
+  updateConditionConfig,
+  updateLayoutFromNodes,
+  validateAutomationGraph,
+} from './editor-state'
+import { TriggerNode } from './nodes/trigger-node'
+import { ConditionNode } from './nodes/condition-node'
+import { ActionNode } from './nodes/action-node'
 import { RunHistoryPanel } from './run-history-panel'
+import { NodeConfigSheet } from './node-config-sheet'
+
+const nodeTypes: NodeTypes = {
+  triggerNode: TriggerNode,
+  conditionNode: ConditionNode,
+  actionNode: ActionNode,
+}
 
 function AutomationEditorInner({
   automation,
@@ -35,49 +64,142 @@ function AutomationEditorInner({
   automation: AutomationRecord
   onAutomationChange: (automation: AutomationRecord) => void
 }) {
-  const [nodes, setNodes] = useState<Node[]>(automation.nodes as Node[])
+  const initialConfig = automation.config as AutomationConfig
+  const initialLayout = automation.layout as AutomationLayout
+  const initialGraph = compileEditorGraph(initialConfig, initialLayout)
+  const [config, setConfig] = useState<AutomationConfig>(initialConfig)
+  const [layout, setLayout] = useState<AutomationLayout>(initialLayout)
+  const [nodes, setNodes] = useState<Node[]>(initialGraph.nodes)
+  const [edges, setEdges] = useState<Edge[]>(initialGraph.edges as Edge[])
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [configDirty, setConfigDirty] = useState(false)
+  const [layoutDirty, setLayoutDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingLayout, setIsSavingLayout] = useState(false)
   const [isDryRunning, setIsDryRunning] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
 
   useEffect(() => {
-    setNodes(automation.nodes as Node[])
+    const nextConfig = automation.config as AutomationConfig
+    const nextLayout = automation.layout as AutomationLayout
+    const graph = compileEditorGraph(nextConfig, nextLayout)
+    setConfig(nextConfig)
+    setLayout(nextLayout)
+    setNodes(graph.nodes)
+    setEdges(graph.edges as Edge[])
+    setConfigDirty(false)
+    setLayoutDirty(false)
+    setSelectedNodeId(null)
   }, [automation.id, automation.updatedAt])
 
-  const edges = automation.edges
-
   const serializedConfig = useMemo(
-    () => JSON.stringify(automation.config, null, 2),
-    [automation.config]
+    () => JSON.stringify(config, null, 2),
+    [config]
   )
   const serializedLayout = useMemo(
-    () => JSON.stringify(automation.layout, null, 2),
-    [automation.layout]
+    () => JSON.stringify(layout, null, 2),
+    [layout]
   )
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? getConfigNode(config, selectedNodeId) : null),
+    [config, selectedNodeId]
+  )
+  const validation = useMemo(() => validateAutomationGraph(config), [config])
+  const canAddChildren =
+    selectedNode?.type === 'trigger' || selectedNode?.type === 'condition'
 
   function onNodesChange(changes: NodeChange[]) {
-    setNodes((current) => applyNodeChanges(changes, current) as Node[])
+    setNodes((current) => {
+      const next = applyNodeChanges(changes, current) as Node[]
+      const changedPositions = changes.some((change) => change.type === 'position' || change.type === 'dimensions')
+      if (changedPositions) {
+        setLayout(updateLayoutFromNodes(layout, next))
+        setLayoutDirty(true)
+      }
+      return next
+    })
   }
 
-  async function saveLayout() {
-    setIsSaving(true)
-    try {
-      const positions = Object.fromEntries(
-        nodes.map((node) => [node.id, { x: node.position.x, y: node.position.y }])
+  function reconcile(nextConfig: AutomationConfig, nextLayout: AutomationLayout) {
+    const graph = compileEditorGraph(nextConfig, nextLayout)
+    setConfig(nextConfig)
+    setLayout(nextLayout)
+    setNodes(graph.nodes)
+    setEdges(graph.edges as Edge[])
+  }
+
+  const handleNodeClick: NodeMouseHandler = (_, node) => {
+    setSelectedNodeId(node.id)
+  }
+
+  function handleAddNode(nodeKind: 'condition' | 'action') {
+    if (!selectedNodeId) return
+    const nextConfig = addChildNode(config, { sourceNodeId: selectedNodeId, nodeKind })
+    if (nextConfig === config) return
+    reconcile(nextConfig, layout)
+    setConfigDirty(true)
+  }
+
+  function isValidConnection(connection: Connection) {
+    const source = connection.source ? getConfigNode(config, connection.source) : null
+    const target = connection.target ? getConfigNode(config, connection.target) : null
+    if (!source || !target) return false
+    if (source.id === target.id) return false
+    if (target.type === 'trigger') return false
+    if (source.type === 'action') return false
+    if (
+      config.edges.some(
+        (edge) =>
+          edge.sourceNodeId === source.id &&
+          edge.targetNodeId === target.id &&
+          (edge.sourceHandle ?? 'next') === 'next'
       )
+    ) {
+      return false
+    }
+    if (source.type === 'trigger') {
+      return target.type === 'condition' || target.type === 'action'
+    }
+    return target.type === 'condition' || target.type === 'action'
+  }
 
-      const nextLayout: AutomationLayout = {
-        type: 'react_flow_layout',
-        version: 1,
-        positions,
-        viewport: automation.layout?.viewport,
-      }
+  function handleConnect(connection: Connection) {
+    if (!connection.source || !connection.target) return
+    const nextConfig = connectNodes(config, {
+      sourceNodeId: connection.source,
+      targetNodeId: connection.target,
+    })
+    if (nextConfig === config) return
+    reconcile(nextConfig, layout)
+    setConfigDirty(true)
+  }
 
-      const updated = await updateAutomation(automation.id, { layout: nextLayout })
+  async function saveLayoutOnly() {
+    setIsSavingLayout(true)
+    try {
+      const latestLayout = updateLayoutFromNodes(layout, nodes)
+      const updated = await updateAutomation(automation.id, { layout: latestLayout })
       onAutomationChange(updated)
       toast.success('Layout saved')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save layout')
+    } finally {
+      setIsSavingLayout(false)
+    }
+  }
+
+  async function saveAutomation() {
+    setIsSaving(true)
+    try {
+      const latestLayout = updateLayoutFromNodes(layout, nodes)
+      const updated = await updateAutomation(automation.id, {
+        config,
+        layout: latestLayout,
+      })
+      onAutomationChange(updated)
+      toast.success('Automation saved')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save automation')
     } finally {
       setIsSaving(false)
     }
@@ -108,6 +230,42 @@ function AutomationEditorInner({
     }
   }
 
+  async function handleToggleStart() {
+    if (!automation.isActive && !validation.canStart) return
+
+    try {
+      const isStarting = !automation.isActive
+      const shouldSaveCurrentRevision = isStarting && (configDirty || layoutDirty)
+      const latestLayout = shouldSaveCurrentRevision ? updateLayoutFromNodes(layout, nodes) : undefined
+      const updated = await updateAutomation(automation.id, {
+        isActive: isStarting,
+        ...(shouldSaveCurrentRevision
+          ? {
+              config,
+              layout: latestLayout!,
+            }
+          : {}),
+      })
+      onAutomationChange(updated)
+      toast.success(updated.isActive ? 'Automation started' : 'Automation stopped')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update automation status')
+    }
+  }
+
+  function handleConditionChange(condition: ConditionExprV1) {
+    if (!selectedNodeId) return
+    const nextConfig = updateConditionConfig(config, selectedNodeId, condition)
+    reconcile(nextConfig, layout)
+    setConfigDirty(true)
+  }
+
+  function handleActionChange(node: ActionNodeConfig) {
+    const nextConfig = updateActionConfig(config, node.id, () => node)
+    reconcile(nextConfig, layout)
+    setConfigDirty(true)
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -120,6 +278,18 @@ function AutomationEditorInner({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant={automation.isActive ? 'outline' : 'default'}
+              disabled={isSaving || (!automation.isActive && !validation.canStart)}
+              onClick={handleToggleStart}
+            >
+              {automation.isActive ? (
+                <Square className="mr-2 h-4 w-4" />
+              ) : (
+                <Play className="mr-2 h-4 w-4" />
+              )}
+              {automation.isActive ? 'Stop' : 'Start'}
+            </Button>
             <Button variant="outline" onClick={duplicate} disabled={isDuplicating}>
               <Copy className="mr-2 h-4 w-4" />
               Duplicate
@@ -128,13 +298,34 @@ function AutomationEditorInner({
               <Play className="mr-2 h-4 w-4" />
               Dry Run
             </Button>
-            <Button onClick={saveLayout} disabled={isSaving}>
+            <Button variant="outline" onClick={saveLayoutOnly} disabled={isSavingLayout || !layoutDirty}>
               <Save className="mr-2 h-4 w-4" />
               Save Layout
+            </Button>
+            <Button onClick={saveAutomation} disabled={isSaving || (!configDirty && !layoutDirty)}>
+              <Save className="mr-2 h-4 w-4" />
+              Save Automation
             </Button>
           </div>
         </CardHeader>
       </Card>
+
+      {validation.issues.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Validation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              {validation.issues.map((issue) => (
+                <li key={`${issue.code}:${issue.nodeId ?? issue.edgeId ?? issue.message}`}>
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Tabs defaultValue="flow">
         <TabsList>
@@ -145,34 +336,82 @@ function AutomationEditorInner({
         </TabsList>
 
         <TabsContent value="flow">
-          <Card className="overflow-hidden">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canAddChildren}
+                onClick={() => handleAddNode('condition')}
+              >
+                Add Condition
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canAddChildren}
+                onClick={() => handleAddNode('action')}
+              >
+                Add Action
+              </Button>
+            </div>
+            <Card className="overflow-hidden">
             <CardContent className="h-[34rem] p-0">
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
+                onConnect={handleConnect}
+                isValidConnection={isValidConnection}
+                nodeTypes={nodeTypes}
+                nodesConnectable
+                nodesDraggable
+                elementsSelectable
+                onNodeClick={handleNodeClick}
+                onPaneClick={() => setSelectedNodeId(null)}
                 fitView
+                fitViewOptions={{ maxZoom: 0.75, minZoom: 0.75 }}
               >
                 <Background />
-                <MiniMap />
                 <Controls />
               </ReactFlow>
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="config">
-          <Textarea readOnly value={serializedConfig} className="min-h-[28rem] font-mono text-xs" />
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Canonical config is available for debugging, but the primary editing path is the node config sheet.
+            </p>
+            <Textarea readOnly value={serializedConfig} className="min-h-[28rem] font-mono text-xs" />
+          </div>
         </TabsContent>
 
         <TabsContent value="layout">
-          <Textarea readOnly value={serializedLayout} className="min-h-[28rem] font-mono text-xs" />
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Layout is derived editor state and saved separately from canonical automation config.
+            </p>
+            <Textarea readOnly value={serializedLayout} className="min-h-[28rem] font-mono text-xs" />
+          </div>
         </TabsContent>
 
         <TabsContent value="runs">
           <RunHistoryPanel automationId={automation.id} />
         </TabsContent>
       </Tabs>
+
+      <NodeConfigSheet
+        node={selectedNode}
+        open={Boolean(selectedNode)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedNodeId(null)
+        }}
+        onConditionChange={handleConditionChange}
+        onActionChange={handleActionChange}
+      />
     </div>
   )
 }

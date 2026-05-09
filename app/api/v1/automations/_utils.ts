@@ -4,6 +4,7 @@ import { jsonError } from '@/lib/api-helpers'
 import { prisma } from '@/lib/db'
 import { compileAutomationGraph } from '@/lib/automations/graph'
 import { parseRevisionPayload } from '@/lib/automations/serialization'
+import { validateAutomationGraph } from '@/lib/automations/validation'
 import type { Automation, AutomationRevision } from '@/lib/generated/prisma/client'
 
 type AuthenticatedUser = NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>
@@ -98,6 +99,7 @@ export function formatAutomationRecord(
   const revision = automation.activeRevision
   const parsed = revision ? parseRevisionPayload(revision) : null
   const graph = parsed ? compileAutomationGraph(parsed.config, parsed.layout) : { nodes: [], edges: [] }
+  const validation = parsed ? validateAutomationGraph(parsed.config) : { canStart: false }
 
   return {
     id: automation.id,
@@ -110,6 +112,7 @@ export function formatAutomationRecord(
     activeRevisionId: automation.activeRevisionId,
     activeRevisionNumber: revision?.revision ?? null,
     schemaVersion: revision?.schemaVersion ?? null,
+    canStart: validation.canStart,
     config: parsed?.config ?? null,
     layout: parsed?.layout ?? null,
     nodes: graph.nodes,

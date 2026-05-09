@@ -88,4 +88,66 @@ describe('evaluateCondition', () => {
 
     expect(matched).toBe(true)
   })
+
+  it('supports not_contains predicates for subject', () => {
+    const matched = evaluateCondition(
+      {
+        type: 'predicate',
+        version: 1,
+        field: 'subject',
+        operator: 'not_contains',
+        value: 'invoice',
+      },
+      {
+        subject: 'Weekly status',
+        from: '',
+        to: [],
+        cc: [],
+        bcc: [],
+        bodyText: '',
+        bodyHtml: '',
+        headers: {},
+        tags: [],
+        hasAttachment: false,
+        attachments: [],
+        messageId: 'm1',
+        inboxId: 'i1',
+        inboxEmail: 'inbox@example.com',
+        organizationId: 'org1',
+      }
+    )
+
+    expect(matched).toBe(true)
+  })
+
+  it('supports not_equals predicates for headers', () => {
+    const matched = evaluateCondition(
+      {
+        type: 'predicate',
+        version: 1,
+        field: 'header',
+        headerName: 'x-priority',
+        operator: 'not_equals',
+        value: 'low',
+      },
+      baseInput
+    )
+
+    expect(matched).toBe(true)
+  })
+
+  it('supports not_exists predicates for missing headers', () => {
+    const matched = evaluateCondition(
+      {
+        type: 'predicate',
+        version: 1,
+        field: 'header',
+        headerName: 'x-missing',
+        operator: 'not_exists',
+      },
+      baseInput
+    )
+
+    expect(matched).toBe(true)
+  })
 })

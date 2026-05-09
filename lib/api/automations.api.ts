@@ -20,6 +20,7 @@ export interface AutomationRecord {
   activeRevisionId: string | null
   activeRevisionNumber: number | null
   schemaVersion: number | null
+  canStart: boolean
   config: AutomationConfig | null
   layout: AutomationLayout | null
   nodes: AutomationFlowNode[]

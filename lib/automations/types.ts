@@ -5,7 +5,7 @@ export const AUTOMATION_LAYOUT_VERSION = 1
 
 export type AutomationStopPolicy = 'continue' | 'stop_after_match'
 export type AutomationNodeKind = 'trigger' | 'condition' | 'action'
-export type AutomationBranchKey = 'matched' | 'unmatched' | 'next'
+export type AutomationBranchKey = 'next'
 export type ActionErrorPolicy = 'stop' | 'continue'
 
 export type TriggerType = 'email.received'
@@ -27,11 +27,14 @@ export type PredicateField =
 
 export type PredicateOperator =
   | 'equals'
+  | 'not_equals'
   | 'contains'
+  | 'not_contains'
   | 'starts_with'
   | 'ends_with'
   | 'regex'
   | 'exists'
+  | 'not_exists'
 
 export type ConditionExprV1 =
   | {
@@ -177,6 +180,23 @@ export type AutomationConfig = AutomationConfigV1
 export type AutomationLayout = AutomationLayoutV1
 export type AutomationNodeConfig = AutomationNodeConfigV1
 export type AutomationEdgeConfig = AutomationEdgeConfigV1
+export type AutomationValidationIssue = {
+  code:
+    | 'trigger_incoming_edge'
+    | 'action_outgoing_edge'
+    | 'invalid_connection'
+    | 'duplicate_edge'
+    | 'self_loop'
+    | 'disconnected_node'
+    | 'no_reachable_action'
+  nodeId?: string
+  edgeId?: string
+  message: string
+}
+export type AutomationValidationResult = {
+  issues: AutomationValidationIssue[]
+  canStart: boolean
+}
 export type ActionNodeConfig = ActionNodeConfigV1
 export type ActionConfig =
   | ForwardEmailActionConfigV1
@@ -214,6 +234,10 @@ export type AutomationFlowNode = {
   data: {
     label: string
     subtitle: string
+    nodeKind: AutomationNodeKind
+    configNodeId: string
+    configNodeType: string
+    branchHandles: AutomationBranchKey[]
     configNode: AutomationNodeConfig
   }
 }
@@ -222,8 +246,14 @@ export type AutomationFlowEdge = {
   id: string
   source: string
   target: string
-  label?: string
-  sourceHandle?: string
+  label?: AutomationBranchKey
+  sourceHandle?: AutomationBranchKey
+  type?: string
+  animated?: boolean
+  markerEnd?: { type: string; width?: number; height?: number; color?: string }
+  data?: {
+    branch?: AutomationBranchKey
+  }
 }
 
 export type AutomationEvaluationResult = {

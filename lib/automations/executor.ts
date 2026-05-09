@@ -58,16 +58,16 @@ function buildInput(params: ExecuteAutomationParams): EmailAutomationInput {
   }
 }
 
-function getNextEdge(
+function getOutgoingEdges(
   edgeMap: Map<string, Array<{ targetNodeId: string; sourceHandle?: string }>>,
   nodeId: string,
   branch?: AutomationBranchKey
 ) {
   const edges = edgeMap.get(nodeId) ?? []
   if (branch) {
-    return edges.find((edge) => edge.sourceHandle === branch)
+    return edges.filter((edge) => edge.sourceHandle === branch)
   }
-  return edges[0] ?? null
+  return edges
 }
 
 function serializeError(error: unknown) {
@@ -103,7 +103,8 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
     },
   })
 
-  let currentNodeId: string | undefined = config.trigger.id
+  const initialTargets = getOutgoingEdges(edgeMap, config.trigger.id).map((edge) => edge.targetNodeId)
+  const queue = [...initialTargets]
   let matched = false
   let actionsExecuted = 0
   const maxActions = config.settings.maxActionsPerRun ?? 20
@@ -112,8 +113,29 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
   let runStatus: AutomationRunStatus = AutomationRunStatus.succeeded
 
   try {
-    while (currentNodeId && depth < maxDepth) {
+    const triggerNodeRun = await db.automationNodeRun.create({
+      data: {
+        runId: run.id,
+        configNodeId: config.trigger.id,
+        configNodeType: 'trigger',
+        status: AutomationRunStatus.running,
+        input: input,
+      },
+    })
+
+    await db.automationNodeRun.update({
+      where: { id: triggerNodeRun.id },
+      data: {
+        status: AutomationRunStatus.succeeded,
+        branchTaken: initialTargets.length > 0 ? 'next' : null,
+        finishedAt: new Date(),
+      },
+    })
+
+    while (queue.length > 0 && depth < maxDepth) {
       depth += 1
+      const currentNodeId = queue.shift()
+      if (!currentNodeId) continue
       const node = nodeMap.get(currentNodeId)
       if (!node) break
 
@@ -127,38 +149,26 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
         },
       })
 
-      if (node.type === 'trigger') {
-        const nextEdge = getNextEdge(edgeMap, node.id)
-        await db.automationNodeRun.update({
-          where: { id: nodeRun.id },
-          data: {
-            status: AutomationRunStatus.succeeded,
-            branchTaken: nextEdge?.sourceHandle ?? 'next',
-            finishedAt: new Date(),
-          },
-        })
-        currentNodeId = nextEdge?.targetNodeId
-        continue
-      }
-
       if (node.type === 'condition') {
         const conditionMatched = evaluateCondition(node.config, input)
         matched = matched || conditionMatched
-        const branch = conditionMatched ? 'matched' : 'unmatched'
-        const nextEdge = getNextEdge(edgeMap, node.id, branch)
+        const nextEdges = conditionMatched ? getOutgoingEdges(edgeMap, node.id, 'next') : []
         await db.automationNodeRun.update({
           where: { id: nodeRun.id },
           data: {
             status: AutomationRunStatus.succeeded,
-            branchTaken: branch,
+            branchTaken: conditionMatched ? 'next' : null,
             output: { matched: conditionMatched } as Prisma.InputJsonValue,
             finishedAt: new Date(),
           },
         })
-        currentNodeId = nextEdge?.targetNodeId
+        for (const edge of nextEdges) {
+          queue.push(edge.targetNodeId)
+        }
         continue
       }
 
+      matched = true
       actionsExecuted += 1
       if (actionsExecuted > maxActions) {
         runStatus = AutomationRunStatus.failed
@@ -206,9 +216,6 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
           break
         }
       }
-
-      const nextEdge = getNextEdge(edgeMap, node.id, 'next') ?? getNextEdge(edgeMap, node.id)
-      currentNodeId = nextEdge?.targetNodeId
     }
 
     if (depth >= maxDepth) {
