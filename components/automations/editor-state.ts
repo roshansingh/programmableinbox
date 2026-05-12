@@ -10,6 +10,7 @@ import type {
   ConditionExprV1,
   ConditionNodeConfigV1,
 } from '@/lib/automations/types'
+import { blockCatalog, type BlockKey } from '@/lib/automations/block-catalog'
 
 export function compileEditorGraph(config: AutomationConfig, layout: AutomationLayout) {
   const graph = compileAutomationGraph(config, layout)
@@ -82,45 +83,6 @@ export function summarizeCondition(condition: ConditionExprV1): string {
   }
 
   return `${condition.groupOperator.toUpperCase()} ${condition.children.length} rule${condition.children.length === 1 ? '' : 's'}`
-}
-
-function createConditionNode(id: string): ConditionNodeConfigV1 {
-  return {
-    id,
-    type: 'condition',
-    version: 1,
-    conditionType: 'predicate_group',
-    config: {
-      type: 'condition_group',
-      version: 1,
-      groupOperator: 'all',
-      children: [
-        {
-          type: 'predicate',
-          version: 1,
-          field: 'subject',
-          operator: 'contains',
-          value: '',
-        },
-      ],
-    },
-  }
-}
-
-function createActionNode(id: string): ActionNodeConfig {
-  return {
-    id,
-    type: 'action',
-    version: 1,
-    actionType: 'send_webhook',
-    onError: 'stop',
-    config: {
-      type: 'send_webhook_config',
-      version: 1,
-      url: 'https://example.com/webhook',
-      method: 'POST',
-    },
-  }
 }
 
 function createEdge(config: AutomationConfig, sourceNodeId: string, targetNodeId: string) {
@@ -210,21 +172,51 @@ function canConnect(
 
 export function addChildNode(
   config: AutomationConfig,
-  params: { sourceNodeId: string; nodeKind: 'condition' | 'action' }
-): AutomationConfig {
+  params: { sourceNodeId: string; key: BlockKey }
+): { config: AutomationConfig; newNodeId: string | null } {
   const sourceNode = config.nodes.find((node) => node.id === params.sourceNodeId)
   if (!sourceNode || sourceNode.type === 'action') {
-    return config
+    return { config, newNodeId: null }
   }
 
-  const nodeId = createNodeId(config, params.nodeKind)
-  const nextNode =
-    params.nodeKind === 'condition' ? createConditionNode(nodeId) : createActionNode(nodeId)
+  const entry = blockCatalog[params.key]
+  const nodeKind = entry.group === 'logic' ? 'condition' : 'action'
+  const nodeId = createNodeId(config, nodeKind)
+  const nextNode = entry.createNode(nodeId)
 
   return {
-    ...config,
-    nodes: [...config.nodes, nextNode],
-    edges: [...config.edges, createEdge(config, params.sourceNodeId, nodeId)],
+    config: {
+      ...config,
+      nodes: [...config.nodes, nextNode],
+      edges: [...config.edges, createEdge(config, params.sourceNodeId, nodeId)],
+    },
+    newNodeId: nodeId,
+  }
+}
+
+export function addFreeNode(
+  config: AutomationConfig,
+  layout: AutomationLayout,
+  params: { key: BlockKey; position: { x: number; y: number } }
+): { config: AutomationConfig; layout: AutomationLayout; newNodeId: string } {
+  const entry = blockCatalog[params.key]
+  const nodeKind = entry.group === 'logic' ? 'condition' : 'action'
+  const nodeId = createNodeId(config, nodeKind)
+  const nextNode = entry.createNode(nodeId)
+
+  return {
+    config: {
+      ...config,
+      nodes: [...config.nodes, nextNode],
+    },
+    layout: {
+      ...layout,
+      positions: {
+        ...layout.positions,
+        [nodeId]: { x: params.position.x, y: params.position.y },
+      },
+    },
+    newNodeId: nodeId,
   }
 }
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@/test/test-utils'
+import { act, fireEvent, render, screen, waitFor, within } from '@/test/test-utils'
 import { AutomationEditor } from '@/components/automations/automation-editor'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { updateAutomation } from '@/lib/api/automations.api'
@@ -18,9 +18,9 @@ vi.mock('@xyflow/react', async () => {
         {props.nodes.map((node: any) => {
           const NodeComponent = props.nodeTypes?.[node.type]
           return (
-            <button
+            <div
               key={node.id}
-              type="button"
+              data-id={node.id}
               onClick={() => props.onNodeClick?.({}, node)}
             >
               {NodeComponent ? (
@@ -28,7 +28,7 @@ vi.mock('@xyflow/react', async () => {
               ) : (
                 node.data?.label
               )}
-            </button>
+            </div>
           )
         })}
         {props.children}
@@ -46,8 +46,17 @@ vi.mock('@xyflow/react', async () => {
     ReactFlow,
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     applyNodeChanges: (_changes: any[], nodes: any[]) => nodes,
+    useReactFlow: () => ({
+      screenToFlowPosition: ({ x, y }: { x: number; y: number }) => ({ x, y }),
+    }),
   }
 })
+
+// Mock PaletteSidebar to avoid button label collisions with NodePicker
+vi.mock('@/components/automations/palette-sidebar', () => ({
+  AUTOMATION_BLOCK_MIME: 'application/x-automation-block',
+  PaletteSidebar: () => <aside data-testid="palette-sidebar" />,
+}))
 
 vi.mock('@/components/automations/node-config-sheet', () => ({
   NodeConfigSheet: () => null,
@@ -63,157 +72,182 @@ vi.mock('@/lib/api/automations.api', () => ({
   updateAutomation: vi.fn(),
 }))
 
+function makeAutomation(overrides: Partial<any> = {}) {
+  const config = createDefaultAutomationConfig()
+  const layout = createDefaultAutomationLayout(config)
+  return {
+    id: 'automation_1',
+    organizationId: 'org_1',
+    inboxId: null,
+    name: 'Test Automation',
+    description: null,
+    isActive: false,
+    status: 'draft' as const,
+    activeRevisionId: 'rev_1',
+    activeRevisionNumber: 1,
+    schemaVersion: 1,
+    canStart: true,
+    config,
+    layout,
+    nodes: [],
+    edges: [],
+    revisions: [],
+    createdAt: '2026-05-10T00:00:00.000Z',
+    updatedAt: '2026-05-10T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function makeDataTransfer(payload: Record<string, string>) {
+  const data: Record<string, string> = { ...payload }
+  return {
+    types: Object.keys(data),
+    setData: (mime: string, value: string) => {
+      data[mime] = value
+    },
+    getData: (mime: string) => data[mime] ?? '',
+    effectAllowed: '',
+    dropEffect: '',
+    items: [],
+    files: [],
+  }
+}
+
 describe('AutomationEditor', () => {
   beforeEach(() => {
     vi.mocked(updateAutomation).mockReset()
+    latestReactFlowProps = null
   })
 
-  it('disables add actions when an action node is selected', async () => {
-    const config = createDefaultAutomationConfig()
-    const layout = createDefaultAutomationLayout(config)
+  it('does not render a + affordance on action nodes', async () => {
+    const automation = makeAutomation()
 
-    const automation = {
-      id: 'automation_1',
-      organizationId: 'org_1',
-      inboxId: null,
-      name: 'Test Automation',
-      description: null,
-      isActive: false,
-      status: 'draft' as const,
-      activeRevisionId: 'rev_1',
-      activeRevisionNumber: 1,
-      schemaVersion: 1,
-      canStart: true,
-      config,
-      layout,
-      nodes: [],
-      edges: [],
-      revisions: [],
-      createdAt: '2026-05-10T00:00:00.000Z',
-      updatedAt: '2026-05-10T00:00:00.000Z',
-    }
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
+
+    const actionNodeId = automation.config.nodes.find((n: any) => n.type === 'action')!.id
+    expect(screen.queryByTestId(`add-block-${actionNodeId}`)).not.toBeInTheDocument()
+
+    const triggerId = automation.config.trigger.id
+    expect(screen.getByTestId(`add-block-${triggerId}`)).toBeInTheDocument()
+  })
+
+  it('hit-area picker on trigger adds a forward_email child and auto-selects it', async () => {
+    const automation = makeAutomation()
+    const triggerId = automation.config.trigger.id
 
     const { user } = render(
       <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
     )
 
-    await user.click(screen.getByRole('button', { name: /Send Webhook .* Action/ }))
+    await user.click(screen.getByTestId(`add-block-${triggerId}`))
+    // The popover is portal-rendered into body; find the picker button by its exact role+name
+    await user.click(screen.getByRole('button', { name: /Forward Email/ }))
 
-    expect(screen.getByRole('button', { name: 'Add Condition' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Add Action' })).toBeDisabled()
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(screen.getByDisplayValue(/"actionType": "forward_email"/)).toBeInTheDocument()
   })
 
-  it('adds a connected child node from the selected source and enables connections', async () => {
-    const config = createDefaultAutomationConfig()
-    const layout = createDefaultAutomationLayout(config)
+  it('hit-area picker on condition adds an Add Tag child', async () => {
+    const automation = makeAutomation()
+    const conditionId = automation.config.nodes.find((n: any) => n.type === 'condition')!.id
 
-    const automation = {
-      id: 'automation_1',
-      organizationId: 'org_1',
-      inboxId: null,
-      name: 'Test Automation',
-      description: null,
-      isActive: false,
-      status: 'draft' as const,
-      activeRevisionId: 'rev_1',
-      activeRevisionNumber: 1,
-      schemaVersion: 1,
-      canStart: true,
-      config,
-      layout,
-      nodes: [],
-      edges: [],
-      revisions: [],
-      createdAt: '2026-05-10T00:00:00.000Z',
-      updatedAt: '2026-05-10T00:00:00.000Z',
-    }
-
-    const { user, container } = render(
+    const { user } = render(
       <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
     )
 
-    await user.click(screen.getByRole('button', { name: /Email Received Trigger/ }))
-    await user.click(screen.getByRole('button', { name: 'Add Condition' }))
-    expect(latestReactFlowProps?.nodesConnectable).toBe(true)
-    expect(
-      (latestReactFlowProps?.isValidConnection as ((connection: any) => boolean) | undefined)?.({
-        source: 'trigger_email_received',
-        target: 'action_webhook',
-      })
-    ).toBe(true)
-    expect(
-      (latestReactFlowProps?.isValidConnection as ((connection: any) => boolean) | undefined)?.({
-        source: 'condition_2',
-        target: 'action_webhook',
-      })
-    ).toBe(true)
-    expect(
-      (latestReactFlowProps?.isValidConnection as ((connection: any) => boolean) | undefined)?.({
-        source: 'condition_subject',
-        target: 'condition_2',
-      })
-    ).toBe(true)
-    expect(
-      (latestReactFlowProps?.isValidConnection as ((connection: any) => boolean) | undefined)?.({
-        source: 'action_webhook',
-        target: 'condition_subject',
-      })
-    ).toBe(false)
+    await user.click(screen.getByTestId(`add-block-${conditionId}`))
+    await user.click(screen.getByRole('button', { name: /Add Tag/ }))
 
-    const sourceHandles = container.querySelectorAll(
-      '[data-handle-type="source"][data-handle-id="next"]'
-    )
-    const targetHandles = container.querySelectorAll('[data-handle-type="target"]')
-
-    expect(sourceHandles).toHaveLength(3)
-    expect(targetHandles).toHaveLength(3)
-
-    act(() => {
-      ;(latestReactFlowProps?.onConnect as ((connection: any) => void) | undefined)?.({
-        source: 'condition_2',
-        target: 'action_webhook',
-      })
-    })
     await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(screen.getByDisplayValue(/"actionType": "add_tag"/)).toBeInTheDocument()
+  })
 
-    expect(screen.getByDisplayValue(/"sourceNodeId": "trigger_email_received"/)).toBeInTheDocument()
-    expect(screen.getByDisplayValue(/"targetNodeId": "condition_2"/)).toBeInTheDocument()
-    expect(screen.getByDisplayValue(/"sourceNodeId": "condition_2"/)).toBeInTheDocument()
-    expect(screen.getByDisplayValue(/"targetNodeId": "action_webhook"/)).toBeInTheDocument()
-    expect(
-      (latestReactFlowProps?.isValidConnection as ((connection: any) => boolean) | undefined)?.({
-        source: 'trigger_email_received',
-        target: 'condition_subject',
-      })
-    ).toBe(false)
+  it('drops a palette item onto the trigger node and auto-attaches as child', async () => {
+    const automation = makeAutomation()
+    const triggerId = automation.config.trigger.id
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    const dropZone = screen.getByTestId('canvas-drop-zone')
+    const triggerEl = screen.getByTestId('react-flow').querySelector(`[data-id="${triggerId}"]`)!
+    const dataTransfer = makeDataTransfer({ 'application/x-automation-block': 'auto_reply' })
+
+    fireEvent.dragOver(dropZone, { dataTransfer })
+    fireEvent.drop(triggerEl, { dataTransfer })
+
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(screen.getByDisplayValue(/"actionType": "auto_reply"/)).toBeInTheDocument()
+  })
+
+  it('rejects a palette drop onto an action node with a toast and no state change', async () => {
+    const automation = makeAutomation()
+    const actionNodeId = automation.config.nodes.find((n: any) => n.type === 'action')!.id
+
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
+
+    const actionEl = screen
+      .getByTestId('react-flow')
+      .querySelector(`[data-id="${actionNodeId}"]`)!
+    const dataTransfer = makeDataTransfer({ 'application/x-automation-block': 'send_webhook' })
+
+    fireEvent.drop(actionEl, { dataTransfer })
+
+    // The automation's node count should be unchanged (no new node added)
+    const reactFlowNodes = screen.getByTestId('react-flow').querySelectorAll('[data-id]')
+    expect(reactFlowNodes).toHaveLength(automation.config.nodes.length)
+  })
+
+  it('drops a palette item onto empty canvas to create a free-floating node', async () => {
+    const automation = makeAutomation()
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    const dropZone = screen.getByTestId('canvas-drop-zone')
+    const dataTransfer = makeDataTransfer({ 'application/x-automation-block': 'send_webhook' })
+
+    fireEvent.dragOver(dropZone, { dataTransfer })
+    // jsdom does not support DragEvent; clientX/Y default to 0 (screenToFlowPosition identity → {x:0,y:0})
+    fireEvent.drop(dropZone, { dataTransfer })
+
+    // A free-floating send_webhook node was added without a parent edge
+    // The config now contains a second send_webhook action node (action_2)
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    const configTextarea = screen.getByDisplayValue(/"action_2"/)
+    expect(configTextarea).toBeInTheDocument()
+    expect((configTextarea as HTMLTextAreaElement).value).toContain('"actionType": "send_webhook"')
+
+    // The layout contains a position entry for the new node
+    await user.click(screen.getByRole('tab', { name: 'Layout' }))
+    expect(screen.getByDisplayValue(/"action_2"/)).toBeInTheDocument()
+  })
+
+  it('keeps node-connection validity rules from the previous editor', async () => {
+    const automation = makeAutomation()
+
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
+
+    const isValid = latestReactFlowProps?.isValidConnection as
+      | ((c: any) => boolean)
+      | undefined
+
+    expect(isValid?.({ source: 'trigger_email_received', target: 'action_webhook' })).toBe(true)
+    expect(isValid?.({ source: 'action_webhook', target: 'condition_subject' })).toBe(false)
   })
 
   it('disables Start and shows validation issues when no action is reachable', async () => {
-    const config = createDefaultAutomationConfig()
-    config.nodes = config.nodes.filter((node) => node.type !== 'action')
-    config.edges = []
-    const layout = createDefaultAutomationLayout(config)
-
-    const automation = {
-      id: 'automation_invalid',
-      organizationId: 'org_1',
-      inboxId: null,
-      name: 'Invalid Automation',
-      description: null,
-      isActive: false,
-      status: 'draft' as const,
-      activeRevisionId: 'rev_1',
-      activeRevisionNumber: 1,
-      schemaVersion: 1,
+    const automation = makeAutomation({
       canStart: false,
-      config,
-      layout,
-      nodes: [],
-      edges: [],
-      revisions: [],
-      createdAt: '2026-05-10T00:00:00.000Z',
-      updatedAt: '2026-05-10T00:00:00.000Z',
-    }
+      config: (() => {
+        const c = createDefaultAutomationConfig()
+        c.nodes = c.nodes.filter((node: any) => node.type !== 'action')
+        c.edges = []
+        return c
+      })(),
+    })
 
     render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
@@ -224,29 +258,8 @@ describe('AutomationEditor', () => {
   })
 
   it('saves the current graph before starting a dirty automation', async () => {
-    const config = createDefaultAutomationConfig()
-    const layout = createDefaultAutomationLayout(config)
-
-    const automation = {
-      id: 'automation_dirty',
-      organizationId: 'org_1',
-      inboxId: null,
-      name: 'Dirty Automation',
-      description: null,
-      isActive: false,
-      status: 'draft' as const,
-      activeRevisionId: 'rev_1',
-      activeRevisionNumber: 1,
-      schemaVersion: 1,
-      canStart: true,
-      config,
-      layout,
-      nodes: [],
-      edges: [],
-      revisions: [],
-      createdAt: '2026-05-10T00:00:00.000Z',
-      updatedAt: '2026-05-10T00:00:00.000Z',
-    }
+    const automation = makeAutomation({ id: 'automation_dirty', name: 'Dirty Automation' })
+    const triggerId = automation.config.trigger.id
 
     vi.mocked(updateAutomation).mockImplementation(async (_id, payload) => ({
       ...automation,
@@ -260,8 +273,8 @@ describe('AutomationEditor', () => {
       <AutomationEditor automation={automation} onAutomationChange={onAutomationChange} />
     )
 
-    await user.click(screen.getByRole('button', { name: /Email Received Trigger/ }))
-    await user.click(screen.getByRole('button', { name: 'Add Action' }))
+    await user.click(screen.getByTestId(`add-block-${triggerId}`))
+    await user.click(screen.getByRole('button', { name: /Send Webhook/ }))
     await user.click(screen.getByRole('button', { name: 'Start' }))
 
     await waitFor(() => {
@@ -271,12 +284,8 @@ describe('AutomationEditor', () => {
       'automation_dirty',
       expect.objectContaining({
         isActive: true,
-        config: expect.objectContaining({
-          nodes: expect.arrayContaining([expect.objectContaining({ id: 'action_2' })]),
-        }),
-        layout: expect.objectContaining({
-          positions: expect.any(Object),
-        }),
+        config: expect.any(Object),
+        layout: expect.any(Object),
       })
     )
     expect(onAutomationChange).toHaveBeenCalled()

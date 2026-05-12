@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   addChildNode,
+  addFreeNode,
   connectNodes,
   deleteNodeCascade,
   validateAutomationGraph,
 } from '@/components/automations/editor-state'
-import { createDefaultAutomationConfig } from '@/lib/automations/definitions'
+import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { automationConfigSchema } from '@/lib/automations/schemas'
 
 function expectIssueMessage(result: ReturnType<typeof automationConfigSchema.safeParse>, message: string) {
@@ -224,19 +225,20 @@ describe('editor-state graph helpers', () => {
 
     const next = addChildNode(config, {
       sourceNodeId: 'trigger_email_received',
-      nodeKind: 'condition',
+      key: 'condition',
     })
 
-    const newNode = next.nodes.find(
+    const newNode = next.config.nodes.find(
       (node) =>
         node.id !== 'trigger_email_received' &&
         node.id !== 'condition_subject' &&
         node.id !== 'action_webhook'
     )
 
+    expect(next.newNodeId).toBeTruthy()
     expect(newNode?.type).toBe('condition')
     expect(
-      next.edges.some(
+      next.config.edges.some(
         (edge) =>
           edge.sourceNodeId === 'trigger_email_received' && edge.targetNodeId === newNode?.id
       )
@@ -245,10 +247,11 @@ describe('editor-state graph helpers', () => {
 
   it('connects two existing nodes with a next edge', () => {
     const config = createDefaultAutomationConfig()
-    const withAction = addChildNode(config, {
+    const withActionResult = addChildNode(config, {
       sourceNodeId: 'condition_subject',
-      nodeKind: 'action',
+      key: 'send_webhook',
     })
+    const withAction = withActionResult.config
 
     const newAction = withAction.nodes.find((node) => node.id.startsWith('action_') && node.id !== 'action_webhook')
     if (!newAction) throw new Error('expected a newly added action node')
@@ -364,10 +367,11 @@ describe('editor-state graph helpers', () => {
 
     const next = addChildNode(config, {
       sourceNodeId: 'missing_node',
-      nodeKind: 'condition',
+      key: 'condition',
     })
 
-    expect(next).toEqual(config)
+    expect(next.newNodeId).toBeNull()
+    expect(next.config).toBe(config)
   })
 
   it('refuses to add a child when the source node is an action', () => {
@@ -375,10 +379,11 @@ describe('editor-state graph helpers', () => {
 
     const next = addChildNode(config, {
       sourceNodeId: 'action_webhook',
-      nodeKind: 'condition',
+      key: 'condition',
     })
 
-    expect(next).toEqual(config)
+    expect(next.newNodeId).toBeNull()
+    expect(next.config).toBe(config)
   })
 
   it('refuses to connect when either endpoint is missing', () => {
@@ -482,5 +487,56 @@ describe('editor-state graph helpers', () => {
         targetNodeId: 'condition_subject',
       })
     ).toEqual(config)
+  })
+})
+
+describe('addChildNode return shape', () => {
+  it('returns newNodeId when a child is added', () => {
+    const config = createDefaultAutomationConfig()
+    const result = addChildNode(config, {
+      sourceNodeId: config.trigger.id,
+      key: 'forward_email',
+    })
+
+    expect(result.newNodeId).toBeTruthy()
+    expect(result.config.nodes.find((n) => n.id === result.newNodeId)).toMatchObject({
+      type: 'action',
+      actionType: 'forward_email',
+    })
+  })
+
+  it('returns newNodeId === null when the source rejects children', () => {
+    const config = createDefaultAutomationConfig()
+    const actionNode = config.nodes.find((n) => n.type === 'action')!
+
+    const result = addChildNode(config, {
+      sourceNodeId: actionNode.id,
+      key: 'send_webhook',
+    })
+
+    expect(result.newNodeId).toBeNull()
+    expect(result.config).toBe(config)
+  })
+})
+
+describe('addFreeNode', () => {
+  it('creates a disconnected node at the given position', () => {
+    const config = createDefaultAutomationConfig()
+    const layout = createDefaultAutomationLayout(config)
+
+    const result = addFreeNode(config, layout, {
+      key: 'add_tag',
+      position: { x: 999, y: 555 },
+    })
+
+    expect(result.newNodeId).toBeTruthy()
+    expect(result.config.nodes.find((n) => n.id === result.newNodeId)).toMatchObject({
+      type: 'action',
+      actionType: 'add_tag',
+    })
+    // No new edges
+    expect(result.config.edges.length).toBe(config.edges.length)
+    // Layout position written eagerly
+    expect(result.layout.positions[result.newNodeId!]).toEqual({ x: 999, y: 555 })
   })
 })

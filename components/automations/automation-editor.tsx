@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Background,
   Controls,
   ReactFlow,
   ReactFlowProvider,
   applyNodeChanges,
+  useReactFlow,
   type Connection,
   type Node,
   type NodeChange,
@@ -32,11 +33,12 @@ import type {
   ActionNodeConfig,
   AutomationConfig,
   AutomationLayout,
-  AutomationNodeConfig,
   ConditionExprV1,
 } from '@/lib/automations/types'
+import { ALL_BLOCK_KEYS, type BlockKey } from '@/lib/automations/block-catalog'
 import {
   addChildNode,
+  addFreeNode,
   compileEditorGraph,
   connectNodes,
   getConfigNode,
@@ -50,6 +52,8 @@ import { ConditionNode } from './nodes/condition-node'
 import { ActionNode } from './nodes/action-node'
 import { RunHistoryPanel } from './run-history-panel'
 import { NodeConfigSheet } from './node-config-sheet'
+import { AUTOMATION_BLOCK_MIME, PaletteSidebar } from './palette-sidebar'
+import { AutomationEditorContextProvider } from './automation-editor-context'
 
 const nodeTypes: NodeTypes = {
   triggerNode: TriggerNode,
@@ -79,6 +83,8 @@ function AutomationEditorInner({
   const [isDryRunning, setIsDryRunning] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
 
+  const reactFlow = useReactFlow()
+
   useEffect(() => {
     const nextConfig = automation.config as AutomationConfig
     const nextLayout = automation.layout as AutomationLayout
@@ -105,8 +111,6 @@ function AutomationEditorInner({
     [config, selectedNodeId]
   )
   const validation = useMemo(() => validateAutomationGraph(config), [config])
-  const canAddChildren =
-    selectedNode?.type === 'trigger' || selectedNode?.type === 'condition'
 
   function onNodesChange(changes: NodeChange[]) {
     setNodes((current) => {
@@ -132,13 +136,59 @@ function AutomationEditorInner({
     setSelectedNodeId(node.id)
   }
 
-  function handleAddNode(nodeKind: 'condition' | 'action') {
-    if (!selectedNodeId) return
-    const nextConfig = addChildNode(config, { sourceNodeId: selectedNodeId, nodeKind })
-    if (nextConfig === config) return
-    reconcile(nextConfig, layout)
-    setConfigDirty(true)
-  }
+  const handlePickBlock = useCallback(
+    (sourceNodeId: string, key: BlockKey) => {
+      const result = addChildNode(config, { sourceNodeId, key })
+      if (!result.newNodeId) return
+      reconcile(result.config, layout)
+      setSelectedNodeId(result.newNodeId)
+      setConfigDirty(true)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config, layout]
+  )
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    if (event.dataTransfer.types.includes(AUTOMATION_BLOCK_MIME)) {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+    }
+  }, [])
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      const rawKey = event.dataTransfer.getData(AUTOMATION_BLOCK_MIME)
+      if (!rawKey || !ALL_BLOCK_KEYS.includes(rawKey as BlockKey)) return
+      const key = rawKey as BlockKey
+
+      const target = event.target as HTMLElement | null
+      const nodeEl = target?.closest('[data-id]') as HTMLElement | null
+      const targetNodeId = nodeEl?.getAttribute('data-id') ?? null
+
+      if (targetNodeId) {
+        const sourceNode = getConfigNode(config, targetNodeId)
+        if (!sourceNode) return
+        if (sourceNode.type === 'action') {
+          toast.error('Action blocks cannot have children')
+          return
+        }
+        handlePickBlock(targetNodeId, key)
+        return
+      }
+
+      const position = reactFlow.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+      const result = addFreeNode(config, layout, { key, position })
+      reconcile(result.config, result.layout)
+      setSelectedNodeId(result.newNodeId)
+      setConfigDirty(true)
+      setLayoutDirty(true)
+    },
+    [config, layout, reactFlow, handlePickBlock]
+  )
 
   function isValidConnection(connection: Connection) {
     const source = connection.source ? getConfigNode(config, connection.source) : null
@@ -267,152 +317,142 @@ function AutomationEditorInner({
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-2xl">{automation.name}</CardTitle>
-            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary">{automation.status}</Badge>
-              <span>Revision {automation.activeRevisionNumber ?? 'draft'}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={automation.isActive ? 'outline' : 'default'}
-              disabled={isSaving || (!automation.isActive && !validation.canStart)}
-              onClick={handleToggleStart}
-            >
-              {automation.isActive ? (
-                <Square className="mr-2 h-4 w-4" />
-              ) : (
-                <Play className="mr-2 h-4 w-4" />
-              )}
-              {automation.isActive ? 'Stop' : 'Start'}
-            </Button>
-            <Button variant="outline" onClick={duplicate} disabled={isDuplicating}>
-              <Copy className="mr-2 h-4 w-4" />
-              Duplicate
-            </Button>
-            <Button variant="outline" onClick={runDry} disabled={isDryRunning}>
-              <Play className="mr-2 h-4 w-4" />
-              Dry Run
-            </Button>
-            <Button variant="outline" onClick={saveLayoutOnly} disabled={isSavingLayout || !layoutDirty}>
-              <Save className="mr-2 h-4 w-4" />
-              Save Layout
-            </Button>
-            <Button onClick={saveAutomation} disabled={isSaving || (!configDirty && !layoutDirty)}>
-              <Save className="mr-2 h-4 w-4" />
-              Save Automation
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {validation.issues.length > 0 ? (
+    <AutomationEditorContextProvider value={{ onPickBlock: handlePickBlock }}>
+      <div className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Validation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              {validation.issues.map((issue) => (
-                <li key={`${issue.code}:${issue.nodeId ?? issue.edgeId ?? issue.message}`}>
-                  {issue.message}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Tabs defaultValue="flow">
-        <TabsList>
-          <TabsTrigger value="flow">Flow</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="layout">Layout</TabsTrigger>
-          <TabsTrigger value="runs">Runs</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="flow">
-          <div className="space-y-3">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-2xl">{automation.name}</CardTitle>
+              <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <Badge variant="secondary">{automation.status}</Badge>
+                <span>Revision {automation.activeRevisionNumber ?? 'draft'}</span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Button
-                type="button"
-                variant="outline"
-                disabled={!canAddChildren}
-                onClick={() => handleAddNode('condition')}
+                variant={automation.isActive ? 'outline' : 'default'}
+                disabled={isSaving || (!automation.isActive && !validation.canStart)}
+                onClick={handleToggleStart}
               >
-                Add Condition
+                {automation.isActive ? (
+                  <Square className="mr-2 h-4 w-4" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                {automation.isActive ? 'Stop' : 'Start'}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!canAddChildren}
-                onClick={() => handleAddNode('action')}
-              >
-                Add Action
+              <Button variant="outline" onClick={duplicate} disabled={isDuplicating}>
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicate
+              </Button>
+              <Button variant="outline" onClick={runDry} disabled={isDryRunning}>
+                <Play className="mr-2 h-4 w-4" />
+                Dry Run
+              </Button>
+              <Button variant="outline" onClick={saveLayoutOnly} disabled={isSavingLayout || !layoutDirty}>
+                <Save className="mr-2 h-4 w-4" />
+                Save Layout
+              </Button>
+              <Button onClick={saveAutomation} disabled={isSaving || (!configDirty && !layoutDirty)}>
+                <Save className="mr-2 h-4 w-4" />
+                Save Automation
               </Button>
             </div>
-            <Card className="overflow-hidden">
-            <CardContent className="h-[34rem] p-0">
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onConnect={handleConnect}
-                isValidConnection={isValidConnection}
-                nodeTypes={nodeTypes}
-                nodesConnectable
-                nodesDraggable
-                elementsSelectable
-                onNodeClick={handleNodeClick}
-                onPaneClick={() => setSelectedNodeId(null)}
-                fitView
-                fitViewOptions={{ maxZoom: 0.75, minZoom: 0.75 }}
-              >
-                <Background />
-                <Controls />
-              </ReactFlow>
+          </CardHeader>
+        </Card>
+
+        {validation.issues.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Validation</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {validation.issues.map((issue) => (
+                  <li key={`${issue.code}:${issue.nodeId ?? issue.edgeId ?? issue.message}`}>
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
             </CardContent>
+          </Card>
+        ) : null}
+
+        <Tabs defaultValue="flow">
+          <TabsList>
+            <TabsTrigger value="flow">Flow</TabsTrigger>
+            <TabsTrigger value="config">Config</TabsTrigger>
+            <TabsTrigger value="layout">Layout</TabsTrigger>
+            <TabsTrigger value="runs">Runs</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="flow">
+            <Card className="overflow-hidden">
+              <CardContent className="grid grid-cols-[192px_1fr] gap-0 p-0">
+                <PaletteSidebar />
+                <div
+                  data-testid="canvas-drop-zone"
+                  className="h-[34rem]"
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
+                  <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onConnect={handleConnect}
+                    isValidConnection={isValidConnection}
+                    nodeTypes={nodeTypes}
+                    nodesConnectable
+                    nodesDraggable
+                    elementsSelectable
+                    onNodeClick={handleNodeClick}
+                    onPaneClick={() => setSelectedNodeId(null)}
+                    fitView
+                    fitViewOptions={{ maxZoom: 0.75, minZoom: 0.75 }}
+                  >
+                    <Background />
+                    <Controls />
+                  </ReactFlow>
+                </div>
+              </CardContent>
             </Card>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        <TabsContent value="config">
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Canonical config is available for debugging, but the primary editing path is the node config sheet.
-            </p>
-            <Textarea readOnly value={serializedConfig} className="min-h-[28rem] font-mono text-xs" />
-          </div>
-        </TabsContent>
+          <TabsContent value="config">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Canonical config is available for debugging, but the primary editing path is the node config sheet.
+              </p>
+              <Textarea readOnly value={serializedConfig} className="min-h-[28rem] font-mono text-xs" />
+            </div>
+          </TabsContent>
 
-        <TabsContent value="layout">
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Layout is derived editor state and saved separately from canonical automation config.
-            </p>
-            <Textarea readOnly value={serializedLayout} className="min-h-[28rem] font-mono text-xs" />
-          </div>
-        </TabsContent>
+          <TabsContent value="layout">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Layout is derived editor state and saved separately from canonical automation config.
+              </p>
+              <Textarea readOnly value={serializedLayout} className="min-h-[28rem] font-mono text-xs" />
+            </div>
+          </TabsContent>
 
-        <TabsContent value="runs">
-          <RunHistoryPanel automationId={automation.id} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="runs">
+            <RunHistoryPanel automationId={automation.id} />
+          </TabsContent>
+        </Tabs>
 
-      <NodeConfigSheet
-        node={selectedNode}
-        open={Boolean(selectedNode)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedNodeId(null)
-        }}
-        onConditionChange={handleConditionChange}
-        onActionChange={handleActionChange}
-      />
-    </div>
+        <NodeConfigSheet
+          node={selectedNode}
+          open={Boolean(selectedNode)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedNodeId(null)
+          }}
+          onConditionChange={handleConditionChange}
+          onActionChange={handleActionChange}
+        />
+      </div>
+    </AutomationEditorContextProvider>
   )
 }
 

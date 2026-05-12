@@ -6,7 +6,7 @@ import {
   AUTOMATION_SCHEMA_VERSION,
 } from './types'
 
-const addressListSchema = z.array(z.string().email()).min(1)
+const addressListSchema = z.array(z.string().email()).min(1, { message: 'At least one recipient is required' })
 const optionalAddressListSchema = z.array(z.string().email()).optional()
 
 const predicateSchema: z.ZodTypeAny = z
@@ -89,7 +89,7 @@ const triggerNodeSchema = z.object({
   }),
 })
 
-const conditionNodeSchema = z.object({
+export const conditionNodeSchema = z.object({
   id: z.string().min(1),
   type: z.literal('condition'),
   version: z.literal(1),
