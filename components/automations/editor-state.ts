@@ -198,8 +198,11 @@ export function addFreeNode(
   config: AutomationConfig,
   layout: AutomationLayout,
   params: { key: BlockKey; position: { x: number; y: number } }
-): { config: AutomationConfig; layout: AutomationLayout; newNodeId: string } {
+): { config: AutomationConfig; layout: AutomationLayout; newNodeId: string | null } {
   const entry = blockCatalog[params.key]
+  if (!entry) {
+    return { config, layout, newNodeId: null }
+  }
   const nodeKind = entry.group === 'logic' ? 'condition' : 'action'
   const nodeId = createNodeId(config, nodeKind)
   const nextNode = entry.createNode(nodeId)

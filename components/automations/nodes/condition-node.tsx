@@ -5,7 +5,7 @@ import { GitBranchPlus, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ALL_BLOCK_KEYS } from '@/lib/automations/block-catalog'
 import { NodePicker } from '@/components/automations/node-picker'
 import { useAutomationEditor } from '@/components/automations/automation-editor-context'
@@ -20,7 +20,11 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
       data-selected={selected ? 'true' : 'false'}
     >
       <Card className={`min-w-64 border-2 ${selected ? 'border-primary' : 'border-border'} bg-card shadow-sm`}>
-        <Handle type="target" position={Position.Left} />
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!h-3 !w-3 !bg-background !border-2 !border-primary !rounded-full hover:!w-4 hover:!h-4 transition-all"
+        />
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -36,10 +40,15 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
             <span>Next</span>
           </div>
         </CardContent>
-        <Handle type="source" position={Position.Right} id="next" />
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="next"
+          className="!h-3 !w-3 !bg-background !border-2 !border-primary !rounded-full hover:!w-4 hover:!h-4 transition-all"
+        />
       </Card>
-      <Popover>
-        <PopoverTrigger asChild>
+      <Dialog>
+        <DialogTrigger asChild>
           <Button
             type="button"
             size="icon"
@@ -50,14 +59,18 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
           >
             <Plus className="h-3 w-3" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent side="right" align="start" className="w-72 p-0">
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add a block</DialogTitle>
+            <DialogDescription>Pick a block type to add as a child of this node.</DialogDescription>
+          </DialogHeader>
           <NodePicker
             allowedKeys={ALL_BLOCK_KEYS}
             onPick={(key) => onPickBlock(id, key)}
           />
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

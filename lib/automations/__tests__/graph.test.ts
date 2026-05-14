@@ -157,4 +157,18 @@ describe('compileAutomationGraph', () => {
     expect(graph.nodes.find((node) => node.id === 'cond_a')?.position.x).toBe(NODE_LAYOUT_START_X + NODE_LAYOUT_COLUMN_GAP)
     expect(graph.nodes.find((node) => node.id === 'cond_b')?.position.x).toBe(NODE_LAYOUT_START_X + NODE_LAYOUT_COLUMN_GAP * 2)
   })
+
+  it('marks the trigger node as not deletable and others as deletable', () => {
+    const config = createDefaultAutomationConfig()
+    const layout = createDefaultAutomationLayout(config)
+    const graph = compileAutomationGraph(config, layout)
+
+    const trigger = graph.nodes.find((n) => n.id === 'trigger_email_received')
+    const condition = graph.nodes.find((n) => n.id === 'condition_subject')
+    const action = graph.nodes.find((n) => n.id === 'action_webhook')
+
+    expect(trigger?.deletable).toBe(false)
+    expect(condition?.deletable).toBe(true)
+    expect(action?.deletable).toBe(true)
+  })
 })

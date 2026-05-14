@@ -20,6 +20,7 @@ vi.mock('@xyflow/react', async () => {
           return (
             <div
               key={node.id}
+              className="react-flow__node"
               data-id={node.id}
               onClick={() => props.onNodeClick?.({}, node)}
             >
@@ -131,7 +132,7 @@ describe('AutomationEditor', () => {
     expect(screen.getByTestId(`add-block-${triggerId}`)).toBeInTheDocument()
   })
 
-  it('hit-area picker on trigger adds a forward_email child and auto-selects it', async () => {
+  it('hit-area picker on trigger adds a forward_email child', async () => {
     const automation = makeAutomation()
     const triggerId = automation.config.trigger.id
 
@@ -289,5 +290,156 @@ describe('AutomationEditor', () => {
       })
     )
     expect(onAutomationChange).toHaveBeenCalled()
+  })
+
+  it('reopens the config sheet on second click after closing via pane click', async () => {
+    const automation = makeAutomation()
+    const conditionId = automation.config.nodes.find((n: any) => n.type === 'condition')!.id
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    // First click on the condition node
+    const conditionEl = screen
+      .getByTestId('react-flow')
+      .querySelector(`[data-id="${conditionId}"]`) as HTMLElement
+    await user.click(conditionEl)
+
+    // The selected node should now have selected: true in the rendered nodes
+    const nodesAfterFirstClick = latestReactFlowProps?.nodes as Array<{ id: string; selected?: boolean }>
+    expect(nodesAfterFirstClick.find((n) => n.id === conditionId)?.selected).toBe(true)
+
+    // Close the sheet by triggering pane click
+    const onPaneClick = latestReactFlowProps?.onPaneClick as (() => void) | undefined
+    expect(onPaneClick).toBeDefined()
+    act(() => {
+      onPaneClick?.()
+    })
+
+    // After close, no node should be marked selected
+    const nodesAfterClose = latestReactFlowProps?.nodes as Array<{ id: string; selected?: boolean }>
+    expect(nodesAfterClose.every((n) => !n.selected)).toBe(true)
+
+    // Second click on the same node
+    await user.click(conditionEl)
+
+    // The selection should be restored
+    const nodesAfterReopen = latestReactFlowProps?.nodes as Array<{ id: string; selected?: boolean }>
+    expect(nodesAfterReopen.find((n) => n.id === conditionId)?.selected).toBe(true)
+  })
+
+  it('removes an edge via onEdgesDelete', async () => {
+    const automation = makeAutomation()
+    const triggerToConditionEdge = automation.config.edges.find(
+      (e: any) => e.sourceNodeId === automation.config.trigger.id
+    )!
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    const onEdgesDelete = latestReactFlowProps?.onEdgesDelete as
+      | ((deleted: Array<{ id: string }>) => void)
+      | undefined
+    expect(onEdgesDelete).toBeDefined()
+
+    act(() => {
+      onEdgesDelete?.([{ id: triggerToConditionEdge.id }])
+    })
+
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(
+      screen.queryByDisplayValue(new RegExp(`"id": "${triggerToConditionEdge.id}"`))
+    ).not.toBeInTheDocument()
+  })
+
+  it('removes a node and its connected edges via onNodesDelete', async () => {
+    const automation = makeAutomation()
+    const conditionId = automation.config.nodes.find((n) => n.type === 'condition')!.id
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    const onNodesDelete = latestReactFlowProps?.onNodesDelete as
+      | ((deleted: Array<{ id: string }>) => void)
+      | undefined
+    expect(onNodesDelete).toBeDefined()
+
+    act(() => {
+      onNodesDelete?.([{ id: conditionId }])
+    })
+
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(
+      screen.queryByDisplayValue(new RegExp(`"id": "${conditionId}"`))
+    ).not.toBeInTheDocument()
+  })
+
+  it('cascades multi-node delete and ignores already-pruned ids', async () => {
+    const automation = makeAutomation()
+    const conditionId = automation.config.nodes.find((n) => n.type === 'condition')!.id
+    const actionId = automation.config.nodes.find((n) => n.type === 'action')!.id
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    const onNodesDelete = latestReactFlowProps?.onNodesDelete as
+      | ((deleted: Array<{ id: string }>) => void)
+      | undefined
+    expect(onNodesDelete).toBeDefined()
+
+    act(() => {
+      // Deleting the condition cascades and removes the action too (no longer
+      // reachable from the trigger). The second id in the list is therefore
+      // already gone by iteration 2; the loop must handle that idempotently.
+      onNodesDelete?.([{ id: conditionId }, { id: actionId }])
+    })
+
+    await user.click(screen.getByRole('tab', { name: 'Config' }))
+    expect(
+      screen.queryByDisplayValue(new RegExp(`"id": "${conditionId}"`))
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByDisplayValue(new RegExp(`"id": "${actionId}"`))
+    ).not.toBeInTheDocument()
+    // Trigger survives.
+    expect(
+      screen.getByDisplayValue(new RegExp(`"id": "${automation.config.trigger.id}"`))
+    ).toBeInTheDocument()
+  })
+
+  it('marks the trigger node as deletable=false in the props passed to ReactFlow', () => {
+    const automation = makeAutomation()
+
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
+
+    const reactFlowNodes = latestReactFlowProps?.nodes as Array<{ id: string; deletable?: boolean }>
+    const trigger = reactFlowNodes.find((n) => n.id === automation.config.trigger.id)
+    expect(trigger?.deletable).toBe(false)
+
+    const others = reactFlowNodes.filter((n) => n.id !== automation.config.trigger.id)
+    expect(others.every((n) => n.deletable !== false)).toBe(true)
+  })
+
+  it('disables Save Automation when validation fails (empty forward_email recipients)', async () => {
+    const automation = makeAutomation()
+    const triggerId = automation.config.trigger.id
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    // Open the picker on the trigger and add a Forward Email block.
+    // Its default config has `to: []`, which triggers `node_config_invalid`
+    // in validateAutomationGraph via the addressListSchema.min(1) refinement.
+    await user.click(screen.getByTestId(`add-block-${triggerId}`))
+    await user.click(screen.getByRole('button', { name: /Forward Email/ }))
+
+    // After the add, the editor is dirty AND validation fails. Save Automation
+    // should be disabled by the new validation gate.
+    expect(screen.getByRole('button', { name: /Save Automation/ })).toBeDisabled()
   })
 })

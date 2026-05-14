@@ -9,7 +9,11 @@ export function ActionNode({ data, selected }: NodeProps) {
   const nodeData = data as { label: string; subtitle: string }
   return (
     <Card className={`min-w-64 border-2 ${selected ? 'border-primary' : 'border-border'} bg-card shadow-sm`}>
-      <Handle type="target" position={Position.Left} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-3 !w-3 !bg-background !border-2 !border-primary !rounded-full hover:!w-4 hover:!h-4 transition-all"
+      />
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div>

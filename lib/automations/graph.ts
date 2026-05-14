@@ -104,6 +104,7 @@ export function compileAutomationGraph(
           : node.type === 'condition'
             ? 'conditionNode'
             : 'actionNode',
+      deletable: node.type !== 'trigger',
       position,
       data: {
         label: meta.label,

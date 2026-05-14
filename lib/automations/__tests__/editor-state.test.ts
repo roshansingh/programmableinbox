@@ -539,4 +539,18 @@ describe('addFreeNode', () => {
     // Layout position written eagerly
     expect(result.layout.positions[result.newNodeId!]).toEqual({ x: 999, y: 555 })
   })
+
+  it('returns null newNodeId for an unknown key', () => {
+    const config = createDefaultAutomationConfig()
+    const layout = createDefaultAutomationLayout(config)
+
+    const result = addFreeNode(config, layout, {
+      key: 'totally_made_up_key' as any,
+      position: { x: 100, y: 100 },
+    })
+
+    expect(result.newNodeId).toBeNull()
+    expect(result.config).toBe(config)
+    expect(result.layout).toBe(layout)
+  })
 })

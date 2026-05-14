@@ -78,7 +78,7 @@ export const conditionExprSchema: z.ZodTypeAny = z.lazy(() =>
   ])
 )
 
-const triggerNodeSchema = z.object({
+export const triggerNodeSchema = z.object({
   id: z.string().min(1),
   type: z.literal('trigger'),
   version: z.literal(1),

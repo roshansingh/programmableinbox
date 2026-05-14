@@ -4,6 +4,7 @@ import type {
   AutomationValidationIssue,
   AutomationValidationResult,
 } from './types'
+import { actionNodeSchema, conditionNodeSchema, triggerNodeSchema } from './schemas'
 
 function getOutgoingEdges(edges: AutomationConfig['edges']) {
   const outgoing = new Map<string, AutomationConfig['edges']>()
@@ -149,6 +150,25 @@ export function validateAutomationGraph(config: AutomationConfig): AutomationVal
       code: 'no_reachable_action',
       message: 'at least one reachable action is required from the trigger',
     })
+  }
+
+  for (const node of config.nodes) {
+    const schema =
+      node.type === 'trigger'
+        ? triggerNodeSchema
+        : node.type === 'condition'
+          ? conditionNodeSchema
+          : actionNodeSchema
+    const result = schema.safeParse(node)
+    if (!result.success) {
+      for (const zodIssue of result.error.issues) {
+        issues.push({
+          code: 'node_config_invalid',
+          nodeId: node.id,
+          message: zodIssue.message,
+        })
+      }
+    }
   }
 
   return {

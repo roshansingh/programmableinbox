@@ -41,6 +41,7 @@ import {
   addFreeNode,
   compileEditorGraph,
   connectNodes,
+  deleteNodeCascade,
   getConfigNode,
   updateActionConfig,
   updateConditionConfig,
@@ -110,6 +111,10 @@ function AutomationEditorInner({
     () => (selectedNodeId ? getConfigNode(config, selectedNodeId) : null),
     [config, selectedNodeId]
   )
+  const displayedNodes = useMemo(
+    () => nodes.map((n) => ({ ...n, selected: n.id === selectedNodeId })),
+    [nodes, selectedNodeId]
+  )
   const validation = useMemo(() => validateAutomationGraph(config), [config])
 
   function onNodesChange(changes: NodeChange[]) {
@@ -124,13 +129,13 @@ function AutomationEditorInner({
     })
   }
 
-  function reconcile(nextConfig: AutomationConfig, nextLayout: AutomationLayout) {
+  const reconcile = useCallback((nextConfig: AutomationConfig, nextLayout: AutomationLayout) => {
     const graph = compileEditorGraph(nextConfig, nextLayout)
     setConfig(nextConfig)
     setLayout(nextLayout)
     setNodes(graph.nodes)
     setEdges(graph.edges as Edge[])
-  }
+  }, [])
 
   const handleNodeClick: NodeMouseHandler = (_, node) => {
     setSelectedNodeId(node.id)
@@ -141,11 +146,62 @@ function AutomationEditorInner({
       const result = addChildNode(config, { sourceNodeId, key })
       if (!result.newNodeId) return
       reconcile(result.config, layout)
-      setSelectedNodeId(result.newNodeId)
       setConfigDirty(true)
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [config, layout]
+    [config, layout, reconcile]
+  )
+
+  const clearSelection = useCallback(() => {
+    setSelectedNodeId(null)
+    setNodes((current) => current.map((n) => ({ ...n, selected: false })))
+  }, [])
+
+  const handleDeleteBlock = useCallback(
+    (nodeId: string) => {
+      const nextConfig = deleteNodeCascade(config, nodeId)
+      if (nextConfig === config) return
+      reconcile(nextConfig, layout)
+      clearSelection()
+      setConfigDirty(true)
+    },
+    [config, layout, reconcile, clearSelection]
+  )
+
+  const handleNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      if (deleted.length === 0) return
+      let nextConfig = config
+      for (const node of deleted) {
+        nextConfig = deleteNodeCascade(nextConfig, node.id)
+      }
+      if (nextConfig === config) return
+      reconcile(nextConfig, layout)
+      clearSelection()
+      setConfigDirty(true)
+    },
+    [config, layout, reconcile, clearSelection]
+  )
+
+  const handleSheetOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) return
+      clearSelection()
+    },
+    [clearSelection]
+  )
+
+  const handleEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      if (deleted.length === 0) return
+      const ids = new Set(deleted.map((e) => e.id))
+      const nextConfig = {
+        ...config,
+        edges: config.edges.filter((e) => !ids.has(e.id)),
+      }
+      reconcile(nextConfig, layout)
+      setConfigDirty(true)
+    },
+    [config, layout, reconcile]
   )
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -163,7 +219,7 @@ function AutomationEditorInner({
       const key = rawKey as BlockKey
 
       const target = event.target as HTMLElement | null
-      const nodeEl = target?.closest('[data-id]') as HTMLElement | null
+      const nodeEl = target?.closest('.react-flow__node') as HTMLElement | null
       const targetNodeId = nodeEl?.getAttribute('data-id') ?? null
 
       if (targetNodeId) {
@@ -182,12 +238,12 @@ function AutomationEditorInner({
         y: event.clientY,
       })
       const result = addFreeNode(config, layout, { key, position })
+      if (!result.newNodeId) return
       reconcile(result.config, result.layout)
-      setSelectedNodeId(result.newNodeId)
       setConfigDirty(true)
       setLayoutDirty(true)
     },
-    [config, layout, reactFlow, handlePickBlock]
+    [config, layout, reactFlow, handlePickBlock, reconcile]
   )
 
   function isValidConnection(connection: Connection) {
@@ -317,7 +373,9 @@ function AutomationEditorInner({
   }
 
   return (
-    <AutomationEditorContextProvider value={{ onPickBlock: handlePickBlock }}>
+    <AutomationEditorContextProvider
+      value={{ onPickBlock: handlePickBlock, onDeleteBlock: handleDeleteBlock }}
+    >
       <div className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
@@ -353,7 +411,15 @@ function AutomationEditorInner({
                 <Save className="mr-2 h-4 w-4" />
                 Save Layout
               </Button>
-              <Button onClick={saveAutomation} disabled={isSaving || (!configDirty && !layoutDirty)}>
+              <Button
+                onClick={saveAutomation}
+                disabled={
+                  isSaving ||
+                  (!configDirty && !layoutDirty) ||
+                  !validation.canStart
+                }
+                title={!validation.canStart ? 'Fix validation errors before saving' : undefined}
+              >
                 <Save className="mr-2 h-4 w-4" />
                 Save Automation
               </Button>
@@ -368,11 +434,24 @@ function AutomationEditorInner({
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                {validation.issues.map((issue) => (
-                  <li key={`${issue.code}:${issue.nodeId ?? issue.edgeId ?? issue.message}`}>
-                    {issue.message}
-                  </li>
-                ))}
+                {validation.issues.map((issue) => {
+                  const key = `${issue.code}:${issue.nodeId ?? issue.edgeId ?? issue.message}`
+                  if (issue.nodeId && config.nodes.some((n) => n.id === issue.nodeId)) {
+                    const targetNodeId = issue.nodeId
+                    return (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNodeId(targetNodeId)}
+                          className="text-left underline-offset-2 hover:underline hover:text-foreground"
+                        >
+                          {issue.message}
+                        </button>
+                      </li>
+                    )
+                  }
+                  return <li key={key}>{issue.message}</li>
+                })}
               </ul>
             </CardContent>
           </Card>
@@ -397,17 +476,19 @@ function AutomationEditorInner({
                   onDrop={handleDrop}
                 >
                   <ReactFlow
-                    nodes={nodes}
+                    nodes={displayedNodes}
                     edges={edges}
                     onNodesChange={onNodesChange}
                     onConnect={handleConnect}
+                    onNodesDelete={handleNodesDelete}
+                    onEdgesDelete={handleEdgesDelete}
                     isValidConnection={isValidConnection}
                     nodeTypes={nodeTypes}
                     nodesConnectable
                     nodesDraggable
                     elementsSelectable
                     onNodeClick={handleNodeClick}
-                    onPaneClick={() => setSelectedNodeId(null)}
+                    onPaneClick={() => handleSheetOpenChange(false)}
                     fitView
                     fitViewOptions={{ maxZoom: 0.75, minZoom: 0.75 }}
                   >
@@ -445,9 +526,7 @@ function AutomationEditorInner({
         <NodeConfigSheet
           node={selectedNode}
           open={Boolean(selectedNode)}
-          onOpenChange={(open) => {
-            if (!open) setSelectedNodeId(null)
-          }}
+          onOpenChange={handleSheetOpenChange}
           onConditionChange={handleConditionChange}
           onActionChange={handleActionChange}
         />

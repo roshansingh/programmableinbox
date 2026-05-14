@@ -5,6 +5,7 @@ import type { BlockKey } from '@/lib/automations/block-catalog'
 
 export type AutomationEditorContextValue = {
   onPickBlock: (sourceNodeId: string, key: BlockKey) => void
+  onDeleteBlock: (nodeId: string) => void
 }
 
 const AutomationEditorContext = createContext<AutomationEditorContextValue | null>(null)

@@ -189,6 +189,7 @@ export type AutomationValidationIssue = {
     | 'self_loop'
     | 'disconnected_node'
     | 'no_reachable_action'
+    | 'node_config_invalid'
   nodeId?: string
   edgeId?: string
   message: string
@@ -230,6 +231,7 @@ export type EmailAutomationInput = {
 export type AutomationFlowNode = {
   id: string
   type: 'triggerNode' | 'conditionNode' | 'actionNode'
+  deletable?: boolean
   position: { x: number; y: number }
   data: {
     label: string
