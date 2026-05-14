@@ -1,0 +1,17 @@
+# Copy to docker-compose.override.yml on the host if you need local tweaks
+# (e.g., pinning to a specific commit SHA, lowering memory, exposing Kuma
+# to Tailscale). The override is gitignored on purpose.
+
+services:
+  app:
+    # Pin to a specific GHCR digest to opt out of `:latest` mutability:
+    # image: ghcr.io/your-org/inboxui@sha256:abc123...
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 32g

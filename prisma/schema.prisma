@@ -316,3 +316,11 @@ model AutoReplyLedger {
   @@unique([automationId, inboxId, fromEmail])
   @@map("auto_reply_ledgers")
 }
+
+model BackupStatus {
+  jobName       String   @id @map("job_name")
+  lastSuccessAt DateTime @map("last_success_at") @db.Timestamptz
+  details       Json?
+
+  @@map("backup_status")
+}
