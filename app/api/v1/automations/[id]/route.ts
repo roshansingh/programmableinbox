@@ -36,7 +36,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!automation) return jsonError('Not found', 404)
 
   const shellData: Record<string, string | boolean | null> = {}
-  if (typeof parsed.body.name === 'string') shellData.name = parsed.body.name.trim()
+  if (typeof parsed.body.name === 'string') {
+    const trimmedName = parsed.body.name.trim()
+    if (!trimmedName) {
+      return jsonError('name must not be empty', 400)
+    }
+    shellData.name = trimmedName
+  }
   if (typeof parsed.body.description === 'string') shellData.description = parsed.body.description.trim()
   if (typeof parsed.body.isActive === 'boolean') shellData.isActive = parsed.body.isActive
   if (parsed.body.description === null) shellData.description = null

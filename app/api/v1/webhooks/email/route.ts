@@ -91,6 +91,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   const emailMessageId = email.message_id
     || getHeader(email.headers, 'message-id')
     || `<${email.id}@inboxui.generated>`
+  const storedMessageId = `${emailMessageId}::${inboxId}`
   const inReplyTo = getHeader(email.headers, 'in-reply-to')
   const referencesHeader = getHeader(email.headers, 'references') || ''
   const references = referencesHeader
@@ -103,7 +104,12 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
 
     for (const candidate of candidates) {
       const parentMessage = await prisma.emailMessage.findFirst({
-        where: { messageId: candidate },
+        where: {
+          inboxEmailAddressId: inboxId,
+          messageId: {
+            startsWith: `${candidate}::`,
+          },
+        },
         select: { id: true, threadId: true },
       })
 
@@ -111,7 +117,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
         return {
           threadId: parentMessage.threadId,
           parentMessageId: parentMessage.id,
-          messageId: emailMessageId,
+          messageId: storedMessageId,
           inReplyTo,
           references,
         }
@@ -138,7 +144,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
       return {
         threadId: existingMessage.threadId,
         parentMessageId: existingMessage.id,
-        messageId: emailMessageId,
+        messageId: storedMessageId,
         inReplyTo,
         references,
       }
@@ -148,7 +154,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   return {
     threadId: dbId,
     parentMessageId: null,
-    messageId: emailMessageId,
+    messageId: storedMessageId,
     inReplyTo: null,
     references: [] as string[],
   }
