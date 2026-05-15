@@ -8,7 +8,7 @@ const TOLERANCES_SECONDS: Record<string, number> = {
   'rclone-mirror': 75 * 60,
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
   let dbOk = true
   try {
     await prisma.$queryRaw`SELECT 1`
@@ -43,6 +43,19 @@ export async function GET() {
 
   const freshnessBreach = staleJobs.length > 0
   const healthy = dbOk && !freshnessBreach
+  const healthzSecret = process.env.HEALTHZ_SECRET
+  const providedSecret = request?.headers.get('x-healthz-secret')
+  const includeDetails = Boolean(healthzSecret) && providedSecret === healthzSecret
+
+  if (!includeDetails) {
+    return jsonSuccess(
+      {
+        status: healthy ? 'ok' : 'degraded',
+        db: dbOk ? 'ok' : 'error',
+      },
+      healthy ? 200 : 503,
+    )
+  }
 
   return jsonSuccess(
     {

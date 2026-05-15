@@ -20,6 +20,7 @@ describe('GET /api/healthz', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
+    process.env.HEALTHZ_SECRET = 'topsecret'
   })
 
   it('returns 200 with db ok and fresh backups when everything is healthy', async () => {
@@ -34,7 +35,11 @@ describe('GET /api/healthz', () => {
     ])
 
     const { GET } = await loadRoute()
-    const res = await GET()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -54,7 +59,11 @@ describe('GET /api/healthz', () => {
     findManyMock.mockResolvedValue([])
 
     const { GET } = await loadRoute()
-    const res = await GET()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
     const body = await res.json()
 
     expect(res.status).toBe(503)
@@ -71,7 +80,11 @@ describe('GET /api/healthz', () => {
     ])
 
     const { GET } = await loadRoute()
-    const res = await GET()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
     const body = await res.json()
 
     expect(res.status).toBe(503)
@@ -89,7 +102,11 @@ describe('GET /api/healthz', () => {
     ])
 
     const { GET } = await loadRoute()
-    const res = await GET()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
     const body = await res.json()
 
     expect(res.status).toBe(503)
@@ -102,11 +119,57 @@ describe('GET /api/healthz', () => {
     findManyMock.mockResolvedValue([])
 
     const { GET } = await loadRoute()
-    const res = await GET()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
     const body = await res.json()
 
     expect(res.status).toBe(200)
     expect(body.data.backups).toEqual({})
+    expect(body.data.freshness_breach).toBe(false)
+  })
+
+  it('returns only public status fields when no healthz secret is provided', async () => {
+    delete process.env.HEALTHZ_SECRET
+    queryRawMock.mockResolvedValue([{ '?column?': 1 }])
+    const fresh = new Date()
+    findManyMock.mockResolvedValue([
+      { jobName: 'walg-wal', lastSuccessAt: fresh, details: null },
+    ])
+
+    const { GET } = await loadRoute()
+    const res = await GET(new Request('http://localhost/api/healthz') as any)
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data).toEqual({
+      status: 'ok',
+      db: 'ok',
+    })
+  })
+
+  it('returns backup details only when the healthz secret header matches', async () => {
+    process.env.HEALTHZ_SECRET = 'topsecret'
+    queryRawMock.mockResolvedValue([{ '?column?': 1 }])
+    const fresh = new Date()
+    findManyMock.mockResolvedValue([
+      { jobName: 'walg-wal', lastSuccessAt: fresh, details: null },
+    ])
+
+    const { GET } = await loadRoute()
+    const res = await GET(
+      new Request('http://localhost/api/healthz', {
+        headers: { 'x-healthz-secret': 'topsecret' },
+      }) as any
+    )
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data.status).toBe('ok')
+    expect(body.data.db).toBe('ok')
+    expect(body.data.backups).toEqual({ 'walg-wal': fresh.toISOString() })
     expect(body.data.freshness_breach).toBe(false)
   })
 })

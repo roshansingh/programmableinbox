@@ -229,14 +229,14 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get('x-webhook-signature')
   const timestamp = request.headers.get('x-webhook-timestamp')
 
-  // Validate signature if provided
-  if (signature && timestamp) {
-    if (!validateSignature(rawBody, signature, timestamp)) {
-      console.warn('Invalid webhook signature')
-      return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
-    }
-  } else {
-    console.warn('Webhook received without signature validation')
+  if (!signature || !timestamp) {
+    console.warn('Webhook received without required signature headers')
+    return NextResponse.json({ message: 'Missing webhook signature' }, { status: 401 })
+  }
+
+  if (!validateSignature(rawBody, signature, timestamp)) {
+    console.warn('Invalid webhook signature')
+    return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
   }
 
   const event: WebhookEvent = JSON.parse(rawBody)

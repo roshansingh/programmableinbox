@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { parseRevisionPayload } from '@/lib/automations/serialization'
+import { validateAutomationGraph } from '@/lib/automations/validation'
 import { formatAutomationRecord, loadAutomationForUser, readJsonObject, requireAuthenticatedUser } from '../../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -27,6 +29,18 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     },
   })
   if (!revision) return jsonError('Revision not found', 404)
+
+  if (automation.isActive) {
+    try {
+      const parsedRevision = parseRevisionPayload(revision)
+      const validation = validateAutomationGraph(parsedRevision.config)
+      if (!validation.canStart) {
+        return jsonError(validation.issues[0]?.message ?? 'Automation is not ready to start', 400)
+      }
+    } catch {
+      return jsonError('Automation revision is not ready to start', 400)
+    }
+  }
 
   const updated = await prisma.automation.update({
     where: { id: automation.id },
