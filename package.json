@@ -81,7 +81,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.4",
-    "baseline-browser-mapping": "^2.9.11",
+    "baseline-browser-mapping": "^2.10.29",
     "jsdom": "^28.1.0",
     "msw": "^2.12.10",
     "postcss": "^8.5",
