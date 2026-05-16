@@ -129,3 +129,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* React Flow dark mode visibility fixes */
+.dark .react-flow__node {
+  border-color: hsl(228 31% 35%) !important;
+}
+
+.dark .react-flow__edge {
+  stroke: hsl(237 100% 60%) !important;
+}
+
+.dark .react-flow__controls {
+  background: hsl(225 23% 12%);
+  border: 1px solid hsl(228 31% 35%);
+}
+
+.dark .react-flow__controls button {
+  color: hsl(228 25% 92%);
+  background: transparent;
+  border-color: hsl(228 31% 35%);
+}
+
+.dark .react-flow__controls button:hover {
+  background: hsl(225 23% 20%);
+  color: hsl(237 100% 74%);
+}
