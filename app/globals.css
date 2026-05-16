@@ -60,8 +60,8 @@
   --destructive-foreground: hsl(225 27% 7%);
   --success: hsl(153 64% 60%);            /* mint */
   --warning: hsl(38 75% 63%);             /* #e8b95a */
-  --border: hsl(228 31% 40%);             /* improved contrast */
-  --input: hsl(228 31% 40%);
+  --border: hsl(228 31% 28%);
+  --input: hsl(228 31% 28%);
   --ring: hsl(237 100% 74%);
   --chart-1: hsl(237 100% 74%);
   --chart-2: hsl(200 85% 65%);
