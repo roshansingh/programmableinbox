@@ -128,6 +128,24 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  button, a, [role="button"], [role="tab"], [role="menuitem"] {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .dark button {
+    @apply transition-colors duration-200;
+  }
+
+  .dark button:hover:not(:disabled) {
+    @apply brightness-110;
+  }
+
+  .dark button:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 }
 
 /* React Flow dark mode visibility fixes */
