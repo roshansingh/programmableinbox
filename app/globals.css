@@ -50,9 +50,9 @@
   --popover-foreground: hsl(228 25% 92%);
   --primary: hsl(237 100% 74%);           /* #7c83ff  accent */
   --primary-foreground: hsl(225 27% 7%);
-  --secondary: hsl(224 27% 14%);
+  --secondary: hsl(224 27% 25%);
   --secondary-foreground: hsl(228 25% 92%);
-  --muted: hsl(225 23% 12%);
+  --muted: hsl(225 23% 22%);
   --muted-foreground: hsl(225 16% 55%);   /* #7a82a0 */
   --accent: hsl(237 100% 74%);
   --accent-foreground: hsl(225 27% 7%);
