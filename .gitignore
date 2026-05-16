@@ -3,6 +3,7 @@
 repo-info.md
 plans/
 .worktrees/
+.superpowers/
 
 # dependencies
 /node_modules

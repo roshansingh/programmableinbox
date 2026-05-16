@@ -1,0 +1,91 @@
+name: inboxui
+
+networks:
+  inboxui-internal:
+    driver: bridge
+
+volumes:
+  caddy-data:
+    name: caddy-data
+  caddy-config:
+    name: caddy-config
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - inboxui-internal
+    depends_on:
+      - app
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/inboxui}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: /srv/inboxui/secrets/app.env
+    expose:
+      - "4000"
+    networks:
+      - inboxui-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    image: ${APP_IMAGE:-ghcr.io/OWNER/inboxui}:${IMAGE_TAG:-latest}
+    profiles: ["migrate"]
+    env_file: /srv/inboxui/secrets/app.env
+    networks:
+      - inboxui-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-ghcr.io/OWNER/inboxui-postgres}:${POSTGRES_TAG:-17}
+    restart: unless-stopped
+    env_file: /srv/inboxui/secrets/app.env
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    volumes:
+      - /srv/inboxui/pgdata:/var/lib/postgresql/data
+    networks:
+      - inboxui-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  backup-cron:
+    image: ${BACKUP_IMAGE:-ghcr.io/OWNER/inboxui-backup}:${BACKUP_TAG:-latest}
+    restart: unless-stopped
+    env_file: /srv/inboxui/secrets/app.env
+    volumes:
+      - /srv/inboxui/backup-logs:/var/log/backup
+      - /srv/inboxui/secrets:/secrets:ro
+    networks:
+      - inboxui-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - /srv/inboxui/kuma:/app/data
+    networks:
+      - inboxui-internal

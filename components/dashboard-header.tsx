@@ -1,13 +1,22 @@
 "use client"
 
-import { useState } from 'react'
-import { Bell, Search, Menu } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, Search, Menu, Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MobileSidebar } from "@/components/mobile-sidebar"
 
 export function DashboardHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isDark = resolvedTheme === 'dark'
 
   return (
     <>
@@ -37,6 +46,29 @@ export function DashboardHeader() {
             </div>
             
             <div className="flex items-center gap-2">
+              {mounted ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer"
+                  onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                  aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                  title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-default"
+                  aria-label="Theme toggle loading"
+                  title="Theme toggle loading"
+                  disabled
+                >
+                  <Moon className="h-5 w-5" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="sm:hidden">
                 <Search className="h-5 w-5" />
               </Button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
+import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 
 const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
@@ -25,6 +26,11 @@ interface ResendEmailData {
   headers: Record<string, string>
   created_at: string
   message_id?: string
+  attachments?: Array<{
+    filename?: string
+    content_type?: string
+    size?: number
+  }>
 }
 
 /**
@@ -85,6 +91,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   const emailMessageId = email.message_id
     || getHeader(email.headers, 'message-id')
     || `<${email.id}@inboxui.generated>`
+  const storedMessageId = `${emailMessageId}::${inboxId}`
   const inReplyTo = getHeader(email.headers, 'in-reply-to')
   const referencesHeader = getHeader(email.headers, 'references') || ''
   const references = referencesHeader
@@ -97,7 +104,12 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
 
     for (const candidate of candidates) {
       const parentMessage = await prisma.emailMessage.findFirst({
-        where: { messageId: candidate },
+        where: {
+          inboxEmailAddressId: inboxId,
+          messageId: {
+            startsWith: `${candidate}::`,
+          },
+        },
         select: { id: true, threadId: true },
       })
 
@@ -105,7 +117,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
         return {
           threadId: parentMessage.threadId,
           parentMessageId: parentMessage.id,
-          messageId: emailMessageId,
+          messageId: storedMessageId,
           inReplyTo,
           references,
         }
@@ -132,7 +144,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
       return {
         threadId: existingMessage.threadId,
         parentMessageId: existingMessage.id,
-        messageId: emailMessageId,
+        messageId: storedMessageId,
         inReplyTo,
         references,
       }
@@ -142,7 +154,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   return {
     threadId: dbId,
     parentMessageId: null,
-    messageId: emailMessageId,
+    messageId: storedMessageId,
     inReplyTo: null,
     references: [] as string[],
   }
@@ -193,6 +205,17 @@ async function storeIncomingEmail(resendEmail: ResendEmailData) {
         },
       })
 
+      if (resendEmail.attachments?.length) {
+        await prisma.emailAttachment.createMany({
+          data: resendEmail.attachments.map((attachment) => ({
+            emailMessageId: message.id,
+            filename: attachment.filename || 'attachment',
+            contentType: attachment.content_type || null,
+            sizeBytes: attachment.size || null,
+          })),
+        })
+      }
+
       created.push(message)
     } catch (error: any) {
       // Skip duplicates
@@ -212,14 +235,14 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get('x-webhook-signature')
   const timestamp = request.headers.get('x-webhook-timestamp')
 
-  // Validate signature if provided
-  if (signature && timestamp) {
-    if (!validateSignature(rawBody, signature, timestamp)) {
-      console.warn('Invalid webhook signature')
-      return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
-    }
-  } else {
-    console.warn('Webhook received without signature validation')
+  if (!signature || !timestamp) {
+    console.warn('Webhook received without required signature headers')
+    return NextResponse.json({ message: 'Missing webhook signature' }, { status: 401 })
+  }
+
+  if (!validateSignature(rawBody, signature, timestamp)) {
+    console.warn('Invalid webhook signature')
+    return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
   }
 
   const event: WebhookEvent = JSON.parse(rawBody)
@@ -248,9 +271,13 @@ export async function POST(request: NextRequest) {
       headers: email.headers || {},
       created_at: email.created_at || new Date().toISOString(),
       message_id: (email as any).message_id,
+      attachments: Array.isArray((email as any).attachments)
+        ? (email as any).attachments
+        : [],
     }
 
     const stored = await storeIncomingEmail(resendEmail)
+    await Promise.all(stored.map((message) => dispatchAutomationsForEmail(message.id)))
     console.log(`Stored ${stored.length} message(s) for email ${event.data.email_id}`)
   } catch (error) {
     console.error('Failed to process email webhook:', error)
