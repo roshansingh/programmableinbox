@@ -42,38 +42,40 @@
 }
 
 .dark {
-  --background: oklch(0.125 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.648 0.186 251.731);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.225 0.016 251.731);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.205 0.012 251.731);
-  --muted-foreground: oklch(0.648 0.048 251.731);
-  --accent: oklch(0.225 0.016 251.731);
-  --accent-foreground: oklch(0.97 0 0);
-  --destructive: oklch(0.477 0.195 27.325);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.225 0.016 251.731);
-  --input: oklch(0.225 0.016 251.731);
-  --ring: oklch(0.648 0.186 251.731);
-  --chart-1: oklch(0.648 0.186 251.731);
-  --chart-2: oklch(0.728 0.166 234.425);
-  --chart-3: oklch(0.798 0.146 268.125);
-  --chart-4: oklch(0.568 0.206 251.731);
-  --chart-5: oklch(0.828 0.126 251.731);
-  --sidebar: oklch(0.165 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.648 0.186 251.731);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.225 0.016 251.731);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(0.225 0.016 251.731);
-  --sidebar-ring: oklch(0.648 0.186 251.731);
+  --background: 225 27% 7%;          /* #0c0e15 */
+  --foreground: 228 25% 92%;         /* #e6e8f1 */
+  --card: 225 23% 12%;               /* #161a26  surface */
+  --card-foreground: 228 25% 92%;
+  --popover: 224 27% 14%;            /* #1a1f2e  surface2 */
+  --popover-foreground: 228 25% 92%;
+  --primary: 237 100% 74%;           /* #7c83ff  accent */
+  --primary-foreground: 225 27% 7%;
+  --secondary: 224 27% 14%;
+  --secondary-foreground: 228 25% 92%;
+  --muted: 225 23% 12%;
+  --muted-foreground: 225 16% 55%;   /* #7a82a0 */
+  --accent: 237 100% 74%;
+  --accent-foreground: 225 27% 7%;
+  --destructive: 0 100% 74%;         /* #ff7a7a */
+  --destructive-foreground: 225 27% 7%;
+  --success: 153 64% 60%;            /* mint */
+  --warning: 38 75% 63%;             /* #e8b95a */
+  --border: 228 31% 19%;             /* #222840 */
+  --input: 228 31% 19%;
+  --ring: 237 100% 74%;
+  --chart-1: 237 100% 74%;
+  --chart-2: 200 85% 65%;
+  --chart-3: 270 75% 70%;
+  --chart-4: 153 64% 60%;
+  --chart-5: 38 75% 63%;
+  --sidebar-background: 225 27% 7%;
+  --sidebar-foreground: 228 25% 92%;
+  --sidebar-primary: 237 100% 74%;
+  --sidebar-primary-foreground: 225 27% 7%;
+  --sidebar-accent: 225 23% 12%;
+  --sidebar-accent-foreground: 228 25% 92%;
+  --sidebar-border: 228 31% 19%;
+  --sidebar-ring: 237 100% 74%;
 }
 
 @theme inline {
