@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { GitBranchPlus, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +14,7 @@ import { useAutomationEditor } from '@/components/automations/automation-editor-
 export function ConditionNode({ id, data, selected }: NodeProps) {
   const { onPickBlock } = useAutomationEditor()
   const nodeData = data as { label: string; subtitle: string }
+  const [open, setOpen] = useState(false)
 
   return (
     <div
@@ -47,7 +49,7 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
           className="!h-3 !w-3 !bg-background !border-2 !border-primary !rounded-full hover:!w-4 hover:!h-4 transition-all"
         />
       </Card>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button
             type="button"
@@ -67,7 +69,10 @@ export function ConditionNode({ id, data, selected }: NodeProps) {
           </DialogHeader>
           <NodePicker
             allowedKeys={ALL_BLOCK_KEYS}
-            onPick={(key) => onPickBlock(id, key)}
+            onPick={(key) => {
+              onPickBlock(id, key)
+              setOpen(false)
+            }}
           />
         </DialogContent>
       </Dialog>
