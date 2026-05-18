@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🔒 Git Worktree Requirement
+
+**ALL agentic coding (agents writing code) MUST use git worktrees.**
+
+- **For you**: Before dispatching agents to write code, ensure they use `superpowers:using-git-worktrees` to create an isolated worktree
+- **For agents**: Always start by creating a git worktree. Never code on main/master or shared branches
+- **Workflow**: Create worktree → implement → test → finish with `superpowers:finishing-a-development-branch` (merge, PR, or keep)
+
+This prevents concurrent work from interfering and keeps the git history clean.
+
 ## Commands
 
 ```bash
