@@ -96,8 +96,11 @@ model PhoneInbox {
 
 model ApiKey {
   id             String   @id @default(cuid())
-  apiKey         String   @unique
+  apiKey         String?  @unique
+  keyHash        String?  @unique
+  prefix         String?
   name           String
+  scopes         String[] @default([])
   organizationId String
   userId         String
   createdAt      DateTime @default(now())
@@ -105,6 +108,9 @@ model ApiKey {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([prefix])
   @@map("api_keys")
 }
 
