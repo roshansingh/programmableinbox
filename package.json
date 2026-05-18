@@ -6,6 +6,7 @@
     "build": "next build",
     "dev": "next dev --port 4000",
     "lint": "eslint .",
+    "backfill:api-keys": "node --import tsx scripts/backfill-api-key-hashes.ts",
     "start": "next start --port 4000",
     "test": "vitest run",
     "test:watch": "vitest"

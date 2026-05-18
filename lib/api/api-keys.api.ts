@@ -5,10 +5,9 @@
  */
 
 import { apiClient } from '../api-client'
+import { API_KEY_SCOPES, type ApiKeyScope } from '@/lib/api-key-scopes'
 
-export const API_KEY_SCOPES = ['inboxes:read', 'messages:read'] as const
-
-export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
+export { API_KEY_SCOPES }
 
 export interface ApiKeyListItem {
   id: string
