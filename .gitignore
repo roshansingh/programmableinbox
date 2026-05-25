@@ -98,3 +98,7 @@ temp/
 
 
 /lib/generated/prisma
+
+.supercontext
+debates
+design

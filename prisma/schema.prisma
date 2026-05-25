@@ -71,9 +71,10 @@ model EmailInbox {
 
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  emailMessages EmailMessage[]
-  automations   Automation[]
-  autoReplyLedgers AutoReplyLedger[]
+  emailMessages    EmailMessage[]
+  automations      Automation[]
+  autoReplyLedgers    AutoReplyLedger[]
+  emailJobDeadLetters EmailJobDeadLetter[]
 
   @@map("email_inboxes")
 }
@@ -287,6 +288,22 @@ model AutomationNodeRun {
 
   @@index([runId])
   @@map("automation_node_runs")
+}
+
+model EmailJobDeadLetter {
+  id                    String   @id @default(cuid())
+  externalId            String   // Resend email ID
+  inboxEmailAddressId   String
+  inboxEmailAddress     EmailInbox @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
+  payload               Json     // Full email payload
+  error                 String   // Error message from failed processing
+  attemptCount          Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([externalId, inboxEmailAddressId])
+  @@index([inboxEmailAddressId])
+  @@map("email_job_dead_letter")
 }
 
 model EmailAttachment {
