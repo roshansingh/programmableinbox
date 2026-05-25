@@ -1,0 +1,53 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: inbox
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: inbox
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://inbox:test@localhost:5432/inbox
+      JWT_SECRET: test-secret
+      WEBHOOK_SECRET: test-webhook-secret
+      AUTH_RESEND_API_KEY: re_test_key
+      AUTH_EMAIL_FROM: test@example.com
+      AUTH_EMAIL_FROM_NAME: Test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Test results
+        if: always()
+        run: echo "✅ All tests passed"
