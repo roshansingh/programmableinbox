@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
+import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
+import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 
 const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
+
+/**
+ * Returns true when async (BullMQ) webhook processing is enabled.
+ * When disabled, the webhook route falls back to synchronous in-request processing.
+ * Controlled by the ENABLE_ASYNC_WEBHOOK_PROCESSING environment variable.
+ */
+function isAsyncWebhookProcessingEnabled(): boolean {
+  return process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING === 'true'
+}
 
 interface WebhookEvent {
   type: string
@@ -14,7 +25,7 @@ interface WebhookEvent {
   }
 }
 
-interface ResendEmailData {
+export interface ResendEmailData {
   id: string
   from: string
   to: string[]
@@ -44,39 +55,6 @@ function getHeader(headers: Record<string, string> | undefined, name: string): s
     if (key.toLowerCase() === lowerName) return value
   }
   return null
-}
-
-function validateSignature(
-  payload: string,
-  signature: string,
-  timestamp: string,
-): boolean {
-  const webhookSecret = process.env.WEBHOOK_SECRET
-  if (!webhookSecret) {
-    console.error('WEBHOOK_SECRET not configured')
-    return false
-  }
-
-  // Replay attack prevention (5 minute window)
-  const currentTime = Math.floor(Date.now() / 1000)
-  const webhookTime = parseInt(timestamp, 10)
-  if (isNaN(webhookTime) || currentTime - webhookTime > 300) {
-    return false
-  }
-
-  const expectedSignature = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(`${timestamp}.${payload}`)
-    .digest('hex')
-
-  try {
-    const signatureBuffer = Buffer.from(signature, 'hex')
-    const expectedBuffer = Buffer.from(expectedSignature, 'hex')
-    if (signatureBuffer.length !== expectedBuffer.length) return false
-    return crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -160,16 +138,32 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   }
 }
 
-async function storeIncomingEmail(resendEmail: ResendEmailData) {
+export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmailAddressIds?: string[]) {
   const allAddresses = [
     ...resendEmail.to,
     ...(resendEmail.cc || []),
     ...(resendEmail.bcc || []),
   ].map((e) => e.toLowerCase().trim())
 
-  const matchingInboxes = await prisma.emailInbox.findMany({
-    where: { email: { in: allAddresses } },
-  })
+  let matchingInboxes: Awaited<ReturnType<typeof prisma.emailInbox.findMany>>
+
+  if (inboxEmailAddressIds && inboxEmailAddressIds.length > 0) {
+    // When called from the async worker, use the inbox IDs directly.
+    // The webhook route already validated these inboxes exist and match the email.
+    // Don't re-filter by email address: the inbox may have matched for reasons
+    // other than direct recipient (e.g., BCC'd or forwarded from another address).
+    matchingInboxes = await prisma.emailInbox.findMany({
+      where: {
+        id: { in: inboxEmailAddressIds },
+      },
+    })
+  } else {
+    // Default path (direct webhook route): match all inboxes that appear in
+    // the recipient list.
+    matchingInboxes = await prisma.emailInbox.findMany({
+      where: { email: { in: allAddresses } },
+    })
+  }
 
   if (matchingInboxes.length === 0) {
     console.log(`No matching inboxes for email ${resendEmail.id}`, { addresses: allAddresses })
@@ -232,26 +226,47 @@ async function storeIncomingEmail(resendEmail: ResendEmailData) {
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text()
-  const signature = request.headers.get('x-webhook-signature')
-  const timestamp = request.headers.get('x-webhook-timestamp')
 
-  if (!signature || !timestamp) {
-    console.warn('Webhook received without required signature headers')
-    return NextResponse.json({ message: 'Missing webhook signature' }, { status: 401 })
-  }
-
-  if (!validateSignature(rawBody, signature, timestamp)) {
+  // Verify webhook signature using Resend's Svix-based verification (includes replay attack prevention)
+  try {
+    resend.webhooks.verify({
+      payload: rawBody,
+      headers: {
+        id: request.headers.get('svix-id')!,
+        timestamp: request.headers.get('svix-timestamp')!,
+        signature: request.headers.get('svix-signature')!,
+      },
+      webhookSecret: process.env.WEBHOOK_SECRET!,
+    });
+  } catch {
     console.warn('Invalid webhook signature')
     return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
   }
 
-  const event: WebhookEvent = JSON.parse(rawBody)
+  // Start worker if async processing is enabled (ensures it's running before jobs arrive)
+  if (isAsyncWebhookProcessingEnabled()) {
+    try {
+      getEmailWebhookWorker();
+    } catch (error) {
+      console.error('Failed to initialize webhook worker:', error)
+    }
+  }
 
+  let event: WebhookEvent
+  try {
+    event = JSON.parse(rawBody)
+  } catch (error) {
+    console.error('Failed to parse webhook payload as JSON:', error)
+    return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 })
+  }
+
+  // Only process email.received events
   if (event.type !== 'email.received' || !event.data.email_id) {
     return NextResponse.json({ message: 'Webhook received' })
   }
 
   try {
+    // Fetch full email data from Resend (webhook only contains the email ID)
     const { data: email } = await resend.emails.receiving.get(event.data.email_id)
 
     if (!email) {
@@ -259,6 +274,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Webhook received' })
     }
 
+    // Construct email data object from Resend API response
     const resendEmail: ResendEmailData = {
       id: event.data.email_id,
       from: email.from,
@@ -276,13 +292,58 @@ export async function POST(request: NextRequest) {
         : [],
     }
 
-    const stored = await storeIncomingEmail(resendEmail)
-    await Promise.all(stored.map((message) => dispatchAutomationsForEmail(message.id)))
-    console.log(`Stored ${stored.length} message(s) for email ${event.data.email_id}`)
+    // Fan-out: find all inboxes that should receive this email (recipients include To, Cc, Bcc)
+    const allAddresses = [
+      ...resendEmail.to,
+      ...(resendEmail.cc || []),
+      ...(resendEmail.bcc || []),
+    ].map((e) => e.toLowerCase().trim())
+
+    const matchingInboxes = await prisma.emailInbox.findMany({
+      where: { email: { in: allAddresses } },
+    })
+
+    if (matchingInboxes.length === 0) {
+      console.log(`No matching inboxes for email ${event.data.email_id}`, { addresses: allAddresses })
+      return NextResponse.json({ message: 'Webhook received' })
+    }
+
+    if (isAsyncWebhookProcessingEnabled()) {
+      // ASYNC PATH: Enqueue one job per matching inbox, return immediately (50-100ms)
+      // Worker processes jobs in background, storing emails and dispatching automations.
+      // Await all enqueue operations to ensure durability: return 500 if any fail.
+      // This guarantees that if we return 200, all jobs are in Redis and will be processed.
+      await Promise.all(
+        matchingInboxes.map((inbox) =>
+          enqueueEmailWebhookJob({
+            externalId: resendEmail.id,
+            inboxEmailAddressId: inbox.id,
+            payload: resendEmail as unknown as Record<string, unknown>,
+          })
+        )
+      )
+
+      console.log(`Enqueued ${matchingInboxes.length} job(s) for email ${event.data.email_id}`)
+      return NextResponse.json({ message: 'Webhook received and queued for processing' })
+    } else {
+      // SYNC PATH: Store emails and dispatch automations inline (500ms-2s)
+      // Blocks the webhook response on database and API latency.
+      // Used when async processing is disabled or Redis is unavailable.
+      const storedMessages = await Promise.all(
+        matchingInboxes.map((inbox) =>
+          storeIncomingEmail(resendEmail, [inbox.id])
+        )
+      )
+
+      // Trigger automation workflows for newly stored messages
+      await Promise.all(
+        storedMessages.flat().map((message) => dispatchAutomationsForEmail(message.id))
+      )
+
+      return NextResponse.json({ message: 'Webhook processed' })
+    }
   } catch (error) {
     console.error('Failed to process email webhook:', error)
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 })
   }
-
-  return NextResponse.json({ message: 'Webhook received' })
 }
