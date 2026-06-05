@@ -17,7 +17,7 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_API_MODE: 'local',
     },
-    exclude: ['node_modules', 'dist', '.worktrees/**/*.test.*', '.claude/**/*.test.*'],
+    exclude: ['node_modules', 'dist', '.worktrees/**/*', '.claude/**/*.test.*', '.claude/**/*.spec.*'],
   },
   resolve: {
     alias: {

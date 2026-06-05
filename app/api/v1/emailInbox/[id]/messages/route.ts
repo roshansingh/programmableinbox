@@ -1,19 +1,36 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { resolveAuthContext } from '@/lib/auth/auth-context'
+import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+  const context = await resolveAuthContext(request)
+  if (!context) return jsonError('Unauthorized', 401)
 
   const { id } = await params
 
   const inbox = await prisma.emailInbox.findUnique({ where: { id } })
-  if (!inbox || inbox.userId !== user.id) {
+  if (!inbox) {
     return jsonError('Not found', 404)
+  }
+
+  if (context.kind === 'user') {
+    if (inbox.userId !== context.userId) {
+      return jsonError('Not found', 404)
+    }
+  } else {
+    const scopeResult = requireScope(context, 'messages:read')
+    if ('error' in scopeResult) {
+      return scopeResult.error
+    }
+
+    const orgResult = requireOrgAccess(context, inbox.organizationId)
+    if ('error' in orgResult) {
+      return orgResult.error
+    }
   }
 
   const searchParams = request.nextUrl.searchParams

@@ -74,6 +74,10 @@ export async function POST(request: NextRequest) {
       return jsonError('organizationId, name, and scopes are required', 400)
     }
 
+    if (typeof organizationId !== 'string' || typeof name !== 'string') {
+      return jsonError('organizationId and name must be strings', 400)
+    }
+
     const normalizedName = name.trim()
     const filteredScopes = scopes.filter((scope): scope is string => typeof scope === 'string')
     const normalizedScopes = Array.from(
@@ -120,7 +124,8 @@ export async function POST(request: NextRequest) {
       },
       201
     )
-  } catch {
+  } catch (error) {
+    console.error('Error creating API key:', error)
     return jsonError('Internal server error', 500)
   }
 }
