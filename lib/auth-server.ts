@@ -25,6 +25,42 @@ export function verifyToken(token: string): { userId: string } | null {
   }
 }
 
+export async function resolveUserPrincipalFromToken(token: string): Promise<{
+  kind: 'user'
+  userId: string
+  email: string
+  memberships: Array<{ organizationId: string; role: string }>
+} | null> {
+  const payload = verifyToken(token)
+  if (!payload) return null
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: {
+      id: true,
+      email: true,
+      memberships: {
+        select: {
+          organizationId: true,
+          role: true,
+        },
+      },
+    },
+  })
+
+  if (!user) return null
+
+  return {
+    kind: 'user',
+    userId: user.id,
+    email: user.email,
+    memberships: user.memberships.map((membership) => ({
+      organizationId: membership.organizationId,
+      role: membership.role,
+    })),
+  }
+}
+
 export async function getAuthenticatedUser(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return null

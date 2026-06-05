@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Copy, Eye, EyeOff, MoreVertical, Plus, Trash2, Key } from 'lucide-react'
+import { Checkbox } from "@/components/ui/checkbox"
+import { Copy, MoreVertical, Plus, Trash2, Key } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,19 +25,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { getApiKeys, createApiKey, deleteApiKey, type ApiKey } from "@/lib/api/api-keys.api"
+import {
+  API_KEY_SCOPES,
+  createApiKey,
+  deleteApiKey,
+  getApiKeys,
+  type ApiKeyListItem,
+  type ApiKeyScope,
+  type CreatedApiKey,
+} from "@/lib/api/api-keys.api"
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 
 export default function ApiKeysPage() {
   const { organizationId } = useAuth()
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
+  const [apiKeys, setApiKeys] = useState<ApiKeyListItem[]>([])
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [newKeyName, setNewKeyName] = useState("")
-  const [createdKey, setCreatedKey] = useState<string | null>(null)
+  const [selectedScopes, setSelectedScopes] = useState<ApiKeyScope[]>([])
+  const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null)
 
   useEffect(() => {
     if (!organizationId) return
@@ -54,15 +63,6 @@ export default function ApiKeysPage() {
 
     fetchData()
   }, [organizationId])
-
-  const toggleKeyVisibility = (id: string) => {
-    setVisibleKeys((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
-
-  const maskKey = (key: string) => {
-    if (key.length <= 16) return key
-    return key.slice(0, 12) + "..." + key.slice(-4)
-  }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -94,13 +94,20 @@ export default function ApiKeysPage() {
       return
     }
 
+    if (selectedScopes.length === 0) {
+      toast.error("Select at least one scope")
+      return
+    }
+
     try {
       const newKey = await createApiKey({
         organizationId,
         name: newKeyName.trim(),
+        scopes: selectedScopes,
       })
-      setApiKeys([newKey, ...apiKeys])
-      setCreatedKey(newKey.apiKey)
+      const { apiKey: _rawKey, ...metadata } = newKey
+      setApiKeys([metadata, ...apiKeys])
+      setCreatedKey(newKey)
       setNewKeyName("")
       toast.success("API key created successfully")
     } catch (error: any) {
@@ -112,6 +119,13 @@ export default function ApiKeysPage() {
     setIsCreateOpen(false)
     setCreatedKey(null)
     setNewKeyName("")
+    setSelectedScopes([])
+  }
+
+  const toggleScope = (scope: ApiKeyScope, checked: boolean) => {
+    setSelectedScopes((prev) =>
+      checked ? [...prev, scope] : prev.filter((value) => value !== scope)
+    )
   }
 
   if (isLoading) {
@@ -171,6 +185,25 @@ export default function ApiKeysPage() {
                           onChange={(e) => setNewKeyName(e.target.value)}
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label>Scopes</Label>
+                        <div className="space-y-3">
+                          {API_KEY_SCOPES.map((scope) => (
+                            <label
+                              key={scope}
+                              htmlFor={scope}
+                              className="flex items-center gap-3 text-sm"
+                            >
+                              <Checkbox
+                                id={scope}
+                                checked={selectedScopes.includes(scope)}
+                                onCheckedChange={(checked) => toggleScope(scope, checked === true)}
+                              />
+                              <span>{scope}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={closeCreateDialog}>
@@ -178,7 +211,7 @@ export default function ApiKeysPage() {
                       </Button>
                       <Button 
                         onClick={handleCreateApiKey} 
-                        disabled={!newKeyName.trim() || !organizationId}
+                        disabled={!newKeyName.trim() || !organizationId || selectedScopes.length === 0}
                       >
                         Create Key
                       </Button>
@@ -196,14 +229,24 @@ export default function ApiKeysPage() {
                       <div className="space-y-2">
                         <Label>Your API Key</Label>
                         <div className="flex gap-2">
-                          <Input value={createdKey} readOnly className="font-mono text-sm" />
+                          <Input value={createdKey.apiKey} readOnly className="font-mono text-sm" />
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => copyToClipboard(createdKey)}
+                            onClick={() => copyToClipboard(createdKey.apiKey)}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Scopes</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {createdKey.scopes.map((scope) => (
+                            <Badge key={scope} variant="secondary">
+                              {scope}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                       <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
@@ -268,28 +311,17 @@ export default function ApiKeysPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-muted rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
-                        {visibleKeys[apiKey.id] ? apiKey.apiKey : maskKey(apiKey.apiKey)}
+                    <div className="space-y-3">
+                      <div className="bg-muted rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
+                        {apiKey.prefix}
                       </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => toggleKeyVisibility(apiKey.id)}
-                      >
-                        {visibleKeys[apiKey.id] ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => copyToClipboard(apiKey.apiKey)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {apiKey.scopes.map((scope) => (
+                          <Badge key={scope} variant="secondary">
+                            {scope}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

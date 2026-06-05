@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { serializeApiKey } from '../route'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     return jsonError('Not found', 404)
   }
 
-  return jsonSuccess(key)
+  return jsonSuccess(serializeApiKey(key))
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {

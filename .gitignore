@@ -4,6 +4,7 @@ repo-info.md
 plans/
 .worktrees/
 .superpowers/
+.claude/
 
 # dependencies
 /node_modules

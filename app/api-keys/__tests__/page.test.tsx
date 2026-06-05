@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@/test/test-utils'
 import ApiKeysPage from '@/app/api-keys/page'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
-import { mockApiKeys } from '@/test/mocks/fixtures/api-keys'
+import { mockApiKeyList, mockCreatedApiKey } from '@/test/mocks/fixtures/api-keys'
 
 // Mock Sidebar and DashboardHeader since they have their own dependencies
 vi.mock('@/components/sidebar', () => ({
@@ -33,6 +33,9 @@ describe('ApiKeysPage', () => {
     })
 
     expect(screen.getByText('Development Key')).toBeInTheDocument()
+    expect(screen.getByText(mockApiKeyList[0].prefix)).toBeInTheDocument()
+    expect(screen.getAllByText('inboxes:read')).toHaveLength(2)
+    expect(screen.getByText('messages:read')).toBeInTheDocument()
   })
 
   it('shows empty state when no keys exist', async () => {
@@ -53,57 +56,19 @@ describe('ApiKeysPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('masks API keys by default', async () => {
+  it('renders metadata-only API key entries', async () => {
     render(<ApiKeysPage />)
 
     await waitFor(() => {
       expect(screen.getByText('Production Key')).toBeInTheDocument()
     })
 
-    // Key should be masked: first 12 + "..." + last 4
-    const maskedKey = mockApiKeys[0].apiKey.slice(0, 12) + '...' + mockApiKeys[0].apiKey.slice(-4)
-    expect(screen.getByText(maskedKey)).toBeInTheDocument()
+    expect(screen.getByText(mockApiKeyList[0].prefix)).toBeInTheDocument()
+    expect(screen.queryByText(mockCreatedApiKey.apiKey)).not.toBeInTheDocument()
+    expect(document.querySelector('.lucide-eye')).not.toBeInTheDocument()
   })
 
-  it('toggles key visibility', async () => {
-    const { user } = render(<ApiKeysPage />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Production Key')).toBeInTheDocument()
-    })
-
-    // Find the eye toggle buttons (they come in pairs per key)
-    const eyeIcons = document.querySelectorAll('.lucide-eye')
-    if (eyeIcons.length > 0) {
-      const toggleBtn = eyeIcons[0].closest('button')
-      if (toggleBtn) {
-        await user.click(toggleBtn)
-        // Now the full key should be visible
-        expect(screen.getByText(mockApiKeys[0].apiKey)).toBeInTheDocument()
-      }
-    }
-  })
-
-  it('copies API key to clipboard', async () => {
-    const { user } = render(<ApiKeysPage />)
-
-    await waitFor(() => {
-      expect(screen.getByText('Production Key')).toBeInTheDocument()
-    })
-
-    const copyIcons = document.querySelectorAll('.lucide-copy')
-    if (copyIcons.length > 0) {
-      const copyBtn = copyIcons[0].closest('button')
-      if (copyBtn) {
-        await user.click(copyBtn)
-        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-          mockApiKeys[0].apiKey
-        )
-      }
-    }
-  })
-
-  it('opens create key dialog and creates a key', async () => {
+  it('shows the raw key once after creation and then falls back to metadata in the list', async () => {
     const { user } = render(<ApiKeysPage />)
 
     await waitFor(() => {
@@ -118,6 +83,9 @@ describe('ApiKeysPage', () => {
     const nameInput = screen.getByPlaceholderText('e.g., Production API Key')
     await user.type(nameInput, 'My New Key')
 
+    await user.click(screen.getByLabelText('inboxes:read'))
+    await user.click(screen.getByLabelText('messages:read'))
+
     // Click "Create Key" submit button
     const submitButton = screen.getByRole('button', { name: /^create key$/i })
     await user.click(submitButton)
@@ -130,6 +98,18 @@ describe('ApiKeysPage', () => {
     expect(
       screen.getByText("Copy your API key now. You won't be able to see it again!")
     ).toBeInTheDocument()
+    expect(screen.getByDisplayValue(mockCreatedApiKey.apiKey)).toBeInTheDocument()
+    expect(screen.getAllByText('inboxes:read').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('messages:read').length).toBeGreaterThan(1)
+
+    await user.click(screen.getByRole('button', { name: /done/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue(mockCreatedApiKey.apiKey)).not.toBeInTheDocument()
+    })
+
+    expect(screen.getByText(mockCreatedApiKey.prefix)).toBeInTheDocument()
+    expect(screen.queryByText(mockCreatedApiKey.apiKey)).not.toBeInTheDocument()
   })
 
   it('deletes an API key after confirmation', async () => {

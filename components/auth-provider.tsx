@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { getCurrentUser, type User } from "@/lib/api/auth.api"
 
 interface AuthContextValue {
@@ -13,12 +14,19 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/api-docs']
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const pathname = usePathname()
 
   const organizationId = user?.organizations?.[0]?.id ?? null
+
+  const isPublicRoute = PUBLIC_ROUTES.some(route =>
+    pathname === route || pathname.startsWith(route + '/')
+  )
 
   const refreshUser = async () => {
     try {
@@ -34,8 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Skip auth check for public routes
+    if (isPublicRoute) {
+      setIsLoading(false)
+      return
+    }
     refreshUser()
-  }, [])
+  }, [isPublicRoute])
 
   return (
     <AuthContext.Provider value={{ user, organizationId, isLoading, isAuthenticated, refreshUser }}>

@@ -5,19 +5,28 @@
  */
 
 import { apiClient } from '../api-client'
+import { API_KEY_SCOPES, type ApiKeyScope } from '@/lib/api-key-scopes'
 
-export interface ApiKey {
+export { API_KEY_SCOPES }
+
+export interface ApiKeyListItem {
   id: string
-  apiKey: string
+  prefix: string
   name: string
   organizationId: string
   userId: string
+  scopes: ApiKeyScope[]
   createdAt: string
+}
+
+export interface CreatedApiKey extends ApiKeyListItem {
+  apiKey: string
 }
 
 export interface CreateApiKeyRequest {
   organizationId: string
   name: string
+  scopes: ApiKeyScope[]
 }
 
 /**
@@ -26,22 +35,22 @@ export interface CreateApiKeyRequest {
  */
 export async function getApiKeys(params?: {
   organizationId?: string
-}): Promise<ApiKey[]> {
+}): Promise<ApiKeyListItem[]> {
   const queryParams = new URLSearchParams()
   if (params?.organizationId) {
     queryParams.append('organizationId', params.organizationId)
   }
 
   const query = queryParams.toString()
-  return apiClient.get<ApiKey[]>(`/v1/apiKeys${query ? `?${query}` : ''}`)
+  return apiClient.get<ApiKeyListItem[]>(`/v1/apiKeys${query ? `?${query}` : ''}`)
 }
 
 /**
  * Get a single API key by ID
  * GET /v1/apiKeys/{id}
  */
-export async function getApiKey(id: string): Promise<ApiKey> {
-  return apiClient.get<ApiKey>(`/v1/apiKeys/${id}`)
+export async function getApiKey(id: string): Promise<ApiKeyListItem> {
+  return apiClient.get<ApiKeyListItem>(`/v1/apiKeys/${id}`)
 }
 
 /**
@@ -49,8 +58,8 @@ export async function getApiKey(id: string): Promise<ApiKey> {
  * POST /v1/apiKeys
  * Note: The full API key is returned only once on creation
  */
-export async function createApiKey(data: CreateApiKeyRequest): Promise<ApiKey> {
-  return apiClient.post<ApiKey>('/v1/apiKeys', data)
+export async function createApiKey(data: CreateApiKeyRequest): Promise<CreatedApiKey> {
+  return apiClient.post<CreatedApiKey>('/v1/apiKeys', data)
 }
 
 /**
