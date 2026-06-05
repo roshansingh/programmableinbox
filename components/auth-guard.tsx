@@ -8,7 +8,7 @@ interface AuthGuardProps {
   children: React.ReactNode
 }
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register']
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/api-docs']
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter()
