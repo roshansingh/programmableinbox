@@ -1,18 +1,9 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
-import { Inbox, Mail, Phone, Settings, Users, ChevronDown, Plus, Key, Webhook, Workflow } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Inbox, Mail, Phone, Settings, Users, Key, Webhook, Workflow } from 'lucide-react'
+import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -26,74 +17,25 @@ const navigation = [
   { name: "Settings", icon: Settings, href: "#settings", current: false },
 ]
 
-const organizations = [
-  { id: 1, name: "Acme Corp", role: "Owner" },
-  { id: 2, name: "Tech Startup", role: "Member" },
-  { id: 3, name: "Personal", role: "Owner" },
-]
-
 export function Sidebar() {
-  const [currentOrg, setCurrentOrg] = useState(organizations[0])
   const pathname = usePathname()
+  const { user } = useAuth()
+  const currentOrg = user?.organizations?.[0]
+  const orgName = currentOrg?.name ?? "Organization"
+  const orgInitial = orgName.charAt(0).toUpperCase()
 
   return (
     <div className="hidden lg:flex flex-col h-screen w-64 bg-sidebar border-r border-sidebar-border">
-      {/* Org Switcher */}
+      {/* Org Display */}
       <div className="p-4 border-b border-sidebar-border">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="w-full justify-between bg-sidebar-accent hover:bg-sidebar-accent/80"
-            >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-sm">
-                  {currentOrg.name.charAt(0)}
-                </div>
-                <div className="flex flex-col items-start overflow-hidden">
-                  <span className="text-sm font-medium truncate w-full text-left">
-                    {currentOrg.name}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{currentOrg.role}</span>
-                </div>
-              </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {organizations.map((org) => (
-              <DropdownMenuItem
-                key={org.id}
-                onClick={() => setCurrentOrg(org)}
-                className={cn(
-                  "cursor-pointer",
-                  currentOrg.id === org.id && "bg-accent"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground font-semibold text-xs">
-                    {org.name.charAt(0)}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{org.name}</span>
-                    <span className="text-xs text-muted-foreground">{org.role}</span>
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Organization
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Plus className="h-4 w-4 mr-2" />
-              Join Organization
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-sm">
+            {orgInitial}
+          </div>
+          <span className="text-sm font-medium truncate flex-1">
+            {orgName}
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}

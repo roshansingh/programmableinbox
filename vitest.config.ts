@@ -28,7 +28,7 @@ export default defineConfig({
         // Pure Node tests — lib utilities, no DOM
         test: {
           name: 'node',
-          include: ['lib/__tests__/**/*.test.*'],
+          include: ['lib/__tests__/**/*.test.*', 'lib/**/__tests__/**/*.test.*'],
           environment: 'node',
           globals: true,
           env: { NEXT_PUBLIC_API_MODE: 'local' },
