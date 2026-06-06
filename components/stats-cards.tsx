@@ -1,47 +1,56 @@
-import { Mail, Phone, MessageSquare, Clock } from 'lucide-react'
+"use client"
+
+import { useEffect, useState } from 'react'
+import { Mail, MessageSquare, Key, Workflow } from 'lucide-react'
 import { Card, CardContent } from "@/components/ui/card"
+import { getDashboardStats, type DashboardStats } from "@/lib/api/stats.api"
+
+const CARDS = [
+  {
+    key: 'emailInboxes' as const,
+    label: 'Email Inboxes',
+    icon: Mail,
+  },
+  {
+    key: 'emailsToday' as const,
+    label: 'Emails Today',
+    icon: MessageSquare,
+  },
+  {
+    key: 'apiKeys' as const,
+    label: 'API Keys',
+    icon: Key,
+  },
+  {
+    key: 'activeAutomations' as const,
+    label: 'Active Automations',
+    icon: Workflow,
+  },
+]
 
 export function StatsCards() {
-  const stats = [
-    {
-      label: "Active Emails",
-      value: "12",
-      icon: Mail,
-      change: "+3 this week",
-    },
-    {
-      label: "Active Numbers",
-      value: "5",
-      icon: Phone,
-      change: "+1 this week",
-    },
-    {
-      label: "Messages Received",
-      value: "248",
-      icon: MessageSquare,
-      change: "+42 today",
-    },
-    {
-      label: "Avg. Response Time",
-      value: "2.3s",
-      icon: Clock,
-      change: "Fast delivery",
-    },
-  ]
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+
+  useEffect(() => {
+    getDashboardStats()
+      .then(setStats)
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
-        <Card key={stat.label} className="bg-card">
+      {CARDS.map(({ key, label, icon: Icon }) => (
+        <Card key={key} className="bg-card">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.change}</p>
+                <p className="text-sm font-medium text-muted-foreground">{label}</p>
+                <p className="text-3xl font-bold text-foreground">
+                  {stats === null ? '—' : stats[key]}
+                </p>
               </div>
               <div className="rounded-full bg-primary/10 p-3">
-                <stat.icon className="h-5 w-5 text-primary" />
+                <Icon className="h-5 w-5 text-primary" />
               </div>
             </div>
           </CardContent>

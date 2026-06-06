@@ -1,31 +1,20 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Search, Menu, Moon, Sun, Mail } from 'lucide-react'
+import { Search, Menu, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MobileSidebar } from "@/components/mobile-sidebar"
-import { useAuth } from "@/components/auth-provider"
-import { getEmailInboxes } from "@/lib/api/emails.api"
 
 export function DashboardHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [inboxCount, setInboxCount] = useState<number | null>(null)
   const { resolvedTheme, setTheme } = useTheme()
-  const { organizationId } = useAuth()
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  useEffect(() => {
-    if (!organizationId) return
-    getEmailInboxes({ organizationId })
-      .then((inboxes) => setInboxCount(inboxes.length))
-      .catch(() => {})
-  }, [organizationId])
 
   const isDark = resolvedTheme === 'dark'
 
@@ -55,12 +44,6 @@ export function DashboardHeader() {
                 </div>
               </div>
 
-              {inboxCount !== null && (
-                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted text-muted-foreground text-sm">
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>{inboxCount} {inboxCount === 1 ? 'inbox' : 'inboxes'}</span>
-                </div>
-              )}
             </div>
             
             <div className="flex items-center gap-2">
