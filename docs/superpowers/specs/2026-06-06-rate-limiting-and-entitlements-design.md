@@ -6,9 +6,15 @@
 
 ## Overview
 
-InboxUI is being released as an open-source, self-hostable application. This design implements the foundational infrastructure for resource entitlements (API keys, inboxes) and usage-based rate limiting (emails/SMS processed per month), but enforcement is **disabled by default** for the open-source release.
+InboxUI will be released as an open-source, self-hostable application. This design implements three clean abstractions—**Policy**, **Entitlements**, and **Metering**—that define the commercial boundary between the OSS core and future SaaS billing.
 
-When the SaaS offering launches, flipping `ENABLE_BILLING=true` activates all limits immediately, with no code changes required.
+The OSS core provides permissive implementations that allow everything. When the separate **billing app** is built later, it will provide SaaS implementations of these interfaces with actual enforcement. The OSS core never needs to know whether billing exists.
+
+This ensures:
+- ✅ OSS release has zero billing dependencies
+- ✅ SaaS billing is a separate concern (separate app/codebase)
+- ✅ Clean, testable interfaces for extension
+- ✅ No technical debt in the OSS core
 
 ## Goals
 
@@ -31,310 +37,428 @@ When the SaaS offering launches, flipping `ENABLE_BILLING=true` activates all li
    - Billing cycle tracking per-organization
    - Clean switch: set `ENABLE_BILLING=true` and add plans
 
-## Architecture
+## Architecture: Policy / Entitlements / Metering
 
-### Enforcement Strategy: Hybrid
+Three clean abstractions define the commercial boundary:
 
-- **Middleware**: Global checks for API request rate limiting (future, not in scope)
-- **Route Handlers**: Per-resource entitlement checks before creation
-- **Background/Webhooks**: Usage tracking when emails/SMS are processed
-- **Redis**: Distributed usage tracking (only when billing enabled)
+### 1. **Policy** — Is an action allowed?
 
-### Key Design Principles
+Decides whether an operation is permitted. Used before creating/processing resources.
 
-1. **Fail-open for open-source**: When `ENABLE_BILLING=false`, skip all checks and Redis calls
-2. **Explicit over implicit**: Entitlement checks happen at point of creation, not middleware
-3. **Optional dependencies**: Redis only required when `ENABLE_BILLING=true`
-4. **Graceful degradation**: Advisory headers warn before hard limits
-
-## Data Model
-
-### New Tables
-
-```prisma
-model Plan {
-  id                  String   @id @default(cuid())
-  name                String   @unique  // "free", "hobby", "pro"
-  description         String?
-  maxApiKeys          Int      // -1 = unlimited
-  maxEmailInboxes     Int
-  maxPhoneInboxes     Int
-  emailsMonthly       Int      // -1 = unlimited
-  smsMonthly          Int
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  organizations       Organization[]
-  @@map("plans")
+```typescript
+interface IPolicy {
+  check(request: PolicyCheckRequest): Promise<PolicyCheckResult>
 }
 
-model BillingCycle {
-  id                  String   @id @default(cuid())
-  organizationId      String   @unique
-  startDate           DateTime  // Org's personal billing cycle start (sign-up date)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+interface PolicyCheckRequest {
+  organizationId: string
+  action: 'email.process' | 'sms.process' | 'apiKey.create' | 'emailInbox.create' | 'phoneInbox.create'
+  quantity?: number  // for rate-limit checks (e.g., "create 5 API keys")
+}
 
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  @@map("billing_cycles")
+interface PolicyCheckResult {
+  allowed: boolean
+  reason?: string  // "Email monthly limit reached"
 }
 ```
 
-### Updated Organization Model
+### 2. **Entitlements** — What features are enabled?
+
+Determines which features/capabilities are available to an org. Used at feature gates.
+
+```typescript
+interface IEntitlements {
+  canUse(request: EntitlementCheckRequest): Promise<boolean>
+}
+
+interface EntitlementCheckRequest {
+  organizationId: string
+  feature: 'email_inboxes' | 'sms_inboxes' | 'automations' | 'webhooks' | string
+}
+```
+
+### 3. **Metering** — Record usage
+
+Records metrics for analytics, billing, and reporting. **Never blocks operations.**
+
+```typescript
+interface IMetering {
+  record(request: MeteringRequest): Promise<void>
+}
+
+interface MeteringRequest {
+  organizationId: string
+  metric: 'emails_processed' | 'sms_processed' | 'api_calls' | string
+  quantity: number
+  timestamp?: Date
+}
+```
+
+### Key Design Principles
+
+1. **OSS core is billing-unaware**: Core app calls these interfaces but never knows about plans, subscriptions, or SaaS
+2. **OSS implementations are permissive**: AllowAllPolicy, EnableAllEntitlements, NoopMetering (allow everything)
+3. **Billing app provides enforcement**: Future SaaS app will implement these interfaces with actual limits
+4. **Metering never blocks**: `record()` is fire-and-forget, non-blocking
+5. **Policy gates operations**: `check()` returns before operation proceeds
+
+## Data Model
+
+**No billing-related changes to the OSS core.**
+
+The Organization model remains unchanged. Billing data (plans, subscriptions, usage tracking) belongs in the separate billing app.
+
+**Extension point**: The OSS Organization model may store `billingProviderId` or `externalBillingId` (opaque identifier to the SaaS billing system), but this is optional and not required for OSS operation.
 
 ```prisma
 model Organization {
-  // ... existing fields ...
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
   
-  planId              String?
-  plan                Plan?     @relation(fields: [planId], references: [id])
-  billingCycle        BillingCycle?
+  // Optional: reference to external billing system (set by SaaS only)
+  externalBillingId   String?  // e.g., Stripe customer ID, used by billing app
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
   
   // ... existing relations ...
 }
 ```
 
-**Assumptions**:
-- Every organization is assigned the "free" plan on creation
-- BillingCycle.startDate defaults to org creation date (can be updated on trial conversion)
-- Plan limit of `-1` means unlimited
+**Why no changes?**
+- OSS release doesn't need plans, billing cycles, or usage storage
+- Billing app owns all billing/metering data (separate database if desired)
+- Clean separation: OSS core ≠ billing system
 
 ## Implementation Details
 
-### 1. Entitlement Checks
+### 1. Interface Definitions
 
-**Location**: `lib/entitlements.ts`
+**Location**: `lib/commercial/interfaces.ts`
 
 ```typescript
-export async function checkEntitlement(
-  organizationId: string,
-  resource: 'apiKey' | 'emailInbox' | 'phoneInbox'
-): Promise<{ allowed: boolean; reason?: string }>
+// Policy: Check if an action is allowed
+export interface IPolicy {
+  check(request: PolicyCheckRequest): Promise<PolicyCheckResult>
+}
+
+export interface PolicyCheckRequest {
+  organizationId: string
+  action: 'email.process' | 'sms.process' | 'apiKey.create' | 'emailInbox.create' | 'phoneInbox.create'
+  quantity?: number
+}
+
+export interface PolicyCheckResult {
+  allowed: boolean
+  reason?: string
+}
+
+// Entitlements: What features are enabled
+export interface IEntitlements {
+  canUse(request: EntitlementCheckRequest): Promise<boolean>
+}
+
+export interface EntitlementCheckRequest {
+  organizationId: string
+  feature: string  // 'email_inboxes', 'sms_inboxes', 'automations', etc.
+}
+
+// Metering: Record usage (never blocks)
+export interface IMetering {
+  record(request: MeteringRequest): Promise<void>
+}
+
+export interface MeteringRequest {
+  organizationId: string
+  metric: string  // 'emails_processed', 'sms_processed', 'api_calls', etc.
+  quantity: number
+  timestamp?: Date
+}
 ```
 
-**Behavior**:
-- If `ENABLE_BILLING=false`: always return `{ allowed: true }`
-- If `ENABLE_BILLING=true`: count existing resources, compare to plan limit
-- If plan limit is `-1`: unlimited, return `{ allowed: true }`
+### 2. OSS Implementations (Permissive)
 
-**Integration**: Call before creating API keys, email inboxes, or phone inboxes in route handlers.
+**Location**: `lib/commercial/oss/`
+
+```typescript
+// lib/commercial/oss/AllowAllPolicy.ts
+export class AllowAllPolicy implements IPolicy {
+  async check(): Promise<PolicyCheckResult> {
+    return { allowed: true }
+  }
+}
+
+// lib/commercial/oss/EnableAllEntitlements.ts
+export class EnableAllEntitlements implements IEntitlements {
+  async canUse(): Promise<boolean> {
+    return true
+  }
+}
+
+// lib/commercial/oss/NoopMetering.ts
+export class NoopMetering implements IMetering {
+  async record(): Promise<void> {
+    // No-op: OSS doesn't track usage
+  }
+}
+```
+
+### 3. Service Provider (Dependency Injection)
+
+**Location**: `lib/commercial/provider.ts`
+
+```typescript
+export class CommercialProvider {
+  static policy: IPolicy = new AllowAllPolicy()
+  static entitlements: IEntitlements = new EnableAllEntitlements()
+  static metering: IMetering = new NoopMetering()
+  
+  static configure(
+    policy: IPolicy,
+    entitlements: IEntitlements,
+    metering: IMetering
+  ) {
+    this.policy = policy
+    this.entitlements = entitlements
+    this.metering = metering
+  }
+}
+```
+
+### 4. Integration in Route Handlers
+
+**Before creating resources** (API keys, inboxes):
 
 ```typescript
 // app/api/v1/apiKeys/route.ts (POST)
-const entitlement = await checkEntitlement(organizationId, 'apiKey')
-if (!entitlement.allowed) {
-  return jsonError(entitlement.reason, 429)
+import { CommercialProvider } from '@/lib/commercial/provider'
+
+const policyCheck = await CommercialProvider.policy.check({
+  organizationId,
+  action: 'apiKey.create',
+  quantity: 1
+})
+
+if (!policyCheck.allowed) {
+  return jsonError(policyCheck.reason || 'Operation not allowed', 429)
 }
-// ... rest of creation logic
+
+// ... proceed with creation
 ```
 
-### 2. Usage Tracking (Redis)
-
-**Location**: `lib/usage.ts`
-
-```typescript
-export async function trackUsage(
-  organizationId: string,
-  type: 'email' | 'sms',
-  quantity: number = 1
-): Promise<void>
-
-export async function getUsage(
-  organizationId: string,
-  type: 'email' | 'sms'
-): Promise<number>
-
-export async function checkUsageLimit(
-  organizationId: string,
-  type: 'email' | 'sms'
-): Promise<{ allowed: boolean; current: number; limit: number }>
-```
-
-**Redis Schema**:
-```
-usage:{organizationId}:{email|sms}:{YYYY-MM}
-```
-
-**Behavior**:
-- `trackUsage()`: increments Redis key, sets TTL to end of billing cycle
-  - If `ENABLE_BILLING=false`: no-op
-  - If `ENABLE_BILLING=true` and no Redis: throw error
-- `getBillingCycleWindow()`: calculates month based on `BillingCycle.startDate`
-  - Example: org with startDate=2026-06-05
-    - Current window: 2026-06-05 to 2026-07-04 → Redis key = `2026-06`
-    - Next window: 2026-07-05 onwards → Redis key = `2026-07`
-
-**Integration**: Call in email/SMS webhook handlers when processing incoming messages.
+**Before processing emails/SMS**:
 
 ```typescript
 // app/api/v1/webhooks/email/route.ts
-await trackUsage(organizationId, 'email')
+import { CommercialProvider } from '@/lib/commercial/provider'
 
-if (process.env.ENABLE_BILLING) {
-  const usage = await checkUsageLimit(organizationId, 'email')
-  if (!usage.allowed) {
-    return jsonError('Monthly email processing limit reached', 429)
-  }
-}
-```
-
-### 3. Configuration
-
-**Environment Variables** (add to `.env.example`):
-
-```bash
-# Billing & Rate Limiting
-# Set to true to enforce plan limits (entitlements and usage quotas)
-# Default: false (open-source release has no limits)
-ENABLE_BILLING=false
-
-# Redis connection (only required if ENABLE_BILLING=true)
-# Format: redis://[username:password@]host[:port][/db]
-REDIS_URL=redis://localhost:6379
-```
-
-**Startup Validation** (in `lib/instrumentation.ts` or similar):
-
-```typescript
-if (process.env.ENABLE_BILLING && !process.env.REDIS_URL) {
-  throw new Error('REDIS_URL required when ENABLE_BILLING=true')
-}
-```
-
-### 4. Database Seeding
-
-**Location**: `prisma/seed.ts`
-
-Create the "free" plan and assign it to all organizations:
-
-```typescript
-const freePlan = await prisma.plan.upsert({
-  where: { name: 'free' },
-  update: {},
-  create: {
-    name: 'free',
-    description: 'Open source self-hosted plan',
-    maxApiKeys: -1,           // unlimited
-    maxEmailInboxes: -1,
-    maxPhoneInboxes: -1,
-    emailsMonthly: -1,
-    smsMonthly: -1
-  }
+const policyCheck = await CommercialProvider.policy.check({
+  organizationId,
+  action: 'email.process',
+  quantity: 1
 })
 
-// Assign free plan to orgs created before this migration
-await prisma.organization.updateMany({
-  where: { planId: null },
-  data: { planId: freePlan.id }
+if (!policyCheck.allowed) {
+  return jsonError('Email processing limit reached', 429)
+}
+
+// ... process email
+await CommercialProvider.metering.record({
+  organizationId,
+  metric: 'emails_processed',
+  quantity: 1
 })
 ```
 
-### 5. Error Handling & Response Headers
-
-**HTTP Status**:
-- `429 Too Many Requests`: Both entitlement and usage limit violations
-
-**Advisory Headers** (when approaching limits):
-
-```
-X-Usage-Current: 850
-X-Usage-Limit: 1000
-X-Usage-Percent: 85
-X-Usage-Warning: Approaching monthly limit
-```
-
-Clients can monitor these headers and warn users at 80% utilization before hard rejection at 100%.
-
-**Implementation**:
+**Feature gates**:
 
 ```typescript
-if (process.env.ENABLE_BILLING && usage.limit > 0) {
-  const percentUsed = (usage.current / usage.limit) * 100
-  response.headers.set('X-Usage-Current', String(usage.current))
-  response.headers.set('X-Usage-Limit', String(usage.limit))
-  response.headers.set('X-Usage-Percent', String(Math.round(percentUsed)))
-  
-  if (percentUsed >= 80) {
-    response.headers.set('X-Usage-Warning', 'Approaching monthly limit')
-  }
+// app/api/v1/automations/route.ts
+const canUseAutomations = await CommercialProvider.entitlements.canUse({
+  organizationId,
+  feature: 'automations'
+})
+
+if (!canUseAutomations) {
+  return jsonError('Automations not available on your plan', 403)
 }
+```
+
+### 5. Configuration
+
+No `.env` changes required for OSS. The core app uses permissive implementations by default.
+
+**Future SaaS app** will inject its own implementations:
+
+```typescript
+// When SaaS app starts (separate billing app):
+import { StrictPolicy } from '@/billing/StrictPolicy'
+import { PlanEntitlements } from '@/billing/PlanEntitlements'
+import { StripeMetering } from '@/billing/StripeMetering'
+
+CommercialProvider.configure(
+  new StrictPolicy(),
+  new PlanEntitlements(),
+  new StripeMetering()
+)
 ```
 
 ## Future SaaS Offering
 
-When launching SaaS with billing:
+When building the **separate billing app** for SaaS:
 
-1. **Add new plans** to database or seed:
-   ```typescript
-   { name: 'hobby', maxApiKeys: 5, emailsMonthly: 10000, ... }
-   { name: 'pro', maxApiKeys: 50, emailsMonthly: 100000, ... }
-   ```
+### Billing App Architecture
 
-2. **Flip the flag**: Set `ENABLE_BILLING=true` in production `.env`
+```
+inboxui/                      (OSS core, unchanged)
+  lib/commercial/
+    interfaces.ts             (IPolicy, IEntitlements, IMetering)
+    oss/                      (AllowAllPolicy, etc.)
+    provider.ts               (CommercialProvider, dependency injection)
+  
+inboxui-billing/              (NEW: Separate SaaS app)
+  StrictPolicy.ts             (implements IPolicy)
+  PlanEntitlements.ts         (implements IEntitlements)
+  StripeMetering.ts           (implements IMetering)
+  database/                   (plans, subscriptions, usage, etc.)
+  stripe/                     (Stripe integration)
+  admin/                      (SaaS admin UI)
+```
 
-3. **Assign plans**: Update org.planId based on subscription tier via billing system
+### Billing App Responsibilities
 
-4. **No code changes**: All enforcement logic already in place
+1. **Store billing data**: Plans, subscriptions, usage tracking, billing cycles
+2. **Implement IPolicy**: Check organization limits (API keys, inboxes, emails/month)
+3. **Implement IEntitlements**: Determine enabled features based on subscription tier
+4. **Implement IMetering**: Track usage for billing (store in its own database, not OSS core)
+5. **Serve admin UI**: Manage subscriptions, plans, analytics
+6. **Integrate Stripe**: Payment processing, webhooks
+7. **Inject implementations**: Call `CommercialProvider.configure()` on startup
+
+### Integration Flow
+
+```
+SaaS Instance Startup:
+  1. Load OSS core (uses AllowAllPolicy by default)
+  2. Billing app injects StrictPolicy, PlanEntitlements, StripeMetering
+  3. OSS core calls CommercialProvider.policy.check() → gets SaaS limits
+  4. OSS core calls CommercialProvider.metering.record() → goes to Stripe/billing DB
+  5. Billing app handles subscription management, invoicing, etc.
+
+OSS Instance Startup:
+  1. Load OSS core
+  2. Use default AllowAllPolicy, EnableAllEntitlements, NoopMetering
+  3. No limits, no tracking, no dependencies
+```
+
+### Data Isolation
+
+- **OSS core database**: Users, Organizations, Inboxes, Messages, Automations, API Keys
+- **Billing app database**: Plans, Subscriptions, UsageMetrics, Invoices, Billing Cycles
+- **Shared identifier**: `Organization.externalBillingId` (opaque to OSS, known to billing app)
+
+### Key Benefits
+
+✅ **OSS release has zero billing dependencies**  
+✅ **Billing app is completely separate** (can be upgraded/deployed independently)  
+✅ **Clean interfaces** make it easy to swap implementations  
+✅ **No code duplication** between OSS and SaaS  
+✅ **Future extensibility** (e.g., add custom metering, different payment providers)
 
 ## Scope & Assumptions
 
-**In Scope**:
-- Entitlement enforcement for API keys, email inboxes, SMS inboxes
-- Usage tracking for emails/SMS processed per month
-- Multi-organization per-user billing cycle windows
-- Redis-backed usage tracking with automatic TTL cleanup
-- Global `ENABLE_BILLING` flag to gate all enforcement
+**In Scope** (OSS Core):
+- Define IPolicy, IEntitlements, IMetering interfaces
+- Implement permissive OSS versions (AllowAll, EnableAll, Noop)
+- Create CommercialProvider for dependency injection
+- Integrate policy checks before creating resources (API keys, inboxes)
+- Integrate policy checks before processing emails/SMS
+- Integrate feature gates for subscription features
+- Integrate metering calls for usage tracking
+- Optional: Add `Organization.externalBillingId` field for future SaaS reference
 
-**Out of Scope**:
-- API request rate limiting (e.g., 1000 calls/hour) — future
-- Middleware-based enforcement — future
-- Subscription/billing UI — future SaaS implementation
-- Monitoring/alerting dashboard — future
-- Audit logs for limit violations — future (log to application logger for now)
+**Out of Scope** (for separate billing app later):
+- Actual policy enforcement (StrictPolicy, RateLimitPolicy)
+- Plan management (Plan model, pricing tiers)
+- Subscription management (subscriptions, billing cycles)
+- Usage tracking database (Redis, PostgreSQL for metering)
+- Stripe integration
+- Admin UI for billing
+- Invoicing and payment processing
+- Monitoring and analytics dashboards
 
 **Assumptions**:
-- Organizations always have a plan assigned (defaulting to "free")
-- Billing cycle start date = org creation date (can be updated on trial conversion)
-- Redis is available and reachable when `ENABLE_BILLING=true`
-- Usage tracking is best-effort; Redis memory loss is acceptable (not persisted to DB)
-- Monthly limits reset on the same day of month as billing cycle start
+- OSS release will never have billing enabled; it's a separate decision/codebase
+- Policy.check() is called at operation time (before resources are created/processed)
+- Metering.record() is async and non-blocking (fire-and-forget)
+- Entitlements.canUse() is called at feature gate points
+- CommercialProvider implementations can be swapped at startup without app changes
 
 ## Testing Strategy
 
-1. **Unit tests** for `checkEntitlement()` and `getUsage()` helpers
-2. **Integration tests** for route handlers with entitlement checks
-3. **Feature flag tests**: verify behavior with `ENABLE_BILLING=true` and `false`
-4. **Redis tests**: mock Redis for unit tests, use real Redis for integration tests
+1. **Unit tests for interfaces**:
+   - AllowAllPolicy always allows
+   - EnableAllEntitlements always returns true
+   - NoopMetering always succeeds (no-op)
+
+2. **Unit tests for CommercialProvider**:
+   - Default implementations are correct
+   - Swap/configure() changes implementations
+   - Multiple configurations in test don't interfere
+
+3. **Integration tests for route handlers**:
+   - API key creation calls policy.check()
+   - Email webhook calls policy.check() and metering.record()
+   - Failed policy check returns 429
+   - Feature gates call entitlements.canUse()
+
+4. **Mocking tests** (for future SaaS):
+   - Mock StrictPolicy and verify API key creation is blocked
+   - Mock RestrictiveMetering and verify metering calls are made
+   - Verify OSS core doesn't change when billing implementations are injected
 
 Tests should cover:
-- Limit reached vs. not reached
-- Unlimited plans (-1 limits)
-- Billing window boundary conditions (month rollovers)
-- Missing Redis when `ENABLE_BILLING=true` (should error)
+- Allowed vs. rejected operations
+- Feature available vs. unavailable
+- Metering calls are made but don't block
+- Default implementations match expected behavior
 
 ## Files to Create/Modify
 
 **New Files**:
-- `lib/entitlements.ts` — entitlement check logic
-- `lib/usage.ts` — usage tracking helpers
-- `prisma/migrations/[timestamp]_add_plans_and_billing_cycles.sql` — schema migration
-- `prisma/seed.ts` (update) — add plan seeding
+- `lib/commercial/interfaces.ts` — IPolicy, IEntitlements, IMetering interface definitions
+- `lib/commercial/provider.ts` — CommercialProvider with dependency injection
+- `lib/commercial/oss/AllowAllPolicy.ts` — permissive policy implementation
+- `lib/commercial/oss/EnableAllEntitlements.ts` — enable-all entitlements implementation
+- `lib/commercial/oss/NoopMetering.ts` — no-op metering implementation
+- `lib/commercial/oss/index.ts` — export all OSS implementations
+
+**Tests**:
+- `lib/commercial/__tests__/interfaces.test.ts` — interface contract tests
+- `lib/commercial/__tests__/provider.test.ts` — CommercialProvider injection tests
+- `lib/commercial/oss/__tests__/AllowAllPolicy.test.ts` — verify it allows everything
+- `lib/commercial/oss/__tests__/EnableAllEntitlements.test.ts` — verify it enables everything
+- `lib/commercial/oss/__tests__/NoopMetering.test.ts` — verify it's a no-op
 
 **Modified Files**:
-- `prisma/schema.prisma` — add Plan and BillingCycle models, update Organization
-- `.env.example` — add `ENABLE_BILLING` and `REDIS_URL`
-- `lib/instrumentation.ts` (or similar) — add Redis validation on startup
-- `app/api/v1/apiKeys/route.ts` (POST) — add entitlement check
-- `app/api/v1/emailInbox/route.ts` (POST) — add entitlement check
-- `app/api/v1/phoneInbox/route.ts` (POST) — add entitlement check
-- `app/api/v1/webhooks/email/route.ts` — add usage tracking
-- `app/api/v1/webhooks/sms/route.ts` (if exists) — add usage tracking
+- `prisma/schema.prisma` — add optional `externalBillingId` to Organization
+- `app/api/v1/apiKeys/route.ts` (POST) — add `policy.check()` for apiKey.create
+- `app/api/v1/emailInbox/route.ts` (POST) — add `policy.check()` for emailInbox.create
+- `app/api/v1/phoneInbox/route.ts` (POST) — add `policy.check()` for phoneInbox.create
+- `app/api/v1/webhooks/email/route.ts` — add `policy.check()` and `metering.record()` for email processing
+- `app/api/v1/webhooks/sms/route.ts` (if exists) — add policy/metering for SMS
+- `app/api/v1/automations/route.ts` — add `entitlements.canUse()` for automation feature
 
 ## Success Criteria
 
-- ✅ Open-source release works with `ENABLE_BILLING=false`, no Redis required
-- ✅ SaaS mode can be activated by setting `ENABLE_BILLING=true` and adding plans
-- ✅ All limit checks are explicit and testable
-- ✅ Billing window respects org sign-up date
-- ✅ Monthly usage resets automatically via Redis TTL
-- ✅ Advisory headers help clients avoid hard limit rejections
+- ✅ OSS core has zero knowledge of billing, plans, or subscriptions
+- ✅ Three interfaces (IPolicy, IEntitlements, IMetering) are well-defined and testable
+- ✅ OSS implementations (AllowAll, EnableAll, Noop) are simple and correct
+- ✅ CommercialProvider enables runtime injection of SaaS implementations
+- ✅ All policy checks are made before resources are created or processed
+- ✅ All metering calls are non-blocking and don't affect operation flow
+- ✅ Integration points in route handlers are explicit and easy to find
+- ✅ OSS release can run without any billing-related code changes
+- ✅ Separate billing app can implement interfaces and inject at startup
+- ✅ No Redis, Stripe, or other SaaS dependencies in OSS core
