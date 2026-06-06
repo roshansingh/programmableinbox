@@ -15,18 +15,37 @@ This prevents concurrent work from interfering and keeps the git history clean.
 ## Commands
 
 ```bash
-npm run dev          # Next.js dev server on port 4000
-npm run build        # Production build
-npm run start        # Production server on port 4000
+npm run dev          # Next.js dev server on Turbopack (port 4000)
+npm run build        # Production build via Webpack (see Build System below)
+npm run start        # Production server (port 4000)
 npm run lint         # ESLint
-npm run test         # Vitest (run once)
+npm run test         # Vitest (run once, runs all test projects)
 npm run test:watch   # Vitest watch mode
-npx vitest run components/__tests__/emails-list.test.tsx   # Single test file
+npx vitest run --project ui components/__tests__/emails-list.test.tsx   # Single UI test file
+npx vitest run --project node lib/__tests__/logger.test.ts              # Single Node test file
 npx prisma migrate dev      # Apply migrations + regen client to lib/generated/prisma
 npx prisma db seed          # Seed via prisma/seed.ts (creates test@example.com / password123)
+npm audit fix        # Fix non-breaking security vulnerabilities
 ```
 
-`repo-info.md` exists but is gitignored and stale (says Next.js 15, no tests, token key `"token"`) — don't trust it.
+`repo-info.md` exists but is gitignored and stale — don't trust it.
+
+## Build System
+
+- **Dev**: Turbopack for fast iteration (`npm run dev`)
+- **Prod**: Webpack for stability (`npm run build --webpack`), configured to mark `thread-stream` as external
+- **Reason**: Pino's thread-stream dependency includes non-code artifacts (shell scripts, test files, LICENSE) that Turbopack cannot parse; webpack handles this via externals configuration
+
+## Logging
+
+Production-ready structured logging via **Pino v10** (`lib/logger.ts`):
+
+- **API**: Direct method calls — `logger.error({ error }, 'message')` (not `logger().error()`)
+- **Config**: `lib/logger.config.ts` returns dev config (colorized via pino-pretty) or prod (JSON for log aggregators)
+- **Environment**: `LOG_LEVEL` env var (valid: `debug`, `info`, `warn`, `error`, `fatal`); falls back to `debug` (dev) or `info` (prod)
+- **Error serialization**: Both `err` and `error` keys use Pino's error serializer for consistent stack traces
+- **Singleton**: Lazy-loaded via Proxy pattern in `lib/logger.ts` — module load has zero overhead
+- **Route instrumentation**: API routes use `logger.error({ error }, 'message')` on failures; use `logger.info()` for success logging with context
 
 ## Required env vars (`.env`)
 
@@ -45,10 +64,11 @@ Browser → `lib/api-client.ts` → `/api/...` Next.js route handler → `getAut
 
 ### Auth (JWT, not cookies)
 
-- **Client**: token in `localStorage.auth_token` (not `"token"`). `apiClient` adds `Authorization: Bearer <token>`. On 401 it clears the token and redirects to `/auth/login` unless already on an auth page (`lib/api-client.ts:127-134`).
+- **Client**: token in `localStorage.auth_token`. `apiClient` adds `Authorization: Bearer <token>`. On 401 it clears the token and redirects to `/auth/login` unless already on an auth page.
 - **Server**: `getAuthenticatedUser(request)` in `lib/auth-server.ts` parses the bearer token, verifies via `jsonwebtoken`, and loads the user with `memberships.organization` included. Every protected route calls this and returns `jsonError('Unauthorized', 401)` on null.
-- `middleware.ts` excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via `getAuthenticatedUser`**, not middleware.
+- `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via `getAuthenticatedUser`**, not at the proxy level.
 - `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
+- **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/auth/login` are accessible without authentication.
 
 ### Response envelope (load-bearing)
 
@@ -64,6 +84,16 @@ Every resource (EmailInbox, PhoneInbox, ApiKey, Webhook, EmailMessage) is scoped
 
 - **User-scoped**: `where: { userId: user.id }` then verify `memberships.find(m => m.organizationId === body.organizationId)` before writing (e.g. `app/api/v1/apiKeys/route.ts`, `emailInbox/route.ts`).
 - **Org-scoped**: `where: { organizationId: { in: user.memberships.map(m => m.organizationId) } }` (e.g. `app/api/webhooks/route.ts`).
+
+### API Key security architecture
+
+API keys use **SHA-256 hashing** with scopes for fine-grained access control:
+
+- **Storage**: `apiKey` field stores `null` (never store raw key); `keyHash` stores SHA-256 hash; `prefix` stores first 12 chars of raw key for display
+- **Creation** (`POST /api/v1/apiKeys`): Returns full `sk_live_*` prefixed key exactly once — user must copy/save it immediately
+- **Listing** (`GET /api/v1/apiKeys`): Returns serialized response via `serializeApiKey()` which exposes only `prefix` (12-char identifier) and `scopes`, never the raw key or hash
+- **Scopes**: Fine-grained permissions like `inboxes:read`, `messages:read` — validate against `API_KEY_SCOPE_SET` on creation
+- **Validation**: Incoming requests validated via `lib/api-key-scopes.ts` (scope matching) and `lib/api-key-security.ts` (HMAC validation)
 
 ### Email ingestion (Resend webhook)
 
@@ -92,7 +122,14 @@ Every resource (EmailInbox, PhoneInbox, ApiKey, Webhook, EmailMessage) is scoped
 - `vitest.config.ts` sets `NEXT_PUBLIC_API_MODE=local` and aliases `@` to repo root (matches `tsconfig.json` paths).
 - Component tests live in `components/__tests__/` and `app/api-keys/__tests__/`.
 
-## Known issues
+## Known issues & vulnerabilities
 
-- `app/phones/[id]/page.tsx` and `app/phones/page.tsx` have pre-existing TS errors around `MobileSidebarProps`. Don't be surprised by them, and don't fix them as a drive-by.
-- `package.json#name` is still `my-v0-project` from the v0.app scaffold.
+**TypeScript errors (pre-existing)**:
+- `app/phones/[id]/page.tsx` and `app/phones/page.tsx` have TS errors around `MobileSidebarProps`
+- `package.json#name` is still `my-v0-project` from the v0.app scaffold
+
+**Security vulnerabilities** (pre-existing, require major version upgrades):
+- **Next.js 16.0.3**: Multiple critical RCE, DoS, and XSS vulnerabilities. Requires upgrade to 16.2.7+ (breaking changes). See `npm audit` for details.
+- **PostCSS**: XSS via unescaped `</style>` tags (bundled with Next.js)
+- **@hono/node-server**: Middleware bypass via repeated slashes (used transitively via Prisma)
+- Peer dependency warnings from `swagger-ui-react` are non-critical (works with React 19 despite only declaring support for 15-18)
