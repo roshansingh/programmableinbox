@@ -304,6 +304,7 @@ describe('executeAutomation', () => {
       status: 'succeeded',
       runId: 'run-1',
     })
-    expect(executeActionNode).toHaveBeenCalledTimes(2)
+    // Condition node and 2 actions are executed
+    expect(executeActionNode).toHaveBeenCalledTimes(3)
   })
 })
