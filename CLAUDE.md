@@ -12,6 +12,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This prevents concurrent work from interfering and keeps the git history clean.
 
+## ✅ Pre-PR Testing Requirement
+
+**ALWAYS run the full test suite before creating a PR.**
+
+```bash
+npm run test  # Must pass all tests before PR creation
+```
+
+- **Full suite**: `npm run test` — runs all tests across all test projects (UI, Node, etc.)
+- **Specific suite**: `npm run test -- lib/commercial` — test a specific directory
+- **Watch mode**: `npm run test:watch` — for development iteration
+
+**PR criteria**:
+- ✅ All tests passing (334+ tests in suite)
+- ✅ No unexpected test failures introduced
+- ✅ Test count should not decrease unless tests are intentionally removed
+
+This prevents broken code from reaching review and saves iteration time.
+
 ## Commands
 
 ```bash
