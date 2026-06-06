@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
+import logger from '@/lib/logger'
 
 const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
@@ -165,8 +166,11 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
     })
   }
 
+  // Defensive guard for callers of storeIncomingEmail directly; the POST handler
+  // has its own early-exit check (~line 311) that prevents reaching here in the
+  // normal webhook path, so these two log sites are mutually exclusive.
   if (matchingInboxes.length === 0) {
-    console.log(`No matching inboxes for email ${resendEmail.id}`, { addresses: allAddresses })
+    logger.info({ emailId: resendEmail.id, addresses: allAddresses }, 'No matching inboxes for email')
     return []
   }
 
@@ -214,10 +218,10 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
     } catch (error: any) {
       // Skip duplicates
       if (error.code === 'P2002' && error.meta?.target?.includes('externalId')) {
-        console.log(`Duplicate email for inbox ${inbox.email}: ${resendEmail.id}`)
+        logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
         continue
       }
-      console.error(`Failed to store for inbox ${inbox.email}:`, error)
+      logger.error({ error, inboxEmail: inbox.email }, 'Failed to store email for inbox')
     }
   }
 
@@ -238,8 +242,12 @@ export async function POST(request: NextRequest) {
       },
       webhookSecret: process.env.WEBHOOK_SECRET!,
     });
-  } catch {
-    console.warn('Invalid webhook signature')
+  } catch (error) {
+    logger.warn({
+      error,
+      svixId: request.headers.get('svix-id'),
+      svixTimestamp: request.headers.get('svix-timestamp'),
+    }, 'Invalid webhook signature')
     return NextResponse.json({ message: 'Invalid webhook signature' }, { status: 401 })
   }
 
@@ -248,7 +256,7 @@ export async function POST(request: NextRequest) {
     try {
       getEmailWebhookWorker();
     } catch (error) {
-      console.error('Failed to initialize webhook worker:', error)
+      logger.error({ error }, 'Failed to initialize webhook worker')
     }
   }
 
@@ -256,7 +264,7 @@ export async function POST(request: NextRequest) {
   try {
     event = JSON.parse(rawBody)
   } catch (error) {
-    console.error('Failed to parse webhook payload as JSON:', error)
+    logger.error({ error }, 'Failed to parse webhook payload as JSON')
     return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 })
   }
 
@@ -270,7 +278,7 @@ export async function POST(request: NextRequest) {
     const { data: email } = await resend.emails.receiving.get(event.data.email_id)
 
     if (!email) {
-      console.warn('Email not found for ID:', event.data.email_id)
+      logger.warn({ emailId: event.data.email_id }, 'Email not found for ID')
       return NextResponse.json({ message: 'Webhook received' })
     }
 
@@ -303,8 +311,11 @@ export async function POST(request: NextRequest) {
       where: { email: { in: allAddresses } },
     })
 
+    // Early exit before calling storeIncomingEmail; a parallel guard inside that
+    // function (~line 169) handles the same condition for direct callers — the
+    // two log sites are mutually exclusive in the normal webhook code path.
     if (matchingInboxes.length === 0) {
-      console.log(`No matching inboxes for email ${event.data.email_id}`, { addresses: allAddresses })
+      logger.info({ emailId: event.data.email_id, addresses: allAddresses }, 'No matching inboxes for email')
       return NextResponse.json({ message: 'Webhook received' })
     }
 
@@ -323,7 +334,7 @@ export async function POST(request: NextRequest) {
         )
       )
 
-      console.log(`Enqueued ${matchingInboxes.length} job(s) for email ${event.data.email_id}`)
+      logger.info({ emailId: event.data.email_id, jobCount: matchingInboxes.length }, 'Enqueued jobs for email webhook')
       return NextResponse.json({ message: 'Webhook received and queued for processing' })
     } else {
       // SYNC PATH: Store emails and dispatch automations inline (500ms-2s)
@@ -343,7 +354,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Webhook processed' })
     }
   } catch (error) {
-    console.error('Failed to process email webhook:', error)
+    logger.error({ error }, 'Failed to process email webhook')
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 })
   }
 }

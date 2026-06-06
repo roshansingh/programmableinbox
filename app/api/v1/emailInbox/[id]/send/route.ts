@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import logger from '@/lib/logger'
 
 const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     })
 
     if (error) {
-      console.error('Resend send error:', error)
+      logger.error({ inboxId: id, error }, 'Resend send error')
       return jsonError(error.message || 'Failed to send email', 500)
     }
 
@@ -98,9 +99,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       },
     })
 
+    logger.info({ inboxId: id, resendId, threadId }, 'Email sent successfully')
     return jsonSuccess({ messageId: resendId }, 201)
-  } catch (error: any) {
-    console.error('Failed to send email:', error)
-    return jsonError(error.message || 'Failed to send email', 500)
+  } catch (error) {
+    logger.error({ inboxId: id, error }, 'Failed to send email')
+    return jsonError('Failed to send email', 500)
   }
 }

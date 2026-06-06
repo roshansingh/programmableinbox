@@ -3,7 +3,9 @@ import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import logger from '@/lib/logger'
 import { API_KEY_SCOPE_SET } from '@/lib/api-key-scopes'
+
 const API_KEY_PREFIX_LENGTH = 12
 
 export type SerializableApiKey = {
@@ -125,7 +127,7 @@ export async function POST(request: NextRequest) {
       201
     )
   } catch (error) {
-    console.error('Error creating API key:', error)
+    logger.error({ error }, 'Error creating API key')
     return jsonError('Internal server error', 500)
   }
 }

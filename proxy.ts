@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * Middleware for route protection
+ * Request proxy for route protection
  * Note: This runs on the edge/server and cannot access localStorage
  * The AuthGuard component handles client-side authentication checks
- * This middleware can be extended for server-side token validation via cookies
+ * This proxy can be extended for server-side token validation via cookies
  */
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes that don't require authentication
