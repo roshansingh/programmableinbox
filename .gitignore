@@ -102,4 +102,5 @@ temp/
 
 .supercontext
 debates
-design.claude/worktrees
+design
+.claude/worktrees/
