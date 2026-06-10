@@ -61,6 +61,16 @@ describe('enrichMessage', () => {
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
+  it('skips when message is not found', async () => {
+    mockFindUnique.mockResolvedValue(null)
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('missing-id')
+
+    expect(mockCanUse).not.toHaveBeenCalled()
+    expect(mockEnrich).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
   it('skips when org is not entitled', async () => {
     mockCanUse.mockResolvedValue(false)
     const { enrichMessage } = await import('../enrichment')
