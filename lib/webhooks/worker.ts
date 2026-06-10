@@ -28,6 +28,7 @@ import {
   ResendEmailData,
 } from "@/app/api/v1/webhooks/email/route";
 import { dispatchAutomationsForEmail } from "@/lib/automations/dispatcher";
+import { enrichMessage } from "@/lib/llm/enrichment";
 import { prisma } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -152,6 +153,13 @@ async function processEmailWebhookJob(
     // Run in parallel — automations for different messages are independent.
     await Promise.all(
       storedMessages.map((message) => dispatchAutomationsForEmail(message.id)),
+    );
+
+    // ------------------------------------------------------------------
+    // Step 4: LLM enrichment (best-effort, never throws)
+    // ------------------------------------------------------------------
+    await Promise.all(
+      storedMessages.map((message) => enrichMessage(message.id)),
     );
 
     console.log(
