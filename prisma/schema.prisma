@@ -153,7 +153,7 @@ model EmailMessage {
   @@index([parentMessageId])
   @@index([messageId])
   @@index([categories], type: Gin)
-  @@index([extractedOtp])
+  @@index([inboxEmailAddressId, extractedOtp, createdAt])
   @@map("email_messages")
 }
 
