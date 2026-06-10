@@ -64,5 +64,6 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     const body = await res.json()
     expect(body.data.otp).toBe('987654')
     expect(body.data.messageId).toBe('msg-42')
+    expect(body.data.receivedAt).toBe(now.toISOString())
   })
 })

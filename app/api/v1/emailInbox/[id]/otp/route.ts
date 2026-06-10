@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!message) return jsonError('No OTP found for this inbox', 404)
 
   return jsonSuccess({
-    otp: message.extractedOtp,
+    otp: message.extractedOtp as string,
     receivedAt: message.createdAt,
     messageId: message.id,
   })
