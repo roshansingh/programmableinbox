@@ -68,6 +68,15 @@ describe('getProvider', () => {
     expect(provider.baseURL).toBe('http://my-ollama:11434/v1')
   })
 
+  it('returns OpenAICompatAdapter with openrouter baseURL for provider=openrouter', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'openrouter')
+    vi.stubEnv('LLM_API_KEY', 'or-key')
+    const { getProvider } = await import('../factory')
+    const provider = getProvider() as any
+    expect(provider._type).toBe('openai-compat')
+    expect(provider.baseURL).toBe('https://openrouter.ai/api/v1')
+  })
+
   it('returns null for unknown provider', async () => {
     vi.stubEnv('LLM_PROVIDER', 'unknown-provider')
     const { getProvider } = await import('../factory')
