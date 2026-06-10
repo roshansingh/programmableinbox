@@ -324,6 +324,58 @@ export default function InboxPage() {
                                     {msg.text}
                                   </pre>
                                 )}
+                                {msg.metadata && (
+                                  <div className="mt-4 pt-3 border-t border-border space-y-3">
+                                    {msg.extractedOtp && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">OTP</span>
+                                        <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">{msg.extractedOtp}</code>
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(msg.extractedOtp!)
+                                            toast.success('OTP copied')
+                                          }}
+                                          className="text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    {msg.metadata.links.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Links</p>
+                                        <div className="space-y-1">
+                                          {msg.metadata.links.map((link, i) => (
+                                            <div key={i} className="flex items-center gap-1.5">
+                                              <a
+                                                href={link.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-primary hover:underline truncate max-w-sm"
+                                              >
+                                                {link.label || link.url}
+                                              </a>
+                                              {link.isCta && (
+                                                <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">CTA</Badge>
+                                              )}
+                                              <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {msg.metadata.timestamps.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Timestamps</p>
+                                        <div className="space-y-0.5">
+                                          {msg.metadata.timestamps.map((ts, i) => (
+                                            <p key={i} className="text-xs text-muted-foreground">{ts}</p>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                                 {!isLatest && (
                                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4 pt-3 border-t border-border">
                                     <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("reply", msg)}>
