@@ -13,5 +13,5 @@ RULES:
 - metadata.timestamps: Extract explicit date/time references as strings.
 
 Respond with JSON only, no prose. Match this structure exactly:
-{"categories":["..."],"extractedOtp":"123456 or null","metadata":{"links":[{"url":"...","label":"...","isCta":true}],"timestamps":["..."]}}`
+{"categories":["..."],"extractedOtp":null,"metadata":{"links":[{"url":"...","label":"...","isCta":true}],"timestamps":["..."]}}`
 }

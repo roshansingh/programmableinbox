@@ -331,9 +331,13 @@ export default function InboxPage() {
                                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">OTP</span>
                                         <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">{msg.extractedOtp}</code>
                                         <button
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(msg.extractedOtp!)
-                                            toast.success('OTP copied')
+                                          onClick={async () => {
+                                            try {
+                                              await navigator.clipboard.writeText(msg.extractedOtp!)
+                                              toast.success('OTP copied')
+                                            } catch {
+                                              toast.error('Failed to copy OTP')
+                                            }
                                           }}
                                           className="text-muted-foreground hover:text-foreground transition-colors"
                                         >

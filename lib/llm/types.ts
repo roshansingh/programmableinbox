@@ -69,7 +69,17 @@ export function parseEnrichmentResult(raw: unknown): EnrichmentResult {
       : [],
     extractedOtp: typeof obj.extractedOtp === 'string' ? obj.extractedOtp : null,
     metadata: {
-      links: Array.isArray(meta.links) ? (meta.links as EnrichmentMetadata['links']) : [],
+      links: Array.isArray(meta.links)
+        ? (meta.links as EnrichmentMetadata['links']).filter((link) => {
+            if (typeof link?.url !== 'string') return false
+            try {
+              const parsed = new URL(link.url)
+              return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+            } catch {
+              return false
+            }
+          })
+        : [],
       timestamps: Array.isArray(meta.timestamps) ? (meta.timestamps as string[]) : [],
     },
   }
