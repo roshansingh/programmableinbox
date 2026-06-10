@@ -24,7 +24,7 @@ export class AnthropicAdapter implements LLMProvider {
         {
           name: 'enrich_email',
           description: 'Extract categories and metadata from the email',
-          input_schema: ENRICHMENT_JSON_SCHEMA as Anthropic.Tool['input_schema'],
+          input_schema: ENRICHMENT_JSON_SCHEMA as unknown as Anthropic.Tool['input_schema'],
         },
       ],
       tool_choice: { type: 'tool', name: 'enrich_email' },
