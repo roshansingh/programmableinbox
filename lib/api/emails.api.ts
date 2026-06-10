@@ -45,6 +45,13 @@ export interface EmailMessage {
   messageId: string
   inReplyTo: string | null
   references: string[]
+  tags: string[]
+  categories: string[]
+  extractedOtp: string | null
+  metadata: {
+    links: Array<{ url: string; label?: string; isCta: boolean }>
+    timestamps: string[]
+  } | null
   createdAt: string
 }
 
@@ -145,4 +152,18 @@ export async function sendEmail(
   data: SendEmailRequest
 ): Promise<{ messageId: string }> {
   return apiClient.post<{ messageId: string }>(`/v1/emailInbox/${inboxId}/send`, data)
+}
+
+export interface OtpResult {
+  otp: string
+  receivedAt: string
+  messageId: string
+}
+
+/**
+ * Get the most recently received OTP for an inbox
+ * GET /v1/emailInbox/{id}/otp
+ */
+export async function getLatestOtp(inboxId: string): Promise<OtpResult> {
+  return apiClient.get<OtpResult>(`/v1/emailInbox/${inboxId}/otp`)
 }
