@@ -21,7 +21,7 @@ export interface IPolicy {
  */
 export interface EntitlementCheckRequest {
   organizationId: string
-  feature: 'email_inboxes' | 'sms_inboxes' | 'automations' | 'webhooks' | string
+  feature: 'email_inboxes' | 'sms_inboxes' | 'automations' | 'webhooks' | 'llm_enrichment' | string
 }
 
 export interface IEntitlements {
