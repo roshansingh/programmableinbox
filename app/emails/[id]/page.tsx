@@ -6,11 +6,12 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ArrowLeft, Trash2, Archive, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Trash2, Archive, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
+import { toast } from 'sonner'
 
 export default function InboxPage() {
   const router = useRouter()
@@ -187,6 +188,15 @@ export default function InboxPage() {
                         <p className="text-xs text-muted-foreground truncate">
                           {message.text?.slice(0, 100) || '(No preview)'}
                         </p>
+                        {message.categories && message.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {message.categories.slice(0, 3).map((cat) => (
+                              <Badge key={cat} variant="secondary" className="text-xs px-1.5 py-0 font-normal">
+                                {cat}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                         {(message as any).threadCount > 1 && (
                           <Badge variant="outline" className="text-xs mt-2">
                             {(message as any).threadCount} messages
@@ -214,6 +224,15 @@ export default function InboxPage() {
                           <p className="text-xs text-muted-foreground mb-2">
                             {threadMessages.length} messages in this conversation
                           </p>
+                        )}
+                        {selectedMessage.categories && selectedMessage.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {selectedMessage.categories.map((cat) => (
+                              <Badge key={cat} variant="secondary" className="text-xs font-normal">
+                                {cat}
+                              </Badge>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
