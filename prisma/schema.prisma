@@ -133,6 +133,9 @@ model EmailMessage {
   inReplyTo           String?
   references          String[]
   tags                String[] @default([])
+  categories          String[] @default([])
+  extractedOtp        String?
+  metadata            Json?
   createdAt           DateTime @default(now())
 
   inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
@@ -149,6 +152,8 @@ model EmailMessage {
   @@index([threadId])
   @@index([parentMessageId])
   @@index([messageId])
+  @@index([categories], type: Gin)
+  @@index([extractedOtp])
   @@map("email_messages")
 }
 
