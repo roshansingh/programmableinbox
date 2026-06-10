@@ -38,16 +38,20 @@ describe('OpenAICompatAdapter', () => {
     expect(result.metadata.links[0].label).toBe('Shop Now')
   })
 
-  it('passes baseURL when provided', async () => {
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ categories: ['Primary'], extractedOtp: null, metadata: { links: [], timestamps: [] } }) } }],
-    })
-
+  it('passes baseURL when provided and omits it when not', async () => {
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
-    new OpenAICompatAdapter('key', 'llama3.2', 'http://localhost:11434/v1')
 
-    expect(MockOpenAI).toHaveBeenCalledWith(
+    // with baseURL
+    new OpenAICompatAdapter('key', 'llama3.2', 'http://localhost:11434/v1')
+    expect(MockOpenAI).toHaveBeenLastCalledWith(
       expect.objectContaining({ baseURL: 'http://localhost:11434/v1' })
+    )
+
+    // without baseURL — should NOT have baseURL key
+    MockOpenAI.mockClear()
+    new OpenAICompatAdapter('key', 'model')
+    expect(MockOpenAI).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ baseURL: expect.anything() })
     )
   })
 

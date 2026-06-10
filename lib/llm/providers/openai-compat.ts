@@ -15,6 +15,7 @@ export class OpenAICompatAdapter implements LLMProvider {
   async enrich(subject: string, bodyText: string): Promise<EnrichmentResult> {
     const response = await this.client.chat.completions.create({
       model: this.model,
+      max_tokens: 1024,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt() },
