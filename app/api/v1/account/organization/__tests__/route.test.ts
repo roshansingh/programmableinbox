@@ -55,6 +55,25 @@ describe('PATCH /api/v1/account/organization', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when name is whitespace-only', async () => {
+    resolveAuthContextMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
+    const { PATCH } = await loadRoute()
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '   ' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('trims whitespace from name before saving', async () => {
+    resolveAuthContextMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
+    orgUpdateMock.mockResolvedValue({ id: 'o1', name: 'New Name', slug: 'my-org' })
+    const { PATCH } = await loadRoute()
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '  New Name  ' }))
+    expect(res.status).toBe(200)
+    expect(orgUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'o1' },
+      data: { name: 'New Name' },
+    })
+  })
+
   it('returns 403 when user is not a member of the org', async () => {
     resolveAuthContextMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'other-org', role: 'owner' }] })
     const { PATCH } = await loadRoute()

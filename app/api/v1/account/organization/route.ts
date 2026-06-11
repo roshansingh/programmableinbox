@@ -11,6 +11,10 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { organizationId, name } = body
 
+  if (!organizationId || typeof organizationId !== 'string') {
+    return jsonError('organizationId is required', 400)
+  }
+
   if (!name || typeof name !== 'string' || !name.trim()) {
     return jsonError('name is required', 400)
   }
