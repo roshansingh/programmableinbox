@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
-import { Inbox, Mail, Phone, Settings, Users, ChevronDown, Plus, X, Workflow } from 'lucide-react'
+import { Inbox, Mail, Phone, Settings, ChevronDown, Plus, X, Workflow } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,8 +21,7 @@ const navigation = [
   { name: "Emails", icon: Mail, href: "/emails", current: false },
   { name: "Automations", icon: Workflow, href: "/automations", current: false },
   { name: "Phone Numbers", icon: Phone, href: "#phones", current: false },
-  { name: "Team", icon: Users, href: "#team", current: false },
-  { name: "Settings", icon: Settings, href: "#settings", current: false },
+{ name: "Settings", icon: Settings, href: "/settings", current: false },
 ]
 
 const organizations = [
