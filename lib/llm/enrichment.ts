@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getProvider } from './factory'
-import logger from '@/lib/logger'
 
 export async function enrichMessage(messageId: string): Promise<void> {
   const provider = getProvider()
@@ -32,11 +31,7 @@ export async function enrichMessage(messageId: string): Promise<void> {
       },
     })
   } catch (error) {
-    try {
-      logger.error({ error, messageId }, 'LLM enrichment failed')
-    } catch {
-      // logger transport unavailable (e.g., pino worker thread exited in dev mode)
-      console.error('[enrichMessage] LLM enrichment failed:', messageId, error)
-    }
+    // console.error intentional: pino transport may be unavailable when this fires
+    console.error('[enrichMessage] LLM enrichment failed', { messageId, error })
   }
 }
