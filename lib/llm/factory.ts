@@ -52,8 +52,9 @@ function buildProvider(): LLMProvider | null {
       return new AnthropicAdapter(apiKey, model)
     case 'openai':
     case 'openrouter':
-    case 'ollama':
       return new OpenAICompatAdapter(apiKey, model, baseURL)
+    case 'ollama':
+      return new OpenAICompatAdapter(apiKey, model, baseURL, { think: false })
     default:
       return null
   }
