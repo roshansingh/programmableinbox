@@ -72,6 +72,15 @@ describe('PATCH /api/v1/account/password', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when newPassword is more than 72 chars', async () => {
+    resolveAuthContextMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [] })
+    const { PATCH } = await loadRoute()
+    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'a'.repeat(73) }))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.message).toBe('New password must be at most 72 characters')
+  })
+
   it('returns 401 when currentPassword is wrong', async () => {
     resolveAuthContextMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [] })
     userFindUniqueMock.mockResolvedValue({ id: 'u1', passwordHash: 'hash' })
