@@ -8,7 +8,8 @@ export class OpenAICompatAdapter implements LLMProvider {
   private model: string
 
   constructor(apiKey: string, model: string, baseURL?: string) {
-    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
+    // OpenAI SDK requires a non-empty apiKey even when the server (e.g. Ollama) doesn't validate it
+    this.client = new OpenAI({ apiKey: apiKey || 'no-key', ...(baseURL ? { baseURL } : {}) })
     this.model = model
   }
 
