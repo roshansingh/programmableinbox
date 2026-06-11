@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,9 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState(org?.name ?? "")
   const [savingOrg, setSavingOrg] = useState(false)
 
-  // Keep orgName in sync once user loads (on first render org may be undefined)
-  const displayOrgName = orgName || org?.name || ""
+  useEffect(() => {
+    if (org?.name && !orgName) setOrgName(org.name)
+  }, [org?.name])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,7 +62,7 @@ export default function SettingsPage() {
 
     setSavingOrg(true)
     try {
-      await updateOrganization(organizationId, displayOrgName)
+      await updateOrganization(organizationId, orgName)
       await refreshUser()
       toast.success("Organization name updated")
     } catch {
@@ -148,7 +149,7 @@ export default function SettingsPage() {
                   <Label htmlFor="orgName">Organization name</Label>
                   <Input
                     id="orgName"
-                    value={displayOrgName}
+                    value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
                     required
                   />

@@ -78,6 +78,21 @@ describe('SettingsPage', () => {
     })
   })
 
+  it('clears password fields after successful change', async () => {
+    renderWithProviders(<SettingsPage />)
+    await waitFor(() => screen.getByLabelText(/current password/i))
+
+    fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: 'correct' } })
+    fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: 'newpass123' } })
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'newpass123' } })
+    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+
+    await waitFor(() => {
+      expect((screen.getByLabelText(/current password/i) as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText(/new password/i) as HTMLInputElement).value).toBe('')
+    })
+  })
+
   it('submits org name change', async () => {
     renderWithProviders(<SettingsPage />)
     await waitFor(() => screen.getByLabelText(/organization name/i))
