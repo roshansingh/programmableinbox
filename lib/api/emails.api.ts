@@ -154,6 +154,10 @@ export async function sendEmail(
   return apiClient.post<{ messageId: string }>(`/v1/emailInbox/${inboxId}/send`, data)
 }
 
+export async function deleteEmailMessage(inboxId: string, messageId: string): Promise<void> {
+  return apiClient.delete<void>(`/v1/emailInbox/${inboxId}/messages/${messageId}`)
+}
+
 export interface OtpResult {
   otp: string
   receivedAt: string

@@ -1,4 +1,4 @@
-export const API_KEY_SCOPES = ['inboxes:read', 'messages:read'] as const
+export const API_KEY_SCOPES = ['inboxes:read', 'messages:read', 'messages:delete'] as const
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
 

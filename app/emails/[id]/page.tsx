@@ -6,10 +6,10 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ArrowLeft, Trash2, Archive, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
-import { getEmailInbox, getEmailMessages, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
+import { getEmailInbox, getEmailMessages, deleteEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
 import { toast } from 'sonner'
 
@@ -28,11 +28,40 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeMode, setComposeMode] = useState<"reply" | "forward">("reply")
   const [composeTarget, setComposeTarget] = useState<EmailMessage | null>(null)
+  const [starredIds, setStarredIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = localStorage.getItem(`starred:${inboxId}`)
+      return new Set(stored ? JSON.parse(stored) : [])
+    } catch { return new Set() }
+  })
 
   const openCompose = (mode: "reply" | "forward", message: EmailMessage) => {
     setComposeMode(mode)
     setComposeTarget(message)
     setComposeOpen(true)
+  }
+
+  const toggleStar = (messageId: string) => {
+    setStarredIds((prev) => {
+      const next = new Set(prev)
+      next.has(messageId) ? next.delete(messageId) : next.add(messageId)
+      try { localStorage.setItem(`starred:${inboxId}`, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+
+  const handleDelete = async (messageId: string) => {
+    if (!window.confirm('Delete this message? This cannot be undone.')) return
+    try {
+      await deleteEmailMessage(inboxId, messageId)
+      toast.success('Message deleted')
+      setSelectedMessage(null)
+      setShowMessageDetail(false)
+      await fetchData()
+    } catch {
+      toast.error('Failed to delete message')
+    }
   }
 
   const fetchData = async () => {
@@ -233,13 +262,25 @@ export default function InboxPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:flex">
-                          <Star className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hidden sm:flex"
+                          onClick={() => toggleStar(selectedMessage.id)}
+                        >
+                          <Star
+                            className="h-4 w-4"
+                            fill={starredIds.has(selectedMessage.id) ? 'currentColor' : 'none'}
+                            stroke={starredIds.has(selectedMessage.id) ? 'currentColor' : 'currentColor'}
+                            style={starredIds.has(selectedMessage.id) ? { color: '#eab308' } : undefined}
+                          />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:flex">
-                          <Archive className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => handleDelete(selectedMessage.id)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
