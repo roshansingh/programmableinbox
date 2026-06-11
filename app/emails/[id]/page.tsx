@@ -101,6 +101,12 @@ export default function InboxPage() {
     )
   }
 
+  const hasEnrichment = selectedMessage && (
+    (selectedMessage.categories && selectedMessage.categories.length > 0) ||
+    selectedMessage.extractedOtp ||
+    selectedMessage.metadata !== null
+  )
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -221,18 +227,9 @@ export default function InboxPage() {
                           {selectedMessage.subject}
                         </h1>
                         {threadMessages.length > 1 && (
-                          <p className="text-xs text-muted-foreground mb-2">
+                          <p className="text-xs text-muted-foreground">
                             {threadMessages.length} messages in this conversation
                           </p>
-                        )}
-                        {selectedMessage.categories && selectedMessage.categories.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {selectedMessage.categories.map((cat) => (
-                              <Badge key={cat} variant="secondary" className="text-xs font-normal">
-                                {cat}
-                              </Badge>
-                            ))}
-                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
@@ -262,143 +259,142 @@ export default function InboxPage() {
                     </div>
                   </div>
 
-                  {/* Full thread view - all messages chronologically */}
-                  <ScrollArea className="flex-1 overflow-auto">
-                    <div className="px-4 lg:px-6 py-4 lg:py-6 space-y-4">
-                      {threadMessages.map((msg, index) => {
-                        const isLatest = index === threadMessages.length - 1
-                        // Latest message is always expanded, others are collapsible
-                        const isExpanded = isLatest || expandedThreadMessages.has(msg.id)
+                  {/* Thread messages + enrichment panel */}
+                  <div className="flex flex-1 overflow-hidden">
+                    {/* Full thread view - all messages chronologically */}
+                    <ScrollArea className="flex-1 overflow-auto">
+                      <div className="px-4 lg:px-6 py-4 lg:py-6 space-y-4">
+                        {threadMessages.map((msg, index) => {
+                          const isLatest = index === threadMessages.length - 1
+                          // Latest message is always expanded, others are collapsible
+                          const isExpanded = isLatest || expandedThreadMessages.has(msg.id)
 
-                        return (
-                          <div key={msg.id} className="border border-border rounded-lg bg-card">
-                            <div
-                              className={`border-b border-border px-4 py-3 ${!isLatest ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
-                              onClick={() => { if (!isLatest) toggleThreadMessage(msg.id) }}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${msg.from === inbox?.email ? 'bg-green-500/10' : 'bg-primary/10'}`}>
-                                    <span className={`text-xs font-semibold ${msg.from === inbox?.email ? 'text-green-600' : 'text-primary'}`}>
-                                      {msg.from === inbox?.email ? 'You' : msg.from.charAt(0).toUpperCase()}
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-foreground truncate">
-                                      {msg.from === inbox?.email ? 'You' : msg.from}
-                                    </p>
-                                    {!isExpanded && (
-                                      <p className="text-xs text-muted-foreground truncate">
-                                        {msg.text?.slice(0, 80) || msg.subject}
+                          return (
+                            <div key={msg.id} className="border border-border rounded-lg bg-card">
+                              <div
+                                className={`border-b border-border px-4 py-3 ${!isLatest ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
+                                onClick={() => { if (!isLatest) toggleThreadMessage(msg.id) }}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${msg.from === inbox?.email ? 'bg-green-500/10' : 'bg-primary/10'}`}>
+                                      <span className={`text-xs font-semibold ${msg.from === inbox?.email ? 'text-green-600' : 'text-primary'}`}>
+                                        {msg.from === inbox?.email ? 'You' : msg.from.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-foreground truncate">
+                                        {msg.from === inbox?.email ? 'You' : msg.from}
                                       </p>
+                                      {!isExpanded && (
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {msg.text?.slice(0, 80) || msg.subject}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+                                      {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
+                                    </span>
+                                    {!isLatest && (
+                                      expandedThreadMessages.has(msg.id) ? (
+                                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                      )
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                                    {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
-                                  </span>
+                              </div>
+                              {isExpanded && (
+                                <div className="px-4 py-4">
+                                  <p className="text-xs text-muted-foreground mb-3">
+                                    to {msg.to.join(', ')}
+                                    {msg.cc?.length > 0 && ` | cc: ${msg.cc.join(', ')}`}
+                                  </p>
+                                  {msg.html ? (
+                                    <div
+                                      className="prose prose-sm max-w-none text-foreground"
+                                      dangerouslySetInnerHTML={{ __html: msg.html }}
+                                    />
+                                  ) : (
+                                    <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
+                                      {msg.text}
+                                    </pre>
+                                  )}
                                   {!isLatest && (
-                                    expandedThreadMessages.has(msg.id) ? (
-                                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                    )
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4 pt-3 border-t border-border">
+                                      <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("reply", msg)}>
+                                        <Reply className="h-3 w-3 mr-2" />
+                                        Reply
+                                      </Button>
+                                      <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("forward", msg)}>
+                                        <Forward className="h-3 w-3 mr-2" />
+                                        Forward
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </ScrollArea>
+
+                    {/* Enrichment details panel */}
+                    {hasEnrichment && (
+                      <div className="w-72 border-l border-border bg-card hidden lg:flex flex-col flex-shrink-0 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-border flex-shrink-0">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Enrichment</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                          {selectedMessage.categories && selectedMessage.categories.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Categories</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {selectedMessage.categories.map((cat) => (
+                                  <Badge key={cat} variant="secondary" className="text-xs font-normal">{cat}</Badge>
+                                ))}
                               </div>
                             </div>
-                            {isExpanded && (
-                              <div className="px-4 py-4">
-                                <p className="text-xs text-muted-foreground mb-3">
-                                  to {msg.to.join(', ')}
-                                  {msg.cc?.length > 0 && ` | cc: ${msg.cc.join(', ')}`}
-                                </p>
-                                {msg.html ? (
-                                  <div
-                                    className="prose prose-sm max-w-none text-foreground"
-                                    dangerouslySetInnerHTML={{ __html: msg.html }}
-                                  />
-                                ) : (
-                                  <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
-                                    {msg.text}
-                                  </pre>
-                                )}
-                                {msg.metadata && (
-                                  <div className="mt-4 pt-3 border-t border-border space-y-3">
-                                    {msg.extractedOtp && (
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">OTP</span>
-                                        <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">{msg.extractedOtp}</code>
-                                        <button
-                                          onClick={async () => {
-                                            try {
-                                              await navigator.clipboard.writeText(msg.extractedOtp!)
-                                              toast.success('OTP copied')
-                                            } catch {
-                                              toast.error('Failed to copy OTP')
-                                            }
-                                          }}
-                                          className="text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                          <Copy className="h-3.5 w-3.5" />
-                                        </button>
-                                      </div>
-                                    )}
-                                    {msg.metadata.links.length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Links</p>
-                                        <div className="space-y-1">
-                                          {msg.metadata.links.map((link, i) => (
-                                            <div key={i} className="flex items-center gap-1.5">
-                                              <a
-                                                href={link.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-xs text-primary hover:underline truncate max-w-sm"
-                                              >
-                                                {link.label || link.url}
-                                              </a>
-                                              {link.isCta && (
-                                                <Badge variant="outline" className="text-xs px-1 py-0 shrink-0">CTA</Badge>
-                                              )}
-                                              <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0" />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {msg.metadata.timestamps.length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Timestamps</p>
-                                        <div className="space-y-0.5">
-                                          {msg.metadata.timestamps.map((ts, i) => (
-                                            <p key={i} className="text-xs text-muted-foreground">{ts}</p>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {!isLatest && (
-                                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4 pt-3 border-t border-border">
-                                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("reply", msg)}>
-                                      <Reply className="h-3 w-3 mr-2" />
-                                      Reply
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("forward", msg)}>
-                                      <Forward className="h-3 w-3 mr-2" />
-                                      Forward
-                                    </Button>
-                                  </div>
-                                )}
+                          )}
+                          {selectedMessage.extractedOtp && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">OTP</p>
+                              <div className="flex items-center gap-2">
+                                <code className="font-mono text-lg bg-muted px-3 py-1.5 rounded tracking-widest text-foreground flex-1 text-center">
+                                  {selectedMessage.extractedOtp}
+                                </code>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(selectedMessage.extractedOtp!)
+                                      toast.success('OTP copied')
+                                    } catch {
+                                      toast.error('Failed to copy OTP')
+                                    }
+                                  }}
+                                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </button>
                               </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </ScrollArea>
+                            </div>
+                          )}
+                          {selectedMessage.metadata !== null && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Metadata</p>
+                              <pre className="text-xs font-mono bg-muted rounded p-3 leading-relaxed text-foreground whitespace-pre-wrap break-all">
+                                {JSON.stringify(selectedMessage.metadata, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="flex-1 flex items-center justify-center text-muted-foreground">
