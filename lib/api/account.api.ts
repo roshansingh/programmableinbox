@@ -1,4 +1,4 @@
-import { apiClient } from './api-client'
+import { apiClient } from '@/lib/api-client'
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await apiClient.patch('/v1/account/password', { currentPassword, newPassword })
