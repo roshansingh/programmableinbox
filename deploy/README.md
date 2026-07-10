@@ -1,50 +1,240 @@
 # Deployment — operator's guide
 
-This directory is the source of truth for deploying inboxui to a Hetzner bare-metal box. See [`docs/superpowers/specs/2026-05-14-deployment-bare-metal-design.md`](../docs/superpowers/specs/2026-05-14-deployment-bare-metal-design.md) for the design rationale.
+Step-by-step guide to stand up **inboxui** on a single OVH box: all services in Docker Compose, self-hosted Postgres with continuous WAL archiving and point-in-time recovery to Backblaze B2, a Redis-backed async webhook worker, Caddy for TLS, and external monitoring via Uptime Kuma on PikaPods.
 
-## Bootstrap (one time)
+Design rationale: [`docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision-design.md`](../docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision-design.md).
 
-1. Provision a Hetzner AX-line box with Ubuntu LTS. Note its IP.
-2. Pick a Hetzner Storage Box in the same Hetzner location.
-3. Create an S3-compatible bucket (Backblaze B2 or Cloudflare R2 recommended).
-4. SSH in as root and:
+## Architecture at a glance
+
+| Container | Image | Purpose |
+|---|---|---|
+| `caddy` | `caddy:2-alpine` | TLS termination + single ingress (80/443), auto Let's Encrypt |
+| `app` | `ghcr.io/<owner>/inboxui` | Next.js server on :4000 (intended to host the in-process webhook worker — see Part 8) |
+| `migrate` | same as app (profile `migrate`) | One-shot `prisma migrate deploy` |
+| `postgres` | `ghcr.io/<owner>/inboxui-postgres:17` | Database + WAL-G binary, WAL archiving to B2 |
+| `redis` | `redis:7-alpine` | BullMQ queue backing async webhook processing |
+| `backup-cron` | `ghcr.io/<owner>/inboxui-backup` | Base backups, pg_dump, retention, heartbeats |
+
+External dependencies: **Backblaze B2** (backups), **Uptime Kuma on PikaPods** (monitoring), **GHCR** (images), **Resend** (inbound email webhooks).
+
+> Only Caddy publishes ports to the host. Postgres and Redis are internal-only.
+
+---
+
+## Prerequisites — accounts & resources
+
+Set these up before touching the box:
+
+1. **OVH box** — a dedicated/bare-metal server (or Public Cloud instance) running Ubuntu LTS. Note its public IP.
+2. **Backblaze B2** — create two buckets and an application key (see Part 4):
+   - a WAL-G bucket (physical PITR) with **Object Lock** enabled
+   - a restic bucket (logical pg_dump)
+3. **Uptime Kuma on PikaPods** — a running Kuma instance; note its URL (e.g. `https://<you>.pikapod.net`).
+4. **DNS** — a domain you control, with a low TTL (≤300s) so you can repoint it fast during DR.
+5. **GitHub repo + Actions secrets** — `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_SSH_PORT` (images push to GHCR using the built-in `GITHUB_TOKEN`).
+6. **Resend** — an account for inbound email; you'll point its webhook at this deployment in Part 8.
+
+---
+
+## Part 1 — One-time host bootstrap
+
+SSH in as root and run the bootstrap script:
+
+```bash
+git clone https://github.com/OWNER/inboxui /tmp/inboxui
+sudo bash /tmp/inboxui/deploy/scripts/bootstrap.sh
+```
+
+This installs Docker, creates the non-root `deploy` user (in the `docker` group), creates `/srv/inboxui/{pgdata,redis,backup-logs,secrets}`, and configures `ufw` (22/80/443). Add the OVH Network Firewall with the same rules as a second layer, and set up Tailscale for SSH before dropping public SSH.
+
+---
+
+## Part 2 — Backblaze B2 buckets & keys
+
+1. Create the **WAL-G bucket** and enable **Object Lock** (Governance mode). Set a default retention window shorter than the base-backup retention (e.g. 14 days vs. 30 days of fulls) so pruning never collides with a lock.
+2. Create the **restic bucket** (no Object Lock — it conflicts with `restic prune`; use a no-delete key instead).
+3. Create an **application key** the host will use (scoped to those buckets, **without** bypass-governance). Keep a second, fully-privileged key **offline in your password manager** for retention maintenance and break-glass recovery.
+4. Note the B2 **S3 endpoint** for your region, e.g. `s3.eu-central-003.backblazeb2.com`.
+
+---
+
+## Part 3 — Secrets (`app.env`)
+
+As the `deploy` user, create `/srv/inboxui/secrets/app.env` (mode `0600`). The full key list is in the design spec's §2; the essentials:
+
+```bash
+sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/app.env <<'EOF'
+# App runtime
+DOMAIN=inbox.example.com
+DATABASE_URL=postgresql://app:<pw>@postgres:5432/inboxui
+JWT_SECRET=<random>
+WEBHOOK_SECRET=<resend-webhook-hmac>
+AUTH_RESEND_API_KEY=
+AUTH_EMAIL_FROM=
+AUTH_EMAIL_FROM_NAME=
+NEXT_PUBLIC_API_MODE=local
+HEALTHZ_SECRET=              # optional; gates /api/healthz
+# LLM
+LLM_PROVIDER=
+LLM_API_KEY=
+LLM_MODEL=
+# Webhook queue / Redis  (async worker not yet wired — see Part 8; keep false for now)
+ENABLE_ASYNC_WEBHOOK_PROCESSING=false
+REDIS_URL=redis://redis:6379
+# Postgres init
+POSTGRES_DB=inboxui
+POSTGRES_USER=app
+POSTGRES_PASSWORD=<pw>       # must match DATABASE_URL
+# WAL-G → B2
+WALG_S3_PREFIX=s3://<walg-bucket>/walg
+AWS_ENDPOINT=https://s3.<region>.backblazeb2.com
+AWS_ACCESS_KEY_ID=<b2-keyID>
+AWS_SECRET_ACCESS_KEY=<b2-appKey>
+WALG_COMPRESSION_METHOD=zstd
+# restic → B2
+RESTIC_REPOSITORY=b2:<pgdump-bucket>:pgdump
+B2_ACCOUNT_ID=<b2-keyID>
+B2_ACCOUNT_KEY=<b2-appKey>
+RESTIC_PASSWORD=<restic-encryption-password>
+# Uptime Kuma push (filled in Part 7)
+KUMA_PUSH_BASE=https://<you>.pikapod.net
+KUMA_TOKEN_WALG_BASE=
+KUMA_TOKEN_WALG_WAL=
+KUMA_TOKEN_RESTIC_PGDUMP=
+EOF
+```
+
+The source of truth for this file is your password manager — **never commit it**.
+
+---
+
+## Part 4 — Copy compose files & pick your images
+
+```bash
+sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
+sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
+sudo cp /tmp/inboxui/deploy/scripts/deploy.sh /srv/inboxui/
+sudo chown -R deploy:deploy /srv/inboxui/
+sudo chmod +x /srv/inboxui/deploy.sh
+```
+
+The compose file references `ghcr.io/OWNER/…` images. Point them at your GHCR namespace by creating `/srv/inboxui/.env` (used by compose for variable substitution — distinct from `secrets/app.env`):
+
+```bash
+sudo -u deploy tee /srv/inboxui/.env >/dev/null <<'EOF'
+APP_IMAGE=ghcr.io/<owner>/inboxui
+POSTGRES_IMAGE=ghcr.io/<owner>/inboxui-postgres
+BACKUP_IMAGE=ghcr.io/<owner>/inboxui-backup
+IMAGE_TAG=latest
+POSTGRES_TAG=17
+BACKUP_TAG=latest
+EOF
+```
+
+Images are built and pushed to GHCR by CI on push to `main` (`.github/workflows/deploy.yml`). Trigger one run first so the images exist. If GHCR packages are private, `docker login ghcr.io` on the box with a PAT that has `read:packages`.
+
+---
+
+## Part 5 — First bring-up
+
+Run as the `deploy` user from `/srv/inboxui`:
+
+```bash
+docker compose pull
+
+# 1. Database first
+docker compose up -d postgres
+docker compose ps            # wait until postgres is "healthy"
+
+# 2. Confirm WAL archiving to B2 works
+docker compose exec postgres wal-g backup-list   # should succeed with an empty list
+
+# 3. Run migrations (one-shot)
+docker compose run --rm migrate
+
+# 4. Bring up the rest
+docker compose up -d         # app, caddy, redis, backup-cron
+
+# 5. Force a first base backup
+docker compose exec backup-cron /scripts/base-backup.sh
+```
+
+---
+
+## Part 6 — DNS & the application
+
+1. Point the `${DOMAIN}` **A record** at the box's public IP. Caddy will obtain a Let's Encrypt cert automatically on first request.
+2. Verify TLS + health:
    ```bash
-   git clone https://github.com/OWNER/inboxui /tmp/inboxui
-   sudo bash /tmp/inboxui/deploy/scripts/bootstrap.sh
+   curl -fsS https://$DOMAIN/api/healthz | jq
    ```
-5. As the `deploy` user, populate `/srv/inboxui/secrets/`:
-   - `app.env` (mode 0600) — see the secrets section of the design doc for keys (app, Postgres init, WAL-G/S3, restic, rclone — all in one file).
-   - `storagebox_id_ed25519` (mode 0600) — SSH private key for the Storage Box.
-6. Copy compose + Caddyfile + deploy.sh into `/srv/inboxui/`:
+   Expect `200` with `db: ok` and `freshness_breach: false`.
+3. **Create the first account**: open `https://$DOMAIN` and register through the auth screen. (For a throwaway test login instead, `docker compose run --rm migrate npx prisma db seed` creates `test@example.com` / `password123`.)
+
+---
+
+## Part 7 — Monitoring (Uptime Kuma on PikaPods)
+
+In your PikaPods Kuma instance:
+
+1. **HTTP monitor** — `https://$DOMAIN/api/healthz`, 60s interval, alert on non-200 for 2 consecutive checks.
+2. **Push monitors** (dead-man's-switch) — create three: `walg-base` (26h), `walg-wal` (10min), `restic-pgdump` (26h). Copy each push token into the matching `KUMA_TOKEN_*` in `app.env`, then restart the backup container so it emits heartbeats:
    ```bash
-   sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
-   sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
-   sudo cp /tmp/inboxui/deploy/scripts/deploy.sh /srv/inboxui/
-   sudo chown -R deploy:deploy /srv/inboxui/
-   sudo chmod +x /srv/inboxui/deploy.sh
+   docker compose up -d backup-cron
    ```
-7. Initial deploy from CI: push to `main`, watch the GH Actions run, wait for green.
-8. Inside the Postgres container, confirm WAL archiving works:
-   ```bash
-   docker compose exec postgres wal-g wal-show
-   ```
-9. Force a first base backup:
-   ```bash
-   docker compose exec backup-cron /scripts/base-backup.sh
-   ```
+3. Configure an alert channel (Discord/email/Slack) in Kuma's UI.
 
-## Day-to-day
+---
 
-Pushing to `main` runs CI; tests + build + SSH deploy + migration are automatic.
+## Part 8 — Wire up inbound email (Resend)
 
-## DR drills
+Point your Resend inbound webhook at:
 
-- **Monthly**: laptop drill — restore latest base + a few hours of WAL into a throwaway docker volume. Verify row counts. Write to `runbooks/drill-log.md`.
-- **Quarterly**: full host-loss drill on a temporary Hetzner box. Run runbook 03 end-to-end against a parallel domain.
-- **Annually**: cross-destination drill — restore from the Storage Box mirror with S3 access explicitly blocked.
+```
+https://$DOMAIN/api/v1/webhooks/email
+```
 
-## When things go wrong
+Use the same HMAC secret you set as `WEBHOOK_SECRET`.
 
-- `runbooks/01-app-crash.md` — app down, deploy regression
-- `runbooks/02-db-corruption.md` — point-in-time recovery
-- `runbooks/03-total-host-loss.md` — rebuild on a new box
+**Webhook processing has two modes, set by `ENABLE_ASYNC_WEBHOOK_PROCESSING`:**
+
+- **`false` (recommended for now)** — mail is stored synchronously in the request. No Redis or worker needed; the `redis` service can stay up but idle. This is the reliable path today.
+- **`true` (async)** — the webhook enqueues to Redis and a BullMQ worker processes jobs. ⚠️ **The worker is not currently started by the app** (`lib/instrumentation.ts` is not at the Next.js root and the referenced `WebhookWorkerInit` layout component does not exist), so jobs would queue but never run. Do **not** enable async until the worker startup is wired (add a root `instrumentation.ts`, or a separate worker container).
+
+When async is correctly wired, verify with:
+
+```bash
+curl -fsS https://$DOMAIN/api/internal/webhook-worker/health   # expect 200 / worker: running
+```
+
+(With async disabled this endpoint returns 503 by design.)
+
+---
+
+## Day-to-day deploys
+
+Pushing to `main` runs CI (lint + test + build) and, on green, SSHes to the box and runs `deploy.sh <sha>`, which pulls, runs `migrate`, rolls `app` + `caddy` behind a healthcheck gate, and prunes old images. No manual step.
+
+**Rollback** to a known-good image:
+
+```bash
+IMAGE_TAG=<previous-sha> /srv/inboxui/deploy.sh <previous-sha>
+```
+
+---
+
+## Backups & disaster recovery
+
+Backups run in `backup-cron`: WAL archiving continuously, a full base backup daily, a restic `pg_dump` daily, and a weekly retention sweep — all to Backblaze B2. `/api/healthz` reports freshness from the `backup_status` table.
+
+Runbooks (version-controlled, in `runbooks/`):
+
+- `01-app-crash.md` — app down / bad deploy (rollback)
+- `02-db-corruption.md` — point-in-time recovery into a sibling instance
+- `03-total-host-loss.md` — rebuild on a new box from B2
+
+**DR drills** (log each to `runbooks/drill-log.md`):
+
+- **Monthly** — restore latest base + a few hours of WAL into a throwaway volume; verify row counts.
+- **Quarterly** — full host-loss drill on a temporary box; run runbook 03 end-to-end.
+- **Annually** — logical-restore drill from the restic `pg_dump` in B2 with the WAL-G bucket blocked.

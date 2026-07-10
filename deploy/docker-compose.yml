@@ -39,6 +39,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   migrate:
     image: ${APP_IMAGE:-ghcr.io/OWNER/inboxui}:${IMAGE_TAG:-latest}
@@ -79,3 +81,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - /srv/inboxui/redis:/data
+    networks:
+      - inboxui-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

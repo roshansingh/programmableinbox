@@ -3,7 +3,7 @@
 # IDEMPOTENT: safe to re-run; only applies missing pieces.
 set -euo pipefail
 
-DEPLOY_USER=ubuntu
+DEPLOY_USER=deploy
 SRV_DIR=/srv/inboxui
 
 if [[ $EUID -ne 0 ]]; then
@@ -33,8 +33,7 @@ fi
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0750 "$SRV_DIR"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0750 \
   "$SRV_DIR/pgdata" \
-  "$SRV_DIR/caddy-data" \
-  "$SRV_DIR/caddy-config" \
+  "$SRV_DIR/redis" \
   "$SRV_DIR/backup-logs"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0700 "$SRV_DIR/secrets"
 
@@ -50,8 +49,8 @@ dpkg-reconfigure -plow unattended-upgrades || true
 
 echo
 echo "Bootstrap done. Next steps:"
-echo "  1. As $DEPLOY_USER: place secrets/app.env and secrets/storagebox_id_ed25519 under $SRV_DIR/secrets/ (mode 0600)."
-echo "  2. Copy deploy/docker-compose.yml and deploy/Caddyfile into $SRV_DIR/."
+echo "  1. As $DEPLOY_USER: place secrets/app.env under $SRV_DIR/secrets/ (mode 0600)."
+echo "  2. Copy deploy/docker-compose.yml, deploy/Caddyfile, and deploy/scripts/deploy.sh into $SRV_DIR/ (chmod +x deploy.sh)."
 echo "  3. wal-g backup-fetch (if restoring) OR docker compose up -d postgres + docker compose run --rm migrate for fresh install."
 echo "  4. Initialise WAL-G storage:  docker compose exec postgres wal-g backup-list  (should succeed with empty list)."
 echo "  5. Add deploy@host SSH key to GH Actions secrets; trigger a deploy."

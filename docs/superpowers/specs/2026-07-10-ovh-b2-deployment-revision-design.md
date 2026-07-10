@@ -47,9 +47,40 @@ Two legs, both to B2. The old **rclone-mirror leg is deleted entirely** (it exis
 
 ### `app.env` changes
 
-Remove the Storage Box / rclone blocks (`RESTIC_REPOSITORY=sftp:...`, `RCLONE_CONFIG_STORAGEBOX_*`) and the `storagebox_id_ed25519` key file. Add:
+Remove the Storage Box / rclone blocks (`RESTIC_REPOSITORY=sftp:...`, `RCLONE_CONFIG_STORAGEBOX_*`) and the `storagebox_id_ed25519` key file. The full `app.env` for this branch (reconciling the 2026-05-14 secrets list with the env vars the code on `llm-integration` actually reads) is:
 
 ```
+# App runtime
+DOMAIN=
+DATABASE_URL=postgresql://app:<pw>@postgres:5432/inboxui
+JWT_SECRET=
+WEBHOOK_SECRET=
+AUTH_RESEND_API_KEY=
+AUTH_EMAIL_FROM=
+AUTH_EMAIL_FROM_NAME=
+NEXT_PUBLIC_API_MODE=local
+LOG_LEVEL=info                        # optional; defaults info(prod)/debug(dev)
+HEALTHZ_SECRET=                       # optional; gates /api/healthz behind a header
+AUTOMATION_SWEEPER_SECRET=            # gates the automation sweeper endpoint
+ENABLE_BILLING=false                  # feature flag
+
+# LLM integration (llm-integration branch)
+LLM_PROVIDER=
+LLM_API_KEY=
+LLM_BASE_URL=
+LLM_MODEL=
+
+# Webhook queue / Redis (see §5)
+ENABLE_ASYNC_WEBHOOK_PROCESSING=true  # if false, the redis + worker containers are unnecessary
+REDIS_URL=redis://redis:6379
+WEBHOOK_QUEUE_MAX_RETRIES=3                       # optional (default 3)
+WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=5      # optional (default 5)
+
+# Postgres init
+POSTGRES_DB=inboxui
+POSTGRES_USER=app
+POSTGRES_PASSWORD=
+
 # WAL-G → Backblaze B2 (S3 API)
 WALG_S3_PREFIX=s3://<walg-bucket>/walg
 AWS_ENDPOINT=https://s3.<region>.backblazeb2.com
@@ -62,9 +93,6 @@ RESTIC_REPOSITORY=b2:<pgdump-bucket>:pgdump
 B2_ACCOUNT_ID=<b2-keyID>
 B2_ACCOUNT_KEY=<b2-appKey>
 RESTIC_PASSWORD=<restic-encryption-password>
-
-# Redis
-REDIS_URL=redis://redis:6379
 
 # Uptime Kuma push (PikaPods-hosted) — see §6
 KUMA_PUSH_BASE=https://<your-kuma>.pikapod.net
@@ -104,7 +132,7 @@ The app's `lib/webhooks/queue.ts` + `worker.ts` use BullMQ + ioredis against `RE
 
 - **`redis` container**: `redis:7-alpine`, started with `--appendonly yes --appendfsync everysec`, bind-mounted at `/srv/inboxui/redis`, on `inboxui-internal`, **no published port**. `restart: unless-stopped`.
 - **`worker` container**: reuses the app image with a new worker entrypoint that starts the BullMQ `Worker` from `lib/webhooks/worker.ts`. The web `app` container continues to run only `node server.js`; the worker is a separate process/container. `restart: unless-stopped`, `depends_on` postgres (healthy) + redis. `REDIS_URL=redis://redis:6379`.
-- **App config**: `REDIS_URL` added to `app.env`; the `app` container also gets it so route handlers can enqueue.
+- **App config**: `REDIS_URL` added to `app.env`; the `app` container also gets it so route handlers can enqueue. This whole path is gated by `ENABLE_ASYNC_WEBHOOK_PROCESSING` — if set `false`, webhooks process synchronously in-request and the `redis` + `worker` containers are unnecessary. This revision assumes it is `true`.
 
 ### Redis DR posture — ephemeral, not backed up
 

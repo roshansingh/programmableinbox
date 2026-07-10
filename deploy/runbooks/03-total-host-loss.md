@@ -7,7 +7,7 @@
 ## 1. Provision a replacement
 
 - Order a Hetzner box of the same class (or restore an OS image to a hot spare if you keep one).
-- Pick the same Hetzner location as the previous box so the Storage Box stays on the internal network.
+- Pick a region near your Backblaze B2 bucket to keep restore latency low.
 - Note the new public IP.
 
 ## 2. Run the bootstrap
@@ -28,9 +28,6 @@ From your password manager (1Password / Bitwarden — source of truth, **not git
 ```bash
 sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/app.env <<EOF
 # paste contents from password manager
-EOF
-sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/storagebox_id_ed25519 <<EOF
-# paste ssh private key from password manager
 EOF
 ```
 
@@ -98,16 +95,16 @@ Only after step 8 succeeds and `/api/healthz` reports green. Take screenshots of
 
 ## Degraded paths
 
-### If S3 (primary) is unreachable
-Switch the WAL-G config in `secrets/app.env` to read from the Storage Box mirror. Two options:
-1. Point an S3-compatible client (rclone serve s3) at the Storage Box mirror, then leave WAL-G's S3 prefix unchanged but redirect via `AWS_ENDPOINT`.
-2. Switch WAL-G to SSH mode by setting `WALG_SSH_PREFIX=ssh://...` against the Storage Box. WAL-G will fetch base backups from there.
+### If Backblaze B2 is unreachable
+B2 is the only backup destination, so while it is unreachable there is no alternate source for WAL-G physical recovery. Options:
+1. Wait out a transient B2 regional outage; recovery resumes once B2 returns.
+2. If B2 is reachable but the host's application key was compromised or revoked, re-run the restore with the offline privileged B2 key (from the password manager) against the Object-Locked WAL-G bucket.
 
-### If both S3 AND Storage Box's mirror are unreachable
-Fall back to the last restic `pg_dump`. This loses up to 24h of writes (the design's worst-case RPO for this tier).
+### If the WAL-G bucket is unusable but the restic bucket is intact
+Fall back to the last restic `pg_dump`. This loses up to 24h of writes (the worst-case RPO for this tier).
 
 ```bash
-# From the backup-cron container with restic env configured:
+# From the backup-cron container with restic env configured (B2 backend):
 restic snapshots --tag pgdump
 restic dump latest inboxui-<ts>.pgdump > /tmp/restore.pgdump
 PGPASSWORD=$POSTGRES_PASSWORD pg_restore \

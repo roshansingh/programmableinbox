@@ -4,10 +4,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Daily full base backup
 0  2 * * * /scripts/base-backup.sh    >>/var/log/backup/cron.log 2>&1
-# Daily logical dump to Storage Box
+# Daily logical dump to Backblaze B2
 0  3 * * * /scripts/pgdump.sh         >>/var/log/backup/cron.log 2>&1
-# Hourly rclone mirror of S3 archive to Storage Box
-15 * * * * /scripts/rclone-mirror.sh  >>/var/log/backup/cron.log 2>&1
 # Weekly retention sweep
 0  4 * * 0 /scripts/retention.sh      >>/var/log/backup/cron.log 2>&1
 # Cron-alive heartbeat
