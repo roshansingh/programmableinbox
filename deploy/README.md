@@ -13,7 +13,7 @@ This directory is the source of truth for deploying inboxui to a Hetzner bare-me
    sudo bash /tmp/inboxui/deploy/scripts/bootstrap.sh
    ```
 5. As the `deploy` user, populate `/srv/inboxui/secrets/`:
-   - `app.env` (mode 0600) — see the secrets section of the design doc for keys (app, Postgres init, WAL-G/S3, restic, rclone, Kuma push tokens — all in one file).
+   - `app.env` (mode 0600) — see the secrets section of the design doc for keys (app, Postgres init, WAL-G/S3, restic, rclone — all in one file).
    - `storagebox_id_ed25519` (mode 0600) — SSH private key for the Storage Box.
 6. Copy compose + Caddyfile + deploy.sh into `/srv/inboxui/`:
    ```bash
@@ -32,7 +32,6 @@ This directory is the source of truth for deploying inboxui to a Hetzner bare-me
    ```bash
    docker compose exec backup-cron /scripts/base-backup.sh
    ```
-10. Open Uptime Kuma at `http://localhost:3001` (via SSH tunnel or Tailscale). Create the five push monitors named in the design, copy their token URLs into `app.env`, restart `backup-cron`.
 
 ## Day-to-day
 

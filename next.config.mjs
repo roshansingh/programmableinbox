@@ -7,6 +7,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Prevent Turbopack (dev) from bundling pino's transport packages.
+  // Without this, thread-stream is compiled with virtual /ROOT/... paths that
+  // don't exist on disk, so its worker thread spawn fails at runtime.
+  serverExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
   turbopack: {},
   webpack: (config, { isServer }) => {
     if (isServer) {

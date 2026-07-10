@@ -8,7 +8,7 @@ mkdir -p /var/log/backup
 
 {
   echo "# auto-written by entrypoint at $(date -u)"
-  env | grep -E '^(POSTGRES_|WALG_|AWS_|RCLONE_|RESTIC_|KUMA_|STORAGEBOX_)' \
+  env | grep -E '^(POSTGRES_|WALG_|AWS_|RCLONE_|RESTIC_|STORAGEBOX_)' \
      | sed -E 's/^([^=]+)=(.*)$/\1="\2"/'
 } > /etc/environment
 

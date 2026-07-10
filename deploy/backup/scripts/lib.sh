@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Shared helpers for backup cron scripts.
 # - timestamped logging
-# - heartbeat to Uptime Kuma push monitor on success
 # - upserts a row in postgres `backup_status` on success
 set -euo pipefail
 
@@ -10,18 +9,6 @@ mkdir -p "$LOG_DIR"
 
 log() {
   printf '%s %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
-}
-
-# Ping a Uptime Kuma push monitor.
-#   KUMA_PUSH_BASE/push/<token>?status=up&msg=OK
-kuma_ping() {
-  local token="$1"
-  local status="${2:-up}"
-  if [[ -z "${KUMA_PUSH_BASE:-}" || -z "$token" || "$token" == "disabled" ]]; then
-    return 0
-  fi
-  curl -fsSL --max-time 10 \
-    "${KUMA_PUSH_BASE%/}/push/${token}?status=${status}&msg=OK" >/dev/null || true
 }
 
 # Record a successful run in the `backup_status` table.

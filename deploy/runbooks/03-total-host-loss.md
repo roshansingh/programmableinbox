@@ -1,6 +1,6 @@
 # Runbook 03 — Total host loss
 
-**Symptom**: host unreachable >15 min; Hetzner support confirms hardware fault; or simply nothing on uptime-kuma + SSH fails.
+**Symptom**: host unreachable >15 min; Hetzner support confirms hardware fault; or `/api/healthz` down + SSH fails.
 
 **RTO target**: 60–90 minutes.
 
@@ -94,7 +94,7 @@ docker compose exec backup-cron /scripts/base-backup.sh
 
 ## 9. Decommission the old box
 
-Only after step 8 succeeds and Uptime Kuma is green. Take screenshots of the dashboards first.
+Only after step 8 succeeds and `/api/healthz` reports green. Take screenshots of the dashboards first.
 
 ## Degraded paths
 

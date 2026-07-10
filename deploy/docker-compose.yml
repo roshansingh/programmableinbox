@@ -79,13 +79,3 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
-  uptime-kuma:
-    image: louislam/uptime-kuma:1
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:3001:3001"
-    volumes:
-      - /srv/inboxui/kuma:/app/data
-    networks:
-      - inboxui-internal
