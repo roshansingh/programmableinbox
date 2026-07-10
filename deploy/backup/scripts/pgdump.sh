@@ -26,4 +26,3 @@ PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
 
 log "pg_dump + restic complete"
 record_success restic-pgdump "{\"snapshot_ts\":\"$TS\"}"
-kuma_ping "${KUMA_TOKEN_RESTIC_PGDUMP:-disabled}"

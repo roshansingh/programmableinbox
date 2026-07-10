@@ -133,6 +133,7 @@ model EmailMessage {
   inReplyTo           String?
   references          String[]
   tags                String[] @default([])
+  isStarred           Boolean  @default(false)
   categories          String[] @default([])
   extractedOtp        String?
   metadata            Json?

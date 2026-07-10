@@ -1,6 +1,6 @@
 # Copy to docker-compose.override.yml on the host if you need local tweaks
-# (e.g., pinning to a specific commit SHA, lowering memory, exposing Kuma
-# to Tailscale). The override is gitignored on purpose.
+# (e.g., pinning to a specific commit SHA, lowering memory). The override is
+# gitignored on purpose.
 
 services:
   app:

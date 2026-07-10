@@ -13,4 +13,3 @@ rclone sync "$SRC" "$DST" \
 
 log "rclone mirror complete"
 record_success rclone-mirror
-kuma_ping "${KUMA_TOKEN_RCLONE_MIRROR:-disabled}"

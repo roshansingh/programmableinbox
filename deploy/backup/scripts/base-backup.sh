@@ -10,4 +10,3 @@ PGUSER="${POSTGRES_USER}" PGPASSWORD="${POSTGRES_PASSWORD}" \
   >>"$LOG_DIR/base-backup.log" 2>&1
 log "walg base backup complete"
 record_success walg-base
-kuma_ping "${KUMA_TOKEN_WALG_BASE:-disabled}"

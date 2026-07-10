@@ -46,6 +46,7 @@ export interface EmailMessage {
   inReplyTo: string | null
   references: string[]
   tags: string[]
+  isStarred: boolean
   categories: string[]
   extractedOtp: string | null
   metadata: {
@@ -156,6 +157,16 @@ export async function sendEmail(
 
 export async function deleteEmailMessage(inboxId: string, messageId: string): Promise<void> {
   return apiClient.delete<void>(`/v1/emailInbox/${inboxId}/messages/${messageId}`)
+}
+
+export async function starEmailMessage(
+  inboxId: string,
+  messageId: string,
+  isStarred: boolean
+): Promise<EmailMessage> {
+  return apiClient.patch<EmailMessage>(`/v1/emailInbox/${inboxId}/messages/${messageId}`, {
+    isStarred,
+  })
 }
 
 export interface OtpResult {

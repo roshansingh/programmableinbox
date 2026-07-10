@@ -3,7 +3,7 @@
 # IDEMPOTENT: safe to re-run; only applies missing pieces.
 set -euo pipefail
 
-DEPLOY_USER=deploy
+DEPLOY_USER=ubuntu
 SRV_DIR=/srv/inboxui
 
 if [[ $EUID -ne 0 ]]; then
@@ -35,7 +35,6 @@ install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0750 \
   "$SRV_DIR/pgdata" \
   "$SRV_DIR/caddy-data" \
   "$SRV_DIR/caddy-config" \
-  "$SRV_DIR/kuma" \
   "$SRV_DIR/backup-logs"
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0700 "$SRV_DIR/secrets"
 

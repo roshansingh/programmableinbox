@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
-import { getEmailInbox, getEmailMessages, deleteEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
+import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
 import { toast } from 'sonner'
 
@@ -28,27 +28,28 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeMode, setComposeMode] = useState<"reply" | "forward">("reply")
   const [composeTarget, setComposeTarget] = useState<EmailMessage | null>(null)
-  const [starredIds, setStarredIds] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
-    try {
-      const stored = localStorage.getItem(`starred:${inboxId}`)
-      return new Set(stored ? JSON.parse(stored) : [])
-    } catch { return new Set() }
-  })
-
   const openCompose = (mode: "reply" | "forward", message: EmailMessage) => {
     setComposeMode(mode)
     setComposeTarget(message)
     setComposeOpen(true)
   }
 
-  const toggleStar = (messageId: string) => {
-    setStarredIds((prev) => {
-      const next = new Set(prev)
-      next.has(messageId) ? next.delete(messageId) : next.add(messageId)
-      try { localStorage.setItem(`starred:${inboxId}`, JSON.stringify([...next])) } catch {}
-      return next
-    })
+  const toggleStar = async (message: EmailMessage) => {
+    const newValue = !message.isStarred
+    setMessages((prev) => prev.map((m) => m.id === message.id ? { ...m, isStarred: newValue } : m))
+    if (selectedMessage?.id === message.id) {
+      setSelectedMessage((prev) => prev ? { ...prev, isStarred: newValue } : prev)
+    }
+    try {
+      await starEmailMessage(inboxId, message.id, newValue)
+    } catch {
+      // Revert on failure
+      setMessages((prev) => prev.map((m) => m.id === message.id ? { ...m, isStarred: message.isStarred } : m))
+      if (selectedMessage?.id === message.id) {
+        setSelectedMessage((prev) => prev ? { ...prev, isStarred: message.isStarred } : prev)
+      }
+      toast.error('Failed to update star')
+    }
   }
 
   const handleDelete = async (messageId: string) => {
@@ -209,11 +210,23 @@ export default function InboxPage() {
                           selectedMessage?.id === message.id ? "bg-muted/50 border-l-2 border-primary" : ""
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="text-sm font-medium truncate text-foreground">
-                            {message.from}
-                          </p>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleStar(message) }}
+                              className="p-0.5 rounded hover:bg-muted transition-colors shrink-0"
+                            >
+                              <Star
+                                className="h-3.5 w-3.5"
+                                fill={message.isStarred ? '#eab308' : 'none'}
+                                stroke={message.isStarred ? '#eab308' : '#6b7280'}
+                              />
+                            </button>
+                            <p className="text-sm font-medium truncate text-foreground">
+                              {message.from}
+                            </p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                           </span>
                         </div>
@@ -266,13 +279,12 @@ export default function InboxPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 hidden sm:flex"
-                          onClick={() => toggleStar(selectedMessage.id)}
+                          onClick={() => toggleStar(selectedMessage)}
                         >
                           <Star
                             className="h-4 w-4"
-                            fill={starredIds.has(selectedMessage.id) ? 'currentColor' : 'none'}
-                            stroke={starredIds.has(selectedMessage.id) ? 'currentColor' : 'currentColor'}
-                            style={starredIds.has(selectedMessage.id) ? { color: '#eab308' } : undefined}
+                            fill={selectedMessage.isStarred ? '#eab308' : 'none'}
+                            stroke={selectedMessage.isStarred ? '#eab308' : 'currentColor'}
                           />
                         </Button>
                         <Button
