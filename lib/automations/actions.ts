@@ -1,13 +1,11 @@
-import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
+import { getResend } from '@/lib/resend'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
 import type {
   ActionNodeConfig,
   AutomationActionResult,
   EmailAutomationInput,
 } from './types'
-
-const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
 type ActionExecutionContext = {
   automation: Pick<Automation, 'id' | 'name'>
@@ -43,7 +41,7 @@ async function executeForwardEmail(
     ? `${node.config.prependNote}\n\n${context.input.bodyText}`
     : context.input.bodyText
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: context.inbox.email,
     to: node.config.to,
     cc: node.config.cc,
@@ -178,7 +176,7 @@ async function executeAutoReply(
     }
   }
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: context.inbox.email,
     to: [context.input.from],
     subject: renderTemplate(node.config.subjectTemplate, context.input),

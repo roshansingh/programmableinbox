@@ -1,12 +1,10 @@
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
-import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { getResend } from '@/lib/resend'
 import logger from '@/lib/logger'
-
-const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (inReplyTo) emailHeaders['In-Reply-To'] = inReplyTo
     if (references) emailHeaders['References'] = references
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: inbox.email,
       to,
       cc: cc || undefined,

@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { Resend } from 'resend'
 import { prisma } from '@/lib/db'
 import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
+import { getResend } from '@/lib/resend'
 import logger from '@/lib/logger'
-
-const resend = new Resend(process.env.AUTH_RESEND_API_KEY)
 
 /**
  * Returns true when async (BullMQ) webhook processing is enabled.
@@ -233,7 +231,7 @@ export async function POST(request: NextRequest) {
 
   // Verify webhook signature using Resend's Svix-based verification (includes replay attack prevention)
   try {
-    resend.webhooks.verify({
+    getResend().webhooks.verify({
       payload: rawBody,
       headers: {
         id: request.headers.get('svix-id')!,
@@ -275,7 +273,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Fetch full email data from Resend (webhook only contains the email ID)
-    const { data: email } = await resend.emails.receiving.get(event.data.email_id)
+    const { data: email } = await getResend().emails.receiving.get(event.data.email_id)
 
     if (!email) {
       logger.warn({ emailId: event.data.email_id }, 'Email not found for ID')
