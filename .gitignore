@@ -86,7 +86,8 @@ dist
 
 # Gatsby files
 .cache/
-public
+# NOTE: do NOT ignore `public/` — in Next.js it holds committed static assets
+# (favicons, logos) that the Docker build COPYs. (Gatsby-template leftover.)
 
 # Storybook build outputs
 .out
