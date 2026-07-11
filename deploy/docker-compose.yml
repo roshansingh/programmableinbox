@@ -51,7 +51,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["npx", "prisma", "migrate", "deploy"]
+    # Invoke the CLI directly — the standalone runtime image has node_modules/prisma
+    # but not node_modules/.bin, so `npx prisma` can't resolve the executable.
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
 
   postgres:
     image: ${POSTGRES_IMAGE:-ghcr.io/OWNER/inboxui-postgres}:${POSTGRES_TAG:-17}

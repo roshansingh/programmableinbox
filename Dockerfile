@@ -30,9 +30,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# prisma.config.ts supplies the datasource URL (the schema datasource has no
+# url); required by the `migrate` container running `prisma migrate deploy`.
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/lib/generated ./lib/generated
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+# dotenv is imported by prisma.config.ts.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 # NOTE: no node_modules/.prisma — the `prisma-client` generator (Prisma 7) emits
 # the client to lib/generated/prisma (copied above), not node_modules/.prisma.
 USER nextjs
