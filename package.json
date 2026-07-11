@@ -2,6 +2,9 @@
   "name": "my-v0-project",
   "version": "0.2.0",
   "private": true,
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "next build --webpack",
     "dev": "next dev --port 4000",

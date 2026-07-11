@@ -29,7 +29,7 @@ services:
       - app
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/inboxui}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: /srv/inboxui/secrets/app.env
     expose:
@@ -43,7 +43,7 @@ services:
         condition: service_healthy
 
   migrate:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/inboxui}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}
     profiles: ["migrate"]
     env_file: /srv/inboxui/secrets/app.env
     networks:
@@ -56,7 +56,7 @@ services:
     command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
 
   postgres:
-    image: ${POSTGRES_IMAGE:-ghcr.io/OWNER/inboxui-postgres}:${POSTGRES_TAG:-17}
+    image: ${POSTGRES_IMAGE:-ghcr.io/programmableinbox/inboxui-postgres}:${POSTGRES_TAG:-17}
     restart: unless-stopped
     env_file: /srv/inboxui/secrets/app.env
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
@@ -72,7 +72,7 @@ services:
       start_period: 30s
 
   backup-cron:
-    image: ${BACKUP_IMAGE:-ghcr.io/OWNER/inboxui-backup}:${BACKUP_TAG:-latest}
+    image: ${BACKUP_IMAGE:-ghcr.io/programmableinbox/inboxui-backup}:${BACKUP_TAG:-latest}
     restart: unless-stopped
     env_file: /srv/inboxui/secrets/app.env
     volumes:
