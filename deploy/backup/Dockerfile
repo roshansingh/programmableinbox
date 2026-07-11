@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates wget curl cron postgresql-client restic tini \
- && wget -q "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-ubuntu-22.04-${TARGETARCH}" \
+ && wget -q "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-22.04-${TARGETARCH}" \
       -O /usr/local/bin/wal-g \
  && chmod 0755 /usr/local/bin/wal-g \
  && rm -rf /var/lib/apt/lists/* \
