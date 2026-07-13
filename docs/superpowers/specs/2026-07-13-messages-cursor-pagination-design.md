@@ -53,7 +53,7 @@ Uniform across all three modes, wrapped by `jsonSuccess` (client unwraps `data`)
 
 ### Cursor
 
-- Opaque token: `base64url("<createdAt ISO-8601>|<id>")`.
+- Opaque token: `base64url("<createdAt epoch milliseconds>|<id>")`. Epoch ms (not ISO) keeps the raw-SQL keyset comparison timezone-independent against the `timestamp(3)` column.
 - Keyed on the tuple `(createdAt, id)`. `createdAt` is `timestamp(3)` and **not unique**, so `id` is the deterministic tiebreak that prevents skipped/duplicated rows across pages.
 - A malformed / undecodable `cursor` returns **HTTP 400** `jsonError('Invalid cursor', 400)` — it is not silently treated as the first page.
 
@@ -82,19 +82,19 @@ Raw SQL via `prisma.$queryRaw` (Prisma cannot express `DISTINCT ON`), isolated i
 
 ```sql
 WITH heads AS (
-  SELECT DISTINCT ON (thread_id) *,
-         count(*) OVER (PARTITION BY thread_id) AS thread_count
+  SELECT DISTINCT ON ("threadId") *,
+         count(*) OVER (PARTITION BY "threadId")::int AS "threadCount"
   FROM email_messages
-  WHERE inbox_email_address_id = $1
-  ORDER BY thread_id, created_at DESC, id DESC
+  WHERE "inboxEmailAddressId" = $1
+  ORDER BY "threadId", "createdAt" DESC, "id" DESC
 )
 SELECT * FROM heads
-WHERE ($cursor IS NULL OR (created_at, id) < ($curCreatedAt, $curId))
-ORDER BY created_at DESC, id DESC
-LIMIT $limit + 1;
+WHERE ((extract(epoch from "createdAt") * 1000)::bigint, "id") < ($curEpochMs, $curId)  -- omitted on first page
+ORDER BY "createdAt" DESC, "id" DESC
+LIMIT $take;
 ```
 
-Returns the latest message per thread plus `threadCount`. Row shape is hand-mapped to the `EmailMessage` type extended with `threadCount`.
+Returns the latest message per thread plus `threadCount`. Row shape is hand-mapped to the `EmailMessage` type extended with `threadCount`. Note: DB **columns are camelCase** (only the table is snake_case via `@@map`), so raw SQL double-quotes the camelCase identifiers. The cursor comparison uses epoch milliseconds (`::bigint`) to stay timezone-independent against the `timestamp(3)` column.
 
 ## Schema & Migration
 
