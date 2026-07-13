@@ -54,13 +54,13 @@ export interface EmailMessage {
     timestamps: string[]
   } | null
   createdAt: string
+  threadCount?: number
 }
 
 export interface EmailMessagesResponse {
   messages: EmailMessage[]
-  total: number
-  page: number
-  limit: number
+  nextCursor: string | null
+  hasMore: boolean
 }
 
 export interface SendEmailRequest {
@@ -131,10 +131,10 @@ export async function deleteEmailInbox(id: string): Promise<void> {
  */
 export async function getEmailMessages(
   inboxId: string,
-  params?: { page?: number; limit?: number; threadId?: string; grouped?: boolean }
+  params?: { cursor?: string; limit?: number; threadId?: string; grouped?: boolean }
 ): Promise<EmailMessagesResponse> {
   const queryParams = new URLSearchParams()
-  if (params?.page) queryParams.append('page', params.page.toString())
+  if (params?.cursor) queryParams.append('cursor', params.cursor)
   if (params?.limit) queryParams.append('limit', params.limit.toString())
   if (params?.threadId) queryParams.append('threadId', params.threadId)
   if (params?.grouped) queryParams.append('grouped', 'true')
