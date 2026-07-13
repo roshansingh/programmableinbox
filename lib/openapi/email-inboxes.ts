@@ -95,16 +95,16 @@ export const spec = {
             schema: { type: 'string' },
           },
           {
-            name: 'page',
+            name: 'cursor',
             in: 'query',
-            description: 'Page number for pagination (default: 1)',
+            description: 'Opaque pagination cursor from a previous response\'s nextCursor. Omit for the first page.',
             required: false,
-            schema: { type: 'integer', minimum: 1 },
+            schema: { type: 'string' },
           },
           {
             name: 'limit',
             in: 'query',
-            description: 'Number of messages per page (default: 50)',
+            description: 'Number of messages per page (default: 50, max: 100)',
             required: false,
             schema: { type: 'integer', minimum: 1 },
           },
@@ -139,24 +139,29 @@ export const spec = {
                           type: 'array',
                           items: { $ref: '#/components/schemas/EmailMessage' },
                         },
-                        total: {
-                          type: 'integer',
-                          description: 'Total number of messages matching the query',
+                        nextCursor: {
+                          type: 'string',
+                          nullable: true,
+                          description: 'Cursor for the next page, or null if there are no more results',
                         },
-                        page: {
-                          type: 'integer',
-                          description: 'Current page number',
-                        },
-                        limit: {
-                          type: 'integer',
-                          description: 'Messages per page',
+                        hasMore: {
+                          type: 'boolean',
+                          description: 'True if more results exist beyond this page',
                         },
                       },
-                      required: ['messages', 'total', 'page', 'limit'],
+                      required: ['messages', 'nextCursor', 'hasMore'],
                     },
                   },
                   required: ['data'],
                 },
+              },
+            },
+          },
+          '400': {
+            description: 'Invalid cursor',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
               },
             },
           },
