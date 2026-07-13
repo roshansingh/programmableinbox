@@ -20,6 +20,9 @@ export default function InboxPage() {
 
   const [inbox, setInbox] = useState<InboxEmail | null>(null)
   const [messages, setMessages] = useState<EmailMessage[]>([])
+  const [listCursor, setListCursor] = useState<string | null>(null)
+  const [listHasMore, setListHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null)
   const [expandedThreadMessages, setExpandedThreadMessages] = useState<Set<string>>(new Set())
@@ -74,10 +77,27 @@ export default function InboxPage() {
       ])
       setInbox(inboxData)
       setMessages(messagesData.messages)
+      setListCursor(messagesData.nextCursor)
+      setListHasMore(messagesData.hasMore)
     } catch (error) {
       console.error('Failed to fetch inbox data:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadMoreThreads = async () => {
+    if (!listCursor || isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      const data = await getEmailMessages(inboxId, { grouped: true, cursor: listCursor })
+      setMessages((prev) => [...prev, ...data.messages])
+      setListCursor(data.nextCursor)
+      setListHasMore(data.hasMore)
+    } catch {
+      toast.error('Failed to load more messages')
+    } finally {
+      setIsLoadingMore(false)
     }
   }
 
@@ -94,10 +114,20 @@ export default function InboxPage() {
 
     const fetchThread = async () => {
       try {
-        const data = await getEmailMessages(inboxId, { threadId: selectedMessage.threadId })
+        const collected: EmailMessage[] = []
+        let cursor: string | undefined = undefined
+        // Threads are bounded; page through until exhausted.
+        do {
+          const data = await getEmailMessages(inboxId, {
+            threadId: selectedMessage.threadId,
+            cursor,
+          })
+          collected.push(...data.messages)
+          cursor = data.nextCursor ?? undefined
+        } while (cursor)
         // Sort chronologically (oldest first)
         setThreadMessages(
-          data.messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
         )
       } catch {
         setThreadMessages([])
@@ -252,6 +282,18 @@ export default function InboxPage() {
                         )}
                       </div>
                     ))}
+                    {listHasMore && (
+                      <div className="p-3">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={loadMoreThreads}
+                          disabled={isLoadingMore}
+                        >
+                          {isLoadingMore ? 'Loading…' : 'Load more'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </ScrollArea>
