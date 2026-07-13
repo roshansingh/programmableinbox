@@ -20,8 +20,11 @@ export function decodeCursor(token: string): DecodedCursor {
   const raw = Buffer.from(token, 'base64url').toString('utf8')
   const sep = raw.indexOf('|')
   if (sep === -1) throw new InvalidCursorError()
-  const epochMs = Number(raw.slice(0, sep))
+  const epochStr = raw.slice(0, sep)
   const id = raw.slice(sep + 1)
-  if (!id || !Number.isInteger(epochMs)) throw new InvalidCursorError()
+  const epochMs = Number(epochStr)
+  if (!id || epochStr.trim() === '' || !Number.isInteger(epochMs)) {
+    throw new InvalidCursorError()
+  }
   return { createdAt: new Date(epochMs), epochMs, id }
 }

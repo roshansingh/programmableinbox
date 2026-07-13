@@ -30,4 +30,9 @@ describe('cursor codec', () => {
     const token = Buffer.from('abc|msg_1', 'utf8').toString('base64url')
     expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
   })
+
+  it('throws InvalidCursorError when the epoch segment is empty', () => {
+    const token = Buffer.from('|msg_1', 'utf8').toString('base64url')
+    expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+  })
 })
