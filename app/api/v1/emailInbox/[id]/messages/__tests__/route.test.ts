@@ -257,9 +257,39 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
       { params: Promise.resolve({ id: 'inbox_1' }) } as any,
     )
     const findArgs = emailMessageFindManyMock.mock.calls[0][0]
-    expect(findArgs.where.OR).toBeDefined()
+    const boundary = new Date('2026-07-13T00:00:00.000Z')
+    expect(findArgs.where.OR).toEqual([
+      { createdAt: { lt: boundary } },
+      { createdAt: boundary, id: { lt: 'msg_10' } },
+    ])
     expect(findArgs.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
     expect(findArgs.take).toBe(51)
+  })
+
+  it('applies a keyset filter with thread mode (ascending, greater-than)', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+    emailMessageFindManyMock.mockResolvedValue([])
+
+    const { encodeCursor } = await import('@/lib/pagination/cursor')
+    const cursor = encodeCursor({ createdAt: new Date('2026-07-13T00:00:00.000Z'), id: 'msg_10' })
+
+    const { GET } = await loadRoute()
+    await GET(
+      new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages?threadId=t1&cursor=${cursor}`),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+    const findArgs = emailMessageFindManyMock.mock.calls[0][0]
+    const boundary = new Date('2026-07-13T00:00:00.000Z')
+    expect(findArgs.where.threadId).toBe('t1')
+    expect(findArgs.where.OR).toEqual([
+      { createdAt: { gt: boundary } },
+      { createdAt: boundary, id: { gt: 'msg_10' } },
+    ])
+    expect(findArgs.orderBy).toEqual([{ createdAt: 'asc' }, { id: 'asc' }])
   })
 
   it('returns 400 for a malformed cursor', async () => {

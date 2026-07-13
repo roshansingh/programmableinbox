@@ -4,7 +4,7 @@ import { resolveAuthContext } from '@/lib/auth/auth-context'
 import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { Prisma } from '@/lib/generated/prisma/client'
-import { encodeCursor, decodeCursor } from '@/lib/pagination/cursor'
+import { encodeCursor, decodeCursor, DecodedCursor } from '@/lib/pagination/cursor'
 import { fetchGroupedThreadHeads } from './grouped-query'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const grouped = searchParams.get('grouped') === 'true'
   const cursorParam = searchParams.get('cursor')
 
-  let cursor = null
+  let cursor: DecodedCursor | null = null
   if (cursorParam) {
     try {
       cursor = decodeCursor(cursorParam)
