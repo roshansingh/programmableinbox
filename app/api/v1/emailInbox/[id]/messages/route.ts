@@ -3,6 +3,9 @@ import { prisma } from '@/lib/db'
 import { resolveAuthContext } from '@/lib/auth/auth-context'
 import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { Prisma } from '@/lib/generated/prisma/client'
+import { encodeCursor, decodeCursor } from '@/lib/pagination/cursor'
+import { fetchGroupedThreadHeads } from './grouped-query'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -34,56 +37,55 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const searchParams = request.nextUrl.searchParams
-  const page = parseInt(searchParams.get('page') || '1', 10)
-  const limit = parseInt(searchParams.get('limit') || '50', 10)
+  const rawLimit = parseInt(searchParams.get('limit') || '50', 10)
+  const limit = Math.min(Math.max(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100)
   const threadId = searchParams.get('threadId')
   const grouped = searchParams.get('grouped') === 'true'
+  const cursorParam = searchParams.get('cursor')
 
-  const where: Record<string, unknown> = { inboxEmailAddressId: id }
-  if (threadId) {
-    where.threadId = threadId
+  let cursor = null
+  if (cursorParam) {
+    try {
+      cursor = decodeCursor(cursorParam)
+    } catch {
+      return jsonError('Invalid cursor', 400)
+    }
   }
 
-  // When grouped, return only the latest message per thread
+  const take = limit + 1
+
+  // Grouped thread-list view: one row (latest message) per thread.
   if (grouped && !threadId) {
-    // Get all messages for this inbox, ordered by createdAt desc
-    const allMessages = await prisma.emailMessage.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    })
-
-    // Group by threadId, keeping only the latest message per thread
-    const threadMap = new Map<string, typeof allMessages[0] & { threadCount: number }>()
-    const threadCounts = new Map<string, number>()
-
-    for (const msg of allMessages) {
-      threadCounts.set(msg.threadId, (threadCounts.get(msg.threadId) || 0) + 1)
-      if (!threadMap.has(msg.threadId)) {
-        threadMap.set(msg.threadId, { ...msg, threadCount: 1 })
-      }
-    }
-
-    // Set correct thread counts
-    for (const [tid, entry] of threadMap) {
-      entry.threadCount = threadCounts.get(tid) || 1
-    }
-
-    const threads = Array.from(threadMap.values())
-    const total = threads.length
-    const paginated = threads.slice((page - 1) * limit, page * limit)
-
-    return jsonSuccess({ messages: paginated, total, page, limit })
+    const rows = await fetchGroupedThreadHeads(id, cursor, take)
+    const hasMore = rows.length > limit
+    const messages = hasMore ? rows.slice(0, limit) : rows
+    const nextCursor = hasMore ? encodeCursor(messages[messages.length - 1]) : null
+    return jsonSuccess({ messages, nextCursor, hasMore })
   }
 
-  const [messages, total] = await Promise.all([
-    prisma.emailMessage.findMany({
-      where,
-      orderBy: { createdAt: threadId ? 'asc' : 'desc' },
-      take: limit,
-      skip: (page - 1) * limit,
-    }),
-    prisma.emailMessage.count({ where }),
-  ])
+  // Flat inbox list (newest first) or single-thread view (oldest first).
+  const asc = Boolean(threadId)
+  const where: Prisma.EmailMessageWhereInput = { inboxEmailAddressId: id }
+  if (threadId) where.threadId = threadId
+  if (cursor) {
+    where.OR = asc
+      ? [
+          { createdAt: { gt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+        ]
+      : [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ]
+  }
 
-  return jsonSuccess({ messages, total, page, limit })
+  const rows = await prisma.emailMessage.findMany({
+    where,
+    orderBy: [{ createdAt: asc ? 'asc' : 'desc' }, { id: asc ? 'asc' : 'desc' }],
+    take,
+  })
+  const hasMore = rows.length > limit
+  const messages = hasMore ? rows.slice(0, limit) : rows
+  const nextCursor = hasMore ? encodeCursor(messages[messages.length - 1]) : null
+  return jsonSuccess({ messages, nextCursor, hasMore })
 }

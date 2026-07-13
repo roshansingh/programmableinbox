@@ -4,7 +4,6 @@ import { NextRequest } from 'next/server'
 const resolveAuthContextMock = vi.fn()
 const emailInboxFindUniqueMock = vi.fn()
 const emailMessageFindManyMock = vi.fn()
-const emailMessageCountMock = vi.fn()
 
 vi.mock('@/lib/auth/auth-context', () => ({
   resolveAuthContext: (...args: unknown[]) => resolveAuthContextMock(...args),
@@ -17,9 +16,13 @@ vi.mock('@/lib/db', () => ({
     },
     emailMessage: {
       findMany: (...args: unknown[]) => emailMessageFindManyMock(...args),
-      count: (...args: unknown[]) => emailMessageCountMock(...args),
     },
   },
+}))
+
+const fetchGroupedThreadHeadsMock = vi.fn()
+vi.mock('../grouped-query', () => ({
+  fetchGroupedThreadHeads: (...args: unknown[]) => fetchGroupedThreadHeadsMock(...args),
 }))
 
 async function loadRoute() {
@@ -63,8 +66,6 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
       },
     ])
 
-    emailMessageCountMock.mockResolvedValue(1)
-
     const { GET } = await loadRoute()
     const response = await GET(
       new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
@@ -74,7 +75,8 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
 
     expect(response.status).toBe(200)
     expect(body.data.messages).toHaveLength(1)
-    expect(body.data.total).toBe(1)
+    expect(body.data.hasMore).toBe(false)
+    expect(body.data.nextCursor).toBeNull()
   })
 
   it('returns 401 without authentication', async () => {
@@ -141,8 +143,6 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
         createdAt: new Date(),
       },
     ])
-
-    emailMessageCountMock.mockResolvedValue(1)
 
     const { GET } = await loadRoute()
     const response = await GET(
@@ -214,5 +214,90 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
 
     expect(response.status).toBe(403)
     expect(body.message).toContain('Not authorized')
+  })
+
+  it('returns nextCursor and hasMore=true when more rows exist', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+    // limit defaults to 50 → route fetches 51; return 51 so hasMore is true
+    const rows = Array.from({ length: 51 }, (_, i) => ({
+      id: `msg_${i}`, threadId: 't', inboxEmailAddressId: 'inbox_1',
+      createdAt: new Date(Date.now() - i * 1000),
+    }))
+    emailMessageFindManyMock.mockResolvedValue(rows)
+
+    const { GET } = await loadRoute()
+    const res = await GET(
+      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+    const body = await res.json()
+    expect(body.data.messages).toHaveLength(50)
+    expect(body.data.hasMore).toBe(true)
+    expect(typeof body.data.nextCursor).toBe('string')
+  })
+
+  it('applies a keyset filter when a cursor is supplied', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+    emailMessageFindManyMock.mockResolvedValue([])
+
+    const { encodeCursor } = await import('@/lib/pagination/cursor')
+    const cursor = encodeCursor({ createdAt: new Date('2026-07-13T00:00:00.000Z'), id: 'msg_10' })
+
+    const { GET } = await loadRoute()
+    await GET(
+      new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages?cursor=${cursor}`),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+    const findArgs = emailMessageFindManyMock.mock.calls[0][0]
+    expect(findArgs.where.OR).toBeDefined()
+    expect(findArgs.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
+    expect(findArgs.take).toBe(51)
+  })
+
+  it('returns 400 for a malformed cursor', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+
+    const { GET } = await loadRoute()
+    const res = await GET(
+      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?cursor=@@garbage@@'),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(body.message).toBe('Invalid cursor')
+  })
+
+  it('uses the grouped query and returns threadCount rows for grouped=true', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+    fetchGroupedThreadHeadsMock.mockResolvedValue([
+      { id: 'm1', threadId: 't1', createdAt: new Date(), threadCount: 3 },
+    ])
+
+    const { GET } = await loadRoute()
+    const res = await GET(
+      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?grouped=true'),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+    const body = await res.json()
+    expect(fetchGroupedThreadHeadsMock).toHaveBeenCalledTimes(1)
+    expect(emailMessageFindManyMock).not.toHaveBeenCalled()
+    expect(body.data.messages[0].threadCount).toBe(3)
+    expect(body.data.hasMore).toBe(false)
   })
 })
