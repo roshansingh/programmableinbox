@@ -147,7 +147,8 @@ model EmailMessage {
   attachments       EmailAttachment[]
 
   @@unique([externalId, inboxEmailAddressId])
-  @@index([inboxEmailAddressId])
+  @@index([inboxEmailAddressId, createdAt, id])
+  @@index([inboxEmailAddressId, threadId, createdAt, id])
   @@index([organizationId])
   @@index([externalId])
   @@index([threadId])
