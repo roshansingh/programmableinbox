@@ -106,7 +106,7 @@ export const spec = {
             in: 'query',
             description: 'Number of messages per page (default: 50, max: 100)',
             required: false,
-            schema: { type: 'integer', minimum: 1 },
+            schema: { type: 'integer', minimum: 1, maximum: 100 },
           },
           {
             name: 'threadId',
@@ -137,7 +137,20 @@ export const spec = {
                       properties: {
                         messages: {
                           type: 'array',
-                          items: { $ref: '#/components/schemas/EmailMessage' },
+                          items: {
+                            allOf: [
+                              { $ref: '#/components/schemas/EmailMessage' },
+                              {
+                                type: 'object',
+                                properties: {
+                                  threadCount: {
+                                    type: 'integer',
+                                    description: 'Number of messages in the thread (present only in grouped mode)',
+                                  },
+                                },
+                              },
+                            ],
+                          },
                         },
                         nextCursor: {
                           type: 'string',
