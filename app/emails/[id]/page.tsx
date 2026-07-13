@@ -112,6 +112,8 @@ export default function InboxPage() {
       return
     }
 
+    let cancelled = false
+
     const fetchThread = async () => {
       try {
         const collected: EmailMessage[] = []
@@ -125,16 +127,21 @@ export default function InboxPage() {
           collected.push(...data.messages)
           cursor = data.nextCursor ?? undefined
         } while (cursor)
-        // Sort chronologically (oldest first)
-        setThreadMessages(
-          collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        )
+        if (!cancelled) {
+          setThreadMessages(
+            collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          )
+        }
       } catch {
-        setThreadMessages([])
+        if (!cancelled) setThreadMessages([])
       }
     }
 
     fetchThread()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedMessage?.id])
 
   const toggleThreadMessage = (messageId: string) => {
