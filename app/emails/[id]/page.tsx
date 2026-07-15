@@ -20,6 +20,9 @@ export default function InboxPage() {
 
   const [inbox, setInbox] = useState<InboxEmail | null>(null)
   const [messages, setMessages] = useState<EmailMessage[]>([])
+  const [listCursor, setListCursor] = useState<string | null>(null)
+  const [listHasMore, setListHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null)
   const [expandedThreadMessages, setExpandedThreadMessages] = useState<Set<string>>(new Set())
@@ -74,10 +77,27 @@ export default function InboxPage() {
       ])
       setInbox(inboxData)
       setMessages(messagesData.messages)
+      setListCursor(messagesData.nextCursor)
+      setListHasMore(messagesData.hasMore)
     } catch (error) {
       console.error('Failed to fetch inbox data:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadMoreThreads = async () => {
+    if (!listCursor || isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      const data = await getEmailMessages(inboxId, { grouped: true, cursor: listCursor })
+      setMessages((prev) => [...prev, ...data.messages])
+      setListCursor(data.nextCursor)
+      setListHasMore(data.hasMore)
+    } catch {
+      toast.error('Failed to load more messages')
+    } finally {
+      setIsLoadingMore(false)
     }
   }
 
@@ -92,19 +112,38 @@ export default function InboxPage() {
       return
     }
 
+    let cancelled = false
+
     const fetchThread = async () => {
       try {
-        const data = await getEmailMessages(inboxId, { threadId: selectedMessage.threadId })
-        // Sort chronologically (oldest first)
-        setThreadMessages(
-          data.messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        )
+        const collected: EmailMessage[] = []
+        let cursor: string | undefined = undefined
+        // Threads are bounded; page through until exhausted. Bail as soon as the
+        // effect is torn down so a stale selection stops fetching further pages.
+        do {
+          const data = await getEmailMessages(inboxId, {
+            threadId: selectedMessage.threadId,
+            cursor,
+          })
+          if (cancelled) return
+          collected.push(...data.messages)
+          cursor = data.nextCursor ?? undefined
+        } while (cursor)
+        if (!cancelled) {
+          setThreadMessages(
+            collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          )
+        }
       } catch {
-        setThreadMessages([])
+        if (!cancelled) setThreadMessages([])
       }
     }
 
     fetchThread()
+
+    return () => {
+      cancelled = true
+    }
   }, [selectedMessage?.id])
 
   const toggleThreadMessage = (messageId: string) => {
@@ -245,13 +284,25 @@ export default function InboxPage() {
                             ))}
                           </div>
                         )}
-                        {(message as any).threadCount > 1 && (
+                        {message.threadCount !== undefined && message.threadCount > 1 && (
                           <Badge variant="outline" className="text-xs mt-2">
-                            {(message as any).threadCount} messages
+                            {message.threadCount} messages
                           </Badge>
                         )}
                       </div>
                     ))}
+                    {listHasMore && (
+                      <div className="p-3">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={loadMoreThreads}
+                          disabled={isLoadingMore}
+                        >
+                          {isLoadingMore ? 'Loading…' : 'Load more'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </ScrollArea>
