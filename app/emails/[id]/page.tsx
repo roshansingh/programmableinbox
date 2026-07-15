@@ -118,12 +118,14 @@ export default function InboxPage() {
       try {
         const collected: EmailMessage[] = []
         let cursor: string | undefined = undefined
-        // Threads are bounded; page through until exhausted.
+        // Threads are bounded; page through until exhausted. Bail as soon as the
+        // effect is torn down so a stale selection stops fetching further pages.
         do {
           const data = await getEmailMessages(inboxId, {
             threadId: selectedMessage.threadId,
             cursor,
           })
+          if (cancelled) return
           collected.push(...data.messages)
           cursor = data.nextCursor ?? undefined
         } while (cursor)
@@ -282,9 +284,9 @@ export default function InboxPage() {
                             ))}
                           </div>
                         )}
-                        {(message as any).threadCount > 1 && (
+                        {message.threadCount !== undefined && message.threadCount > 1 && (
                           <Badge variant="outline" className="text-xs mt-2">
-                            {(message as any).threadCount} messages
+                            {message.threadCount} messages
                           </Badge>
                         )}
                       </div>

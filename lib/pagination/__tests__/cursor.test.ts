@@ -35,4 +35,38 @@ describe('cursor codec', () => {
     const token = Buffer.from('|msg_1', 'utf8').toString('base64url')
     expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
   })
+
+  it('throws InvalidCursorError when epoch exceeds the safe integer range', () => {
+    const token = Buffer.from('100000000000000000000|msg_1', 'utf8').toString('base64url')
+    expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+  })
+
+  // 8.64e15 is the largest instant Date can represent; one past it is still a
+  // safe integer, so a safe-integer check alone would let it through.
+  it('throws InvalidCursorError when epoch is outside the valid Date range', () => {
+    const token = Buffer.from('8640000000000001|msg_1', 'utf8').toString('base64url')
+    expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+  })
+
+  it('accepts the boundary epoch that Date can still represent', () => {
+    const token = Buffer.from('8640000000000000|msg_1', 'utf8').toString('base64url')
+    expect(decodeCursor(token).epochMs).toBe(8640000000000000)
+  })
+
+  it('throws InvalidCursorError on exponent notation', () => {
+    const token = Buffer.from('1e12|msg_1', 'utf8').toString('base64url')
+    expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+  })
+
+  it('throws InvalidCursorError when the epoch segment is padded with whitespace', () => {
+    const token = Buffer.from(' 12 |msg_1', 'utf8').toString('base64url')
+    expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+  })
+
+  it('never decodes to an Invalid Date', () => {
+    for (const epoch of ['100000000000000000000', '8640000000000001', 'NaN', 'Infinity']) {
+      const token = Buffer.from(`${epoch}|msg_1`, 'utf8').toString('base64url')
+      expect(() => decodeCursor(token)).toThrow(InvalidCursorError)
+    }
+  })
 })
