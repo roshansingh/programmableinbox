@@ -87,4 +87,33 @@ describe('applySoftDeleteFilter', () => {
       where: { deletedAt: null, id: 'm_1' },
     })
   })
+
+  it.each([
+    ['AND array', { where: { AND: [{ id: 'm_1' }, { deletedAt: { not: null } }] } }],
+    ['OR array', { where: { OR: [{ deletedAt: { not: null } }, { id: 'm_1' }] } }],
+    ['NOT object', { where: { NOT: { deletedAt: null } } }],
+    ['nested combinators', { where: { OR: [{ AND: [{ deletedAt: { not: null } }] }] } }],
+  ])('treats deletedAt inside a %s as the escape hatch (does not inject)', (_label, args) => {
+    // Otherwise injecting a top-level deletedAt: null would AND with the
+    // caller's deletedAt IS NOT NULL and make the query unsatisfiable.
+    expect(applySoftDeleteFilter(args)).toEqual(args)
+  })
+
+  it('still injects when deletedAt belongs to a related model, not this one', () => {
+    // SECURITY: `inbox.deletedAt` is the relation's column. Skipping injection
+    // here would drop the primary model's own filter and leak deleted rows.
+    const args = { where: { inbox: { deletedAt: { not: null } } } }
+
+    expect(applySoftDeleteFilter(args)).toEqual({
+      where: { inbox: { deletedAt: { not: null } }, deletedAt: null },
+    })
+  })
+
+  it('injects for combinators that do not mention deletedAt', () => {
+    const args = { where: { OR: [{ inboxId: null }, { inboxId: 'inbox_1' }] } }
+
+    expect(applySoftDeleteFilter(args)).toEqual({
+      where: { OR: [{ inboxId: null }, { inboxId: 'inbox_1' }], deletedAt: null },
+    })
+  })
 })

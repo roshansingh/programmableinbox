@@ -49,18 +49,55 @@ export function isSoftDeleteFiltered(model: string | undefined, operation: strin
 
 export type QueryArgs = { where?: Record<string, unknown> } | undefined
 
+/** Same-model combinators. Their operands are where-inputs on the same model. */
+const LOGICAL_OPERATORS = ['AND', 'OR', 'NOT'] as const
+
+/**
+ * True when the caller's where already constrains THIS model's `deletedAt` —
+ * at the top level or inside an `AND`/`OR`/`NOT` combinator, which all operate
+ * on the same model.
+ *
+ * It deliberately does NOT descend into relation-filter keys (e.g.
+ * `where: { inbox: { deletedAt: { not: null } } }` on an EmailMessage query):
+ * that `deletedAt` belongs to the related model, not this one, so treating it
+ * as the escape hatch would drop the primary model's filter and leak deleted
+ * rows. When in doubt, we inject — the safe direction.
+ */
+function constrainsOwnDeletedAt(where: Record<string, unknown>): boolean {
+  if ('deletedAt' in where) return true
+
+  for (const operator of LOGICAL_OPERATORS) {
+    const branch = where[operator]
+    if (!branch || typeof branch !== 'object') continue
+    const clauses = Array.isArray(branch) ? branch : [branch]
+    for (const clause of clauses) {
+      if (
+        clause &&
+        typeof clause === 'object' &&
+        constrainsOwnDeletedAt(clause as Record<string, unknown>)
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 /**
  * Adds `deletedAt: null` to a query's where clause.
  *
- * An explicit `deletedAt` in the caller's where is left untouched. That is the
- * deliberate escape hatch for views that need deleted rows — e.g. showing a
- * user that an inbox was deleted via `where: { deletedAt: { not: null } }`.
+ * If the caller already constrains this model's own `deletedAt` — top level or
+ * inside `AND`/`OR`/`NOT` — the where is left untouched. That is the deliberate
+ * escape hatch for views that need deleted rows, e.g.
+ * `where: { deletedAt: { not: null } }` or the same nested in a combinator. A
+ * `deletedAt` on a related model (relation filter) is not the escape hatch and
+ * still gets the top-level filter injected — see `constrainsOwnDeletedAt`.
  */
 export function applySoftDeleteFilter(args: QueryArgs): Record<string, unknown> {
   const next = (args ?? {}) as Record<string, unknown>
   const where = (next.where ?? {}) as Record<string, unknown>
 
-  if ('deletedAt' in where) {
+  if (constrainsOwnDeletedAt(where)) {
     return next
   }
 
