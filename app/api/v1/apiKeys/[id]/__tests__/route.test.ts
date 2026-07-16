@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getAuthenticatedUserMock = vi.fn()
 const apiKeyFindUniqueMock = vi.fn()
-const apiKeyDeleteMock = vi.fn()
+const apiKeyUpdateMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
@@ -12,7 +12,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     apiKey: {
       findUnique: (...args: unknown[]) => apiKeyFindUniqueMock(...args),
-      delete: (...args: unknown[]) => apiKeyDeleteMock(...args),
+      update: (...args: unknown[]) => apiKeyUpdateMock(...args),
     },
   },
 }))
@@ -75,12 +75,13 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     })
   })
 
-  it('deletes an owned key', async () => {
+  it('revokes an owned key rather than deleting the row', async () => {
     apiKeyFindUniqueMock.mockResolvedValue({
       id: 'key_1',
       userId: 'user_1',
+      revokedAt: null,
     })
-    apiKeyDeleteMock.mockResolvedValue({})
+    apiKeyUpdateMock.mockResolvedValue({})
 
     const { DELETE } = await loadRoute()
     const response = await DELETE(new Request('http://localhost/api/v1/apiKeys/key_1', {
@@ -91,6 +92,28 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     })
 
     expect(response.status).toBe(204)
-    expect(apiKeyDeleteMock).toHaveBeenCalledWith({ where: { id: 'key_1' } })
+    expect(apiKeyUpdateMock).toHaveBeenCalledWith({
+      where: { id: 'key_1' },
+      data: { revokedAt: expect.any(Date) },
+    })
+  })
+
+  it('404s an already-revoked key instead of revoking it twice', async () => {
+    apiKeyFindUniqueMock.mockResolvedValue({
+      id: 'key_1',
+      userId: 'user_1',
+      revokedAt: new Date('2026-07-01T00:00:00.000Z'),
+    })
+
+    const { DELETE } = await loadRoute()
+    const response = await DELETE(new Request('http://localhost/api/v1/apiKeys/key_1', {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer token' },
+    }) as any, {
+      params: Promise.resolve({ id: 'key_1' }),
+    })
+
+    expect(response.status).toBe(404)
+    expect(apiKeyUpdateMock).not.toHaveBeenCalled()
   })
 })

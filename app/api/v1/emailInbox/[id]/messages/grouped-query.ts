@@ -24,6 +24,11 @@ export interface GroupedThreadHead {
  * threadCount is the total messages in the thread. Cursor comparison uses epoch
  * milliseconds (::bigint) to stay timezone-independent against the
  * `timestamp(3)` column.
+ *
+ * The `deletedAt IS NULL` filter is written by hand on purpose: raw SQL bypasses
+ * the soft-delete client extension in lib/db.ts, so this is the one read path
+ * that would otherwise serve deleted messages (F8). It also keeps threadCount
+ * honest — deleted messages must not inflate the count.
  */
 export async function fetchGroupedThreadHeads(
   inboxId: string,
@@ -40,6 +45,7 @@ export async function fetchGroupedThreadHeads(
              count(*) OVER (PARTITION BY "threadId")::int AS "threadCount"
       FROM email_messages
       WHERE "inboxEmailAddressId" = ${inboxId}
+        AND "deletedAt" IS NULL
       ORDER BY "threadId", "createdAt" DESC, "id" DESC
     )
     SELECT * FROM heads

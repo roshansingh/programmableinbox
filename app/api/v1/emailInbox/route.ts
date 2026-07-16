@@ -3,7 +3,8 @@ import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { resolveAuthContext } from '@/lib/auth/auth-context'
 import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
+import logger from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const context = await resolveAuthContext(request)
@@ -70,7 +71,16 @@ export async function POST(request: NextRequest) {
     })
 
     return jsonSuccess(inbox, 201)
-  } catch {
+  } catch (error) {
+    // Inbox addresses are globally unique (F1), so a claimed address is a
+    // client error, not a server fault. The address may be held by another
+    // org, or by a soft-deleted inbox whose address stays claimed forever —
+    // both are reported the same way on purpose, so this endpoint can't be
+    // used to probe which addresses exist in other tenants.
+    if (isUniqueViolation(error, 'email')) {
+      return jsonError('Email address is not available', 409)
+    }
+    logger.error({ error }, 'Failed to create email inbox')
     return jsonError('Internal server error', 500)
   }
 }

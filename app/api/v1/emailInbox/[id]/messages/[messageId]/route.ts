@@ -101,7 +101,12 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const message = await prisma.emailMessage.findUnique({ where: { id: messageId } })
   if (!message || message.inboxEmailAddressId !== inboxId) return jsonError('Message not found', 404)
 
-  await prisma.emailMessage.delete({ where: { id: messageId } })
+  // Soft delete (F8): reads filter `deletedAt: null` via the client extension,
+  // so the message is unreachable from this point on.
+  await prisma.emailMessage.update({
+    where: { id: messageId },
+    data: { deletedAt: new Date() },
+  })
 
   return jsonSuccess({ deleted: true })
 }

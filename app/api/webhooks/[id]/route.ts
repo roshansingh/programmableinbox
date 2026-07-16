@@ -64,7 +64,8 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const webhook = await getWebhookForUser(id, orgIds)
   if (!webhook) return jsonError('Not found', 404)
 
-  await prisma.webhook.delete({ where: { id } })
+  // Soft delete (F8). Delivery history in webhook_events is preserved.
+  await prisma.webhook.update({ where: { id }, data: { deletedAt: new Date() } })
 
   return new Response(null, { status: 204 })
 }
