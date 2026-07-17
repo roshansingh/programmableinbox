@@ -44,7 +44,11 @@ ALTER TABLE "automations" ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMPTZ(3) 
 ALTER COLUMN "updatedAt" SET DATA TYPE TIMESTAMPTZ(3) USING "updatedAt" AT TIME ZONE 'UTC',
 ALTER COLUMN "deletedAt" SET DATA TYPE TIMESTAMPTZ(3) USING "deletedAt" AT TIME ZONE 'UTC';
 -- AlterTable
-ALTER TABLE "backup_status" ALTER COLUMN "last_success_at" SET DATA TYPE TIMESTAMPTZ(3) USING "last_success_at" AT TIME ZONE 'UTC';
+-- No USING clause here: last_success_at is ALREADY timestamptz (original
+-- 20260514222211 migration), so this is a precision-only change. Applying
+-- `AT TIME ZONE 'UTC'` would convert it to a naive timestamp and reinterpret it
+-- in the session TZ, shifting the stored instant on any non-UTC session.
+ALTER TABLE "backup_status" ALTER COLUMN "last_success_at" SET DATA TYPE TIMESTAMPTZ(3);
 -- AlterTable
 ALTER TABLE "email_attachments" ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMPTZ(3) USING "createdAt" AT TIME ZONE 'UTC';
 -- AlterTable
@@ -94,6 +98,13 @@ CREATE INDEX "webhooks_organizationId_idx" ON "webhooks"("organizationId");
 -- (F15, F17). Kept out of the ADD COLUMN so existing rows don't violate it.
 UPDATE "email_messages"    SET "updatedAt" = "createdAt" WHERE "updatedAt" IS NULL;
 ALTER TABLE "email_messages"    ALTER COLUMN "updatedAt" SET NOT NULL;
+
+-- auto_reply_ledgers.createdAt was just added with a CURRENT_TIMESTAMP default,
+-- which would stamp every pre-existing row at migration time. lastSentAt is the
+-- best historical signal for when the ledger row began, so seed createdAt from
+-- it (only existing rows are present during the migration). updatedAt then
+-- follows createdAt.
+UPDATE "auto_reply_ledgers" SET "createdAt" = "lastSentAt";
 UPDATE "auto_reply_ledgers" SET "updatedAt" = "createdAt" WHERE "updatedAt" IS NULL;
 ALTER TABLE "auto_reply_ledgers" ALTER COLUMN "updatedAt" SET NOT NULL;
 
