@@ -58,7 +58,8 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     return jsonError('Not found', 404)
   }
 
-  await prisma.phoneInbox.delete({ where: { id } })
+  // Soft delete (F8).
+  await prisma.phoneInbox.update({ where: { id }, data: { deletedAt: new Date() } })
 
   return new Response(null, { status: 204 })
 }

@@ -54,7 +54,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const where: { userId: string; organizationId?: string } = { userId: user.id }
+  // Revoked keys are hidden here rather than by the soft-delete extension in
+  // lib/db.ts: ApiKey tracks its lifecycle with `revokedAt` (F5), not the
+  // `deletedAt` column that extension keys off.
+  const where: { userId: string; organizationId?: string; revokedAt: null } = {
+    userId: user.id,
+    revokedAt: null,
+  }
   if (organizationId) where.organizationId = organizationId
 
   const keys = await prisma.apiKey.findMany({

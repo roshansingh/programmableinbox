@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const key = await prisma.apiKey.findUnique({ where: { id } })
-  if (!key || key.userId !== user.id) {
+  if (!key || key.userId !== user.id || key.revokedAt) {
     return jsonError('Not found', 404)
   }
 
@@ -27,11 +27,17 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const { id } = await params
 
   const key = await prisma.apiKey.findUnique({ where: { id } })
-  if (!key || key.userId !== user.id) {
+  if (!key || key.userId !== user.id || key.revokedAt) {
     return jsonError('Not found', 404)
   }
 
-  await prisma.apiKey.delete({ where: { id } })
+  // Revoke rather than delete (F5). Auth rejects revoked keys, so this takes
+  // effect immediately, and the row survives as an audit trail of a key that
+  // existed and was killed — which a hard delete destroys.
+  await prisma.apiKey.update({
+    where: { id },
+    data: { revokedAt: new Date() },
+  })
 
   return new Response(null, { status: 204 })
 }

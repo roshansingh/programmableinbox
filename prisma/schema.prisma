@@ -45,11 +45,21 @@ model Organization {
   @@map("organizations")
 }
 
+/// Membership roles. Deliberately has no default: an implicit `owner` default
+/// meant a membership created without an explicit role silently became an org
+/// owner (F6). Callers must now state the role.
+enum Role {
+  owner
+  admin
+  member
+  viewer
+}
+
 model Membership {
   id             String   @id @default(cuid())
   userId         String
   organizationId String
-  role           String   @default("owner")
+  role           Role
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -64,8 +74,15 @@ model EmailInbox {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
-  email          String
+  /// Globally unique (F1). Inbound routing matches purely on this address, so
+  /// two orgs holding the same address means mail lands in both. Uniqueness is
+  /// what makes that physically impossible.
+  ///
+  /// Soft-deleted rows keep their address, so a deleted inbox's address can
+  /// never be reclaimed by another org.
+  email          String   @unique
   name           String?
+  deletedAt      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -76,6 +93,10 @@ model EmailInbox {
   autoReplyLedgers    AutoReplyLedger[]
   emailJobDeadLetters EmailJobDeadLetter[]
 
+  /// Required as the target of EmailMessage's composite tenant FK (F7).
+  /// Redundant for uniqueness (id is already the PK) but Postgres requires a
+  /// unique constraint on referenced columns.
+  @@unique([id, organizationId])
   @@map("email_inboxes")
 }
 
@@ -85,6 +106,7 @@ model PhoneInbox {
   userId         String
   phoneNumber    String
   countryCode    String
+  deletedAt      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -96,14 +118,26 @@ model PhoneInbox {
 
 model ApiKey {
   id             String   @id @default(cuid())
+  /// Legacy plaintext column. Always written as null since the hashing change;
+  /// retained only for pre-existing rows. Dropping it is destructive and gated
+  /// on verifying prod has no legacy keys (F5, deferred).
   apiKey         String?  @unique
+  /// Nullable for the same legacy reason. Should become NOT NULL once legacy
+  /// rows are backfilled (F5, deferred).
   keyHash        String?  @unique
   prefix         String?
   name           String
   scopes         String[] @default([])
   organizationId String
   userId         String
+  /// Key lifecycle (F5). Auth rejects a key once revoked or past expiry, so a
+  /// leaked credential can be killed at the data layer. Deleting a key sets
+  /// revokedAt rather than removing the row.
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -137,9 +171,10 @@ model EmailMessage {
   categories          String[] @default([])
   extractedOtp        String?
   metadata            Json?
+  deletedAt           DateTime?
   createdAt           DateTime @default(now())
 
-  inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
+  inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId, organizationId], references: [id, organizationId], onDelete: Cascade)
   organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   parentMessage     EmailMessage?  @relation("EmailMessageReplies", fields: [parentMessageId], references: [id], onDelete: SetNull)
   replies           EmailMessage[] @relation("EmailMessageReplies")
@@ -156,6 +191,9 @@ model EmailMessage {
   @@index([messageId])
   @@index([categories], type: Gin)
   @@index([inboxEmailAddressId, extractedOtp, createdAt])
+  /// Threading's subject fallback runs on every inbound email that Message-ID
+  /// matching misses, so this scan is on the ingest hot path (F25).
+  @@index([inboxEmailAddressId, subject])
   @@map("email_messages")
 }
 
@@ -189,6 +227,7 @@ model Webhook {
   status         WebhookStatus @default(active)
   secret         String?
   lastTriggered  DateTime?
+  deletedAt      DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -210,6 +249,10 @@ model WebhookEvent {
 
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
+  /// Event list/count views filter by webhook, optionally by status, and sort
+  /// newest-first. The table had no indexes at all, not even on the FK (F4).
+  @@index([webhookId, createdAt])
+  @@index([webhookId, status, createdAt])
   @@map("webhook_events")
 }
 
@@ -221,6 +264,7 @@ model Automation {
   description      String?
   isActive         Boolean  @default(true)
   activeRevisionId String?  @unique
+  deletedAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -231,6 +275,8 @@ model Automation {
   runs            AutomationRun[]
   autoReplyLedger AutoReplyLedger[]
 
+  /// Required as the target of AutomationRun's composite tenant FK (F7).
+  @@unique([id, organizationId])
   @@index([organizationId])
   @@index([inboxId])
   @@map("automations")
@@ -271,7 +317,7 @@ model AutomationRun {
   startedAt            DateTime            @default(now())
   finishedAt           DateTime?
 
-  automation         Automation         @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  automation         Automation         @relation(fields: [automationId, organizationId], references: [id, organizationId], onDelete: Cascade)
   automationRevision AutomationRevision @relation(fields: [automationRevisionId], references: [id], onDelete: Cascade)
   organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   emailMessage       EmailMessage?      @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)

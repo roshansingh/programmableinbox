@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { prisma } from '@/lib/db'
+import logger from '@/lib/logger'
 
 const API_KEY_PREFIX_LENGTH = 12
 
@@ -17,10 +18,18 @@ export async function resolveApiKeyPrincipal(rawKey: string): Promise<{
   organizationId: string
   scopes: string[]
 } | null> {
+  const now = new Date()
+
+  // Revocation and expiry are enforced in the lookup itself (F5), not by a
+  // post-hoc check on the result. A leaked key stops working the moment it is
+  // revoked or lapses, and there is no code path that resolves a principal
+  // without passing this filter.
   const apiKey = await prisma.apiKey.findFirst({
     where: {
       keyHash: hashApiKey(rawKey),
       prefix: getApiKeyPrefix(rawKey),
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
     select: {
       id: true,
@@ -30,6 +39,13 @@ export async function resolveApiKeyPrincipal(rawKey: string): Promise<{
   })
 
   if (!apiKey) return null
+
+  // Fire-and-forget: lastUsedAt is observability, not correctness, and every
+  // authenticated request would otherwise pay for a write on the hot path. A
+  // failure here must never fail the request the key was valid for.
+  void prisma.apiKey
+    .update({ where: { id: apiKey.id }, data: { lastUsedAt: now } })
+    .catch((error) => logger.warn({ error, apiKeyId: apiKey.id }, 'Failed to record API key lastUsedAt'))
 
   return {
     kind: 'apiKey',

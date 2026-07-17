@@ -4,6 +4,10 @@ import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const apiKeyFindFirstMock = vi.fn()
+// resolveApiKeyPrincipal stamps lastUsedAt (F5) as fire-and-forget after a
+// successful lookup, so the mock client needs `update` even though no
+// assertion here depends on it.
+const apiKeyUpdateMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) => resolveUserPrincipalFromTokenMock(...args),
@@ -13,6 +17,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     apiKey: {
       findFirst: (...args: unknown[]) => apiKeyFindFirstMock(...args),
+      update: (...args: unknown[]) => apiKeyUpdateMock(...args),
     },
   },
 }))
@@ -25,6 +30,8 @@ describe('resolveAuthContext', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
+    // Re-armed after the reset, which strips the declaration-site default.
+    apiKeyUpdateMock.mockResolvedValue({})
   })
 
   it('resolves a JWT bearer token to a normalized user principal', async () => {
@@ -80,6 +87,9 @@ describe('resolveAuthContext', () => {
       where: {
         keyHash,
         prefix: 'sk_live_abcd',
+        // Revocation and expiry are part of the lookup, not a later check (F5).
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
       },
       select: {
         id: true,

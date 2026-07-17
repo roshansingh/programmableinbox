@@ -105,8 +105,11 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const automation = await loadAutomationForUser(auth.user, id)
   if (!automation) return jsonError('Not found', 404)
 
-  await prisma.automation.delete({
+  // Soft delete (F8). Revisions and run history are left intact rather than
+  // cascaded away, so a deleted automation's runs remain auditable.
+  await prisma.automation.update({
     where: { id: automation.id },
+    data: { deletedAt: new Date() },
   })
 
   return new Response(null, { status: 204 })
