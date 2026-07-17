@@ -14,8 +14,8 @@ model User {
   firstName     String?
   lastName      String?
   emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 
   memberships  Membership[]
   emailInboxes EmailInbox[]
@@ -30,8 +30,8 @@ model Organization {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   memberships   Membership[]
   emailInboxes  EmailInbox[]
@@ -60,8 +60,8 @@ model Membership {
   userId         String
   organizationId String
   role           Role
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -82,9 +82,9 @@ model EmailInbox {
   /// never be reclaimed by another org.
   email          String   @unique
   name           String?
-  deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
 
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -97,6 +97,11 @@ model EmailInbox {
   /// Redundant for uniqueness (id is already the PK) but Postgres requires a
   /// unique constraint on referenced columns.
   @@unique([id, organizationId])
+  /// FK indexes (F10). `@@unique([id, organizationId])` leads with `id`, so it
+  /// does not serve org lookups; both are needed for per-org/user listing and
+  /// for org/user cascade-delete speed.
+  @@index([organizationId])
+  @@index([userId])
   @@map("email_inboxes")
 }
 
@@ -106,13 +111,16 @@ model PhoneInbox {
   userId         String
   phoneNumber    String
   countryCode    String
-  deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // FK indexes (F10)
+  @@index([organizationId])
+  @@index([userId])
   @@map("phone_inboxes")
 }
 
@@ -133,18 +141,19 @@ model ApiKey {
   /// Key lifecycle (F5). Auth rejects a key once revoked or past expiry, so a
   /// leaked credential can be killed at the data layer. Deleting a key sets
   /// revokedAt rather than removing the row.
-  expiresAt      DateTime?
-  revokedAt      DateTime?
-  lastUsedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  expiresAt      DateTime? @db.Timestamptz(3)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  lastUsedAt     DateTime? @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
-  @@index([prefix])
+  // Dropped (F26): @@index([prefix]) backed no read path — auth looks up by the
+  // unique `keyHash`, which the prefix filter only narrows redundantly.
   @@map("api_keys")
 }
 
@@ -171,8 +180,12 @@ model EmailMessage {
   categories          String[] @default([])
   extractedOtp        String?
   metadata            Json?
-  deletedAt           DateTime?
-  createdAt           DateTime @default(now())
+  deletedAt           DateTime? @db.Timestamptz(3)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  /// Added (F15): the table carries mutable state (isStarred, tags, categories,
+  /// extractedOtp, metadata, deletedAt) alongside immutable history, so it needs
+  /// change tracking. Backfilled to createdAt for existing rows in the migration.
+  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
 
   inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId, organizationId], references: [id, organizationId], onDelete: Cascade)
   organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -185,15 +198,20 @@ model EmailMessage {
   @@index([inboxEmailAddressId, createdAt, id])
   @@index([inboxEmailAddressId, threadId, createdAt, id])
   @@index([organizationId])
-  @@index([externalId])
   @@index([threadId])
   @@index([parentMessageId])
-  @@index([messageId])
   @@index([categories], type: Gin)
-  @@index([inboxEmailAddressId, extractedOtp, createdAt])
   /// Threading's subject fallback runs on every inbound email that Message-ID
   /// matching misses, so this scan is on the ingest hot path (F25).
   @@index([inboxEmailAddressId, subject])
+  // Dropped as redundant (F11): @@index([messageId]) duplicated `messageId @unique`;
+  // @@index([externalId]) was the leftmost prefix of @@unique([externalId, inboxEmailAddressId]).
+  //
+  // The OTP query index is a PARTIAL index — `(inboxEmailAddressId, createdAt DESC)
+  // WHERE extractedOtp IS NOT NULL` — added via raw SQL in the migration (F14),
+  // since Prisma's schema cannot express a WHERE predicate. It replaces the old
+  // @@index([inboxEmailAddressId, extractedOtp, createdAt]), which could not order
+  // by createdAt because extractedOtp was an IS-NOT-NULL range.
   @@map("email_messages")
 }
 
@@ -226,14 +244,16 @@ model Webhook {
   organizationId String
   status         WebhookStatus @default(active)
   secret         String?
-  lastTriggered  DateTime?
-  deletedAt      DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  lastTriggered  DateTime? @db.Timestamptz(3)
+  deletedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
 
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   webhookEvents WebhookEvent[]
 
+  // FK index for per-org webhook listing + cascade-delete speed (F20)
+  @@index([organizationId])
   @@map("webhooks")
 }
 
@@ -244,8 +264,8 @@ model WebhookEvent {
   payload     Json
   status      WebhookEventStatus @default(pending)
   attempts    Int                @default(0)
-  createdAt   DateTime           @default(now())
-  deliveredAt DateTime?
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  deliveredAt DateTime? @db.Timestamptz(3)
 
   webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
@@ -264,9 +284,9 @@ model Automation {
   description      String?
   isActive         Boolean  @default(true)
   activeRevisionId String?  @unique
-  deletedAt        DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
 
   organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   inbox           EmailInbox?          @relation(fields: [inboxId], references: [id], onDelete: Cascade)
@@ -290,7 +310,7 @@ model AutomationRevision {
   config          Json
   layout          Json?
   createdByUserId String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
 
   automation    Automation   @relation("AutomationRevisions", fields: [automationId], references: [id], onDelete: Cascade)
   activeFor     Automation[] @relation("AutomationActiveRevision")
@@ -314,8 +334,8 @@ model AutomationRun {
   isDryRun             Boolean             @default(false)
   inputSnapshot        Json
   error                Json?
-  startedAt            DateTime            @default(now())
-  finishedAt           DateTime?
+  startedAt            DateTime            @default(now()) @db.Timestamptz(3)
+  finishedAt           DateTime? @db.Timestamptz(3)
 
   automation         Automation         @relation(fields: [automationId, organizationId], references: [id, organizationId], onDelete: Cascade)
   automationRevision AutomationRevision @relation(fields: [automationRevisionId], references: [id], onDelete: Cascade)
@@ -340,8 +360,8 @@ model AutomationNodeRun {
   input          Json?
   output         Json?
   error          Json?
-  startedAt      DateTime            @default(now())
-  finishedAt     DateTime?
+  startedAt      DateTime            @default(now()) @db.Timestamptz(3)
+  finishedAt     DateTime? @db.Timestamptz(3)
 
   run AutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
@@ -357,11 +377,13 @@ model EmailJobDeadLetter {
   payload               Json     // Full email payload
   error                 String   // Error message from failed processing
   attemptCount          Int      @default(1)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([externalId, inboxEmailAddressId])
-  @@index([inboxEmailAddressId])
+  // Dropped (F26): the table is write-only (never read), so the standalone FK
+  // index served no query. Inbox deletion is now soft (F8) and never cascades
+  // here, so it isn't needed for cascade-delete speed either.
   @@map("email_job_dead_letter")
 }
 
@@ -371,7 +393,7 @@ model EmailAttachment {
   filename       String
   contentType    String?
   sizeBytes      Int?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
 
   emailMessage EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
 
@@ -384,7 +406,12 @@ model AutoReplyLedger {
   automationId String
   inboxId      String
   fromEmail    String
-  lastSentAt   DateTime
+  lastSentAt   DateTime @db.Timestamptz(3)
+  /// Added (F17): change-tracking timestamps. The check-then-act throttle race
+  /// (concurrent sends both passing the window check) is a separate, deferred
+  /// fix — these columns are the schema groundwork for it.
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
   automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
   inbox      EmailInbox  @relation(fields: [inboxId], references: [id], onDelete: Cascade)
@@ -395,7 +422,7 @@ model AutoReplyLedger {
 
 model BackupStatus {
   jobName       String   @id @map("job_name")
-  lastSuccessAt DateTime @map("last_success_at") @db.Timestamptz
+  lastSuccessAt DateTime @map("last_success_at") @db.Timestamptz(3)
   details       Json?
 
   @@map("backup_status")
