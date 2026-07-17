@@ -97,9 +97,6 @@ model EmailInbox {
   /// Redundant for uniqueness (id is already the PK) but Postgres requires a
   /// unique constraint on referenced columns.
   @@unique([id, organizationId])
-  /// FK indexes (F10). `@@unique([id, organizationId])` leads with `id`, so it
-  /// does not serve org lookups; both are needed for per-org/user listing and
-  /// for org/user cascade-delete speed.
   @@index([organizationId])
   @@index([userId])
   @@map("email_inboxes")
@@ -118,7 +115,6 @@ model PhoneInbox {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // FK indexes (F10)
   @@index([organizationId])
   @@index([userId])
   @@map("phone_inboxes")
@@ -152,8 +148,6 @@ model ApiKey {
 
   @@index([organizationId, createdAt])
   @@index([userId, createdAt])
-  // Dropped (F26): @@index([prefix]) backed no read path — auth looks up by the
-  // unique `keyHash`, which the prefix filter only narrows redundantly.
   @@map("api_keys")
 }
 
@@ -182,9 +176,6 @@ model EmailMessage {
   metadata            Json?
   deletedAt           DateTime? @db.Timestamptz(3)
   createdAt           DateTime @default(now()) @db.Timestamptz(3)
-  /// Added (F15): the table carries mutable state (isStarred, tags, categories,
-  /// extractedOtp, metadata, deletedAt) alongside immutable history, so it needs
-  /// change tracking. Backfilled to createdAt for existing rows in the migration.
   updatedAt           DateTime @updatedAt @db.Timestamptz(3)
 
   inboxEmailAddress EmailInbox     @relation(fields: [inboxEmailAddressId, organizationId], references: [id, organizationId], onDelete: Cascade)
@@ -204,14 +195,9 @@ model EmailMessage {
   /// Threading's subject fallback runs on every inbound email that Message-ID
   /// matching misses, so this scan is on the ingest hot path (F25).
   @@index([inboxEmailAddressId, subject])
-  // Dropped as redundant (F11): @@index([messageId]) duplicated `messageId @unique`;
-  // @@index([externalId]) was the leftmost prefix of @@unique([externalId, inboxEmailAddressId]).
-  //
-  // The OTP query index is a PARTIAL index — `(inboxEmailAddressId, createdAt DESC)
-  // WHERE extractedOtp IS NOT NULL` — added via raw SQL in the migration (F14),
-  // since Prisma's schema cannot express a WHERE predicate. It replaces the old
-  // @@index([inboxEmailAddressId, extractedOtp, createdAt]), which could not order
-  // by createdAt because extractedOtp was an IS-NOT-NULL range.
+  // The OTP read path is served by a partial index — (inboxEmailAddressId,
+  // createdAt DESC) WHERE extractedOtp IS NOT NULL — that lives in the migration
+  // as raw SQL, since Prisma's schema cannot express a partial index.
   @@map("email_messages")
 }
 
@@ -252,7 +238,6 @@ model Webhook {
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   webhookEvents WebhookEvent[]
 
-  // FK index for per-org webhook listing + cascade-delete speed (F20)
   @@index([organizationId])
   @@map("webhooks")
 }
@@ -381,9 +366,6 @@ model EmailJobDeadLetter {
   updatedAt             DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([externalId, inboxEmailAddressId])
-  // Dropped (F26): the table is write-only (never read), so the standalone FK
-  // index served no query. Inbox deletion is now soft (F8) and never cascades
-  // here, so it isn't needed for cascade-delete speed either.
   @@map("email_job_dead_letter")
 }
 
@@ -407,9 +389,6 @@ model AutoReplyLedger {
   inboxId      String
   fromEmail    String
   lastSentAt   DateTime @db.Timestamptz(3)
-  /// Added (F17): change-tracking timestamps. The check-then-act throttle race
-  /// (concurrent sends both passing the window check) is a separate, deferred
-  /// fix — these columns are the schema groundwork for it.
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
