@@ -113,21 +113,20 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
   let runStatus: AutomationRunStatus = AutomationRunStatus.succeeded
 
   try {
-    const triggerNodeRun = await db.automationNodeRun.create({
+    // Node-runs are written in ONE insert already in their terminal state
+    // (F28), rather than create(running) → update(terminal). A hard crash
+    // mid-node can then never leave a node-run stuck at 'running': the row
+    // either exists complete or not at all. The run row keeps
+    // create(running) → terminal update, which the try/catch and the stuck-run
+    // sweeper already reconcile.
+    await db.automationNodeRun.create({
       data: {
         runId: run.id,
         configNodeId: config.trigger.id,
         configNodeType: 'trigger',
-        status: AutomationRunStatus.running,
-        input: input,
-      },
-    })
-
-    await db.automationNodeRun.update({
-      where: { id: triggerNodeRun.id },
-      data: {
         status: AutomationRunStatus.succeeded,
         branchTaken: initialTargets.length > 0 ? 'next' : null,
+        input: input,
         finishedAt: new Date(),
       },
     })
@@ -139,25 +138,18 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
       const node = nodeMap.get(currentNodeId)
       if (!node) break
 
-      const nodeRun = await db.automationNodeRun.create({
-        data: {
-          runId: run.id,
-          configNodeId: node.id,
-          configNodeType: node.type,
-          status: AutomationRunStatus.running,
-          input: input,
-        },
-      })
-
       if (node.type === 'condition') {
         const conditionMatched = evaluateCondition(node.config, input)
         matched = matched || conditionMatched
         const nextEdges = conditionMatched ? getOutgoingEdges(edgeMap, node.id, 'next') : []
-        await db.automationNodeRun.update({
-          where: { id: nodeRun.id },
+        await db.automationNodeRun.create({
           data: {
+            runId: run.id,
+            configNodeId: node.id,
+            configNodeType: node.type,
             status: AutomationRunStatus.succeeded,
             branchTaken: conditionMatched ? 'next' : null,
+            input: input,
             output: { matched: conditionMatched } as Prisma.InputJsonValue,
             finishedAt: new Date(),
           },
@@ -172,10 +164,13 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
       actionsExecuted += 1
       if (actionsExecuted > maxActions) {
         runStatus = AutomationRunStatus.failed
-        await db.automationNodeRun.update({
-          where: { id: nodeRun.id },
+        await db.automationNodeRun.create({
           data: {
+            runId: run.id,
+            configNodeId: node.id,
+            configNodeType: node.type,
             status: AutomationRunStatus.failed,
+            input: input,
             error: { message: 'maxActionsPerRun exceeded' },
             finishedAt: new Date(),
           },
@@ -198,15 +193,18 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
             ? AutomationRunStatus.skipped
             : AutomationRunStatus.succeeded
 
-      await db.automationNodeRun.update({
-        where: { id: nodeRun.id },
-          data: {
-            status: nodeStatus,
-            output: (actionResult.output ?? undefined) as Prisma.InputJsonValue | undefined,
-            error: (actionResult.error ?? undefined) as Prisma.InputJsonValue | undefined,
-            finishedAt: new Date(),
-          },
-        })
+      await db.automationNodeRun.create({
+        data: {
+          runId: run.id,
+          configNodeId: node.id,
+          configNodeType: node.type,
+          status: nodeStatus,
+          input: input,
+          output: (actionResult.output ?? undefined) as Prisma.InputJsonValue | undefined,
+          error: (actionResult.error ?? undefined) as Prisma.InputJsonValue | undefined,
+          finishedAt: new Date(),
+        },
+      })
 
       if (actionResult.status === 'failed') {
         if (node.onError === 'continue') {
