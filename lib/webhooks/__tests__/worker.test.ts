@@ -166,7 +166,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     mockDeadLetterUpsert.mockResolvedValue(undefined);
     mockDispatchAutomationsForEmail.mockResolvedValue([]);
     mockUpdate.mockResolvedValue({});
-    mockEnrichMessage.mockResolvedValue(undefined);
+    mockEnrichMessage.mockResolvedValue(true);
   });
 
   // -------------------------------------------------------------------------
@@ -376,8 +376,9 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockDispatchAutomationsForEmail).not.toHaveBeenCalled();
     });
 
-    it('runs enrichment only when enrichedAt is unset, and marks it', async () => {
+    it('runs enrichment only when enrichedAt is unset, and marks it on success', async () => {
       mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
+      mockEnrichMessage.mockResolvedValueOnce(true);
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -386,6 +387,24 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
       expect(mockEnrichMessage).toHaveBeenCalledWith('msg_existing');
       expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { enrichedAt: expect.any(Date) },
+      });
+    });
+
+    it('does NOT set enrichedAt when enrichment fails transiently (returns false)', async () => {
+      // enrichMessage never throws; a false result means a transient failure.
+      // Marking enrichedAt anyway would permanently skip enrichment (the F19 bug).
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
+      mockEnrichMessage.mockResolvedValueOnce(false);
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).not.toHaveBeenCalledWith({
         where: { id: 'msg_existing' },
         data: { enrichedAt: expect.any(Date) },
       });

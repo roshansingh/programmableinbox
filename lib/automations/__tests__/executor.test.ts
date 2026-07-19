@@ -383,4 +383,84 @@ describe('executeAutomation', () => {
       expect(args.data.finishedAt).toBeInstanceOf(Date)
     }
   })
+
+  it('writes a terminal failed node-run with a real duration when an action throws (F28)', async () => {
+    automationNodeRunCreate.mockReset().mockResolvedValue({ id: 'node-run' })
+    executeActionNode.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(
+      executeAutomation({
+        automation: { id: 'automation-1', name: 'Auto tag', organizationId: 'org-1' },
+        revision: {
+          id: 'revision-1',
+          revision: 1,
+          config: {
+            type: 'email_automation',
+            version: 1,
+            settings: { priority: 0, stopPolicy: 'continue' },
+            trigger: {
+              id: 'trigger-1',
+              type: 'trigger',
+              version: 1,
+              triggerType: 'email.received',
+              config: { type: 'email_received', version: 1 },
+            },
+            nodes: [
+              {
+                id: 'trigger-1',
+                type: 'trigger',
+                version: 1,
+                triggerType: 'email.received',
+                config: { type: 'email_received', version: 1 },
+              },
+              {
+                id: 'action-1',
+                type: 'action',
+                version: 1,
+                actionType: 'send_webhook',
+                config: { type: 'send_webhook_config', version: 1, url: 'https://example.com/hook' },
+              },
+            ],
+            edges: [
+              {
+                id: 'edge-1',
+                type: 'edge',
+                version: 1,
+                sourceNodeId: 'trigger-1',
+                sourceHandle: 'next',
+                targetNodeId: 'action-1',
+              },
+            ],
+          },
+          layout: { type: 'react_flow_layout', version: 1, positions: {} },
+        },
+        message: {
+          id: 'message-1',
+          from: 'sender@example.com',
+          to: ['inbox@example.com'],
+          cc: [],
+          bcc: [],
+          subject: 'Hello',
+          text: 'Body',
+          html: '<p>Body</p>',
+          headers: {},
+          organizationId: 'org-1',
+          inboxEmailAddressId: 'inbox-address-1',
+          tags: [],
+        },
+        inbox: { id: 'inbox-1', email: 'inbox@example.com' },
+        attachments: [],
+      }),
+    ).rejects.toThrow('network down')
+
+    // The thrown action still yields a terminal failed node-run (breadcrumb),
+    // never a stranded 'running' one, and it carries a real startedAt→finishedAt.
+    const failed = automationNodeRunCreate.mock.calls
+      .map(([args]) => args.data)
+      .find((data) => data.configNodeId === 'action-1')
+    expect(failed?.status).toBe(AutomationRunStatus.failed)
+    expect(failed?.startedAt).toBeInstanceOf(Date)
+    expect(failed?.finishedAt).toBeInstanceOf(Date)
+    expect(automationNodeRunUpdate).not.toHaveBeenCalled()
+  })
 })

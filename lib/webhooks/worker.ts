@@ -164,9 +164,13 @@ async function processEmailWebhookJob(
     // ------------------------------------------------------------------
     // Step 2: Dispatch automations — gated on the dispatchedAt marker
     // ------------------------------------------------------------------
-    // Set the marker only after dispatch succeeds. A crash mid-dispatch leaves
-    // it null, so the retry re-dispatches (at-least-once); the only user-visible
-    // side effect, the auto-reply, is de-duplicated by its atomic throttle (F17).
+    // Set the marker only after dispatch succeeds. A crash after dispatch but
+    // before the marker write makes the retry re-dispatch (at-least-once). This
+    // is a deliberate trade-off: it can re-run action side effects — the
+    // auto-reply (de-duplicated by its atomic throttle, F17) but also
+    // forward_email and send_webhook, which are NOT de-duplicated. Making those
+    // exactly-once needs per-node/per-run idempotency keys, which is out of
+    // scope here; at-least-once was the accepted behavior for this fix.
     await Promise.all(
       messages
         .filter((message) => !message.dispatchedAt)
@@ -186,11 +190,16 @@ async function processEmailWebhookJob(
       messages
         .filter((message) => !message.enrichedAt)
         .map(async (message) => {
-          await enrichMessage(message.id);
-          await prisma.emailMessage.update({
-            where: { id: message.id },
-            data: { enrichedAt: new Date() },
-          });
+          // enrichMessage is best-effort and never throws; it returns whether
+          // the step is settled. Only mark enrichedAt when it is — a transient
+          // enrichment failure must not permanently skip the step (F19).
+          const settled = await enrichMessage(message.id);
+          if (settled) {
+            await prisma.emailMessage.update({
+              where: { id: message.id },
+              data: { enrichedAt: new Date() },
+            });
+          }
         }),
     );
 
