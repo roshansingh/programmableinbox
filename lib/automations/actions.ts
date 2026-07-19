@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getResend } from '@/lib/resend'
+import { claimAutoReplySlot, releaseAutoReplySlot } from './auto-reply-throttle'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
 import type {
   ActionNodeConfig,
@@ -147,32 +148,41 @@ async function executeAutoReply(
   }
 
   const throttleWindowHours = node.config.oncePerSenderWindowHours ?? 24
-  const existing = await findAutoReplyLedger(
-    context.automation.id,
-    context.inbox.id,
-    context.input.from.toLowerCase()
-  )
+  const throttleKey = {
+    automationId: context.automation.id,
+    inboxId: context.inbox.id,
+    fromEmail: context.input.from.toLowerCase(),
+  }
+  const claimAt = new Date()
+  const cutoff = new Date(claimAt.getTime() - throttleWindowHours * 60 * 60 * 1000)
 
-  if (existing) {
-    const cutoff = Date.now() - throttleWindowHours * 60 * 60 * 1000
-    if (existing.lastSentAt.getTime() >= cutoff) {
+  // Dry run previews the decision without consuming the slot: a plain read of
+  // the throttle window, no atomic claim and no send.
+  if (context.isDryRun) {
+    const existing = await findAutoReplyLedger(
+      throttleKey.automationId,
+      throttleKey.inboxId,
+      throttleKey.fromEmail
+    )
+    if (existing && existing.lastSentAt.getTime() >= cutoff.getTime()) {
       return {
         status: 'skipped',
-        output: {
-          reason: 'throttled',
-          lastSentAt: existing.lastSentAt.toISOString(),
-        },
+        output: { reason: 'throttled', lastSentAt: existing.lastSentAt.toISOString() },
       }
+    }
+    return {
+      status: 'skipped',
+      output: { dryRun: true, to: context.input.from },
     }
   }
 
-  if (context.isDryRun) {
+  // Real run: atomically claim the slot BEFORE sending (F17). Only the winner of
+  // a concurrent race proceeds; everyone else is throttled.
+  const claimed = await claimAutoReplySlot(throttleKey, cutoff, claimAt)
+  if (!claimed) {
     return {
       status: 'skipped',
-      output: {
-        dryRun: true,
-        to: context.input.from,
-      },
+      output: { reason: 'throttled' },
     }
   }
 
@@ -184,30 +194,15 @@ async function executeAutoReply(
   })
 
   if (error) {
+    // The send failed, so give the slot back — a retry should be able to send.
+    // Concurrent callers already lost the claim and skipped, so this can't
+    // produce a duplicate.
+    await releaseAutoReplySlot(throttleKey, claimAt)
     return {
       status: 'failed',
       error: { message: error.message },
     }
   }
-
-  await prisma.autoReplyLedger.upsert({
-    where: {
-      automationId_inboxId_fromEmail: {
-        automationId: context.automation.id,
-        inboxId: context.inbox.id,
-        fromEmail: context.input.from.toLowerCase(),
-      },
-    },
-    update: {
-      lastSentAt: new Date(),
-    },
-    create: {
-      automationId: context.automation.id,
-      inboxId: context.inbox.id,
-      fromEmail: context.input.from.toLowerCase(),
-      lastSentAt: new Date(),
-    },
-  })
 
   return {
     status: 'succeeded',
