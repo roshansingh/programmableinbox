@@ -58,21 +58,23 @@ vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
 // ---------------------------------------------------------------------------
 
 const mockFindFirst = vi.fn();
+const mockUpdate = vi.fn().mockResolvedValue({});
 const mockDeadLetterUpsert = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    emailMessage: { findFirst: mockFindFirst },
+    emailMessage: { findFirst: mockFindFirst, update: mockUpdate },
     emailJobDeadLetter: { upsert: mockDeadLetterUpsert },
   },
 }));
 
 // ---------------------------------------------------------------------------
-// storeIncomingEmail + dispatchAutomationsForEmail mocks
+// storeIncomingEmail + dispatchAutomationsForEmail + enrichMessage mocks
 // ---------------------------------------------------------------------------
 
 const mockStoreIncomingEmail = vi.fn();
 const mockDispatchAutomationsForEmail = vi.fn().mockResolvedValue([]);
+const mockEnrichMessage = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/app/api/v1/webhooks/email/route', () => ({
   storeIncomingEmail: (...args: unknown[]) => mockStoreIncomingEmail(...args),
@@ -82,6 +84,10 @@ vi.mock('@/app/api/v1/webhooks/email/route', () => ({
 vi.mock('@/lib/automations/dispatcher', () => ({
   dispatchAutomationsForEmail: (...args: unknown[]) =>
     mockDispatchAutomationsForEmail(...args),
+}));
+
+vi.mock('@/lib/llm/enrichment', () => ({
+  enrichMessage: (...args: unknown[]) => mockEnrichMessage(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -96,7 +102,7 @@ async function freshImport() {
   vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
   vi.mock('@/lib/db', () => ({
     prisma: {
-      emailMessage: { findFirst: mockFindFirst },
+      emailMessage: { findFirst: mockFindFirst, update: mockUpdate },
       emailJobDeadLetter: { upsert: mockDeadLetterUpsert },
     },
   }));
@@ -107,6 +113,9 @@ async function freshImport() {
   vi.mock('@/lib/automations/dispatcher', () => ({
     dispatchAutomationsForEmail: (...args: unknown[]) =>
       mockDispatchAutomationsForEmail(...args),
+  }));
+  vi.mock('@/lib/llm/enrichment', () => ({
+    enrichMessage: (...args: unknown[]) => mockEnrichMessage(...args),
   }));
 
   capturedProcessor = null;
@@ -156,6 +165,8 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     mockWorkerWaitUntilReady.mockResolvedValue(undefined);
     mockDeadLetterUpsert.mockResolvedValue(undefined);
     mockDispatchAutomationsForEmail.mockResolvedValue([]);
+    mockUpdate.mockResolvedValue({});
+    mockEnrichMessage.mockResolvedValue(undefined);
   });
 
   // -------------------------------------------------------------------------
@@ -247,7 +258,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
       expect(mockFindFirst).toHaveBeenCalledWith({
         where: { externalId: 'em_456', inboxEmailAddressId: 'inbox_789' },
-        select: { id: true },
+        select: { id: true, dispatchedAt: true, enrichedAt: true },
       });
     });
 
@@ -325,9 +336,9 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
   // Idempotency — skip if already stored
   // -------------------------------------------------------------------------
 
-  describe('Idempotency', () => {
-    it('skips storeIncomingEmail if email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+  describe('Idempotency and per-step markers (F19)', () => {
+    it('skips storeIncomingEmail when the message already exists', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: null, enrichedAt: null });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -337,8 +348,25 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockStoreIncomingEmail).not.toHaveBeenCalled();
     });
 
-    it('skips dispatchAutomationsForEmail if email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('RE-DISPATCHES when an existing message has no dispatchedAt marker (the bug fix)', async () => {
+      // Stored on a prior attempt that crashed before dispatch. Old code keyed
+      // idempotency on message existence and skipped dispatch forever.
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: null, enrichedAt: null });
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockDispatchAutomationsForEmail).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { dispatchedAt: expect.any(Date) },
+      });
+    });
+
+    it('skips dispatch when dispatchedAt is already set', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -348,8 +376,36 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockDispatchAutomationsForEmail).not.toHaveBeenCalled();
     });
 
-    it('returns without throwing when email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('runs enrichment only when enrichedAt is unset, and marks it', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { enrichedAt: expect.any(Date) },
+      });
+    });
+
+    it('skips both steps when the message is already fully processed', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: new Date() });
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockDispatchAutomationsForEmail).not.toHaveBeenCalled();
+      expect(mockEnrichMessage).not.toHaveBeenCalled();
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns without throwing when the message already exists', async () => {
+      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: new Date() });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -357,17 +413,19 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       await expect(capturedProcessor!(makeJob())).resolves.toBeUndefined();
     });
 
-    it('logs "skipping" when email already exists', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('newly stored message: dispatches, enriches, and sets both markers', async () => {
+      mockFindFirst.mockResolvedValueOnce(null);
+      mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_new', dispatchedAt: null, enrichedAt: null }]);
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
 
       await capturedProcessor!(makeJob());
 
-      const messages = consoleSpy.mock.calls.map((c) => c[0]);
-      expect(messages.some((m) => m.includes('skipping'))).toBe(true);
+      expect(mockDispatchAutomationsForEmail).toHaveBeenCalledWith('msg_new');
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_new');
+      expect(mockUpdate).toHaveBeenCalledWith({ where: { id: 'msg_new' }, data: { dispatchedAt: expect.any(Date) } });
+      expect(mockUpdate).toHaveBeenCalledWith({ where: { id: 'msg_new' }, data: { enrichedAt: expect.any(Date) } });
     });
   });
 
