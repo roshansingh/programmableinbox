@@ -36,8 +36,8 @@ EOF
 ```bash
 sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
 sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/scripts/deploy.sh /srv/inboxui/
-sudo chmod +x /srv/inboxui/deploy.sh
+sudo cp /tmp/inboxui/deploy/scripts/initial_deploy.sh /srv/inboxui/
+sudo chmod +x /srv/inboxui/initial_deploy.sh
 sudo chown -R deploy:deploy /srv/inboxui/
 
 sudo -u deploy bash <<'EOS'

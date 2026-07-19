@@ -24,10 +24,10 @@ docker compose logs --tail=500 app > /tmp/app-crash-$(date +%s).log
 Identify the previous good SHA from `git log` on the deploy host, or from the GitHub Actions history. Then:
 
 ```bash
-IMAGE_TAG=<previous-sha> /srv/inboxui/deploy.sh <previous-sha>
+IMAGE_TAG=<previous-sha> /srv/inboxui/initial_deploy.sh <previous-sha>
 ```
 
-`deploy.sh` will pull, re-run migrations (no-op if schema is unchanged), and roll the app behind a healthcheck gate.
+`initial_deploy.sh` will pull, re-run migrations (no-op if schema is unchanged), and roll the app behind a healthcheck gate.
 
 ## 3. Verify
 

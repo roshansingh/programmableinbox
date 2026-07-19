@@ -113,9 +113,9 @@ The source of truth for this file is your password manager — **never commit it
 ```bash
 sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
 sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/scripts/deploy.sh /srv/inboxui/
+sudo cp /tmp/inboxui/deploy/scripts/initial_deploy.sh /srv/inboxui/
 sudo chown -R deploy:deploy /srv/inboxui/
-sudo chmod +x /srv/inboxui/deploy.sh
+sudo chmod +x /srv/inboxui/initial_deploy.sh
 ```
 
 The compose file references `ghcr.io/OWNER/…` images. Point them at your GHCR namespace by creating `/srv/inboxui/.env` (used by compose for variable substitution — distinct from `secrets/app.env`):
@@ -213,12 +213,12 @@ curl -fsS https://$DOMAIN/api/internal/webhook-worker/health   # expect 200 / wo
 
 ## Day-to-day deploys
 
-Pushing to `main` runs CI (lint + test + build) and, on green, SSHes to the box and runs `deploy.sh <sha>`, which pulls, runs `migrate`, rolls `app` + `caddy` behind a healthcheck gate, and prunes old images. No manual step.
+Pushing to `main` runs CI (lint + test + build) and, on green, SSHes to the box and runs the deploy steps inlined in `.github/workflows/deploy.yml`: it syncs the compose file, pulls `app`+`migrate`, runs `migrate`, rolls `app` + `caddy` behind a healthcheck gate (`--no-deps`, so postgres/redis are untouched), and prunes old images. No manual step.
 
-**Rollback** to a known-good image:
+**Rollback** to a known-good image (uses the manual `initial_deploy.sh`, kept in sync on the box by CI):
 
 ```bash
-IMAGE_TAG=<previous-sha> /srv/inboxui/deploy.sh <previous-sha>
+IMAGE_TAG=<previous-sha> /srv/inboxui/initial_deploy.sh <previous-sha>
 ```
 
 ---

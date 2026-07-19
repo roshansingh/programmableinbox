@@ -86,6 +86,40 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v5
+
+      # Keep the base compose file on the box authoritative on every deploy so
+      # the routine deploy below can never run against a drifted definition.
+      # Server-specific tuning lives in docker-compose.override.yml, which this
+      # never touches.
+      - name: Sync compose file to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          source: deploy/docker-compose.yml
+          target: /srv/inboxui/
+          strip_components: 1
+
+      # Keep the manual initial-deploy / rollback script fresh for the runbooks.
+      # It is NOT used by this workflow — routine deploys are inlined below.
+      - name: Sync initial-deploy script to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          source: deploy/scripts/initial_deploy.sh
+          target: /srv/inboxui/
+          strip_components: 2
+
+      # Routine deploy, inlined so there is no server-side script to drift:
+      # pull app+migrate only, run migrations to completion, then recreate ONLY
+      # app+caddy behind a health gate. postgres and redis are never pulled,
+      # restarted, or recreated (--no-deps).
       - name: SSH deploy
         uses: appleboy/ssh-action@v1
         with:
@@ -96,4 +130,35 @@ jobs:
           script: |
             set -euo pipefail
             cd /srv/inboxui
-            /srv/inboxui/deploy.sh ${{ needs.build.outputs.sha }}
+            export IMAGE_TAG="${{ needs.build.outputs.sha }}"
+
+            PREVIOUS_TAG=$(docker inspect --format '{{ index .Config.Labels "image.tag" }}' inboxui-app-1 2>/dev/null || true)
+            echo "Previous tag: ${PREVIOUS_TAG:-unknown}"
+            echo "Rolling to:   ${IMAGE_TAG}"
+
+            # Pull only app + migrate images; postgres/redis images untouched.
+            docker compose pull app migrate
+
+            # Apply migrations to completion before the new app starts.
+            docker compose run --rm migrate
+
+            # Recreate ONLY app + caddy; --no-deps leaves postgres/redis as-is.
+            docker compose up -d --no-deps app caddy
+
+            echo "Waiting for app to become healthy..."
+            for i in $(seq 1 30); do
+              status=$(docker inspect --format '{{ .State.Health.Status }}' inboxui-app-1 2>/dev/null || echo starting)
+              if [ "$status" = "healthy" ]; then
+                echo "App healthy after ${i}0s"
+                break
+              fi
+              sleep 10
+            done
+
+            if [ "$(docker inspect --format '{{ .State.Health.Status }}' inboxui-app-1)" != "healthy" ]; then
+              echo "App did not become healthy. Inspect: docker compose logs --tail=100 app"
+              exit 1
+            fi
+
+            docker image prune -f >/dev/null
+            echo "Deploy complete: ${IMAGE_TAG}"

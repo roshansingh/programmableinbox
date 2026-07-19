@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Server-side deploy hook. Called from CI over SSH:
-#   ssh deploy@host '/srv/inboxui/deploy.sh <git-sha>'
+# Manual initial-deploy / rollback hook. Routine CI deploys are inlined in
+# .github/workflows/deploy.yml and do NOT call this script; it exists for the
+# first bring-up (host bootstrap) and for rollbacks:
+#   IMAGE_TAG=<sha> /srv/inboxui/initial_deploy.sh <sha>
+# Keep its steps in sync with the inlined deploy job.
 set -euo pipefail
 
 TAG="${1:?usage: $0 <image-tag>}"

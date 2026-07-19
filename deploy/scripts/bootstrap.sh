@@ -50,7 +50,7 @@ dpkg-reconfigure -plow unattended-upgrades || true
 echo
 echo "Bootstrap done. Next steps:"
 echo "  1. As $DEPLOY_USER: place secrets/app.env under $SRV_DIR/secrets/ (mode 0600)."
-echo "  2. Copy deploy/docker-compose.yml, deploy/Caddyfile, and deploy/scripts/deploy.sh into $SRV_DIR/ (chmod +x deploy.sh)."
+echo "  2. Copy deploy/docker-compose.yml, deploy/Caddyfile, and deploy/scripts/initial_deploy.sh into $SRV_DIR/ (chmod +x initial_deploy.sh)."
 echo "  3. wal-g backup-fetch (if restoring) OR docker compose up -d postgres + docker compose run --rm migrate for fresh install."
 echo "  4. Initialise WAL-G storage:  docker compose exec postgres wal-g backup-list  (should succeed with empty list)."
 echo "  5. Add deploy@host SSH key to GH Actions secrets; trigger a deploy."
