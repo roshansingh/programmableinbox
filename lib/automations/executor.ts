@@ -226,8 +226,15 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
           configNodeType: node.type,
           status: nodeStatus,
           input: input,
-          output: (actionResult.output ?? undefined) as Prisma.InputJsonValue | undefined,
-          error: (actionResult.error ?? undefined) as Prisma.InputJsonValue | undefined,
+          // Include output/error only when present, so the JSON columns are
+          // simply omitted (left null) rather than set — and no `| undefined`
+          // cast is needed.
+          ...(actionResult.output != null
+            ? { output: actionResult.output as Prisma.InputJsonValue }
+            : {}),
+          ...(actionResult.error != null
+            ? { error: actionResult.error as Prisma.InputJsonValue }
+            : {}),
           startedAt: actionStartedAt,
           finishedAt: new Date(),
         },

@@ -97,8 +97,11 @@ async function loadExistingMessage(
   externalId: string,
   inboxEmailAddressId: string,
 ): Promise<MessageMarkers[]> {
-  const message = await prisma.emailMessage.findFirst({
-    where: { externalId, inboxEmailAddressId },
+  // findUnique on the composite unique `(externalId, inboxEmailAddressId)`:
+  // this lookup relies on that uniqueness, so it reads the unique index
+  // directly and can't silently return an arbitrary row.
+  const message = await prisma.emailMessage.findUnique({
+    where: { externalId_inboxEmailAddressId: { externalId, inboxEmailAddressId } },
     select: { id: true, dispatchedAt: true, enrichedAt: true },
   });
   return message ? [message] : [];
