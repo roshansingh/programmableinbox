@@ -44,11 +44,13 @@ async function main() {
     },
   })
 
-  await prisma.emailInbox.upsert({
-    where: { id: 'seed-email-inbox' },
+  // Keyed on `email` rather than a hardcoded id: ids are now generated UUIDv7,
+  // so the seed cannot name them up front. `email` is @unique, which is what
+  // keeps re-seeding idempotent.
+  const emailInbox = await prisma.emailInbox.upsert({
+    where: { email: 'inbox@example.com' },
     update: {},
     create: {
-      id: 'seed-email-inbox',
       organizationId: org.id,
       userId: user.id,
       email: 'inbox@example.com',
@@ -56,21 +58,33 @@ async function main() {
     },
   })
 
-  await prisma.phoneInbox.upsert({
-    where: { id: 'seed-phone-inbox' },
-    update: {},
-    create: {
-      id: 'seed-phone-inbox',
-      organizationId: org.id,
-      userId: user.id,
-      phoneNumber: '+1234567890',
-      countryCode: 'US',
-    },
+  // PhoneInbox has no unique column to upsert against (phoneNumber is not
+  // @unique — the same number may legitimately recur across orgs), so
+  // idempotency is find-then-create scoped to this seed's org.
+  const existingPhoneInbox = await prisma.phoneInbox.findFirst({
+    where: { organizationId: org.id, phoneNumber: '+1234567890' },
   })
+
+  const phoneInbox =
+    existingPhoneInbox ??
+    (await prisma.phoneInbox.create({
+      data: {
+        organizationId: org.id,
+        userId: user.id,
+        phoneNumber: '+1234567890',
+        countryCode: 'US',
+      },
+    }))
 
   console.log('Seed data created successfully')
   console.log(`  User: test@example.com / password123`)
   console.log(`  Organization: ${org.name} (${org.slug})`)
+  // Ids are generated now, not fixed strings — print them so they can be used
+  // directly in manual API calls.
+  console.log(`  User id:         ${user.id}`)
+  console.log(`  Organization id: ${org.id}`)
+  console.log(`  Email inbox id:  ${emailInbox.id}`)
+  console.log(`  Phone inbox id:  ${phoneInbox.id}`)
 }
 
 main()
