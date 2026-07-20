@@ -70,6 +70,8 @@ Production-ready structured logging via **Pino v10** (`lib/logger.ts`):
 
 `DATABASE_URL`, `JWT_SECRET`, `AUTH_RESEND_API_KEY`, `WEBHOOK_SECRET`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `NEXT_PUBLIC_API_MODE`.
 
+**`DATABASE_URL` must carry `options=-c%20timezone%3DUTC`.** Prisma sends timestamps as naive strings, so Postgres interprets them in the *session* timezone before storing them in `timestamptz` columns. A non-UTC session (a Mac inheriting `America/New_York`, say) stores every timestamp shifted by the local offset. Prisma reverses the shift on read, so the ORM looks correct while raw SQL sees the wrong instant — which silently broke the grouped-threads cursor pagination in `app/api/v1/emailInbox/[id]/messages/grouped-query.ts`. The deployed container also pins `timezone = 'UTC'` in `deploy/postgres/postgresql.conf`; the connection option is what covers local dev.
+
 ## Architecture
 
 This is a Next.js 16 App Router app that is **both** the frontend and the API — there is no separate backend. UI pages and `/api/*` route handlers live in the same `app/` tree.
