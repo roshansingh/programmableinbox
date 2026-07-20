@@ -174,6 +174,12 @@ model EmailMessage {
   categories          String[] @default([])
   extractedOtp        String?
   metadata            Json?
+  /// Per-step completion markers for the ingestion worker (F19). The worker
+  /// gates each step on its own marker rather than on message existence, so a
+  /// retry after a mid-processing crash re-runs the steps that didn't finish
+  /// instead of skipping them because the message row already exists.
+  dispatchedAt        DateTime? @db.Timestamptz(3)
+  enrichedAt          DateTime? @db.Timestamptz(3)
   deletedAt           DateTime? @db.Timestamptz(3)
   createdAt           DateTime @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime @updatedAt @db.Timestamptz(3)

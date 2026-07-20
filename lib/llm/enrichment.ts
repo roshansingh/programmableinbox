@@ -2,11 +2,20 @@ import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getProvider } from './factory'
 
-export async function enrichMessage(messageId: string): Promise<void> {
+/**
+ * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
+ * returns whether the step is *settled*:
+ *  - `true`  — enriched, or a definitive no-op (no provider, not entitled,
+ *              already enriched, message gone). Nothing to retry.
+ *  - `false` — a transient failure (provider/network error). The caller should
+ *              NOT mark the step complete, so it can be re-attempted rather than
+ *              permanently skipped (F19).
+ */
+export async function enrichMessage(messageId: string): Promise<boolean> {
   const provider = getProvider()
   if (!provider) {
     console.log('[enrichMessage] skip: no provider (LLM_PROVIDER not set or unrecognised)')
-    return
+    return true
   }
 
   try {
@@ -16,7 +25,7 @@ export async function enrichMessage(messageId: string): Promise<void> {
     })
     if (!message) {
       console.log('[enrichMessage] skip: message not found', messageId)
-      return
+      return true
     }
 
     const entitled = await CommercialProvider.entitlements.canUse({
@@ -25,12 +34,12 @@ export async function enrichMessage(messageId: string): Promise<void> {
     })
     if (!entitled) {
       console.log('[enrichMessage] skip: org not entitled', message.organizationId)
-      return
+      return true
     }
 
     if (message.metadata !== null) {
       console.log('[enrichMessage] skip: already enriched', messageId)
-      return
+      return true
     }
 
     console.log('[enrichMessage] calling provider.enrich', messageId)
@@ -44,8 +53,10 @@ export async function enrichMessage(messageId: string): Promise<void> {
         metadata: result.metadata,
       },
     })
+    return true
   } catch (error) {
     // console.error intentional: pino transport may be unavailable when this fires
     console.error('[enrichMessage] LLM enrichment failed', { messageId, error })
+    return false
   }
 }

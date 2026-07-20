@@ -84,16 +84,19 @@ describe('enrichMessage', () => {
       id: 'msg-1', subject: 'Re', text: 'body', metadata: {}, organizationId: 'org-1',
     })
     const { enrichMessage } = await import('../enrichment')
-    await enrichMessage('msg-1')
+    // A definitive skip is settled → true (nothing to retry).
+    await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
     expect(mockEnrich).not.toHaveBeenCalled()
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
-  it('does not throw when provider.enrich rejects', async () => {
+  it('returns false (transient failure, do not mark done) when provider.enrich rejects', async () => {
     mockEnrich.mockRejectedValue(new Error('rate limit'))
     const { enrichMessage } = await import('../enrichment')
-    await expect(enrichMessage('msg-1')).resolves.toBeUndefined()
+    // Never throws (best-effort), but signals failure so the caller doesn't
+    // permanently mark the step complete.
+    await expect(enrichMessage('msg-1')).resolves.toBe(false)
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 

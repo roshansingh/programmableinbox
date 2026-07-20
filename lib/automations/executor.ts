@@ -113,21 +113,20 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
   let runStatus: AutomationRunStatus = AutomationRunStatus.succeeded
 
   try {
-    const triggerNodeRun = await db.automationNodeRun.create({
+    // Node-runs are written in ONE insert already in their terminal state
+    // (F28), rather than create(running) → update(terminal). A hard crash
+    // mid-node can then never leave a node-run stuck at 'running': the row
+    // either exists complete or not at all. The run row keeps
+    // create(running) → terminal update, which the try/catch and the stuck-run
+    // sweeper already reconcile.
+    await db.automationNodeRun.create({
       data: {
         runId: run.id,
         configNodeId: config.trigger.id,
         configNodeType: 'trigger',
-        status: AutomationRunStatus.running,
-        input: input,
-      },
-    })
-
-    await db.automationNodeRun.update({
-      where: { id: triggerNodeRun.id },
-      data: {
         status: AutomationRunStatus.succeeded,
         branchTaken: initialTargets.length > 0 ? 'next' : null,
+        input: input,
         finishedAt: new Date(),
       },
     })
@@ -139,25 +138,18 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
       const node = nodeMap.get(currentNodeId)
       if (!node) break
 
-      const nodeRun = await db.automationNodeRun.create({
-        data: {
-          runId: run.id,
-          configNodeId: node.id,
-          configNodeType: node.type,
-          status: AutomationRunStatus.running,
-          input: input,
-        },
-      })
-
       if (node.type === 'condition') {
         const conditionMatched = evaluateCondition(node.config, input)
         matched = matched || conditionMatched
         const nextEdges = conditionMatched ? getOutgoingEdges(edgeMap, node.id, 'next') : []
-        await db.automationNodeRun.update({
-          where: { id: nodeRun.id },
+        await db.automationNodeRun.create({
           data: {
+            runId: run.id,
+            configNodeId: node.id,
+            configNodeType: node.type,
             status: AutomationRunStatus.succeeded,
             branchTaken: conditionMatched ? 'next' : null,
+            input: input,
             output: { matched: conditionMatched } as Prisma.InputJsonValue,
             finishedAt: new Date(),
           },
@@ -172,10 +164,13 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
       actionsExecuted += 1
       if (actionsExecuted > maxActions) {
         runStatus = AutomationRunStatus.failed
-        await db.automationNodeRun.update({
-          where: { id: nodeRun.id },
+        await db.automationNodeRun.create({
           data: {
+            runId: run.id,
+            configNodeId: node.id,
+            configNodeType: node.type,
             status: AutomationRunStatus.failed,
+            input: input,
             error: { message: 'maxActionsPerRun exceeded' },
             finishedAt: new Date(),
           },
@@ -183,13 +178,39 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
         break
       }
 
-      const actionResult = await executeActionNode(node, {
-        automation: params.automation,
-        revision: params.revision,
-        inbox: params.inbox,
-        input,
-        isDryRun: Boolean(params.isDryRun),
-      })
+      // Capture startedAt before running the action: with terminal-on-insert
+      // the row is written after the action completes, so the insert time would
+      // make node-run durations meaningless for action nodes (which do the real
+      // work — sending email, POSTing webhooks).
+      const actionStartedAt = new Date()
+      let actionResult
+      try {
+        actionResult = await executeActionNode(node, {
+          automation: params.automation,
+          revision: params.revision,
+          inbox: params.inbox,
+          input,
+          isDryRun: Boolean(params.isDryRun),
+        })
+      } catch (error) {
+        // A thrown action (e.g. a network error in send_webhook) still gets a
+        // terminal node-run breadcrumb — with a real duration — before the
+        // error propagates to the run-level catch. Terminal-on-insert holds: no
+        // stranded 'running' row, and the failing node is still recorded.
+        await db.automationNodeRun.create({
+          data: {
+            runId: run.id,
+            configNodeId: node.id,
+            configNodeType: node.type,
+            status: AutomationRunStatus.failed,
+            input: input,
+            error: serializeError(error),
+            startedAt: actionStartedAt,
+            finishedAt: new Date(),
+          },
+        })
+        throw error
+      }
 
       const nodeStatus =
         actionResult.status === 'failed'
@@ -198,15 +219,26 @@ export async function executeAutomation(params: ExecuteAutomationParams): Promis
             ? AutomationRunStatus.skipped
             : AutomationRunStatus.succeeded
 
-      await db.automationNodeRun.update({
-        where: { id: nodeRun.id },
-          data: {
-            status: nodeStatus,
-            output: (actionResult.output ?? undefined) as Prisma.InputJsonValue | undefined,
-            error: (actionResult.error ?? undefined) as Prisma.InputJsonValue | undefined,
-            finishedAt: new Date(),
-          },
-        })
+      await db.automationNodeRun.create({
+        data: {
+          runId: run.id,
+          configNodeId: node.id,
+          configNodeType: node.type,
+          status: nodeStatus,
+          input: input,
+          // Include output/error only when present, so the JSON columns are
+          // simply omitted (left null) rather than set — and no `| undefined`
+          // cast is needed.
+          ...(actionResult.output != null
+            ? { output: actionResult.output as Prisma.InputJsonValue }
+            : {}),
+          ...(actionResult.error != null
+            ? { error: actionResult.error as Prisma.InputJsonValue }
+            : {}),
+          startedAt: actionStartedAt,
+          finishedAt: new Date(),
+        },
+      })
 
       if (actionResult.status === 'failed') {
         if (node.onError === 'continue') {

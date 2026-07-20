@@ -57,22 +57,24 @@ vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
 // Prisma mock
 // ---------------------------------------------------------------------------
 
-const mockFindFirst = vi.fn();
+const mockFindUnique = vi.fn();
+const mockUpdate = vi.fn().mockResolvedValue({});
 const mockDeadLetterUpsert = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    emailMessage: { findFirst: mockFindFirst },
+    emailMessage: { findUnique: mockFindUnique, update: mockUpdate },
     emailJobDeadLetter: { upsert: mockDeadLetterUpsert },
   },
 }));
 
 // ---------------------------------------------------------------------------
-// storeIncomingEmail + dispatchAutomationsForEmail mocks
+// storeIncomingEmail + dispatchAutomationsForEmail + enrichMessage mocks
 // ---------------------------------------------------------------------------
 
 const mockStoreIncomingEmail = vi.fn();
 const mockDispatchAutomationsForEmail = vi.fn().mockResolvedValue([]);
+const mockEnrichMessage = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/app/api/v1/webhooks/email/route', () => ({
   storeIncomingEmail: (...args: unknown[]) => mockStoreIncomingEmail(...args),
@@ -82,6 +84,10 @@ vi.mock('@/app/api/v1/webhooks/email/route', () => ({
 vi.mock('@/lib/automations/dispatcher', () => ({
   dispatchAutomationsForEmail: (...args: unknown[]) =>
     mockDispatchAutomationsForEmail(...args),
+}));
+
+vi.mock('@/lib/llm/enrichment', () => ({
+  enrichMessage: (...args: unknown[]) => mockEnrichMessage(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -96,7 +102,7 @@ async function freshImport() {
   vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
   vi.mock('@/lib/db', () => ({
     prisma: {
-      emailMessage: { findFirst: mockFindFirst },
+      emailMessage: { findUnique: mockFindUnique, update: mockUpdate },
       emailJobDeadLetter: { upsert: mockDeadLetterUpsert },
     },
   }));
@@ -107,6 +113,9 @@ async function freshImport() {
   vi.mock('@/lib/automations/dispatcher', () => ({
     dispatchAutomationsForEmail: (...args: unknown[]) =>
       mockDispatchAutomationsForEmail(...args),
+  }));
+  vi.mock('@/lib/llm/enrichment', () => ({
+    enrichMessage: (...args: unknown[]) => mockEnrichMessage(...args),
   }));
 
   capturedProcessor = null;
@@ -156,6 +165,8 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     mockWorkerWaitUntilReady.mockResolvedValue(undefined);
     mockDeadLetterUpsert.mockResolvedValue(undefined);
     mockDispatchAutomationsForEmail.mockResolvedValue([]);
+    mockUpdate.mockResolvedValue({});
+    mockEnrichMessage.mockResolvedValue(true);
   });
 
   // -------------------------------------------------------------------------
@@ -236,8 +247,8 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
   // -------------------------------------------------------------------------
 
   describe('Job Processing — happy path', () => {
-    it('calls prisma.emailMessage.findFirst with correct idempotency key', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+    it('calls prisma.emailMessage.findUnique with the composite unique key', async () => {
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -245,15 +256,15 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
       await capturedProcessor!(makeJob());
 
-      expect(mockFindFirst).toHaveBeenCalledWith({
-        where: { externalId: 'em_456', inboxEmailAddressId: 'inbox_789' },
-        select: { id: true },
+      expect(mockFindUnique).toHaveBeenCalledWith({
+        where: { externalId_inboxEmailAddressId: { externalId: 'em_456', inboxEmailAddressId: 'inbox_789' } },
+        select: { id: true, dispatchedAt: true, enrichedAt: true },
       });
     });
 
     it('calls storeIncomingEmail with the payload and inbox filter', async () => {
       const payload = { from: 'a@b.com', subject: 'Hi' };
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -268,7 +279,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('calls dispatchAutomationsForEmail for each stored message', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([
         { id: 'msg_1' },
         { id: 'msg_2' },
@@ -286,7 +297,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('logs successful processing', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -299,7 +310,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('does not touch dead-letter on success', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -311,7 +322,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('does not throw on success', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -325,9 +336,9 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
   // Idempotency — skip if already stored
   // -------------------------------------------------------------------------
 
-  describe('Idempotency', () => {
-    it('skips storeIncomingEmail if email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+  describe('Idempotency and per-step markers (F19)', () => {
+    it('skips storeIncomingEmail when the message already exists', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: null, enrichedAt: null });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -337,8 +348,25 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockStoreIncomingEmail).not.toHaveBeenCalled();
     });
 
-    it('skips dispatchAutomationsForEmail if email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('RE-DISPATCHES when an existing message has no dispatchedAt marker (the bug fix)', async () => {
+      // Stored on a prior attempt that crashed before dispatch. Old code keyed
+      // idempotency on message existence and skipped dispatch forever.
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: null, enrichedAt: null });
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockDispatchAutomationsForEmail).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { dispatchedAt: expect.any(Date) },
+      });
+    });
+
+    it('skips dispatch when dispatchedAt is already set', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -348,8 +376,55 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockDispatchAutomationsForEmail).not.toHaveBeenCalled();
     });
 
-    it('returns without throwing when email already exists', async () => {
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('runs enrichment only when enrichedAt is unset, and marks it on success', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
+      mockEnrichMessage.mockResolvedValueOnce(true);
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { enrichedAt: expect.any(Date) },
+      });
+    });
+
+    it('does NOT set enrichedAt when enrichment fails transiently (returns false)', async () => {
+      // enrichMessage never throws; a false result means a transient failure.
+      // Marking enrichedAt anyway would permanently skip enrichment (the F19 bug).
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: null });
+      mockEnrichMessage.mockResolvedValueOnce(false);
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_existing');
+      expect(mockUpdate).not.toHaveBeenCalledWith({
+        where: { id: 'msg_existing' },
+        data: { enrichedAt: expect.any(Date) },
+      });
+    });
+
+    it('skips both steps when the message is already fully processed', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: new Date() });
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(mockDispatchAutomationsForEmail).not.toHaveBeenCalled();
+      expect(mockEnrichMessage).not.toHaveBeenCalled();
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns without throwing when the message already exists', async () => {
+      mockFindUnique.mockResolvedValueOnce({ id: 'msg_existing', dispatchedAt: new Date(), enrichedAt: new Date() });
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
@@ -357,17 +432,19 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       await expect(capturedProcessor!(makeJob())).resolves.toBeUndefined();
     });
 
-    it('logs "skipping" when email already exists', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce({ id: 'msg_existing' });
+    it('newly stored message: dispatches, enriches, and sets both markers', async () => {
+      mockFindUnique.mockResolvedValueOnce(null);
+      mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_new', dispatchedAt: null, enrichedAt: null }]);
 
       const { getEmailWebhookWorker } = await freshImport();
       getEmailWebhookWorker();
 
       await capturedProcessor!(makeJob());
 
-      const messages = consoleSpy.mock.calls.map((c) => c[0]);
-      expect(messages.some((m) => m.includes('skipping'))).toBe(true);
+      expect(mockDispatchAutomationsForEmail).toHaveBeenCalledWith('msg_new');
+      expect(mockEnrichMessage).toHaveBeenCalledWith('msg_new');
+      expect(mockUpdate).toHaveBeenCalledWith({ where: { id: 'msg_new' }, data: { dispatchedAt: expect.any(Date) } });
+      expect(mockUpdate).toHaveBeenCalledWith({ where: { id: 'msg_new' }, data: { enrichedAt: expect.any(Date) } });
     });
   });
 
@@ -377,7 +454,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
   describe('Empty storeIncomingEmail result', () => {
     it('skips dispatchAutomationsForEmail when store returns empty array', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -389,7 +466,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('returns without throwing when store returns empty array', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -400,7 +477,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('logs that 0 messages were returned', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([]);
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -421,7 +498,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
   describe('Failure handling', () => {
     it('throws when storeIncomingEmail rejects (so BullMQ retries)', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('DB write failed'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -433,7 +510,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('throws when dispatchAutomationsForEmail rejects', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
       mockDispatchAutomationsForEmail.mockRejectedValueOnce(
         new Error('Dispatch failed'),
@@ -449,7 +526,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('logs the error message on failure', async () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('Store failed'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -464,7 +541,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('does not write dead-letter on non-final attempt', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(
         new Error('Temporary failure'),
       );
@@ -481,7 +558,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('does not write dead-letter on intermediate retry (attemptsMade=1 of 4)', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('Temp'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -501,7 +578,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
   describe('Dead-letter queue', () => {
     it('writes to dead-letter on the final attempt', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(
         new Error('Persistent failure'),
       );
@@ -518,7 +595,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('upserts with the compound unique key', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -542,7 +619,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('includes the error message in the create payload', async () => {
       const errorMessage = 'Custom failure reason';
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error(errorMessage));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -563,7 +640,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('includes the error message in the update payload', async () => {
       const errorMessage = 'Custom failure reason';
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error(errorMessage));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -583,7 +660,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('records the correct attemptCount in the create payload', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -605,7 +682,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('stores the original payload in the dead-letter create record', async () => {
       const payload = { from: 'x@y.com', subject: 'Dead' };
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -625,7 +702,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('still throws after dead-letter upsert so BullMQ records terminal failure', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(
         new Error('Persistent failure'),
       );
@@ -640,7 +717,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('logs dead-letter write', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -655,7 +732,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('survives a dead-letter upsert error and still re-throws the original error', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(
         new Error('Original error'),
       );
@@ -672,7 +749,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('logs the dead-letter write failure when upsert throws', async () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
       mockDeadLetterUpsert.mockRejectedValueOnce(new Error('DL write failed'));
 
@@ -694,7 +771,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
   describe('Edge cases', () => {
     it('handles a non-Error thrown value (string) and still dead-letters on final attempt', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       // Throw a raw string instead of an Error instance
       mockStoreIncomingEmail.mockRejectedValueOnce('String error');
 
@@ -715,7 +792,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
     });
 
     it('handles a non-Error thrown value (string) and re-throws', async () => {
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce('String error');
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -728,7 +805,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('passes a malformed payload through without throwing before the store step', async () => {
       // findFirst returns null so we proceed to storeIncomingEmail
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('Invalid payload'));
 
       const { getEmailWebhookWorker } = await freshImport();
@@ -748,7 +825,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
 
     it('uses WEBHOOK_QUEUE_CONFIG.maxRetries + 1 as fallback when job.opts.attempts is undefined', async () => {
       // Simulate a job whose opts.attempts is undefined (edge case in BullMQ)
-      mockFindFirst.mockResolvedValueOnce(null);
+      mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
 
       const { getEmailWebhookWorker } = await freshImport();

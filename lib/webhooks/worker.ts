@@ -89,6 +89,24 @@ export function getEmailWebhookWorker(): Worker<EmailWebhookJobData> {
 // Job processor
 // ---------------------------------------------------------------------------
 
+/** A stored message with just the fields the per-step marker logic needs. */
+type MessageMarkers = { id: string; dispatchedAt: Date | null; enrichedAt: Date | null };
+
+/** Loads the already-stored message for this (externalId, inbox), if any. */
+async function loadExistingMessage(
+  externalId: string,
+  inboxEmailAddressId: string,
+): Promise<MessageMarkers[]> {
+  // findUnique on the composite unique `(externalId, inboxEmailAddressId)`:
+  // this lookup relies on that uniqueness, so it reads the unique index
+  // directly and can't silently return an arbitrary row.
+  const message = await prisma.emailMessage.findUnique({
+    where: { externalId_inboxEmailAddressId: { externalId, inboxEmailAddressId } },
+    select: { id: true, dispatchedAt: true, enrichedAt: true },
+  });
+  return message ? [message] : [];
+}
+
 /**
  * Processes a single email webhook job.
  *
@@ -110,60 +128,86 @@ async function processEmailWebhookJob(
 
   try {
     // ------------------------------------------------------------------
-    // Step 1: Idempotency check
+    // Step 1: Resolve the message(s) — store if new, else load prior state
     // ------------------------------------------------------------------
-    // `storeIncomingEmail` already handles P2002 duplicate errors, but we
-    // short-circuit here to avoid the Resend API call and threading logic
-    // when we can confirm upfront the message is already stored.
-    const existingMessage = await prisma.emailMessage.findFirst({
-      where: { externalId, inboxEmailAddressId },
-      select: { id: true },
-    });
+    // Idempotency is tracked per processing step (dispatchedAt / enrichedAt),
+    // NOT by message existence (F19). Keying off existence meant that a crash
+    // after storage but before dispatch/enrichment caused the retry to see the
+    // message, skip everything, and drop automations + enrichment permanently.
+    let messages = await loadExistingMessage(externalId, inboxEmailAddressId);
 
-    if (existingMessage) {
-      console.log(
-        `[webhook-worker] email ${externalId} already stored for inbox ${inboxEmailAddressId}, skipping`,
-      );
-      return;
+    if (messages.length === 0) {
+      // The payload was validated and shaped by the webhook route before being
+      // enqueued, so casting to ResendEmailData is safe here. The inbox filter
+      // keeps a fan-out email from being stored into every matching inbox by
+      // every per-inbox job.
+      const resendEmail = payload as unknown as ResendEmailData;
+      const stored = await storeIncomingEmail(resendEmail, [inboxEmailAddressId]);
+
+      if (stored.length > 0) {
+        messages = stored.map((m) => ({
+          id: m.id,
+          dispatchedAt: m.dispatchedAt ?? null,
+          enrichedAt: m.enrichedAt ?? null,
+        }));
+      } else {
+        // storeIncomingEmail deduped (P2002) — a concurrent job may have stored
+        // it. Re-load so this job still drives any unfinished step rather than
+        // silently dropping it.
+        messages = await loadExistingMessage(externalId, inboxEmailAddressId);
+        if (messages.length === 0) {
+          console.log(
+            `[webhook-worker] storeIncomingEmail returned 0 messages for ${externalId}; inbox may have been removed`,
+          );
+          return;
+        }
+      }
     }
 
     // ------------------------------------------------------------------
-    // Step 2: Store the email
+    // Step 2: Dispatch automations — gated on the dispatchedAt marker
     // ------------------------------------------------------------------
-    // The payload was validated and shaped by the webhook route before being
-    // enqueued, so casting to ResendEmailData is safe here.
-    const resendEmail = payload as unknown as ResendEmailData;
-    // Pass the inbox filter so storeIncomingEmail only writes to this specific
-    // inbox. Without the filter, a fan-out email (to multiple inboxes) would
-    // store messages in every matching inbox from every per-inbox job, causing
-    // duplicate storage across jobs targeting the same email.
-    const storedMessages = await storeIncomingEmail(resendEmail, [inboxEmailAddressId]);
-
-    if (storedMessages.length === 0) {
-      // No matching inboxes or all were duplicates — nothing left to do.
-      console.log(
-        `[webhook-worker] storeIncomingEmail returned 0 messages for ${externalId}; inbox may have been removed`,
-      );
-      return;
-    }
-
-    // ------------------------------------------------------------------
-    // Step 3: Dispatch automations
-    // ------------------------------------------------------------------
-    // Run in parallel — automations for different messages are independent.
+    // Set the marker only after dispatch succeeds. A crash after dispatch but
+    // before the marker write makes the retry re-dispatch (at-least-once). This
+    // is a deliberate trade-off: it can re-run action side effects — the
+    // auto-reply (de-duplicated by its atomic throttle, F17) but also
+    // forward_email and send_webhook, which are NOT de-duplicated. Making those
+    // exactly-once needs per-node/per-run idempotency keys, which is out of
+    // scope here; at-least-once was the accepted behavior for this fix.
     await Promise.all(
-      storedMessages.map((message) => dispatchAutomationsForEmail(message.id)),
+      messages
+        .filter((message) => !message.dispatchedAt)
+        .map(async (message) => {
+          await dispatchAutomationsForEmail(message.id);
+          await prisma.emailMessage.update({
+            where: { id: message.id },
+            data: { dispatchedAt: new Date() },
+          });
+        }),
     );
 
     // ------------------------------------------------------------------
-    // Step 4: LLM enrichment (best-effort, never throws)
+    // Step 3: LLM enrichment (best-effort, never throws) — gated on enrichedAt
     // ------------------------------------------------------------------
     await Promise.all(
-      storedMessages.map((message) => enrichMessage(message.id)),
+      messages
+        .filter((message) => !message.enrichedAt)
+        .map(async (message) => {
+          // enrichMessage is best-effort and never throws; it returns whether
+          // the step is settled. Only mark enrichedAt when it is — a transient
+          // enrichment failure must not permanently skip the step (F19).
+          const settled = await enrichMessage(message.id);
+          if (settled) {
+            await prisma.emailMessage.update({
+              where: { id: message.id },
+              data: { enrichedAt: new Date() },
+            });
+          }
+        }),
     );
 
     console.log(
-      `[webhook-worker] email ${externalId} fully processed: ${storedMessages.length} message(s) stored, automations dispatched`,
+      `[webhook-worker] email ${externalId} fully processed: ${messages.length} message(s), automations dispatched`,
     );
   } catch (error) {
     const errorMessage =
