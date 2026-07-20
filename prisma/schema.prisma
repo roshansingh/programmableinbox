@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid(7)) @db.Uuid
   email         String   @unique
   passwordHash  String
   firstName     String?
@@ -27,7 +27,7 @@ model User {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7)) @db.Uuid
   name      String
   slug      String   @unique
   createdAt DateTime @default(now()) @db.Timestamptz(3)
@@ -56,9 +56,9 @@ enum Role {
 }
 
 model Membership {
-  id             String   @id @default(cuid())
-  userId         String
-  organizationId String
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @db.Uuid
+  organizationId String   @db.Uuid
   role           Role
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @db.Timestamptz(3)
@@ -71,9 +71,9 @@ model Membership {
 }
 
 model EmailInbox {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
   /// Globally unique (F1). Inbound routing matches purely on this address, so
   /// two orgs holding the same address means mail lands in both. Uniqueness is
   /// what makes that physically impossible.
@@ -103,9 +103,9 @@ model EmailInbox {
 }
 
 model PhoneInbox {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
   phoneNumber    String
   countryCode    String
   deletedAt      DateTime? @db.Timestamptz(3)
@@ -121,7 +121,7 @@ model PhoneInbox {
 }
 
 model ApiKey {
-  id             String   @id @default(cuid())
+  id             String   @id @default(uuid(7)) @db.Uuid
   /// Legacy plaintext column. Always written as null since the hashing change;
   /// retained only for pre-existing rows. Dropping it is destructive and gated
   /// on verifying prod has no legacy keys (F5, deferred).
@@ -132,8 +132,8 @@ model ApiKey {
   prefix         String?
   name           String
   scopes         String[] @default([])
-  organizationId String
-  userId         String
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
   /// Key lifecycle (F5). Auth rejects a key once revoked or past expiry, so a
   /// leaked credential can be killed at the data layer. Deleting a key sets
   /// revokedAt rather than removing the row.
@@ -152,7 +152,7 @@ model ApiKey {
 }
 
 model EmailMessage {
-  id                  String   @id @default(uuid())
+  id                  String   @id @default(uuid(7)) @db.Uuid
   from                String
   to                  String[]
   bcc                 String[]
@@ -161,11 +161,16 @@ model EmailMessage {
   text                String
   html                String
   headers             Json
+  /// Resend's opaque email id — an external string, not a row id.
   externalId          String
-  inboxEmailAddressId String
-  organizationId      String
-  threadId            String
-  parentMessageId     String?
+  inboxEmailAddressId String   @db.Uuid
+  organizationId      String   @db.Uuid
+  /// Always holds an EmailMessage id: a new thread seeds this with the message's
+  /// own id (see the send route), so it is uuid-typed like any other row id.
+  threadId            String   @db.Uuid
+  parentMessageId     String?  @db.Uuid
+  /// RFC-822 Message-ID from the mail headers. Stays text — it is an external
+  /// identifier and is not a UUID. Same for inReplyTo / references below.
   messageId           String   @unique
   inReplyTo           String?
   references          String[]
@@ -229,11 +234,11 @@ enum WebhookEventStatus {
 }
 
 model Webhook {
-  id             String        @id @default(cuid())
+  id             String        @id @default(uuid(7)) @db.Uuid
   name           String
   url            String
   events         String[]
-  organizationId String
+  organizationId String        @db.Uuid
   status         WebhookStatus @default(active)
   secret         String?
   lastTriggered  DateTime? @db.Timestamptz(3)
@@ -249,8 +254,8 @@ model Webhook {
 }
 
 model WebhookEvent {
-  id          String             @id @default(cuid())
-  webhookId   String
+  id          String             @id @default(uuid(7)) @db.Uuid
+  webhookId   String             @db.Uuid
   event       String
   payload     Json
   status      WebhookEventStatus @default(pending)
@@ -268,13 +273,13 @@ model WebhookEvent {
 }
 
 model Automation {
-  id               String   @id @default(cuid())
-  organizationId   String
-  inboxId          String?
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  inboxId          String?  @db.Uuid
   name             String
   description      String?
   isActive         Boolean  @default(true)
-  activeRevisionId String?  @unique
+  activeRevisionId String?  @unique @db.Uuid
   deletedAt        DateTime? @db.Timestamptz(3)
   createdAt        DateTime @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime @updatedAt @db.Timestamptz(3)
@@ -294,13 +299,13 @@ model Automation {
 }
 
 model AutomationRevision {
-  id              String   @id @default(cuid())
-  automationId    String
+  id              String   @id @default(uuid(7)) @db.Uuid
+  automationId    String   @db.Uuid
   revision        Int
   schemaVersion   Int
   config          Json
   layout          Json?
-  createdByUserId String?
+  createdByUserId String?  @db.Uuid
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
 
   automation    Automation   @relation("AutomationRevisions", fields: [automationId], references: [id], onDelete: Cascade)
@@ -315,11 +320,11 @@ model AutomationRevision {
 }
 
 model AutomationRun {
-  id                   String              @id @default(cuid())
-  automationId         String
-  automationRevisionId String
-  organizationId       String
-  emailMessageId       String?
+  id                   String              @id @default(uuid(7)) @db.Uuid
+  automationId         String              @db.Uuid
+  automationRevisionId String              @db.Uuid
+  organizationId       String              @db.Uuid
+  emailMessageId       String?             @db.Uuid
   triggerType          String
   status               AutomationRunStatus
   isDryRun             Boolean             @default(false)
@@ -342,8 +347,10 @@ model AutomationRun {
 }
 
 model AutomationNodeRun {
-  id             String              @id @default(cuid())
-  runId          String
+  id             String              @id @default(uuid(7)) @db.Uuid
+  runId          String              @db.Uuid
+  /// Identifies a node inside the revision's JSON config graph, not a table row.
+  /// Stays text.
   configNodeId   String
   configNodeType String
   status         AutomationRunStatus
@@ -361,9 +368,9 @@ model AutomationNodeRun {
 }
 
 model EmailJobDeadLetter {
-  id                    String   @id @default(cuid())
-  externalId            String   // Resend email ID
-  inboxEmailAddressId   String
+  id                    String   @id @default(uuid(7)) @db.Uuid
+  externalId            String   // Resend email ID — external string, stays text
+  inboxEmailAddressId   String   @db.Uuid
   inboxEmailAddress     EmailInbox @relation(fields: [inboxEmailAddressId], references: [id], onDelete: Cascade)
   payload               Json     // Full email payload
   error                 String   // Error message from failed processing
@@ -376,8 +383,8 @@ model EmailJobDeadLetter {
 }
 
 model EmailAttachment {
-  id             String   @id @default(cuid())
-  emailMessageId String
+  id             String   @id @default(uuid(7)) @db.Uuid
+  emailMessageId String   @db.Uuid
   filename       String
   contentType    String?
   sizeBytes      Int?
@@ -390,9 +397,9 @@ model EmailAttachment {
 }
 
 model AutoReplyLedger {
-  id           String   @id @default(cuid())
-  automationId String
-  inboxId      String
+  id           String   @id @default(uuid(7)) @db.Uuid
+  automationId String   @db.Uuid
+  inboxId      String   @db.Uuid
   fromEmail    String
   lastSentAt   DateTime @db.Timestamptz(3)
   createdAt    DateTime @default(now()) @db.Timestamptz(3)
@@ -405,6 +412,9 @@ model AutoReplyLedger {
   @@map("auto_reply_ledgers")
 }
 
+/// The one model deliberately left off the UUIDv7 scheme: `jobName` is a natural
+/// key, not a generated id. Backup jobs are addressed by name from
+/// deploy/backup/scripts/, so a uuid here would break those scripts for no gain.
 model BackupStatus {
   jobName       String   @id @map("job_name")
   lastSuccessAt DateTime @map("last_success_at") @db.Timestamptz(3)

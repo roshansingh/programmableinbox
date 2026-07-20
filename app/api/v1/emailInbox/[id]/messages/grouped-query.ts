@@ -29,6 +29,10 @@ export interface GroupedThreadHead {
  * the soft-delete client extension in lib/db.ts, so this is the one read path
  * that would otherwise serve deleted messages (F8). It also keeps threadCount
  * honest — deleted messages must not inflate the count.
+ *
+ * The `::uuid` casts on bound params are required: `id` and `inboxEmailAddressId`
+ * are uuid columns, and params arrive as text. Without the casts this is a
+ * `uuid = text` comparison, which Postgres rejects.
  */
 export async function fetchGroupedThreadHeads(
   inboxId: string,
@@ -36,7 +40,7 @@ export async function fetchGroupedThreadHeads(
   take: number,
 ): Promise<GroupedThreadHead[]> {
   const cursorFilter = cursor
-    ? Prisma.sql`WHERE ((extract(epoch from "createdAt") * 1000)::bigint, "id") < (${cursor.epochMs}::bigint, ${cursor.id})`
+    ? Prisma.sql`WHERE ((extract(epoch from "createdAt") * 1000)::bigint, "id") < (${cursor.epochMs}::bigint, ${cursor.id}::uuid)`
     : Prisma.empty
 
   return prisma.$queryRaw<GroupedThreadHead[]>`
@@ -44,7 +48,7 @@ export async function fetchGroupedThreadHeads(
       SELECT DISTINCT ON ("threadId") *,
              count(*) OVER (PARTITION BY "threadId")::int AS "threadCount"
       FROM email_messages
-      WHERE "inboxEmailAddressId" = ${inboxId}
+      WHERE "inboxEmailAddressId" = ${inboxId}::uuid
         AND "deletedAt" IS NULL
       ORDER BY "threadId", "createdAt" DESC, "id" DESC
     )
