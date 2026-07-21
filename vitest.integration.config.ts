@@ -15,9 +15,10 @@ export default defineConfig({
     // global-teardown.ts to this array — it would run as a second setup.
     globalSetup: ['./test/integration/setup/global-setup.ts'],
     // One shared inbox_test DB with per-test TRUNCATE: files must run serially.
+    // fileParallelism:false already forces a single worker in Vitest 4; the old
+    // poolOptions.forks.singleFork is redundant and triggers a deprecation warning.
     fileParallelism: false,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
     hookTimeout: 60000,
     testTimeout: 30000,
     env: { NEXT_PUBLIC_API_MODE: 'local' },
