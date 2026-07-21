@@ -13,11 +13,14 @@ export default async function globalSetup() {
   // Create the database if it does not exist.
   const admin = new Client({ connectionString: maintenanceUrl })
   await admin.connect()
-  const exists = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName])
-  if (exists.rowCount === 0) {
-    await admin.query(`CREATE DATABASE "${dbName}"`)
+  try {
+    const exists = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName])
+    if (exists.rowCount === 0) {
+      await admin.query(`CREATE DATABASE "${dbName}"`)
+    }
+  } finally {
+    await admin.end()
   }
-  await admin.end()
 
   // Apply migrations (includes pgcrypto + partial indexes from the baseline).
   execSync('node node_modules/prisma/build/index.js migrate deploy', {

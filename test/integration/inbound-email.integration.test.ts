@@ -3,10 +3,11 @@ import { resendClient } from './helpers/resend-stub'
 const resend = vi.hoisted(() => ({ send: vi.fn(), verify: vi.fn(), receivingGet: vi.fn() }))
 vi.mock('@/lib/resend', () => ({ getResend: () => resendClient(resend) }))
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { POST } from '@/app/api/v1/webhooks/email/route'
 import type { ResendEmailData } from '@/app/api/v1/webhooks/email/route'
 import { prisma } from '@/lib/db'
+import { getLogger } from '@/lib/logger'
 import { createOrgWithUser } from './helpers/auth'
 import { seedInbox, seedMessage } from './helpers/factories'
 import { jsonRequest } from './helpers/request'
@@ -36,6 +37,10 @@ describe('POST /api/v1/webhooks/email', () => {
     resend.send.mockReset()
     resend.verify.mockReset()
     resend.receivingGet.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('401 on a bad signature', async () => {
@@ -130,6 +135,9 @@ describe('POST /api/v1/webhooks/email', () => {
   })
 
   it('silently skips a duplicate (externalId, inboxEmailAddressId) delivery', async () => {
+    const infoSpy = vi.spyOn(getLogger(), 'info')
+    const errorSpy = vi.spyOn(getLogger(), 'error')
+
     const { org, user } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id, { email: 'inbox@test.dev' })
     resend.verify.mockReturnValue(undefined)
@@ -144,6 +152,14 @@ describe('POST /api/v1/webhooks/email', () => {
     expect(res2.status).toBe(200)
     const count = await prisma.emailMessage.count({ where: { externalId: email.id, inboxEmailAddressId: inbox.id } })
     expect(count).toBe(1)
+
+    // The duplicate must be logged as a quiet skip (info), never as an error —
+    // this is the behavior the P2002-detection refactor must preserve.
+    expect(infoSpy).toHaveBeenCalledWith(
+      { inboxEmail: inbox.email, externalId: email.id },
+      'Duplicate email skipped for inbox'
+    )
+    expect(errorSpy).not.toHaveBeenCalled()
   })
 
   it('acknowledges a non-email.received event without persisting or fetching the email', async () => {

@@ -14,11 +14,14 @@ export async function dropTestDb() {
 
   const admin = new Client({ connectionString: maintenanceUrl })
   await admin.connect()
-  // Terminate stragglers, then drop.
-  await admin.query(
-    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
-    [dbName],
-  )
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}"`)
-  await admin.end()
+  try {
+    // Terminate stragglers, then drop.
+    await admin.query(
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()`,
+      [dbName],
+    )
+    await admin.query(`DROP DATABASE IF EXISTS "${dbName}"`)
+  } finally {
+    await admin.end()
+  }
 }

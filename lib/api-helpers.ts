@@ -17,6 +17,8 @@ export function jsonError(message: string, status = 400) {
  * engine, or `meta.driverAdapterError.cause.constraint.fields` (array) when
  * running through `@prisma/adapter-pg` (this project's setup — see
  * `lib/db.ts`). Both are checked so this works regardless of driver.
+ * Note: the adapter path reports raw DB column names, which only match
+ * Prisma field names (as passed in `field`) when the column has no `@map`.
  */
 export function isUniqueViolation(error: unknown, field: string): boolean {
   if (typeof error !== 'object' || error === null) return false
@@ -34,6 +36,11 @@ export function isUniqueViolation(error: unknown, field: string): boolean {
   if (Array.isArray(target)) return target.includes(field)
   if (target === field) return true
 
+  // Postgres double-quotes mixed-case identifiers when reporting constraint
+  // violations (e.g. `"messageId"`), so strip surrounding quotes before comparing.
   const adapterFields = meta?.driverAdapterError?.cause?.constraint?.fields
-  return Array.isArray(adapterFields) && adapterFields.includes(field)
+  return (
+    Array.isArray(adapterFields) &&
+    adapterFields.some((f) => (typeof f === 'string' ? f.replace(/^"|"$/g, '') : f) === field)
+  )
 }

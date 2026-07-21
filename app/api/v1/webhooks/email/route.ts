@@ -5,6 +5,7 @@ import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
+import { isUniqueViolation } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 
 /**
@@ -218,17 +219,8 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       // reproduces both the (externalId, inboxEmailAddressId) unique key and the
       // derived messageId, and Postgres only reports whichever constraint it
       // checks first — so both must be treated as "already stored", not a failure.
-      //
-      // Under Prisma 7 with the @prisma/adapter-pg driver adapter, P2002 errors
-      // don't populate `error.meta.target` (that's a prisma-client-js-only
-      // shape) — the violated column names instead live at
-      // `error.meta.driverAdapterError.cause.constraint.fields`. Check both
-      // shapes so this works regardless of driver.
-      const violatedFields: string[] =
-        error.meta?.target ?? error.meta?.driverAdapterError?.cause?.constraint?.fields ?? []
       const isDuplicateKeyViolation =
-        error.code === 'P2002' &&
-        violatedFields.some((field: string) => field.includes('externalId') || field.includes('messageId'))
+        isUniqueViolation(error, 'externalId') || isUniqueViolation(error, 'messageId')
 
       if (isDuplicateKeyViolation) {
         logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
