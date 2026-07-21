@@ -1,6 +1,7 @@
 // test/integration/helpers/factories.ts
 import { prisma } from '@/lib/db'
 import type { Prisma } from '@/lib/generated/prisma/client'
+import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 
 let n = 0
 const next = () => (n += 1)
@@ -41,12 +42,18 @@ export async function seedAutomation(orgId: string, inboxId?: string, over: Part
   const automation = await prisma.automation.create({
     data: { organizationId: orgId, inboxId: inboxId ?? null, name: `automation-${next()}`, ...over },
   })
+  // Config must satisfy automationConfigSchema (trigger + reachable action, etc.) —
+  // formatAutomationRecord parses it on every read, so a bare `{ nodes: [], edges: [] }`
+  // throws an unhandled ZodError in every route that touches this automation.
+  const config = createDefaultAutomationConfig()
+  const layout = createDefaultAutomationLayout(config)
   const revision = await prisma.automationRevision.create({
     data: {
       automationId: automation.id,
       revision: 1,
-      schemaVersion: 1,
-      config: { nodes: [], edges: [] },
+      schemaVersion: config.version,
+      config,
+      layout,
     },
   })
   await prisma.automation.update({ where: { id: automation.id }, data: { activeRevisionId: revision.id } })

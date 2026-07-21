@@ -47,10 +47,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (typeof parsed.body.isActive === 'boolean') shellData.isActive = parsed.body.isActive
   if (parsed.body.description === null) shellData.description = null
 
-  const nextConfig = parsed.body.config ? parseAutomationConfig(parsed.body.config) : null
-  const nextLayout = parsed.body.layout ? parseAutomationLayout(parsed.body.layout) : null
-  const effectiveConfig =
-    nextConfig ?? (automation.activeRevision ? parseAutomationConfig(automation.activeRevision.config) : null)
+  let nextConfig
+  let nextLayout
+  let effectiveConfig
+  try {
+    nextConfig = parsed.body.config ? parseAutomationConfig(parsed.body.config) : null
+    nextLayout = parsed.body.layout ? parseAutomationLayout(parsed.body.layout) : null
+    effectiveConfig =
+      nextConfig ?? (automation.activeRevision ? parseAutomationConfig(automation.activeRevision.config) : null)
+  } catch {
+    return jsonError('Invalid automation config or layout', 400)
+  }
 
   if (shellData.isActive === true) {
     if (!effectiveConfig) {
