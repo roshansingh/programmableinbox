@@ -214,8 +214,23 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
 
       created.push(message)
     } catch (error: any) {
-      // Skip duplicates
-      if (error.code === 'P2002' && error.meta?.target?.includes('externalId')) {
+      // Skip duplicates. A retried delivery of the same email deterministically
+      // reproduces both the (externalId, inboxEmailAddressId) unique key and the
+      // derived messageId, and Postgres only reports whichever constraint it
+      // checks first — so both must be treated as "already stored", not a failure.
+      //
+      // Under Prisma 7 with the @prisma/adapter-pg driver adapter, P2002 errors
+      // don't populate `error.meta.target` (that's a prisma-client-js-only
+      // shape) — the violated column names instead live at
+      // `error.meta.driverAdapterError.cause.constraint.fields`. Check both
+      // shapes so this works regardless of driver.
+      const violatedFields: string[] =
+        error.meta?.target ?? error.meta?.driverAdapterError?.cause?.constraint?.fields ?? []
+      const isDuplicateKeyViolation =
+        error.code === 'P2002' &&
+        violatedFields.some((field: string) => field.includes('externalId') || field.includes('messageId'))
+
+      if (isDuplicateKeyViolation) {
         logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
         continue
       }
