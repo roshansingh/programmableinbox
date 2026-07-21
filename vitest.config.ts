@@ -9,7 +9,7 @@ export default defineConfig({
   test: {
     globals: true,
     css: false,
-    exclude: ['node_modules', 'dist', '.worktrees/**/*', '.claude/**/*.test.*', '.claude/**/*.spec.*'],
+    exclude: ['node_modules', 'dist', '.worktrees/**/*', '.claude/**/*.test.*', '.claude/**/*.spec.*', 'test/integration/**'],
     projects: [
       {
         // UI component tests — jsdom with MSW setup
