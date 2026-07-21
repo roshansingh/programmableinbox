@@ -67,7 +67,9 @@ describe('POST /api/cron/sweep-stuck-runs', () => {
     )
     expect(res.status).toBe(200)
     const { data } = await res.json()
-    expect(data.count).toBeGreaterThanOrEqual(1)
+    // Exactly 1: beforeEach truncates, this test seeds one qualifying stuck run
+    // plus one non-qualifying fresh run (negative control) that must NOT be swept.
+    expect(data.count).toBe(1)
 
     const sweptRun = await prisma.automationRun.findUniqueOrThrow({ where: { id: stuckRun.id } })
     expect(sweptRun.status).toBe(AutomationRunStatus.failed)
