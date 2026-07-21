@@ -24,7 +24,9 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
     const m1 = await seedMessage(inbox.id, org.id, { subject: 'first' })
+    await new Promise((r) => setTimeout(r, 5))
     const m2 = await seedMessage(inbox.id, org.id, { subject: 'second' })
+    await new Promise((r) => setTimeout(r, 5))
     const m3 = await seedMessage(inbox.id, org.id, { subject: 'third' })
 
     const res = await listMessages(
@@ -43,7 +45,9 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
     const m1 = await seedMessage(inbox.id, org.id, { subject: 'first' })
+    await new Promise((r) => setTimeout(r, 5))
     const m2 = await seedMessage(inbox.id, org.id, { subject: 'second' })
+    await new Promise((r) => setTimeout(r, 5))
     const m3 = await seedMessage(inbox.id, org.id, { subject: 'third' })
 
     const page1 = await listMessages(
