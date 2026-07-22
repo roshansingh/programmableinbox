@@ -78,8 +78,21 @@ model EmailInbox {
   /// two orgs holding the same address means mail lands in both. Uniqueness is
   /// what makes that physically impossible.
   ///
+  /// Always stored normalized — lowercased and trimmed (see
+  /// `lib/email-address.ts`). This index is byte-exact while the router
+  /// lowercases the inbound recipient, so without normalization
+  /// `Billing@corp.com` and `billing@corp.com` would be two rows to Postgres
+  /// but one address to the router — and the second claimant would intercept
+  /// the first's mail. A CHECK constraint added in
+  /// `20260721_normalize_inbox_addresses` (`email = lower(btrim(email))`)
+  /// enforces the invariant at the database layer; it is not expressible in
+  /// this schema, so it lives only in that migration's SQL.
+  ///
   /// Soft-deleted rows keep their address, so a deleted inbox's address can
-  /// never be reclaimed by another org.
+  /// never be reclaimed by another org. This is deliberately NOT a partial
+  /// index on `deleted_at IS NULL`: DNS/routing keeps delivering to the
+  /// address after an inbox is deleted, so freeing it for reclaim would hand
+  /// the next claimant the previous owner's still-arriving mail.
   email          String   @unique
   name           String?
   deletedAt      DateTime? @db.Timestamptz(3)

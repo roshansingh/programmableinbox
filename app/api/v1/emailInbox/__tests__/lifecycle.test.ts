@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getAuthenticatedUserMock = vi.fn()
 const emailInboxCreateMock = vi.fn()
+const emailInboxFindFirstMock = vi.fn()
 const emailInboxFindUniqueMock = vi.fn()
 const emailInboxUpdateMock = vi.fn()
 const emailMessageUpdateManyMock = vi.fn()
@@ -19,6 +20,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     emailInbox: {
       create: (...args: unknown[]) => emailInboxCreateMock(...args),
+      findFirst: (...args: unknown[]) => emailInboxFindFirstMock(...args),
       findUnique: (...args: unknown[]) => emailInboxFindUniqueMock(...args),
       findMany: vi.fn(),
       update: (...args: unknown[]) => emailInboxUpdateMock(...args),
@@ -42,6 +44,9 @@ beforeEach(() => {
   vi.resetModules()
   getAuthenticatedUserMock.mockResolvedValue(USER)
   transactionMock.mockResolvedValue([])
+  // Address free by default; these cases exercise the unique-index backstop,
+  // not the pre-check (see address-normalization.test.ts for that).
+  emailInboxFindFirstMock.mockResolvedValue(null)
 })
 
 describe('POST /api/v1/emailInbox — address uniqueness (F1)', () => {
