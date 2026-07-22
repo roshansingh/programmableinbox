@@ -11,6 +11,12 @@ import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedInbox, seedMessage } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
+// Deterministic, strictly-increasing timestamps for ordering-sensitive seeds.
+// Explicit createdAt beats setTimeout sleeps: no flakiness from same-millisecond
+// inserts, and no wall-clock delay in the suite.
+const BASE_MS = Date.parse('2026-01-01T00:00:00.000Z')
+const at = (n: number) => new Date(BASE_MS + n * 1000)
+
 describe('GET /api/v1/emailInbox/[id]/messages', () => {
   it('401 without a token', async () => {
     const res = await listMessages(
@@ -23,11 +29,9 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
   it('lists messages for an inbox, newest first', async () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
-    const m1 = await seedMessage(inbox.id, org.id, { subject: 'first' })
-    await new Promise((r) => setTimeout(r, 5))
-    const m2 = await seedMessage(inbox.id, org.id, { subject: 'second' })
-    await new Promise((r) => setTimeout(r, 5))
-    const m3 = await seedMessage(inbox.id, org.id, { subject: 'third' })
+    const m1 = await seedMessage(inbox.id, org.id, { subject: 'first', createdAt: at(1) })
+    const m2 = await seedMessage(inbox.id, org.id, { subject: 'second', createdAt: at(2) })
+    const m3 = await seedMessage(inbox.id, org.id, { subject: 'third', createdAt: at(3) })
 
     const res = await listMessages(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages`, { credential: token }),
@@ -44,11 +48,9 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
   it('cursor-paginates through the flat list with no overlap and correct remainder', async () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
-    const m1 = await seedMessage(inbox.id, org.id, { subject: 'first' })
-    await new Promise((r) => setTimeout(r, 5))
-    const m2 = await seedMessage(inbox.id, org.id, { subject: 'second' })
-    await new Promise((r) => setTimeout(r, 5))
-    const m3 = await seedMessage(inbox.id, org.id, { subject: 'third' })
+    const m1 = await seedMessage(inbox.id, org.id, { subject: 'first', createdAt: at(1) })
+    const m2 = await seedMessage(inbox.id, org.id, { subject: 'second', createdAt: at(2) })
+    const m3 = await seedMessage(inbox.id, org.id, { subject: 'third', createdAt: at(3) })
 
     const page1 = await listMessages(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?limit=2`, { credential: token }),
@@ -87,12 +89,10 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const threadB = '00000000-0000-7000-8000-0000000000bb'
 
     // Thread A: 2 messages (older then newer).
-    await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A1' })
-    await new Promise((r) => setTimeout(r, 5))
-    const a2 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A2' })
-    await new Promise((r) => setTimeout(r, 5))
+    await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A1', createdAt: at(1) })
+    const a2 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A2', createdAt: at(2) })
     // Thread B: 1 message, created after thread A's messages (so it's the latest thread).
-    const b1 = await seedMessage(inbox.id, org.id, { threadId: threadB, subject: 'B1' })
+    const b1 = await seedMessage(inbox.id, org.id, { threadId: threadB, subject: 'B1', createdAt: at(3) })
 
     const res = await listMessages(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?grouped=true`, { credential: token }),
@@ -143,9 +143,8 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
     const threadA = '00000000-0000-7000-8000-0000000000cc'
-    const a1 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A1' })
-    await new Promise((r) => setTimeout(r, 5))
-    const a2 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A2' })
+    const a1 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A1', createdAt: at(1) })
+    const a2 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A2', createdAt: at(2) })
 
     await deleteMessage(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${a2.id}`, {
@@ -366,9 +365,8 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
   it('returns the latest extractedOtp for the inbox', async () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
-    await seedMessage(inbox.id, org.id, { extractedOtp: '111111' })
-    await new Promise((r) => setTimeout(r, 5))
-    const latest = await seedMessage(inbox.id, org.id, { extractedOtp: '222222' })
+    await seedMessage(inbox.id, org.id, { extractedOtp: '111111', createdAt: at(1) })
+    const latest = await seedMessage(inbox.id, org.id, { extractedOtp: '222222', createdAt: at(2) })
 
     const res = await getOtp(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: token }),

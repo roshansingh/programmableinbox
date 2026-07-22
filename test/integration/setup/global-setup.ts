@@ -23,7 +23,11 @@ export default async function globalSetup() {
   }
 
   // Apply migrations (includes pgcrypto + partial indexes from the baseline).
-  execSync('node node_modules/prisma/build/index.js migrate deploy', {
+  // Use the public CLI entry rather than reaching into Prisma's internal build
+  // path, which can shift between versions. (The deploy image invokes the
+  // internal path only because its runtime image lacks node_modules/.bin; the
+  // test harness runs in a full dev install where `npx prisma` resolves.)
+  execSync('npx prisma migrate deploy', {
     stdio: 'inherit',
     env: { ...process.env, DATABASE_URL: appUrl },
   })
