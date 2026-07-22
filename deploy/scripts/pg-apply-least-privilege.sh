@@ -57,11 +57,14 @@ echo "Applying least-privileged role model to service '$SERVICE'..."
 docker compose exec -T -e PGHOST=127.0.0.1 "$SERVICE" \
   /usr/local/bin/inboxui-apply-least-privilege
 
-cat <<'EOF'
+# Unquoted heredoc so $SERVICE resolves to the service this run actually used.
+# $POSTGRES_USER / $POSTGRES_DB are escaped so they stay literal — the operator
+# substitutes their own values when running the command.
+cat <<EOF
 
 Done. Verify before repointing anything:
 
-  docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\du'
+  docker compose exec -T $SERVICE psql -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -c '\du'
 
 Then follow deploy/runbooks/04-postgres-role-rotation.md from step 4 to move
 DATABASE_URL / MIGRATE_DATABASE_URL onto the new roles.

@@ -93,6 +93,23 @@ sql_literal() {
 export PGHOST="${PGHOST:-/var/run/postgresql}"
 export PGPASSWORD="${PGPASSWORD:-${POSTGRES_PASSWORD:-}}"
 
+# `psql --no-password` never prompts, so a missing password over TCP surfaces as
+# an opaque "no password supplied" / auth failure after the temp vars file has
+# already been written. Fail up front instead, with a message that names the
+# variable.
+#
+# Only enforced for TCP: a PGHOST starting with "/" is the unix socket, which is
+# how the initdb hook runs, and that path authenticates by peer/trust with no
+# password in play. Requiring it there would break a cluster brought up with
+# POSTGRES_HOST_AUTH_METHOD=trust.
+case "$PGHOST" in
+  /*) : ;;
+  *)
+    [ -n "$PGPASSWORD" ] || die \
+      "PGPASSWORD or POSTGRES_PASSWORD is required to authenticate as $POSTGRES_USER over TCP (PGHOST=$PGHOST). See deploy/runbooks/04-postgres-role-rotation.md"
+    ;;
+esac
+
 printf '[inboxui] applying %s to database %s as %s\n' "$SQL_FILE" "$POSTGRES_DB" "$POSTGRES_USER"
 
 psql \
