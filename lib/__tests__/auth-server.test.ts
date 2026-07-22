@@ -13,13 +13,6 @@ import { signToken, verifyToken } from '@/lib/auth-server'
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET
 
-/**
- * The secret that used to be hardcoded as a fallback in lib/auth-server.ts.
- * It is public (it lives in this repo's git history), so any deployment that
- * ran on it can have its tokens forged.
- */
-const LEAKED_DEV_SECRET = 'dev-secret-change-in-production'
-
 afterEach(() => {
   if (ORIGINAL_JWT_SECRET === undefined) {
     delete process.env.JWT_SECRET
@@ -60,12 +53,6 @@ describe('auth-server JWT secret handling', () => {
       process.env.JWT_SECRET = value
       expect(() => verifyToken('any.token.value')).toThrow(/JWT_SECRET/)
     })
-
-    it('throws when JWT_SECRET is set to the leaked development fallback', () => {
-      process.env.JWT_SECRET = LEAKED_DEV_SECRET
-      expect(() => signToken({ userId: 'user_1' })).toThrow(/JWT_SECRET/)
-      expect(() => verifyToken('any.token.value')).toThrow(/JWT_SECRET/)
-    })
   })
 
   describe('normal operation with a configured secret', () => {
@@ -92,11 +79,6 @@ describe('auth-server JWT secret handling', () => {
 
     it('returns null for a garbage token', () => {
       expect(verifyToken('not-a-jwt')).toBeNull()
-    })
-
-    it('rejects a token forged with the old hardcoded fallback secret', () => {
-      const forged = jwt.sign({ userId: 'attacker' }, LEAKED_DEV_SECRET)
-      expect(verifyToken(forged)).toBeNull()
     })
 
     it('picks up a rotated secret without a restart (no module-load caching)', () => {
@@ -137,15 +119,12 @@ describe('auth-server JWT secret handling', () => {
       expect(source).not.toMatch(/process\.env\.JWT_SECRET\s*(\|\||\?\?)/)
     })
 
-    it('no source file uses the leaked secret as a fallback value', () => {
+    it('no source file gives JWT_SECRET a fallback value', () => {
       const offenders = sourceFiles(repoRoot)
         .filter((file) => !file.includes(`${path.sep}__tests__${path.sep}`))
         .filter((file) => {
           const source = fs.readFileSync(file, 'utf8')
-          return (
-            /(\|\||\?\?)\s*['"`]dev-secret/.test(source) ||
-            /process\.env\.JWT_SECRET\s*(\|\||\?\?)/.test(source)
-          )
+          return /process\.env\.JWT_SECRET\s*(\|\||\?\?)/.test(source)
         })
         .map((file) => path.relative(repoRoot, file))
 

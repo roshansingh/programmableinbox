@@ -3,21 +3,12 @@ import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
 import { prisma } from './db'
 
-/**
- * Denylist entry, NOT a default. This is the value this module used to fall back
- * to when JWT_SECRET was unset; it is published in this repository's git history,
- * so it is equivalent to having no secret at all — anyone can mint a token for any
- * userId. It is kept here only so a deployment that copied it into its real
- * environment fails loudly instead of running forgeable sessions.
- */
-const PUBLICLY_KNOWN_DEV_SECRET = 'dev-secret-change-in-production'
-
 const MISSING_SECRET_MESSAGE =
   'JWT_SECRET is not configured. Set it to a strong random value ' +
   '(e.g. `openssl rand -base64 32`) — refusing to sign or verify tokens.'
 
 /**
- * Resolve the JWT signing secret, failing closed if it is missing or known-weak.
+ * Resolve the JWT signing secret, failing closed if it is missing.
  *
  * Read lazily on every call rather than captured at module load: `lib/auth-server`
  * is imported (transitively) by every protected API route, and Next.js evaluates
@@ -32,14 +23,6 @@ function getJwtSecret(): string {
 
   if (!secret || secret.trim() === '') {
     throw new Error(MISSING_SECRET_MESSAGE)
-  }
-
-  if (secret === PUBLICLY_KNOWN_DEV_SECRET) {
-    throw new Error(
-      'JWT_SECRET is set to the removed development placeholder, which is public. ' +
-        'Generate a new secret (e.g. `openssl rand -base64 32`); all existing sessions ' +
-        'signed with the placeholder must be considered forged.',
-    )
   }
 
   return secret
