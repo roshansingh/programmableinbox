@@ -7,10 +7,10 @@ log "starting pg_dump + restic"
 TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
 
 # Stream pg_dump directly into restic; no intermediate file on disk.
-PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
+PGPASSWORD="${BACKUP_DB_PASSWORD}" pg_dump \
   --host="${POSTGRES_HOST:-postgres}" \
   --port="${POSTGRES_PORT:-5432}" \
-  --username="${POSTGRES_USER}" \
+  --username="${BACKUP_DB_USER}" \
   --dbname="${POSTGRES_DB}" \
   --format=custom \
   --no-owner \

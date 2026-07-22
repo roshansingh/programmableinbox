@@ -10,7 +10,7 @@ Design rationale: [`docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision
 |---|---|---|
 | `caddy` | `caddy:2-alpine` | TLS termination + single ingress (80/443), auto Let's Encrypt |
 | `app` | `ghcr.io/<owner>/inboxui` | Next.js server on :4000 (intended to host the in-process webhook worker — see Part 8) |
-| `migrate` | same as app (profile `migrate`) | One-shot `prisma migrate deploy` |
+| `migrate` | same as app (profile `migrate`) | One-shot `prisma migrate deploy`, run as the schema-owner role (see [Database roles](#database-roles)) |
 | `postgres` | `ghcr.io/<owner>/inboxui-postgres:17` | Database + WAL-G binary, WAL archiving to B2 |
 | `redis` | `redis:7-alpine` | BullMQ queue backing async webhook processing |
 | `backup-cron` | `ghcr.io/<owner>/inboxui-backup` | Base backups, pg_dump, retention, heartbeats |
@@ -18,6 +18,42 @@ Design rationale: [`docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision
 External dependencies: **Backblaze B2** (backups), **Uptime Kuma on PikaPods** (monitoring), **GHCR** (images), **Resend** (inbound email webhooks).
 
 > Only Caddy publishes ports to the host. Postgres and Redis are internal-only.
+
+---
+
+## Database roles
+
+The application does **not** connect to Postgres as a superuser. Four roles, with one job each:
+
+| Role | Attributes | What it may do | Who uses it |
+|---|---|---|---|
+| `$POSTGRES_USER` (bootstrap) | `SUPERUSER` | everything; owns the database | the image entrypoint, and break-glass `docker compose exec` only — **no service connects as it** |
+| `inboxui_migrator` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | owns schema `public` and every object in it; `CONNECT` + `CREATE` on the database, so it can run DDL and install *trusted* extensions | the one-shot `migrate` service, via `MIGRATE_DATABASE_URL` |
+| `inboxui_app` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `USAGE` on schema `public`; `SELECT/INSERT/UPDATE/DELETE` on its tables; `USAGE, SELECT` on its sequences | the `app` container, via `DATABASE_URL` |
+| `inboxui_backup` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `pg_read_all_data` (read everything, for `pg_dump`), `pg_read_all_settings`, `pg_read_all_stats`, EXECUTE on the backup-control functions, and write access to `backup_status` — nothing else | `backup-cron`, via `POSTGRES_BACKUP_USER` |
+
+The runtime role cannot `COPY … TO PROGRAM` (host command execution), cannot `pg_read_file`, cannot disable RLS, cannot create roles and cannot drop the database. An SQL-injection or app-level compromise is confined to the data it was already allowed to read and write.
+
+**Why new migrations don't break the app.** Tables created by a future migration are owned by `inboxui_migrator`, and a new table grants nothing to anyone. Without help, the deploy would go green and the app would then throw `permission denied for table <new_table>`. `deploy/postgres/least-privilege-roles.sql` prevents that with:
+
+```sql
+ALTER DEFAULT PRIVILEGES FOR ROLE inboxui_migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO inboxui_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE inboxui_migrator IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO inboxui_app;
+```
+
+Default privileges are keyed on the **creating role**, which is the reason migrations must always run as `inboxui_migrator` and never by hand as the superuser. (A duplicate set is registered for the bootstrap role as a safety net if someone does anyway.)
+
+The role model is created automatically by the postgres image's `/docker-entrypoint-initdb.d` hook — but:
+
+> ⚠️ **`/docker-entrypoint-initdb.d` runs only when `PGDATA` is empty.** Deploying this
+> image over an existing `/srv/inboxui/pgdata` creates nothing and warns about nothing.
+> Converting an already-running cluster is a deliberate operator action:
+> `deploy/scripts/pg-apply-least-privilege.sh`, documented step by step in
+> [`runbooks/04-postgres-role-rotation.md`](runbooks/04-postgres-role-rotation.md).
+
+`prisma/migrations/…/migration.sql` runs `CREATE EXTENSION IF NOT EXISTS pgcrypto`. pgcrypto is a *trusted* extension on PG13+, so the migrator could install it — but the init SQL installs it as the superuser first, so the statement in the migration is always a no-op. **Any future migration needing an untrusted extension must add it to `deploy/postgres/least-privilege-roles.sql`; it will not work from the `migrate` service.**
 
 ---
 
@@ -66,7 +102,8 @@ As the `deploy` user, create `/srv/inboxui/secrets/app.env` (mode `0600`). The f
 sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/app.env <<'EOF'
 # App runtime
 DOMAIN=inbox.example.com
-DATABASE_URL=postgresql://app:<pw>@postgres:5432/inboxui
+DATABASE_URL=postgresql://inboxui_app:<app-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
+MIGRATE_DATABASE_URL=postgresql://inboxui_migrator:<migrator-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
 JWT_SECRET=<random>
 WEBHOOK_SECRET=<resend-webhook-hmac>
 AUTH_RESEND_API_KEY=
@@ -81,10 +118,20 @@ LLM_MODEL=
 # Webhook queue / Redis  (async worker not yet wired — see Part 8; keep false for now)
 ENABLE_ASYNC_WEBHOOK_PROCESSING=false
 REDIS_URL=redis://redis:6379
-# Postgres init
+# Postgres — bootstrap superuser. Created by the image entrypoint; NOTHING
+# connects as it (break-glass only). Do not reuse this password anywhere else.
 POSTGRES_DB=inboxui
-POSTGRES_USER=app
-POSTGRES_PASSWORD=<pw>       # must match DATABASE_URL
+POSTGRES_USER=postgres_admin
+POSTGRES_PASSWORD=<superuser-pw>
+# Postgres — least-privileged roles (see "Database roles" above). The initdb
+# hook reads these to create the roles on a FIRST-TIME init; on an existing
+# volume run deploy/scripts/pg-apply-least-privilege.sh instead.
+POSTGRES_APP_PASSWORD=<app-pw>            # must match DATABASE_URL
+POSTGRES_MIGRATOR_PASSWORD=<migrator-pw>  # must match MIGRATE_DATABASE_URL
+POSTGRES_BACKUP_PASSWORD=<backup-pw>
+POSTGRES_APP_USER=inboxui_app             # optional, this is the default
+POSTGRES_MIGRATOR_USER=inboxui_migrator   # optional, this is the default
+POSTGRES_BACKUP_USER=inboxui_backup       # optional, this is the default
 # WAL-G → B2
 WALG_S3_PREFIX=s3://<walg-bucket>/walg
 AWS_ENDPOINT=https://s3.<region>.backblazeb2.com
@@ -142,22 +189,37 @@ Run as the `deploy` user from `/srv/inboxui`:
 ```bash
 docker compose pull
 
-# 1. Database first
+# 1. Database first. On an EMPTY pgdata this also runs the initdb hook that
+#    creates inboxui_app / inboxui_migrator / inboxui_backup.
 docker compose up -d postgres
 docker compose ps            # wait until postgres is "healthy"
+docker compose logs postgres | grep '\[inboxui\]'   # confirm the roles were created
 
 # 2. Confirm WAL archiving to B2 works
 docker compose exec postgres wal-g backup-list   # should succeed with an empty list
 
-# 3. Run migrations (one-shot)
+# 3. Run migrations (one-shot; runs as inboxui_migrator via MIGRATE_DATABASE_URL)
 docker compose run --rm migrate
 
-# 4. Bring up the rest
+# 4. Grant the backup role write access to `backup_status`, which only exists
+#    once step 3 has created it. Idempotent; skip it and the backup cron will
+#    log "permission denied for table backup_status" every 5 minutes.
+sudo cp /tmp/inboxui/deploy/scripts/pg-apply-least-privilege.sh /srv/inboxui/
+sudo chown deploy:deploy /srv/inboxui/pg-apply-least-privilege.sh
+sudo chmod +x /srv/inboxui/pg-apply-least-privilege.sh
+/srv/inboxui/pg-apply-least-privilege.sh
+
+# 5. Bring up the rest
 docker compose up -d         # app, caddy, redis, backup-cron
 
-# 5. Force a first base backup
+# 6. Force a first base backup
 docker compose exec backup-cron /scripts/base-backup.sh
 ```
+
+> If `pgdata` was **not** empty in step 1 — e.g. you are adopting an existing
+> database — none of the roles were created and step 3 will fail on the missing
+> `MIGRATE_DATABASE_URL` target. Follow
+> [`runbooks/04-postgres-role-rotation.md`](runbooks/04-postgres-role-rotation.md) instead.
 
 ---
 
@@ -232,6 +294,7 @@ Runbooks (version-controlled, in `runbooks/`):
 - `01-app-crash.md` — app down / bad deploy (rollback)
 - `02-db-corruption.md` — point-in-time recovery into a sibling instance
 - `03-total-host-loss.md` — rebuild on a new box from B2
+- `04-postgres-role-rotation.md` — move an existing cluster onto the least-privileged roles (and rotate their passwords)
 
 **DR drills** (log each to `runbooks/drill-log.md`):
 

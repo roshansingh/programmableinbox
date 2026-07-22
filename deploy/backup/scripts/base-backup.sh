@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 
 log "starting walg base backup"
 PGHOST="${POSTGRES_HOST:-postgres}" PGPORT="${POSTGRES_PORT:-5432}" \
-PGUSER="${POSTGRES_USER}" PGPASSWORD="${POSTGRES_PASSWORD}" \
+PGUSER="${BACKUP_DB_USER}" PGPASSWORD="${BACKUP_DB_PASSWORD}" \
   wal-g backup-push /var/lib/postgresql/data \
   >>"$LOG_DIR/base-backup.log" 2>&1
 log "walg base backup complete"
