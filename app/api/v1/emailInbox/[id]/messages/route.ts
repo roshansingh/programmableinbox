@@ -5,6 +5,7 @@ import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { encodeCursor, decodeCursor, DecodedCursor } from '@/lib/pagination/cursor'
+import { clampLimit } from '@/lib/pagination/params'
 import { fetchGroupedThreadHeads } from './grouped-query'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -37,8 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const searchParams = request.nextUrl.searchParams
-  const rawLimit = parseInt(searchParams.get('limit') || '50', 10)
-  const limit = Math.min(Math.max(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100)
+  const limit = clampLimit(searchParams.get('limit'))
   const threadId = searchParams.get('threadId')
   const grouped = searchParams.get('grouped') === 'true'
   const cursorParam = searchParams.get('cursor')

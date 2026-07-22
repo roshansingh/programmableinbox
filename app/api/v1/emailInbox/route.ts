@@ -5,6 +5,7 @@ import { resolveAuthContext } from '@/lib/auth/auth-context'
 import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
 export async function GET(request: NextRequest) {
   const context = await resolveAuthContext(request)
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
       where.organizationId = organizationId
     }
 
-    const inboxes = await prisma.emailInbox.findMany({ where })
+    const inboxes = await prisma.emailInbox.findMany({ where, take: MAX_UNPAGINATED_ROWS })
     return jsonSuccess(inboxes)
   }
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
   }
 
   const where: { organizationId: string } = { organizationId: organizationId || context.organizationId }
-  const inboxes = await prisma.emailInbox.findMany({ where })
+  const inboxes = await prisma.emailInbox.findMany({ where, take: MAX_UNPAGINATED_ROWS })
 
   return jsonSuccess(inboxes)
 }

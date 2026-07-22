@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request)
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
   const where: { userId: string; organizationId?: string } = { userId: user.id }
   if (organizationId) where.organizationId = organizationId
 
-  const inboxes = await prisma.phoneInbox.findMany({ where })
+  const inboxes = await prisma.phoneInbox.findMany({ where, take: MAX_UNPAGINATED_ROWS })
 
   return jsonSuccess(inboxes)
 }

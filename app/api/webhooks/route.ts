@@ -3,14 +3,24 @@ import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
+import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
 
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request)
   if (!user) return jsonError('Unauthorized', 401)
 
   const searchParams = request.nextUrl.searchParams
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '20')
+
+  let page: number
+  let limit: number
+  let skip: number
+  try {
+    ;({ page, limit, skip } = parsePagination(searchParams, { defaultLimit: 20 }))
+  } catch (error) {
+    if (error instanceof OffsetTooLargeError) return jsonError(error.message, 400)
+    throw error
+  }
+
   const status = searchParams.get('status') as WebhookStatus | null
 
   const orgIds = user.memberships.map((m) => m.organizationId)
@@ -23,7 +33,7 @@ export async function GET(request: NextRequest) {
   const [webhooks, total] = await Promise.all([
     prisma.webhook.findMany({
       where,
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),
