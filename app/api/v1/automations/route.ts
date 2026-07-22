@@ -71,12 +71,19 @@ export async function POST(request: NextRequest) {
     if (!inbox) return jsonError('Inbox not found', 404)
   }
 
-  const config = parsed.body.config
-    ? parseAutomationConfig(parsed.body.config)
-    : createDefaultAutomationConfig()
-  const layout = parsed.body.layout
-    ? parseAutomationLayout(parsed.body.layout)
-    : createDefaultAutomationLayout(config)
+  let config
+  try {
+    config = parsed.body.config ? parseAutomationConfig(parsed.body.config) : createDefaultAutomationConfig()
+  } catch {
+    return jsonError('Invalid automation config', 400)
+  }
+
+  let layout
+  try {
+    layout = parsed.body.layout ? parseAutomationLayout(parsed.body.layout) : createDefaultAutomationLayout(config)
+  } catch {
+    return jsonError('Invalid automation layout', 400)
+  }
 
   const created = await prisma.automation.create({
     data: {

@@ -5,6 +5,7 @@ import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
+import { isUniqueViolation } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 
 /**
@@ -214,8 +215,14 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
 
       created.push(message)
     } catch (error: any) {
-      // Skip duplicates
-      if (error.code === 'P2002' && error.meta?.target?.includes('externalId')) {
+      // Skip duplicates. A retried delivery of the same email deterministically
+      // reproduces both the (externalId, inboxEmailAddressId) unique key and the
+      // derived messageId, and Postgres only reports whichever constraint it
+      // checks first — so both must be treated as "already stored", not a failure.
+      const isDuplicateKeyViolation =
+        isUniqueViolation(error, 'externalId') || isUniqueViolation(error, 'messageId')
+
+      if (isDuplicateKeyViolation) {
         logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
         continue
       }

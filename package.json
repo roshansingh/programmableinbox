@@ -12,7 +12,9 @@
     "backfill:api-keys": "node --import tsx scripts/backfill-api-key-hashes.ts",
     "start": "next start --port 4000",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
@@ -90,6 +92,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/swagger-ui-react": "^5.18.0",
@@ -97,6 +100,7 @@
     "baseline-browser-mapping": "^2.10.34",
     "jsdom": "^28.1.0",
     "msw": "^2.12.10",
+    "pg": "^8.22.0",
     "postcss": "^8.5",
     "prisma": "^7.4.1",
     "tailwindcss": "^4.1.9",

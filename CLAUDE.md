@@ -143,11 +143,20 @@ API keys use **SHA-256 hashing** with scopes for fine-grained access control:
 - `vitest.config.ts` sets `NEXT_PUBLIC_API_MODE=local` and aliases `@` to repo root (matches `tsconfig.json` paths).
 - Component tests live in `components/__tests__/` and `app/api-keys/__tests__/`.
 
+### Integration tests (real Postgres)
+
+`npm run test:integration` runs `test/integration/**` against a real database — no
+mocks for db/auth. Requires `.env.test` with `TEST_DATABASE_URL` pointing at a
+dedicated DB whose name contains "test" (a safety guard refuses anything else).
+The DB is created, migrated, and dropped per run (`KEEP_TEST_DB=1` to keep it).
+These are excluded from `npm test`.
+
 ## Known issues & vulnerabilities
 
 **TypeScript errors (pre-existing)**:
 - `app/phones/[id]/page.tsx` and `app/phones/page.tsx` have TS errors around `MobileSidebarProps`
 - `package.json#name` is still `my-v0-project` from the v0.app scaffold
+- `test/integration/setup/setup.ts` uses top-level await, which trips TS1378 under the repo's `tsconfig` target (harmless — Vitest/esbuild transpiles it; `next build` has `ignoreBuildErrors`)
 
 **Security vulnerabilities** (pre-existing, require major version upgrades):
 - **Next.js 16.0.3**: Multiple critical RCE, DoS, and XSS vulnerabilities. Requires upgrade to 16.2.7+ (breaking changes). See `npm audit` for details.
