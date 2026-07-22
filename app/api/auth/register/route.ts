@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { hashPassword, signToken, formatUserResponse } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import logger from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
       token,
       user: formatUserResponse(user),
     })
-  } catch {
+  } catch (error) {
+    logger.error({ error }, 'Error registering user')
     return jsonError('Internal server error', 500)
   }
 }
