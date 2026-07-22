@@ -164,6 +164,18 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
       expect(executeAutomationMock).not.toHaveBeenCalled()
     })
 
+    it('rejects an explicit null mode rather than defaulting it', async () => {
+      // `{ mode: null }` means the caller passed a variable that did not hold
+      // what they thought. Defaulting it to dry_run would hide that bug.
+      const { POST } = await loadRoute()
+      const response = await POST(replayRequest({ mode: null }), routeParams)
+      const body = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(body.message).toMatch(/mode must be/i)
+      expect(executeAutomationMock).not.toHaveBeenCalled()
+    })
+
     it('runs live only for { mode: "live", confirm: true }', async () => {
       const { POST } = await loadRoute()
       const response = await POST(replayRequest({ mode: 'live', confirm: true }), routeParams)

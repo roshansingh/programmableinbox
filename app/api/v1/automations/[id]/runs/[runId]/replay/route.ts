@@ -62,7 +62,11 @@ async function parseReplayRequest(request: NextRequest): Promise<ParsedReplayReq
     }
   }
 
-  const rawMode = body.mode ?? 'dry_run'
+  // Only an *absent* `mode` defaults. An explicit `null` is a client bug (a
+  // variable that did not hold what the caller thought), so it is rejected like
+  // any other invalid value rather than silently becoming a dry run — the same
+  // reasoning as the `isDryRun` rejection above.
+  const rawMode = 'mode' in body && body.mode !== undefined ? body.mode : 'dry_run'
   if (rawMode !== 'dry_run' && rawMode !== 'live') {
     return { error: jsonError('mode must be "dry_run" or "live"', 400) }
   }

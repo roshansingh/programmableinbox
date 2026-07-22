@@ -14,8 +14,17 @@
  * Algorithm: fixed window counters in Redis. The key embeds the window index,
  * so a new window is a new key and expiry is self-cleaning. Fixed windows allow
  * up to 2x the limit across a window boundary; that is an accepted trade for an
- * abuse ceiling (as opposed to a billing meter) and keeps the hot path to one
- * round trip.
+ * abuse ceiling, as opposed to a billing meter.
+ *
+ * Cost: `INCR` + `EXPIRE` per counter, and two counters (user and automation)
+ * are always checked, so a request issues four sequential Redis commands. They
+ * are deliberately NOT pipelined: `ReplayRateLimitClient` below is a two-method
+ * surface so tests can inject a plain object and never open a socket, and
+ * `multi()`/`pipeline()` would drag the whole ioredis chainable API into that
+ * seam. Four round trips against a local Redis is not the bottleneck on an
+ * endpoint whose purpose is to re-execute an automation. When the general
+ * limiter from issue #42 absorbs this module (see the TODO at the bottom), it
+ * should collapse these into a single `MULTI` — that limiter already does.
  */
 
 import { Redis } from 'ioredis'
