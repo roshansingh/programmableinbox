@@ -71,6 +71,22 @@ describe('EmailHtmlViewer', () => {
     expect(before).not.toBe(after)
     expect(parseInt(after, 10)).toBeGreaterThan(parseInt(before, 10))
   })
+
+  it('applies className in both the HTML and the plain-text branch', () => {
+    const { container: htmlBranch } = render(
+      <EmailHtmlViewer html="<p>hello</p>" className="test-spacing" />,
+    )
+    expect(htmlBranch.querySelector('.test-spacing')).not.toBeNull()
+
+    const { container: textBranch } = render(
+      <EmailHtmlViewer text="hello" className="test-spacing" />,
+    )
+    const pre = textBranch.querySelector('pre')
+    expect(pre).not.toBeNull()
+    expect(pre).toHaveClass('test-spacing')
+    // the component's own defaults survive the merge
+    expect(pre).toHaveClass('whitespace-pre-wrap')
+  })
 })
 
 describe('email HTML sinks', () => {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 /**
  * Sandbox tokens applied to the untrusted-email iframe.
@@ -12,9 +13,26 @@ import { Button } from "@/components/ui/button"
  * - no `allow-same-origin` -> the frame gets an opaque origin, so even if script did
  *   run it could not read localStorage / cookies / the DOM of the host app
  *
- * `allow-popups` + `allow-popups-to-escape-sandbox` only enable user-initiated
- * `target="_blank"` link clicks (see the injected <base> below). With scripting
- * disabled there is no way for the email to open a window without a click.
+ * The two popup tokens are NOT equivalent, and the second is the wider one:
+ * - `allow-popups` lets the frame open a new tab at all. Without it the
+ *   `target="_blank"` links produced by the injected <base> are blocked outright.
+ * - `allow-popups-to-escape-sandbox` means a popup opened from here does NOT
+ *   inherit these sandbox flags — the new tab is an ordinary, fully-privileged
+ *   browsing context. Without it, following a link would land the user on a
+ *   scriptless, opaque-origin page, which breaks essentially every destination.
+ *
+ * Escaping is accepted because the popup only ever loads the link's own URL as a
+ * normal top-level page — the same thing every mail client does when you click a
+ * link. It grants the email document itself nothing: this frame stays scriptless
+ * and opaque-origin either way, so the email cannot open a window without a user
+ * click, nor choose the destination at click time.
+ *
+ * The residual is `window.opener` on the new tab. Current browsers imply
+ * `noopener` for `target="_blank"`, and the opener would in any case be the
+ * opaque-origin frame rather than the host app window, leaving only cross-origin
+ * navigation of a window the attacker already controls.
+ *
+ * Widen this string only with that distinction in mind.
  */
 export const EMAIL_IFRAME_SANDBOX = "allow-popups allow-popups-to-escape-sandbox"
 
@@ -90,7 +108,12 @@ export function EmailHtmlViewer({
 
   if (!srcDoc) {
     return (
-      <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
+      <pre
+        className={cn(
+          "whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed",
+          className
+        )}
+      >
         {text ?? ""}
       </pre>
     )
