@@ -288,3 +288,64 @@ describe('parsePagination', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// Regressions from PR #82 review
+// ---------------------------------------------------------------------------
+
+describe('contract holds even for hostile or malformed inputs', () => {
+  it('clampPage returns a finite integer for a 400-digit page', () => {
+    // Number('9'.repeat(400)) is Infinity, and /^\d+$/ matches it happily.
+    const page = clampPage('9'.repeat(400))
+    expect(Number.isFinite(page)).toBe(true)
+    expect(Number.isInteger(page)).toBe(true)
+    // Saturated, not defaulted: it must stay large enough that parsePagination
+    // still rejects it on the offset ceiling rather than serving page 1.
+    expect(page).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
+  it('clampLimit returns a finite integer for a 400-digit limit', () => {
+    const limit = clampLimit('9'.repeat(400))
+    expect(Number.isFinite(limit)).toBe(true)
+    expect(limit).toBeLessThanOrEqual(MAX_LIMIT)
+  })
+
+  it('saturates digit strings beyond the safe-integer range', () => {
+    // 2^53 + 1 is where integer precision is lost.
+    expect(clampPage('9007199254740993')).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
+  it('still rejects an absurd page through parsePagination', () => {
+    // The offset ceiling, not clampPage, is what turns this into a 400.
+    expect(() => parsePagination(new URLSearchParams(`page=${'9'.repeat(400)}`))).toThrow(
+      OffsetTooLargeError,
+    )
+  })
+})
+
+describe('clampLimit normalizes its own options', () => {
+  it('ignores a NaN maxLimit instead of returning NaN', () => {
+    const limit = clampLimit('10', { maxLimit: Number.NaN })
+    expect(Number.isNaN(limit)).toBe(false)
+    expect(limit).toBe(10)
+  })
+
+  it('ignores an Infinite maxLimit', () => {
+    expect(clampLimit('999999', { maxLimit: Number.POSITIVE_INFINITY })).toBe(MAX_LIMIT)
+  })
+
+  it('floors a fractional defaultLimit rather than returning a non-integer', () => {
+    const limit = clampLimit(undefined, { defaultLimit: 12.7 })
+    expect(Number.isInteger(limit)).toBe(true)
+    expect(limit).toBe(12)
+  })
+
+  it('never lets defaultLimit exceed maxLimit', () => {
+    expect(clampLimit(undefined, { defaultLimit: 500, maxLimit: 25 })).toBe(25)
+  })
+
+  it('ignores a zero or negative maxLimit', () => {
+    expect(clampLimit('10', { maxLimit: 0 })).toBe(10)
+    expect(clampLimit('10', { maxLimit: -5 })).toBe(10)
+  })
+})

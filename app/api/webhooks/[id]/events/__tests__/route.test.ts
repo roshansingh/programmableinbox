@@ -123,3 +123,35 @@ describe('GET /api/webhooks/[id]/events pagination', () => {
     expect(findManyArgs().take).toBe(5)
   })
 })
+
+describe('GET /api/webhooks/[id]/events status validation', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.resetModules()
+    getAuthenticatedUserMock.mockResolvedValue({
+      id: 'user_1',
+      memberships: [{ organizationId: 'org_1' }],
+    })
+    webhookFindUniqueMock.mockResolvedValue({ id: 'wh_1', organizationId: 'org_1' })
+    webhookEventFindManyMock.mockResolvedValue([])
+    webhookEventCountMock.mockResolvedValue(0)
+  })
+
+  it('rejects an unknown status with 400 instead of handing it to Prisma', async () => {
+    const response = await get('?status=wat')
+    expect(response.status).toBe(400)
+    expect(webhookEventFindManyMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts every real enum member', async () => {
+    for (const status of ['pending', 'delivered', 'failed']) {
+      vi.clearAllMocks()
+      webhookFindUniqueMock.mockResolvedValue({ id: 'wh_1', organizationId: 'org_1' })
+      webhookEventFindManyMock.mockResolvedValue([])
+      webhookEventCountMock.mockResolvedValue(0)
+      const response = await get(`?status=${status}`)
+      expect(response.status).toBe(200)
+      expect(webhookEventFindManyMock.mock.calls[0][0].where.status).toBe(status)
+    }
+  })
+})

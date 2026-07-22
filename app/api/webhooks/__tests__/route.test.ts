@@ -153,3 +153,45 @@ describe('GET /api/webhooks pagination', () => {
     expect(findManyArgs().take).toBe(5)
   })
 })
+
+describe('GET /api/webhooks status validation', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.resetModules()
+    getAuthenticatedUserMock.mockResolvedValue({
+      id: 'user_1',
+      memberships: [{ organizationId: 'org_1' }],
+    })
+    webhookFindManyMock.mockResolvedValue([])
+    webhookCountMock.mockResolvedValue(0)
+  })
+
+  it('rejects an unknown status with 400 instead of handing it to Prisma', async () => {
+    // The value was cast straight to the enum, so Prisma received an invalid
+    // member and raised — a bad client param surfacing as a 500.
+    const response = await get('?status=wat')
+
+    expect(response.status).toBe(400)
+    expect(webhookFindManyMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts every real enum member', async () => {
+    for (const status of ['active', 'inactive', 'failing']) {
+      vi.clearAllMocks()
+      webhookFindManyMock.mockResolvedValue([])
+      webhookCountMock.mockResolvedValue(0)
+      const response = await get(`?status=${status}`)
+      expect(response.status).toBe(200)
+      expect(webhookFindManyMock.mock.calls[0][0].where.status).toBe(status)
+    }
+  })
+
+  it('omits the status filter entirely when the param is absent', async () => {
+    await get()
+    expect(findManyArgs().where.status).toBeUndefined()
+  })
+
+  it('is case-sensitive — the enum members are lowercase', async () => {
+    expect((await get('?status=ACTIVE')).status).toBe(400)
+  })
+})

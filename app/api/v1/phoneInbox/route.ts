@@ -13,7 +13,14 @@ export async function GET(request: NextRequest) {
   const where: { userId: string; organizationId?: string } = { userId: user.id }
   if (organizationId) where.organizationId = organizationId
 
-  const inboxes = await prisma.phoneInbox.findMany({ where, take: MAX_UNPAGINATED_ROWS })
+  const inboxes = await prisma.phoneInbox.findMany({
+    where,
+    // Deterministic order is required, not cosmetic: without it an unordered
+    // scan may return a different arbitrary subset each time the ceiling
+    // truncates. id breaks createdAt ties so the cut is stable.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_UNPAGINATED_ROWS,
+  })
 
   return jsonSuccess(inboxes)
 }
