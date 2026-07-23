@@ -178,6 +178,16 @@ describe('POST /api/v1/emailInbox — address normalization', () => {
     expect(emailInboxCreateMock).not.toHaveBeenCalled()
   })
 
+  it('400s a non-ASCII address so no homoglyph/Unicode inbox is ever created', async () => {
+    // Cyrillic а (U+0430) — a confusable of Latin `admin`. Built from a code
+    // point so the assertion cannot be defeated by an invisible source edit.
+    const homoglyph = `${String.fromCodePoint(0x0430)}dmin@corp.com`
+    const response = await post({ organizationId: 'org_1', email: homoglyph })
+
+    expect(response.status).toBe(400)
+    expect(emailInboxCreateMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a foreign organization before touching the address at all', async () => {
     const response = await post({ organizationId: 'org_other', email: 'billing@corp.com' })
 

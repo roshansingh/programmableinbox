@@ -25,6 +25,7 @@ DO $$
 DECLARE
   collisions TEXT;
   unroutable TEXT;
+  non_ascii  TEXT;
 BEGIN
   -- Single-argument btrim() strips ONLY spaces. The router uses JS `.trim()`,
   -- which strips tabs, newlines, CR, FF and VT as well, so a space-only trim
@@ -61,6 +62,21 @@ BEGIN
       'Cannot normalize email_inboxes.email: addresses contain interior whitespace and are '
       'unroutable: %. These can never receive mail; delete or correct them and re-run.', unroutable;
   END IF;
+
+  -- A receiving address must be printable ASCII (see `isValidInboxAddress`).
+  -- Non-ASCII enables homoglyph confusables (Cyrillic vs Latin) and invisible
+  -- characters; lowercasing does not fold it away, so such a row cannot pass the
+  -- CHECK below. Fail loudly rather than with an opaque constraint violation.
+  SELECT string_agg(DISTINCT "email", ', ')
+    INTO non_ascii
+    FROM "email_inboxes"
+   WHERE "email" ~ '[^[:ascii:]]';
+
+  IF non_ascii IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Cannot normalize email_inboxes.email: addresses contain non-ASCII characters: %. '
+      'These are not valid receiving addresses; delete or correct them and re-run.', non_ascii;
+  END IF;
 END $$;
 
 -- Step 2: canonicalize existing rows.
@@ -70,21 +86,29 @@ UPDATE "email_inboxes"
 
 -- Step 3: make a non-normalized address physically impossible.
 --
--- Expressed as "lowercase, and no whitespace anywhere" rather than
--- `email = lower(btrim(email, ...))`. The two differ: the btrim form accepts an
--- address with interior whitespace (nothing to trim, so it equals itself), which
--- the application layer rejects outright. Stating the invariant directly keeps
--- the constraint at least as strict as `isValidInboxAddress`, so a row written
--- by raw SQL or a future write path cannot be weaker than one written by a route.
+-- Three clauses, mirroring `isValidInboxAddress`:
+--   1. lowercase (`email = lower(email)`);
+--   2. no whitespace of any kind (`email !~ '[[:space:]]'`);
+--   3. printable ASCII only (`email !~ '[^[:ascii:]]'`).
 --
--- Caveat: POSIX [[:space:]] covers ASCII whitespace. JS \s additionally matches
--- Unicode spaces such as U+00A0, so an address padded with those is rejected by
--- the app but would pass this CHECK. Closing that fully would need an explicit
--- Unicode character class; the app layer is the enforcement point for it.
+-- Clause 2 is stated directly rather than as `email = lower(btrim(email, ...))`:
+-- the btrim form accepts *interior* whitespace (nothing to trim, so it equals
+-- itself), which the application rejects. Clause 3 closes the gap that the app's
+-- ASCII-only rule would otherwise be stricter than the DB — POSIX `[[:space:]]`
+-- matches only ASCII whitespace, so a Unicode space like U+00A0, or any other
+-- non-ASCII character (homoglyphs, zero-width spaces), would slip past clauses 1
+-- and 2. `[[:ascii:]]` matches only codepoints 0x00–0x7f, so `[^[:ascii:]]`
+-- catches everything above it. Together the three keep this constraint at least
+-- as strict as `isValidInboxAddress`, so a row written by raw SQL or a future
+-- write path cannot be weaker than one written through a route.
 --
 -- NOT VALID is deliberately not used: the table is small and every existing row
 -- was just normalized by step 2, so a full validating scan is cheap and gives
 -- the guarantee immediately rather than leaving pre-existing rows exempt.
 ALTER TABLE "email_inboxes"
   ADD CONSTRAINT "email_inboxes_email_normalized_check"
-  CHECK ("email" = lower("email") AND "email" !~ '[[:space:]]');
+  CHECK (
+    "email" = lower("email")
+    AND "email" !~ '[[:space:]]'
+    AND "email" !~ '[^[:ascii:]]'
+  );

@@ -60,3 +60,43 @@ describe('isValidInboxAddress', () => {
     expect(isValidInboxAddress('BILLING@CORP.COM')).toBe(isValidInboxAddress('billing@corp.com'))
   })
 })
+
+describe('isValidInboxAddress — ASCII-only (no Unicode)', () => {
+  // Non-ASCII inputs built from code points so the test source stays plain ASCII
+  // and there are no invisible characters hiding in the file.
+  const CYRILLIC_A = String.fromCodePoint(0x0430) // а — homoglyph of Latin a
+  const E_ACUTE = String.fromCodePoint(0x00e9) // é
+  const NBSP = String.fromCodePoint(0x00a0)
+  const ZWSP = String.fromCodePoint(0x200b)
+  const THUMBS = String.fromCodePoint(0x1f44d)
+  const BEL = String.fromCodePoint(0x0007) // ASCII control
+
+  it.each([
+    ['a cyrillic homoglyph in the local part', `${CYRILLIC_A}dmin@corp.com`],
+    ['an accented latin letter', `caf${E_ACUTE}@corp.com`],
+    ['an emoji', `${THUMBS}@corp.com`],
+    ['an interior non-breaking space', `bill${NBSP}ing@corp.com`],
+    ['an interior zero-width space', `bil${ZWSP}ling@corp.com`],
+    ['a non-ASCII (IDN) domain', `billing@${CYRILLIC_A}.com`],
+    ['an ASCII control character', `billing${BEL}@corp.com`],
+  ])('rejects %s', (_label, address) => {
+    expect(isValidInboxAddress(address)).toBe(false)
+  })
+
+  it('accepts the ASCII local-part characters a receiving address may use', () => {
+    expect(isValidInboxAddress("a.b+tag_1%x-y@sub.corp.co")).toBe(true)
+  })
+
+  it('trims Unicode-whitespace padding rather than rejecting it — the stored value is clean ASCII', () => {
+    // `.trim()` removes leading/trailing NBSP, so the padded input normalizes to
+    // a valid ASCII address. Only non-ASCII in the *content* is a problem.
+    expect(isValidInboxAddress(`${NBSP}billing@corp.com${NBSP}`)).toBe(true)
+    expect(normalizeInboxAddress(`${NBSP}billing@corp.com${NBSP}`)).toBe('billing@corp.com')
+  })
+
+  it('does not let toLowerCase fold a homoglyph into its ASCII look-alike', () => {
+    // Guards the reasoning behind checking the normalized form: the Cyrillic а
+    // must stay non-ASCII after normalization, not become a Latin a.
+    expect(normalizeInboxAddress(`${CYRILLIC_A}dmin@corp.com`)).toContain(CYRILLIC_A)
+  })
+})
