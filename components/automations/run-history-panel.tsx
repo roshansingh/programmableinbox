@@ -1,12 +1,17 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Loader2, RotateCcw } from 'lucide-react'
+import { Loader2, RotateCcw, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getAutomationRuns, replayAutomationRun, type AutomationRunRecord } from '@/lib/api/automations.api'
+import {
+  getAutomationRuns,
+  replayAutomationRun,
+  type AutomationReplayMode,
+  type AutomationRunRecord,
+} from '@/lib/api/automations.api'
 
 export function RunHistoryPanel({ automationId }: { automationId: string }) {
   const [runs, setRuns] = useState<AutomationRunRecord[]>([])
@@ -28,11 +33,22 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
     loadRuns()
   }, [automationId])
 
-  async function handleReplay(runId: string) {
+  async function handleReplay(runId: string, mode: AutomationReplayMode) {
+    // A live replay re-sends real webhooks / emails, so it always goes through
+    // an explicit confirmation step before the (separately confirmed) API call.
+    if (
+      mode === 'live' &&
+      !window.confirm(
+        'Replay this run for real? Webhooks, forwarded emails and auto-replies will be sent again.'
+      )
+    ) {
+      return
+    }
+
     setReplayingId(runId)
     try {
-      await replayAutomationRun(automationId, runId)
-      toast.success('Run replayed')
+      await replayAutomationRun(automationId, runId, mode)
+      toast.success(mode === 'live' ? 'Run replayed (live)' : 'Run replayed (dry run)')
       await loadRuns()
     } catch (error: any) {
       toast.error(error?.message || 'Failed to replay run')
@@ -69,10 +85,22 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleReplay(run.id)}
+                    title="Replay as a dry run (no webhooks or emails sent)"
+                    aria-label="Replay as dry run"
+                    onClick={() => handleReplay(run.id, 'dry_run')}
                     disabled={replayingId === run.id}
                   >
                     <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Replay for real — re-sends webhooks and emails"
+                    aria-label="Replay live"
+                    onClick={() => handleReplay(run.id, 'live')}
+                    disabled={replayingId === run.id}
+                  >
+                    <Zap className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
               </div>

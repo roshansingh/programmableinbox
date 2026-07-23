@@ -107,8 +107,27 @@ export async function getAutomationRuns(id: string) {
   return apiClient.get<AutomationRunRecord[]>(`/v1/automations/${id}/runs`)
 }
 
-export async function replayAutomationRun(id: string, runId: string) {
-  return apiClient.post<{ matched: boolean; status: string; runId: string }>(
-    `/v1/automations/${id}/runs/${runId}/replay`
-  )
+export type AutomationReplayMode = 'dry_run' | 'live'
+
+export interface AutomationReplayResult {
+  matched: boolean
+  status: string
+  runId: string
+  mode: AutomationReplayMode
+  isDryRun: boolean
+}
+
+/**
+ * Replays a run. Dry run by default — a live replay re-executes the run's real
+ * side effects (outbound webhooks, forwarded email, auto-replies) and therefore
+ * has to send an explicit confirmation the server checks (issue #40).
+ */
+export async function replayAutomationRun(
+  id: string,
+  runId: string,
+  mode: AutomationReplayMode = 'dry_run'
+) {
+  const body =
+    mode === 'live' ? { mode: 'live' as const, confirm: true as const } : { mode: 'dry_run' as const }
+  return apiClient.post<AutomationReplayResult>(`/v1/automations/${id}/runs/${runId}/replay`, body)
 }

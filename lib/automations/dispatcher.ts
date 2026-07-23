@@ -96,7 +96,17 @@ export async function runAutomationDryRun(automationId: string, limit = 50) {
   return results
 }
 
-export async function replayAutomationRun(runId: string) {
+/**
+ * Re-executes a stored run.
+ *
+ * `isDryRun` is a REQUIRED argument and is never derived from the stored run
+ * (security issue #40). Inheriting `run.isDryRun` meant that replaying any run
+ * that was originally live silently re-fired its real side effects — outbound
+ * webhook `fetch`es, forwarded email, auto-replies — with no confirmation and
+ * no ceiling. Callers must state their intent; the HTTP layer defaults to a dry
+ * run and only passes `false` when the request carries an explicit confirmation.
+ */
+export async function replayAutomationRun(runId: string, options: { isDryRun: boolean }) {
   const run = await prisma.automationRun.findUnique({
     where: { id: runId },
     include: {
@@ -121,7 +131,7 @@ export async function replayAutomationRun(runId: string) {
     message: run.emailMessage,
     inbox: run.emailMessage.inboxEmailAddress,
     attachments: run.emailMessage.attachments,
-    isDryRun: run.isDryRun,
+    isDryRun: options.isDryRun,
   })
 }
 
