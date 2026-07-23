@@ -56,6 +56,7 @@ function uniqueViolation() {
 
 const USER = { id: 'user_1', memberships: [{ organizationId: 'org_1', role: 'owner' }] }
 const UNAVAILABLE = 'Email address is not available'
+const IMMUTABLE = 'The address of an inbox cannot be changed. Create a new inbox instead.'
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -185,7 +186,7 @@ describe('POST /api/v1/emailInbox — address normalization', () => {
   })
 })
 
-describe('PATCH /api/v1/emailInbox/[id] — address normalization', () => {
+describe('PATCH /api/v1/emailInbox/[id] — the address is immutable', () => {
   beforeEach(() => {
     emailInboxFindUniqueMock.mockResolvedValue({
       id: 'inbox_1',
@@ -195,84 +196,73 @@ describe('PATCH /api/v1/emailInbox/[id] — address normalization', () => {
     })
   })
 
-  it('persists the new address lowercased and trimmed', async () => {
-    emailInboxUpdateMock.mockResolvedValue({ id: 'inbox_1', email: 'billing@corp.com' })
-
-    const response = await patch('inbox_1', { email: ' Billing@Corp.com ' })
-
-    expect(response.status).toBe(200)
-    expect(emailInboxUpdateMock.mock.calls[0][0].data.email).toBe('billing@corp.com')
-  })
-
-  it('409s when re-pointing onto an address another inbox holds', async () => {
-    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'billing@corp.com' })
-
+  it('409s when asked to change the address to a different one', async () => {
     const response = await patch('inbox_1', { email: 'billing@corp.com' })
 
     expect(response.status).toBe(409)
-    expect((await response.json()).message).toBe(UNAVAILABLE)
+    expect((await response.json()).message).toBe(IMMUTABLE)
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('409s on a case variant of an address another inbox holds', async () => {
-    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'billing@corp.com' })
-
-    const response = await patch('inbox_1', { email: 'BILLING@corp.com' })
+  it('409s on a case/whitespace variant of the current address — that is still a change', async () => {
+    // The stored address is already normalized, so `Old@Corp.com` and
+    // ` old@corp.com ` normalize back to it and are treated as a no-op; a
+    // genuinely different address (even if it only differs before normalization)
+    // is refused. This one differs post-normalization.
+    const response = await patch('inbox_1', { email: 'new@corp.com' })
 
     expect(response.status).toBe(409)
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('excludes the inbox itself from the collision check', async () => {
-    // Re-submitting the address you already hold is a no-op, not a conflict.
-    emailInboxUpdateMock.mockResolvedValue({ id: 'inbox_1', email: 'old@corp.com' })
-
-    const response = await patch('inbox_1', { email: 'Old@Corp.com' })
-
-    expect(response.status).toBe(200)
-    expect(emailInboxFindFirstMock.mock.calls[0][0].where.NOT).toEqual({ id: 'inbox_1' })
-  })
-
-  it('maps a racing P2002 to 409 rather than 500', async () => {
-    emailInboxUpdateMock.mockRejectedValue(uniqueViolation())
-
-    const response = await patch('inbox_1', { email: 'billing@corp.com' })
+  it('409s rather than silently ignoring the email field', async () => {
+    // Failing loudly matters: a client that thinks it changed the address must
+    // not get a 200 back and assume the change took.
+    const response = await patch('inbox_1', { email: 'billing@corp.com', name: 'Renamed' })
 
     expect(response.status).toBe(409)
-    expect((await response.json()).message).toBe(UNAVAILABLE)
+    expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('400s an unroutable address', async () => {
+  it('409s on an invalid email rather than 400 — the field cannot change either way', async () => {
     const response = await patch('inbox_1', { email: 'not-an-address' })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(409)
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('leaves the address alone when only the name is patched', async () => {
+  it('treats resubmitting the current address (any case/padding) as a no-op', async () => {
+    emailInboxUpdateMock.mockResolvedValue({ id: 'inbox_1', email: 'old@corp.com', name: 'Renamed' })
+
+    const response = await patch('inbox_1', { email: ' Old@Corp.com ', name: 'Renamed' })
+
+    expect(response.status).toBe(200)
+    // Even on the no-op path, `email` is never written back.
+    expect(emailInboxUpdateMock.mock.calls[0][0].data).not.toHaveProperty('email')
+  })
+
+  it('renames via the name field and never writes email', async () => {
     emailInboxUpdateMock.mockResolvedValue({ id: 'inbox_1', email: 'old@corp.com', name: 'Renamed' })
 
     const response = await patch('inbox_1', { name: 'Renamed' })
 
     expect(response.status).toBe(200)
-    expect(emailInboxUpdateMock.mock.calls[0][0].data).not.toHaveProperty('email')
-    expect(emailInboxFindFirstMock).not.toHaveBeenCalled()
+    expect(emailInboxUpdateMock.mock.calls[0][0].data).toEqual({ name: 'Renamed' })
   })
 
-  it('404s a foreign inbox before evaluating the address', async () => {
+  it('404s a foreign inbox before evaluating the body', async () => {
     emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', userId: 'someone_else' })
 
     const response = await patch('inbox_1', { email: 'billing@corp.com' })
 
     expect(response.status).toBe(404)
-    expect(emailInboxFindFirstMock).not.toHaveBeenCalled()
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
   it('still 500s on unrelated failures', async () => {
     emailInboxUpdateMock.mockRejectedValue(new Error('connection reset'))
 
-    const response = await patch('inbox_1', { email: 'billing@corp.com' })
+    const response = await patch('inbox_1', { name: 'Renamed' })
 
     expect(response.status).toBe(500)
   })

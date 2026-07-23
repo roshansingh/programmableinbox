@@ -85,14 +85,18 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
     expect(await prisma.emailInbox.count({ where: { email: 'billing@corp.com' } })).toBe(1)
   })
 
-  it('409s re-pointing an inbox onto a case variant of another tenant\'s address', async () => {
+  it('refuses to change an inbox address at all — the address is immutable', async () => {
+    // Re-pointing was a second route to interception (move a throwaway inbox
+    // onto a case variant of a tenant's address), so PATCH no longer changes
+    // the address for any target, occupied or free.
     const b = await createOrgWithUser()
     await seedInbox(b.org.id, b.user.id, { email: 'billing@corp.com' })
 
     const a = await createSecondOrg()
     const attacker = await seedInbox(a.org.id, a.user.id, { email: 'throwaway@corp.com' })
 
-    const res = await patchById(
+    // Onto another tenant's address...
+    const ontoTaken = await patchById(
       jsonRequest(`http://localhost/api/v1/emailInbox/${attacker.id}`, {
         method: 'PATCH',
         credential: a.token,
@@ -100,10 +104,40 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
       }),
       params({ id: attacker.id }),
     )
+    expect(ontoTaken.status).toBe(409)
 
-    expect(res.status).toBe(409)
+    // ...and onto a completely unused address: still refused.
+    const ontoFree = await patchById(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${attacker.id}`, {
+        method: 'PATCH',
+        credential: a.token,
+        body: { email: 'brand-new@corp.com' },
+      }),
+      params({ id: attacker.id }),
+    )
+    expect(ontoFree.status).toBe(409)
+
     const row = await prisma.emailInbox.findUniqueOrThrow({ where: { id: attacker.id } })
     expect(row.email).toBe('throwaway@corp.com')
+  })
+
+  it('allows renaming an inbox (name is mutable, address is not)', async () => {
+    const a = await createOrgWithUser()
+    const inbox = await seedInbox(a.org.id, a.user.id, { email: 'keep@corp.com', name: 'Old' })
+
+    const res = await patchById(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, {
+        method: 'PATCH',
+        credential: a.token,
+        body: { name: 'New', email: 'keep@corp.com' },
+      }),
+      params({ id: inbox.id }),
+    )
+
+    expect(res.status).toBe(200)
+    const row = await prisma.emailInbox.findUniqueOrThrow({ where: { id: inbox.id } })
+    expect(row.name).toBe('New')
+    expect(row.email).toBe('keep@corp.com')
   })
 
   it('delivers an inbound email to exactly one inbox, in the owning org', async () => {

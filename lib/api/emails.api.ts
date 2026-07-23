@@ -23,7 +23,8 @@ export interface CreateInboxEmailRequest {
 }
 
 export interface UpdateInboxEmailRequest {
-  email?: string
+  // `email` is intentionally omitted: an inbox address is immutable once created
+  // (see PATCH /v1/emailInbox/[id]). To change an address, create a new inbox.
   name?: string
 }
 
