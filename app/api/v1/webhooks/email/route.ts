@@ -306,6 +306,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Fan-out: find all inboxes that should receive this email (recipients include To, Cc, Bcc)
+    //
+    // The lowercase+trim here is half of a contract with the claiming routes:
+    // stored addresses are normalized the same way (`lib/email-address.ts`,
+    // enforced by a CHECK constraint), so this exact-match `in` is a complete
+    // case-insensitive match. Fan-out is what makes that load-bearing — every
+    // row matching here gets a full copy of the email, so two rows for one
+    // address is cross-tenant disclosure (F1 / issue #37). Do not relax the
+    // normalization on either side independently.
     const allAddresses = [
       ...resendEmail.to,
       ...(resendEmail.cc || []),

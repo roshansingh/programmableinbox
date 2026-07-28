@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 import { API_KEY_SCOPE_SET } from '@/lib/api-key-scopes'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
 const API_KEY_PREFIX_LENGTH = 12
 
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
   const keys = await prisma.apiKey.findMany({
     where,
     orderBy: { createdAt: 'desc' },
+    take: MAX_UNPAGINATED_ROWS,
   })
 
   return jsonSuccess(keys.map(serializeApiKey))

@@ -11,6 +11,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
+import { EmailHtmlViewer } from "@/components/email-html-viewer"
 import { toast } from 'sonner'
 
 export default function InboxPage() {
@@ -417,16 +418,12 @@ export default function InboxPage() {
                                     to {msg.to.join(', ')}
                                     {msg.cc?.length > 0 && ` | cc: ${msg.cc.join(', ')}`}
                                   </p>
-                                  {msg.html ? (
-                                    <div
-                                      className="prose prose-sm max-w-none text-foreground"
-                                      dangerouslySetInnerHTML={{ __html: msg.html }}
-                                    />
-                                  ) : (
-                                    <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
-                                      {msg.text}
-                                    </pre>
-                                  )}
+                                  {/* Email bodies are attacker-controlled — rendered in a sandboxed iframe, never in this document. See issue #36. */}
+                                  <EmailHtmlViewer
+                                    html={msg.html}
+                                    text={msg.text}
+                                    title={`Message from ${msg.from}`}
+                                  />
                                   {!isLatest && (
                                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4 pt-3 border-t border-border">
                                       <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openCompose("reply", msg)}>

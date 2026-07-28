@@ -3,15 +3,35 @@ import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
+import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
+
+/** Mirrors `enum WebhookStatus` in prisma/schema.prisma. */
+const WEBHOOK_STATUSES: readonly WebhookStatus[] = ['active', 'inactive', 'failing']
 
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request)
   if (!user) return jsonError('Unauthorized', 401)
 
   const searchParams = request.nextUrl.searchParams
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '20')
-  const status = searchParams.get('status') as WebhookStatus | null
+
+  let page: number
+  let limit: number
+  let skip: number
+  try {
+    ;({ page, limit, skip } = parsePagination(searchParams, { defaultLimit: 20 }))
+  } catch (error) {
+    if (error instanceof OffsetTooLargeError) return jsonError(error.message, 400)
+    throw error
+  }
+
+  // Validate rather than cast: an unknown value reaches Prisma as an invalid
+  // enum member and surfaces as an unhandled 500 for what is a bad client
+  // parameter. The cast asserted a guarantee the query string cannot provide.
+  const rawStatus = searchParams.get('status')
+  if (rawStatus !== null && !WEBHOOK_STATUSES.includes(rawStatus as WebhookStatus)) {
+    return jsonError(`status must be one of: ${WEBHOOK_STATUSES.join(', ')}`, 400)
+  }
+  const status = rawStatus as WebhookStatus | null
 
   const orgIds = user.memberships.map((m) => m.organizationId)
 
@@ -23,7 +43,7 @@ export async function GET(request: NextRequest) {
   const [webhooks, total] = await Promise.all([
     prisma.webhook.findMany({
       where,
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),

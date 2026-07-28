@@ -4,6 +4,7 @@ import { GET as getRun } from '@/app/api/v1/automations/[id]/runs/[runId]/route'
 import { POST as replayRun } from '@/app/api/v1/automations/[id]/runs/[runId]/replay/route'
 import { POST as dryRun } from '@/app/api/v1/automations/[id]/dry-run/route'
 import { prisma } from '@/lib/db'
+import { REPLAY_RATE_LIMITS, setReplayRateLimitClient } from '@/lib/automations/replay-rate-limit'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedAutomation, seedInbox, seedMessage } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
@@ -16,12 +17,13 @@ const NONEXISTENT_ID = '00000000-0000-7000-8000-000000000000'
 // "contains" ''), so a triggered run always reaches the webhook action.
 //
 // lib/automations/actions.ts `executeSendWebhook` performs a REAL outbound
-// request when `isDryRun` is false (POST /runs and /replay both run non-dry by
-// default / by replaying the original run's isDryRun flag). Since issue #39 that
-// request goes through `safeFetch` from lib/security/ssrf-guard rather than
-// global `fetch`, so the guard is what has to be stubbed here — no live network
-// call happens. Dry-run (`runAutomationDryRun` -> isDryRun: true) short-circuits
-// before the call entirely, so it never touches this stub.
+// request when `isDryRun` is false (POST /runs runs non-dry by default; /replay
+// only when the request explicitly confirms a live replay — see issue #40).
+// Since issue #39 that request goes through `safeFetch` from
+// lib/security/ssrf-guard rather than global `fetch`, so the guard is what has
+// to be stubbed here — no live network call happens. A dry run
+// (`runAutomationDryRun`, or a replay that defaults to dry -> isDryRun: true)
+// short-circuits before the call entirely, so it never touches this stub.
 const { safeFetchMock } = vi.hoisted(() => ({
   safeFetchMock: vi.fn(async (url: string) => ({
     ok: true,
@@ -37,12 +39,32 @@ vi.mock('@/lib/security/ssrf-guard', async (importOriginal) => {
   return { ...actual, safeFetch: safeFetchMock }
 })
 
+// In-memory stand-in for the replay rate limiter's Redis, so these tests need no
+// Redis and never hit the limiter's fail-closed path for live replays. The
+// limiter's own arithmetic is covered by lib/automations/__tests__.
+function createFakeRateLimitRedis() {
+  const counters = new Map<string, number>()
+  return {
+    counters,
+    async incr(key: string) {
+      const next = (counters.get(key) ?? 0) + 1
+      counters.set(key, next)
+      return next
+    },
+    async expire() {
+      return 1
+    },
+  }
+}
+
 beforeEach(() => {
   safeFetchMock.mockClear()
+  setReplayRateLimitClient(createFakeRateLimitRedis())
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  setReplayRateLimitClient(null)
 })
 
 async function setupAutomation() {
@@ -295,10 +317,15 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(res.status).toBe(401)
   })
 
-  it('creates a NEW AutomationRun distinct from the original, replaying the same message', async () => {
+  it('defaults to a DRY RUN — no side effect — even when the original run was live (#40)', async () => {
     const { automation, message, token } = await setupAutomation()
     const { json: original } = await triggerRun(automation.id, message.id, token)
     expect(safeFetchMock).toHaveBeenCalledTimes(1)
+
+    const originalRun = await prisma.automationRun.findUniqueOrThrow({
+      where: { id: original.data.runId },
+    })
+    expect(originalRun.isDryRun).toBe(false)
 
     const res = await replayRun(
       jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
@@ -310,18 +337,85 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(res.status).toBe(201)
     const { data } = await res.json()
     expect(data.runId).not.toBe(original.data.runId)
-    expect(data.status).toBe('succeeded')
+    expect(data.isDryRun).toBe(true)
+    expect(data.mode).toBe('dry_run')
 
-    // A second (stubbed) webhook call for the replay run.
-    expect(safeFetchMock).toHaveBeenCalledTimes(2)
+    // No second webhook call: the replay defaulted to dry-run and did not
+    // re-fire the side effect.
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
 
     const replayedRun = await prisma.automationRun.findUniqueOrThrow({ where: { id: data.runId } })
     expect(replayedRun.automationId).toBe(automation.id)
     expect(replayedRun.emailMessageId).toBe(message.id)
-    expect(replayedRun.isDryRun).toBe(false)
+    expect(replayedRun.isDryRun).toBe(true)
 
     const totalRuns = await prisma.automationRun.count({ where: { automationId: automation.id } })
     expect(totalRuns).toBe(2)
+  })
+
+  it('400 for a live replay without explicit confirmation, and nothing runs', async () => {
+    const { automation, message, token } = await setupAutomation()
+    const { json: original } = await triggerRun(automation.id, message.id, token)
+
+    const res = await replayRun(
+      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+        method: 'POST',
+        credential: token,
+        body: { mode: 'live' },
+      }),
+      params({ id: automation.id, runId: original.data.runId })
+    )
+    expect(res.status).toBe(400)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
+    const totalRuns = await prisma.automationRun.count({ where: { automationId: automation.id } })
+    expect(totalRuns).toBe(1)
+  })
+
+  it('re-executes the real side effect only for an explicitly confirmed live replay', async () => {
+    const { automation, message, token } = await setupAutomation()
+    const { json: original } = await triggerRun(automation.id, message.id, token)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
+
+    const res = await replayRun(
+      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+        method: 'POST',
+        credential: token,
+        body: { mode: 'live', confirm: true },
+      }),
+      params({ id: automation.id, runId: original.data.runId })
+    )
+    expect(res.status).toBe(201)
+    const { data } = await res.json()
+    expect(data.isDryRun).toBe(false)
+    expect(safeFetchMock).toHaveBeenCalledTimes(2)
+
+    const replayedRun = await prisma.automationRun.findUniqueOrThrow({ where: { id: data.runId } })
+    expect(replayedRun.isDryRun).toBe(false)
+    expect(replayedRun.emailMessageId).toBe(message.id)
+  })
+
+  it('rate limits repeated live replays (429) once the per-user budget is spent', async () => {
+    const { automation, message, token } = await setupAutomation()
+    const { json: original } = await triggerRun(automation.id, message.id, token)
+
+    const liveBudget = REPLAY_RATE_LIMITS.live.user.limit
+    const statuses: number[] = []
+    for (let i = 0; i < liveBudget + 2; i += 1) {
+      const res = await replayRun(
+        jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+          method: 'POST',
+          credential: token,
+          body: { mode: 'live', confirm: true },
+        }),
+        params({ id: automation.id, runId: original.data.runId })
+      )
+      statuses.push(res.status)
+    }
+
+    expect(statuses.filter((s) => s === 201)).toHaveLength(liveBudget)
+    expect(statuses.slice(-2)).toEqual([429, 429])
+    // 1 original trigger + `liveBudget` accepted live replays.
+    expect(safeFetchMock).toHaveBeenCalledTimes(1 + liveBudget)
   })
 
   it('404 for a nonexistent runId', async () => {

@@ -309,6 +309,74 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     expect(body.message).toBe('Invalid cursor')
   })
 
+  describe('limit clamping', () => {
+    async function takeFor(query: string) {
+      resolveAuthContextMock.mockResolvedValue({
+        kind: 'user', userId: 'u1', email: 'u@e.com',
+        memberships: [{ organizationId: 'o1', role: 'owner' }],
+      })
+      emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+      emailMessageFindManyMock.mockResolvedValue([])
+
+      const { GET } = await loadRoute()
+      const res = await GET(
+        new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages${query}`),
+        { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+      )
+      expect(res!.status).toBe(200)
+      // The route over-fetches by one to detect hasMore.
+      return emailMessageFindManyMock.mock.calls[0][0].take
+    }
+
+    it('clamps ?limit=100000000 to the max page size', async () => {
+      expect(await takeFor('?limit=100000000')).toBe(101)
+    })
+
+    it('rejects ?limit=-1 rather than passing a negative take to Prisma', async () => {
+      expect(await takeFor('?limit=-1')).toBe(51)
+    })
+
+    it('rejects ?limit=abc', async () => {
+      expect(await takeFor('?limit=abc')).toBe(51)
+    })
+
+    it('rejects ?limit=1e9', async () => {
+      expect(await takeFor('?limit=1e9')).toBe(51)
+    })
+
+    it('rejects ?limit=Infinity', async () => {
+      expect(await takeFor('?limit=Infinity')).toBe(51)
+    })
+
+    it('clamps ?limit=0 up to one row', async () => {
+      expect(await takeFor('?limit=0')).toBe(2)
+    })
+
+    it('honours a valid limit', async () => {
+      expect(await takeFor('?limit=10')).toBe(11)
+    })
+  })
+
+  it('bounds the grouped branch with a clamped take', async () => {
+    resolveAuthContextMock.mockResolvedValue({
+      kind: 'user', userId: 'u1', email: 'u@e.com',
+      memberships: [{ organizationId: 'o1', role: 'owner' }],
+    })
+    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+    fetchGroupedThreadHeadsMock.mockResolvedValue([])
+
+    const { GET } = await loadRoute()
+    const res = await GET(
+      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?grouped=true&limit=100000000'),
+      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
+    )
+
+    expect(res!.status).toBe(200)
+    // fetchGroupedThreadHeads(inboxId, cursor, take) — take must be bounded.
+    expect(fetchGroupedThreadHeadsMock.mock.calls[0][2]).toBe(101)
+    expect(emailMessageFindManyMock).not.toHaveBeenCalled()
+  })
+
   it('uses the grouped query and returns threadCount rows for grouped=true', async () => {
     resolveAuthContextMock.mockResolvedValue({
       kind: 'user', userId: 'u1', email: 'u@e.com',
