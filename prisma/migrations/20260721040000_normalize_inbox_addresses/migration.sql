@@ -16,24 +16,37 @@
 -- fail loudly on any non-conforming row (the safe direction) — that is the
 -- signal to prepend a guarded backfill; see git history on this file for one.
 
--- Make a non-normalized address physically impossible. Three clauses, mirroring
--- `isValidInboxAddress`:
---   1. lowercase (`email = lower(email)`);
---   2. no whitespace of any kind (`email !~ '[[:space:]]'`);
---   3. printable ASCII only (`email !~ '[^[:ascii:]]'`).
+-- Make a non-normalized address physically impossible. The goal is to mirror
+-- `isValidInboxAddress`, whose charset rule is PRINTABLE_ASCII = /^[\x21-\x7e]+$/
+-- — lowercase, and every character in printable ASCII (0x21–0x7e). Four clauses:
+--   1. lowercase          `email = lower(email)`
+--   2. ASCII only         `email !~ '[^[:ascii:]]'`   (codepoints 0x00–0x7f)
+--   3. no whitespace       `email !~ '[[:space:]]'`    (rejects 0x20 space + 0x09–0x0d)
+--   4. no control chars    `email !~ '[[:cntrl:]]'`    (rejects 0x00–0x1f, 0x7f)
 --
--- Clause 2 is stated directly rather than as `email = lower(btrim(email, ...))`:
--- the btrim form accepts *interior* whitespace (nothing to trim, so it equals
--- itself), which the application rejects. Clause 3 keeps the constraint at least
--- as strict as the app's ASCII-only rule — POSIX `[[:space:]]` matches only
--- ASCII whitespace, so a Unicode space like U+00A0, or any other non-ASCII
--- character (homoglyphs, zero-width spaces), would slip past clauses 1 and 2.
--- `[[:ascii:]]` matches only codepoints 0x00–0x7f, so `[^[:ascii:]]` catches
--- everything above it.
+-- Together, clauses 2–4 leave exactly 0x21–0x7e: ASCII, minus space, minus
+-- control characters = printable ASCII. Clause 4 is the one that closes the gap
+-- clauses 2–3 alone left open: an ASCII control character such as BEL (0x07) or
+-- DEL (0x7f) is ASCII and is not whitespace, so it passed clauses 2 and 3 —
+-- weaker than the app validator, which rejects it. (Clause 2 is stated as a
+-- lowercase-preserving form rather than `email = lower(btrim(email, ...))`,
+-- which would accept *interior* whitespace the app rejects.)
+--
+-- Why POSIX classes here and not the tempting `email ~ '^[[:graph:]]+$'`:
+-- Postgres POSIX classes are LC_CTYPE-dependent. `[[:ascii:]]` is the exception
+-- — it is defined as codepoints 0x00–0x7f regardless of locale — so clause 2 is
+-- a locale-independent ASCII guarantee. `[[:graph:]]` is NOT: under a UTF-8
+-- linguistic locale it also matches Unicode graphic characters, so
+-- `~ '^[[:graph:]]+$'` would silently start *accepting* homoglyphs on a prod DB
+-- with such a locale. Anchoring on `[[:ascii:]]` first restricts the string to
+-- 0x00–0x7f, and within that range `[[:cntrl:]]` reliably means 0x00–0x1f/0x7f
+-- in every locale, so clause 4 is safe. Verified on Postgres 14.19 (server
+-- locale C); the reasoning is what keeps it correct on a differently-localed 17.
 ALTER TABLE "email_inboxes"
   ADD CONSTRAINT "email_inboxes_email_normalized_check"
   CHECK (
     "email" = lower("email")
-    AND "email" !~ '[[:space:]]'
     AND "email" !~ '[^[:ascii:]]'
+    AND "email" !~ '[[:space:]]'
+    AND "email" !~ '[[:cntrl:]]'
   );

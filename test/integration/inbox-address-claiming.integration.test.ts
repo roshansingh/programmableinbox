@@ -173,11 +173,24 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
     // normalize fails here rather than silently reopening the interception.
     const { org, user } = await createOrgWithUser()
 
-    await expect(
-      prisma.emailInbox.create({
-        data: { organizationId: org.id, userId: user.id, email: 'Mixed@Case.dev' },
-      }),
-    ).rejects.toThrow()
+    // Each of these violates a different clause of the CHECK and must be rejected
+    // at the DB, matching the app's PRINTABLE_ASCII rule (lowercase, no
+    // whitespace, ASCII, no control chars). The control/DEL cases are the ones an
+    // ASCII+no-whitespace constraint would have let through.
+    const rejected = [
+      'Mixed@Case.dev', // uppercase
+      'a b@corp.com', // interior space
+      `caf${String.fromCodePoint(0x00e9)}@corp.com`, // non-ASCII (é)
+      `a${String.fromCodePoint(0x0007)}b@corp.com`, // BEL control char
+      `a${String.fromCodePoint(0x007f)}b@corp.com`, // DEL
+    ]
+    for (const email of rejected) {
+      await expect(
+        prisma.emailInbox.create({
+          data: { organizationId: org.id, userId: user.id, email },
+        }),
+      ).rejects.toThrow()
+    }
 
     expect(await prisma.emailInbox.count({ where: { organizationId: org.id } })).toBe(0)
   })
