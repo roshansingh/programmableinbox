@@ -11,14 +11,32 @@ log() {
   printf '%s %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
 }
 
+# ---------------------------------------------------------------------------
+# Database credentials (issue #41).
+#
+# Backups connect as the dedicated read-scoped role (pg_read_all_data + the
+# backup-control functions + write on `backup_status`), NOT as the cluster
+# superuser. If the deployment has not been converted yet we still work, but we
+# say so loudly on every run rather than failing backups silently.
+# ---------------------------------------------------------------------------
+BACKUP_DB_USER="${POSTGRES_BACKUP_USER:-}"
+BACKUP_DB_PASSWORD="${POSTGRES_BACKUP_PASSWORD:-}"
+
+if [ -z "$BACKUP_DB_USER" ] || [ -z "$BACKUP_DB_PASSWORD" ]; then
+  BACKUP_DB_USER="${POSTGRES_USER}"
+  BACKUP_DB_PASSWORD="${POSTGRES_PASSWORD}"
+  log "WARNING: POSTGRES_BACKUP_USER/POSTGRES_BACKUP_PASSWORD unset — falling back to '${POSTGRES_USER}', which is the cluster superuser. Convert this deployment: deploy/runbooks/04-postgres-role-rotation.md"
+fi
+export BACKUP_DB_USER BACKUP_DB_PASSWORD
+
 # Record a successful run in the `backup_status` table.
 record_success() {
   local job_name="$1"
   local details_json="${2:-null}"
-  PGPASSWORD="${POSTGRES_PASSWORD}" psql \
+  PGPASSWORD="${BACKUP_DB_PASSWORD}" psql \
     --host="${POSTGRES_HOST:-postgres}" \
     --port="${POSTGRES_PORT:-5432}" \
-    --username="${POSTGRES_USER}" \
+    --username="${BACKUP_DB_USER}" \
     --dbname="${POSTGRES_DB}" \
     --no-password \
     --quiet \

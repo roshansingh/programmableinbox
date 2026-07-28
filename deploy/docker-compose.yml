@@ -31,6 +31,9 @@ services:
   app:
     image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    # DATABASE_URL in app.env MUST point at the least-privileged runtime role
+    # (inboxui_app): DML only, no DDL, not a superuser. See deploy/README.md
+    # §"Database roles" and deploy/runbooks/04-postgres-role-rotation.md.
     env_file: /srv/inboxui/secrets/app.env
     expose:
       - "4000"
@@ -51,13 +54,32 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Migrations are the ONLY thing that runs DDL, and they run as the schema
+    # owner (inboxui_migrator) — never as the app's runtime role and never as a
+    # superuser. app.env carries both URLs; DATABASE_URL is the runtime one, so
+    # it is swapped for MIGRATE_DATABASE_URL here (Prisma only reads
+    # DATABASE_URL, via prisma.config.ts). `$$` is escaped so compose passes the
+    # expansion through to the shell instead of interpolating it itself.
+    #
     # Invoke the CLI directly — the standalone runtime image has node_modules/prisma
     # but not node_modules/.bin, so `npx prisma` can't resolve the executable.
-    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        : "$${MIGRATE_DATABASE_URL:?MIGRATE_DATABASE_URL is not set in app.env — migrations must not run as the app or superuser role. See deploy/runbooks/04-postgres-role-rotation.md}"
+        export DATABASE_URL="$$MIGRATE_DATABASE_URL"
+        exec node node_modules/prisma/build/index.js migrate deploy
 
   postgres:
     image: ${POSTGRES_IMAGE:-ghcr.io/programmableinbox/inboxui-postgres}:${POSTGRES_TAG:-17}
     restart: unless-stopped
+    # POSTGRES_USER/PASSWORD are the *bootstrap superuser* the image entrypoint
+    # creates — break-glass only, nothing connects as it. The image's initdb
+    # hook reads POSTGRES_{APP,MIGRATOR,BACKUP}_PASSWORD from this same file to
+    # create the least-privileged roles, but ONLY on a first-time init with an
+    # empty pgdata. Existing volumes: deploy/scripts/pg-apply-least-privilege.sh.
     env_file: /srv/inboxui/secrets/app.env
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     volumes:
@@ -74,6 +96,9 @@ services:
   backup-cron:
     image: ${BACKUP_IMAGE:-ghcr.io/programmableinbox/inboxui-backup}:${BACKUP_TAG:-latest}
     restart: unless-stopped
+    # Connects as POSTGRES_BACKUP_USER (read-only via pg_read_all_data, plus
+    # write on `backup_status` only). Falls back to the bootstrap superuser with
+    # a loud warning in /var/log/backup/cron.log if that is unset.
     env_file: /srv/inboxui/secrets/app.env
     volumes:
       - /srv/inboxui/backup-logs:/var/log/backup
