@@ -16,13 +16,28 @@ const NONEXISTENT_ID = '00000000-0000-7000-8000-000000000000'
 // to https://example.com/webhook). The condition always matches (every string
 // "contains" ''), so a triggered run always reaches the webhook action.
 //
-// lib/automations/actions.ts `executeSendWebhook` performs a REAL `fetch()` when
-// `isDryRun` is false (POST /runs runs non-dry by default; /replay only when the
-// request explicitly confirms a live replay — see issue #40). Stub global fetch
-// so no live network call happens; a dry run short-circuits before the fetch
-// call entirely, so it never touches this stub, but having it stubbed is
-// harmless.
-const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+// lib/automations/actions.ts `executeSendWebhook` performs a REAL outbound
+// request when `isDryRun` is false (POST /runs runs non-dry by default; /replay
+// only when the request explicitly confirms a live replay — see issue #40).
+// Since issue #39 that request goes through `safeFetch` from
+// lib/security/ssrf-guard rather than global `fetch`, so the guard is what has
+// to be stubbed here — no live network call happens. A dry run
+// (`runAutomationDryRun`, or a replay that defaults to dry -> isDryRun: true)
+// short-circuits before the call entirely, so it never touches this stub.
+const { safeFetchMock } = vi.hoisted(() => ({
+  safeFetchMock: vi.fn(async (url: string) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    finalUrl: url,
+    redirects: 0,
+  })),
+}))
+
+vi.mock('@/lib/security/ssrf-guard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/security/ssrf-guard')>()
+  return { ...actual, safeFetch: safeFetchMock }
+})
 
 // In-memory stand-in for the replay rate limiter's Redis, so these tests need no
 // Redis and never hit the limiter's fail-closed path for live replays. The
@@ -43,8 +58,7 @@ function createFakeRateLimitRedis() {
 }
 
 beforeEach(() => {
-  fetchMock.mockClear()
-  vi.stubGlobal('fetch', fetchMock)
+  safeFetchMock.mockClear()
   setReplayRateLimitClient(createFakeRateLimitRedis())
 })
 
@@ -137,9 +151,9 @@ describe('POST /api/v1/automations/[id]/runs', () => {
     expect(json.data.status).toBe('succeeded')
     expect(json.data.runId).toBeTruthy()
 
-    // Webhook action performed a fetch call — against the stub, never live.
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][0]).toBe('https://example.com/webhook')
+    // Webhook action performed a guarded outbound call — against the stub, never live.
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
+    expect(safeFetchMock.mock.calls[0][0]).toBe('https://example.com/webhook')
 
     const run = await prisma.automationRun.findUniqueOrThrow({
       where: { id: json.data.runId },
@@ -306,7 +320,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
   it('defaults to a DRY RUN — no side effect — even when the original run was live (#40)', async () => {
     const { automation, message, token } = await setupAutomation()
     const { json: original } = await triggerRun(automation.id, message.id, token)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
 
     const originalRun = await prisma.automationRun.findUniqueOrThrow({
       where: { id: original.data.runId },
@@ -326,8 +340,9 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(data.isDryRun).toBe(true)
     expect(data.mode).toBe('dry_run')
 
-    // No second webhook call: the replay did not re-fire the side effect.
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // No second webhook call: the replay defaulted to dry-run and did not
+    // re-fire the side effect.
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
 
     const replayedRun = await prisma.automationRun.findUniqueOrThrow({ where: { id: data.runId } })
     expect(replayedRun.automationId).toBe(automation.id)
@@ -351,7 +366,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
       params({ id: automation.id, runId: original.data.runId })
     )
     expect(res.status).toBe(400)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
     const totalRuns = await prisma.automationRun.count({ where: { automationId: automation.id } })
     expect(totalRuns).toBe(1)
   })
@@ -359,7 +374,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
   it('re-executes the real side effect only for an explicitly confirmed live replay', async () => {
     const { automation, message, token } = await setupAutomation()
     const { json: original } = await triggerRun(automation.id, message.id, token)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1)
 
     const res = await replayRun(
       jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
@@ -372,7 +387,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(res.status).toBe(201)
     const { data } = await res.json()
     expect(data.isDryRun).toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(safeFetchMock).toHaveBeenCalledTimes(2)
 
     const replayedRun = await prisma.automationRun.findUniqueOrThrow({ where: { id: data.runId } })
     expect(replayedRun.isDryRun).toBe(false)
@@ -400,7 +415,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(statuses.filter((s) => s === 201)).toHaveLength(liveBudget)
     expect(statuses.slice(-2)).toEqual([429, 429])
     // 1 original trigger + `liveBudget` accepted live replays.
-    expect(fetchMock).toHaveBeenCalledTimes(1 + liveBudget)
+    expect(safeFetchMock).toHaveBeenCalledTimes(1 + liveBudget)
   })
 
   it('404 for a nonexistent runId', async () => {
@@ -474,7 +489,7 @@ describe('POST /api/v1/automations/[id]/dry-run', () => {
       }
 
       // No real network call was made for the webhook action.
-      expect(fetchMock).not.toHaveBeenCalled()
+      expect(safeFetchMock).not.toHaveBeenCalled()
 
       // Dry-run persistence semantics (confirmed by reading executeAutomation /
       // runAutomationDryRun / executeSendWebhook): executeAutomation ALWAYS

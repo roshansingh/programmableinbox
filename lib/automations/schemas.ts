@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ALLOWED_SCHEMES } from '@/lib/security/ssrf-rules'
 import {
   AUTOMATION_CONFIG_TYPE,
   AUTOMATION_LAYOUT_TYPE,
@@ -8,6 +9,31 @@ import {
 
 const addressListSchema = z.array(z.string().email()).min(1, { message: 'At least one recipient is required' })
 const optionalAddressListSchema = z.array(z.string().email()).optional()
+
+/**
+ * Webhook destinations must be http(s). `z.string().url()` alone happily
+ * accepts `file:`, `gopher:`, `ftp:` and friends.
+ *
+ * Only the *scheme* is enforced here — this schema also runs in the browser
+ * (the automation editor), where the server's egress allowlist and the
+ * `WEBHOOK_ALLOW_PRIVATE_NETWORK` dev escape hatch are not visible, so a
+ * client-side private-address check would disagree with the server. The
+ * address/hostname blocklist is enforced at execution time by
+ * `lib/security/ssrf-guard`, which is the authoritative gate.
+ */
+const webhookUrlSchema = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      try {
+        return (ALLOWED_SCHEMES as readonly string[]).includes(new URL(value).protocol)
+      } catch {
+        return false
+      }
+    },
+    { message: 'Webhook URL must use http or https' }
+  )
 
 const predicateSchema: z.ZodTypeAny = z
   .object({
@@ -123,7 +149,7 @@ const sendWebhookActionNodeSchema = z.object({
   config: z.object({
     type: z.literal('send_webhook_config'),
     version: z.literal(1),
-    url: z.string().url(),
+    url: webhookUrlSchema,
     method: z.enum(['POST', 'PUT']).optional(),
     headers: z.record(z.string()).optional(),
     bodyTemplate: z.string().optional(),

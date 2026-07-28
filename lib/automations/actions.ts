@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getResend } from '@/lib/resend'
+import { SsrfBlockedError, safeFetch } from '@/lib/security/ssrf-guard'
 import { claimAutoReplySlot, releaseAutoReplySlot } from './auto-reply-throttle'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
 import type {
@@ -91,22 +92,51 @@ async function executeSendWebhook(
     }
   }
 
-  const response = await fetch(node.config.url, {
-    method: node.config.method ?? 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(node.config.headers ?? {}),
-      ...(node.config.secret ? { 'x-inboxui-signing-secret': node.config.secret } : {}),
-    },
-    body: payload,
-  })
+  // `safeFetch` (lib/security/ssrf-guard) is used instead of global `fetch`:
+  // the URL, method, headers and body of this action are all tenant-controlled,
+  // so an unguarded fetch is a straight SSRF into the cloud metadata service or
+  // any internal address. The guard validates the scheme/host, resolves DNS
+  // itself, rejects private/loopback/link-local results, pins the socket to the
+  // validated address, and re-validates every redirect hop.
+  let response
+  try {
+    response = await safeFetch(node.config.url, {
+      method: node.config.method ?? 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(node.config.headers ?? {}),
+        ...(node.config.secret ? { 'x-inboxui-signing-secret': node.config.secret } : {}),
+      },
+      body: payload,
+    })
+  } catch (error) {
+    if (error instanceof SsrfBlockedError) {
+      // A blocked destination is a configuration problem, not an infrastructure
+      // failure — report it as a failed action rather than throwing, so the run
+      // records a usable reason and `onError` handling still applies.
+      return {
+        status: 'failed',
+        error: {
+          code: 'ssrf_blocked',
+          reason: error.reason,
+          detail: error.detail,
+          host: error.host,
+        },
+      }
+    }
+    throw error
+  }
 
   if (!response.ok) {
     return {
       status: 'failed',
       error: {
         status: response.status,
-        body: await response.text(),
+        // The upstream response body is deliberately NOT captured. Run records
+        // are readable by the tenant, so persisting the body would turn any
+        // outbound request into a readable-SSRF exfiltration channel (issue
+        // #39). Status code only — truncating still leaks.
+        bodyCaptured: false,
       },
     }
   }
