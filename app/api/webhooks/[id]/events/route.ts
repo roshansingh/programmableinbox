@@ -3,6 +3,10 @@ import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { WebhookEventStatus } from '@/lib/generated/prisma/client'
+import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
+
+/** Mirrors `enum WebhookEventStatus` in prisma/schema.prisma. */
+const WEBHOOK_EVENT_STATUSES: readonly WebhookEventStatus[] = ['pending', 'delivered', 'failed']
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -19,9 +23,23 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const searchParams = request.nextUrl.searchParams
-  const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '20')
-  const status = searchParams.get('status') as WebhookEventStatus | null
+
+  let page: number
+  let limit: number
+  let skip: number
+  try {
+    ;({ page, limit, skip } = parsePagination(searchParams, { defaultLimit: 20 }))
+  } catch (error) {
+    if (error instanceof OffsetTooLargeError) return jsonError(error.message, 400)
+    throw error
+  }
+
+  // Validate rather than cast — see the note in app/api/webhooks/route.ts.
+  const rawStatus = searchParams.get('status')
+  if (rawStatus !== null && !WEBHOOK_EVENT_STATUSES.includes(rawStatus as WebhookEventStatus)) {
+    return jsonError(`status must be one of: ${WEBHOOK_EVENT_STATUSES.join(', ')}`, 400)
+  }
+  const status = rawStatus as WebhookEventStatus | null
 
   const where: { webhookId: string; status?: WebhookEventStatus } = { webhookId: id }
   if (status) where.status = status
@@ -29,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const [events, total] = await Promise.all([
     prisma.webhookEvent.findMany({
       where,
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),

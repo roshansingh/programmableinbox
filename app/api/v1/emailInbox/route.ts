@@ -6,6 +6,7 @@ import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
 import { parseInboxAddress } from '@/lib/email-address'
 import logger from '@/lib/logger'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
 /**
  * Deliberately identical whether the address is held by another tenant or by a
@@ -30,7 +31,14 @@ export async function GET(request: NextRequest) {
       where.organizationId = organizationId
     }
 
-    const inboxes = await prisma.emailInbox.findMany({ where })
+    const inboxes = await prisma.emailInbox.findMany({
+    where,
+    // Deterministic order is required, not cosmetic: without it an unordered
+    // scan may return a different arbitrary subset each time the ceiling
+    // truncates. id breaks createdAt ties so the cut is stable.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_UNPAGINATED_ROWS,
+  })
     return jsonSuccess(inboxes)
   }
 
@@ -48,7 +56,14 @@ export async function GET(request: NextRequest) {
   }
 
   const where: { organizationId: string } = { organizationId: organizationId || context.organizationId }
-  const inboxes = await prisma.emailInbox.findMany({ where })
+  const inboxes = await prisma.emailInbox.findMany({
+    where,
+    // Deterministic order is required, not cosmetic: without it an unordered
+    // scan may return a different arbitrary subset each time the ceiling
+    // truncates. id breaks createdAt ties so the cut is stable.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_UNPAGINATED_ROWS,
+  })
 
   return jsonSuccess(inboxes)
 }
