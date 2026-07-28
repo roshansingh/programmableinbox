@@ -3,7 +3,30 @@ import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
 import { prisma } from './db'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
+const MISSING_SECRET_MESSAGE =
+  'JWT_SECRET is not configured. Set it to a strong random value ' +
+  '(e.g. `openssl rand -base64 32`) — refusing to sign or verify tokens.'
+
+/**
+ * Resolve the JWT signing secret, failing closed if it is missing.
+ *
+ * Read lazily on every call rather than captured at module load: `lib/auth-server`
+ * is imported (transitively) by every protected API route, and Next.js evaluates
+ * those modules during `next build`, where JWT_SECRET is deliberately absent (see
+ * the Dockerfile — the build stage sets no secrets). A module-scope assertion
+ * would therefore fail the build instead of the misconfigured deployment. Reading
+ * per call keeps the failure at request time, where it is loud, isolated to the
+ * request, and also lets a rotated secret take effect without a code reload.
+ */
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+
+  if (!secret || secret.trim() === '') {
+    throw new Error(MISSING_SECRET_MESSAGE)
+  }
+
+  return secret
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10)
@@ -14,12 +37,17 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function signToken(payload: { userId: string }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
 }
 
 export function verifyToken(token: string): { userId: string } | null {
+  // Resolved outside the try block on purpose: a misconfigured secret must
+  // surface as a thrown error (500 + logs), never be swallowed into the `null`
+  // path where it is indistinguishable from a merely invalid token.
+  const secret = getJwtSecret()
+
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: string }
+    return jwt.verify(token, secret) as { userId: string }
   } catch {
     return null
   }

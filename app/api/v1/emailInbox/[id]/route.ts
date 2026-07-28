@@ -1,10 +1,14 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/auth-server'
-import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { parseInboxAddress } from '@/lib/email-address'
 import logger from '@/lib/logger'
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+const EMAIL_IMMUTABLE =
+  'The address of an inbox cannot be changed. Create a new inbox instead.'
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const user = await getAuthenticatedUser(request)
@@ -34,20 +38,28 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { email, name } = await request.json()
 
+    // The address is immutable once the inbox exists (F1). Re-pointing it was a
+    // second route to cross-tenant interception — claim a throwaway address,
+    // then move it onto a case variant of a tenant's — and it also breaks the
+    // guarantee that a delivered message's recipient still names a live inbox.
+    // Changing an address means creating a new inbox, not editing this one.
+    //
+    // A submission that matches the current address (after normalization) is a
+    // no-op and allowed, so a client can PATCH the full record to rename it.
+    // Anything else — a different address, or an invalid one — is refused.
+    if (email !== undefined && parseInboxAddress(email) !== inbox.email) {
+      return jsonError(EMAIL_IMMUTABLE, 409)
+    }
+
     const updated = await prisma.emailInbox.update({
       where: { id },
       data: {
-        ...(email !== undefined && { email }),
         ...(name !== undefined && { name }),
       },
     })
 
     return jsonSuccess(updated)
   } catch (error) {
-    // Renaming an inbox onto an address another inbox already holds (F1).
-    if (isUniqueViolation(error, 'email')) {
-      return jsonError('Email address is not available', 409)
-    }
     logger.error({ error, inboxId: id }, 'Failed to update email inbox')
     return jsonError('Internal server error', 500)
   }

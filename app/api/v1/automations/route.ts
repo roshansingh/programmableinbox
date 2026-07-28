@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 import {
   formatAutomationRecord,
   readJsonObject,
@@ -36,6 +37,9 @@ export async function GET(request: NextRequest) {
       },
     },
     orderBy: { updatedAt: 'desc' },
+    // This endpoint exposes no pagination params; the ceiling is purely a guard
+    // against one request materialising an unbounded result set.
+    take: MAX_UNPAGINATED_ROWS,
   })
 
   return jsonSuccess(automations.map(formatAutomationRecord))

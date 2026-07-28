@@ -4,7 +4,16 @@ import { getAuthenticatedUser } from '@/lib/auth-server'
 import { resolveAuthContext } from '@/lib/auth/auth-context'
 import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
 import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
+import { parseInboxAddress } from '@/lib/email-address'
 import logger from '@/lib/logger'
+import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
+
+/**
+ * Deliberately identical whether the address is held by another tenant or by a
+ * soft-deleted inbox, so this endpoint cannot be used to probe which addresses
+ * exist in other orgs.
+ */
+const ADDRESS_UNAVAILABLE = 'Email address is not available'
 
 export async function GET(request: NextRequest) {
   const context = await resolveAuthContext(request)
@@ -22,7 +31,14 @@ export async function GET(request: NextRequest) {
       where.organizationId = organizationId
     }
 
-    const inboxes = await prisma.emailInbox.findMany({ where })
+    const inboxes = await prisma.emailInbox.findMany({
+    where,
+    // Deterministic order is required, not cosmetic: without it an unordered
+    // scan may return a different arbitrary subset each time the ceiling
+    // truncates. id breaks createdAt ties so the cut is stable.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_UNPAGINATED_ROWS,
+  })
     return jsonSuccess(inboxes)
   }
 
@@ -40,7 +56,14 @@ export async function GET(request: NextRequest) {
   }
 
   const where: { organizationId: string } = { organizationId: organizationId || context.organizationId }
-  const inboxes = await prisma.emailInbox.findMany({ where })
+  const inboxes = await prisma.emailInbox.findMany({
+    where,
+    // Deterministic order is required, not cosmetic: without it an unordered
+    // scan may return a different arbitrary subset each time the ceiling
+    // truncates. id breaks createdAt ties so the cut is stable.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_UNPAGINATED_ROWS,
+  })
 
   return jsonSuccess(inboxes)
 }
@@ -61,24 +84,44 @@ export async function POST(request: NextRequest) {
       return jsonError('Not a member of this organization', 403)
     }
 
+    // Normalize before anything compares or stores the address (F1). Inbound
+    // routing matches on the lowercased recipient, so claiming must happen in
+    // that same space — otherwise `Billing@corp.com` and `billing@corp.com`
+    // are two rows to the unique index but one address to the router, and the
+    // second claimant intercepts the first's mail.
+    const address = parseInboxAddress(email)
+    if (!address) {
+      return jsonError('email must be a valid email address', 400)
+    }
+
+    // Friendly pre-check. Not authoritative: reads are soft-delete filtered, so
+    // an address held by a deleted inbox is invisible here, and two concurrent
+    // requests can both pass. The unique index below is what decides.
+    const existing = await prisma.emailInbox.findFirst({
+      where: { email: address },
+      select: { id: true },
+    })
+    if (existing) {
+      return jsonError(ADDRESS_UNAVAILABLE, 409)
+    }
+
     const inbox = await prisma.emailInbox.create({
       data: {
         organizationId,
         userId: user.id,
-        email,
+        email: address,
         name: name || null,
       },
     })
 
     return jsonSuccess(inbox, 201)
   } catch (error) {
-    // Inbox addresses are globally unique (F1), so a claimed address is a
-    // client error, not a server fault. The address may be held by another
-    // org, or by a soft-deleted inbox whose address stays claimed forever —
-    // both are reported the same way on purpose, so this endpoint can't be
-    // used to probe which addresses exist in other tenants.
+    // Race-safe backstop: inbox addresses are globally unique (F1), so a
+    // claimed address is a client error, not a server fault. Reached when the
+    // pre-check couldn't see the holder — a soft-deleted inbox, or a request
+    // that committed in between.
     if (isUniqueViolation(error, 'email')) {
-      return jsonError('Email address is not available', 409)
+      return jsonError(ADDRESS_UNAVAILABLE, 409)
     }
     logger.error({ error }, 'Failed to create email inbox')
     return jsonError('Internal server error', 500)
