@@ -1,7 +1,7 @@
 # Internal/External API Split — InboxUI Design Spec
 
 **Date**: 2026-07-30
-**Revision**: 3 (see §12)
+**Revision**: 4 (see §12)
 **Status**: AWAITING APPROVAL
 **Completes**: `2026-05-17-company-api-access-design.md` (§9 shared service layer, §11 drift-control rules)
 
@@ -124,7 +124,7 @@ Two literal trees give real URL separation and let the OpenAPI generator filter 
 
 ## 5. Auth layer
 
-### 5.1 Two wrappers, no fallback
+### 5.1 Three wrappers, no fallback
 
 `resolveAuthContext` is **deleted**. Replaced by:
 
@@ -325,15 +325,15 @@ Do not leave test 8 as a compile-time claim with no CI backing — that is a gua
 
 ## 9. Migration mechanics
 
-### 9.1 Deploy skew — handled client-side, not by aliases
+### 9.1 Deploy skew — no mitigation needed
 
-Every dashboard path changes at once. A browser holding pre-deploy JS calls `/api/v1/emailInbox` and receives **404, not 401** — so the 401 redirect in `lib/api-client.ts` never fires and the UI breaks silently until a manual refresh.
+Every dashboard path changes at once, so a browser holding pre-deploy JS would call `/api/v1/emailInbox`, receive **404 rather than 401**, and break silently — `lib/api-client.ts` only treats 401 as a session signal.
 
-The obvious mitigation — keeping old app paths aliased for one release — **is not available**. Those old paths are `/api/v1/emailInbox` (POST), `/api/v1/apiKeys` (POST/DELETE), `/api/v1/automations/**` and so on: mutations under `app/api/v1/**`, which guard 1 forbids. Aliasing them would reintroduce exactly the contradiction §3.5 exists to prevent, and an invariant with a temporary window is an invariant with a permanent exception.
+**There are no users, so there are no in-flight browsers.** No mitigation is built.
 
-Instead `lib/api-client.ts` treats a 404 from a known endpoint as a version-skew signal and forces a reload, the same way it currently treats 401 as a session signal. Guard 1 stays absolute, and no mutation ever exists under `/api/v1` at any point in the migration.
+This is also the cleanest outcome for the invariants: the alternative — aliasing old app paths for one release — was never available anyway, because those paths are `/api/v1/emailInbox` (POST), `/api/v1/apiKeys` (POST/DELETE) and so on, which guard 1 forbids. Doing nothing keeps guard 1 absolute with no window and no exception.
 
-This does not affect `/api/v1/*`, whose four external paths are unchanged.
+Revisit before the first real users: once the dashboard has a live audience, a path change of this size needs either aliases (incompatible with guard 1) or 404-as-version-skew handling in `api-client.ts`. Neither is worth building now.
 
 ### 9.2 Client blast radius
 
@@ -405,9 +405,16 @@ Deferred deliberately. The first three carry stated risk rather than being neutr
 
 ## 12. Revision history
 
+**Revision 4 (2026-07-30)** — scope reduction:
+
+1. **Deploy-skew mitigation removed (§9.1).** There are no users yet, so there are no in-flight browsers to protect. Revision 3 specified a 404-as-version-skew reload in `api-client.ts`; that is now unbuilt and flagged to revisit before the first real audience. Guard 1 is unaffected — it stays absolute either way, since the aliases that would have violated it were already ruled out.
+
+The §3.5 ingest sequencing stays as-is. It is not a user-facing safety measure: it exists so guard 1 never needs an exception, which holds regardless of how many users exist. The Resend dashboard config is also live infrastructure independent of app traffic.
+
+
 **Revision 3 (2026-07-30)** — after re-review of revision 2, which found that two of its own fixes introduced new contradictions:
 
-1. **Compatibility aliases removed (§9.1).** Revision 2 fixed the ingest contradiction by sequencing, then reintroduced the identical contradiction for the app migration: the old app paths *are* `/api/v1/**` mutations, which guard 1 forbids. Deploy skew is now handled by `api-client.ts` treating a 404 as a version-skew signal. Guard 1 has no windows and no exceptions.
+1. **Compatibility aliases removed (§9.1).** Revision 2 fixed the ingest contradiction by sequencing, then reintroduced the identical contradiction for the app migration: the old app paths *are* `/api/v1/**` mutations, which guard 1 forbids. Guard 1 has no windows and no exceptions. (Revision 3 replaced the aliases with client-side skew handling; revision 4 dropped that too — see above.)
 2. **`withPublic` wrapper added (§5.1, §8.1).** Revision 2's guard 3 required every `/api/app/**` handler to be `withUser`-tagged while §3.2 kept `login`/`register` public — contradictory. Tagging public routes explicitly also enables the new guard 5, which catches a handler with no wrapper at all. That case was previously invisible to every guard.
 3. **Type-level guarantee given CI backing (§8.2).** Revision 2 asserted `toOwnerScope`'s signature as a compile-time test, but this repo does not typecheck in CI (`ignoreBuildErrors: true`, no Vitest typecheck, pre-existing errors in `app/phones/*`). Now specifies `vitest --typecheck` or a runtime fallback.
 4. **`isOwner` added to the app serializer (§6.5).** Neither prior revision addressed the UI consequence of org-wide reads with creator-only mutations: users would see delete buttons on inboxes they cannot delete.
