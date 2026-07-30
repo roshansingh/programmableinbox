@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { hashPassword, signToken, formatUserResponse } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { defaultOrganizationName } from '@/lib/user-display'
 import logger from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
       const org = await tx.organization.create({
         data: {
-          name: 'My Organization',
+          name: defaultOrganizationName(firstName, lastName, email),
           slug: `${slug}-${Date.now()}`,
         },
       })

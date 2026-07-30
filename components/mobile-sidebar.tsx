@@ -14,6 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { useAuth } from "@/components/auth-provider"
+import { getUserDisplayName, getUserInitials } from "@/lib/user-display"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -24,20 +26,21 @@ const navigation = [
 { name: "Settings", icon: Settings, href: "/settings", current: false },
 ]
 
-const organizations = [
-  { id: 1, name: "Acme Corp", role: "Owner" },
-  { id: 2, name: "Tech Startup", role: "Member" },
-  { id: 3, name: "Personal", role: "Owner" },
-]
-
 interface MobileSidebarProps {
   open: boolean
   onClose: () => void
 }
 
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
-  const [currentOrg, setCurrentOrg] = useState(organizations[0])
   const pathname = usePathname()
+  const { user } = useAuth()
+  const organizations = user?.organizations ?? []
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
+  const currentOrg =
+    organizations.find((org) => org.id === selectedOrgId) ?? organizations[0] ?? null
+  const orgName = currentOrg?.name ?? "Organization"
+  const userName = getUserDisplayName(user)
+  const userInitials = getUserInitials(user)
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -53,13 +56,15 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                 >
                   <div className="flex items-center gap-2 overflow-hidden">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-sm">
-                      {currentOrg.name.charAt(0)}
+                      {orgName.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex flex-col items-start overflow-hidden">
                       <span className="text-sm font-medium truncate w-full text-left">
-                        {currentOrg.name}
+                        {orgName}
                       </span>
-                      <span className="text-xs text-muted-foreground">{currentOrg.role}</span>
+                      {currentOrg?.role && (
+                        <span className="text-xs text-muted-foreground capitalize">{currentOrg.role}</span>
+                      )}
                     </div>
                   </div>
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -68,22 +73,27 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuLabel>Organizations</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {organizations.length === 0 && (
+                  <DropdownMenuItem disabled>
+                    <span className="text-sm text-muted-foreground">No organizations</span>
+                  </DropdownMenuItem>
+                )}
                 {organizations.map((org) => (
                   <DropdownMenuItem
                     key={org.id}
-                    onClick={() => setCurrentOrg(org)}
+                    onClick={() => setSelectedOrgId(org.id)}
                     className={cn(
                       "cursor-pointer",
-                      currentOrg.id === org.id && "bg-accent"
+                      currentOrg?.id === org.id && "bg-accent"
                     )}
                   >
                     <div className="flex items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground font-semibold text-xs">
-                        {org.name.charAt(0)}
+                        {org.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-medium">{org.name}</span>
-                        <span className="text-xs text-muted-foreground">{org.role}</span>
+                        <span className="text-xs text-muted-foreground capitalize">{org.role}</span>
                       </div>
                     </div>
                   </DropdownMenuItem>
@@ -124,13 +134,25 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           {/* Footer */}
           <div className="p-4 border-t border-sidebar-border">
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
-                JD
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
-                <p className="text-xs text-muted-foreground truncate">john@example.com</p>
-              </div>
+              {user ? (
+                <>
+                  <div className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
+                    {userInitials}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-medium text-sidebar-foreground truncate">{userName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-3 w-full animate-pulse" aria-hidden="true">
+                  <div className="h-8 w-8 shrink-0 rounded-full bg-muted" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-24 rounded bg-muted" />
+                    <div className="h-2.5 w-32 rounded bg-muted" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

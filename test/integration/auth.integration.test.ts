@@ -17,7 +17,7 @@ describe('POST /api/auth/register', () => {
     expect(message).toBe('Email and password are required')
   })
 
-  it('creates a user + "My Organization" + owner membership, returns token + user', async () => {
+  it('creates a user + name-derived organization + owner membership, returns token + user', async () => {
     const email = `register-${Date.now()}@test.dev`
     const res = await register(jsonRequest('http://localhost/api/auth/register', {
       method: 'POST',
@@ -30,7 +30,7 @@ describe('POST /api/auth/register', () => {
     expect(data.user.firstName).toBe('Reg')
     expect(data.user.lastName).toBe('User')
     expect(data.user.organizations).toHaveLength(1)
-    expect(data.user.organizations[0].name).toBe('My Organization')
+    expect(data.user.organizations[0].name).toBe('Reg User')
     expect(data.user.organizations[0].role).toBe('owner')
 
     const dbUser = await prisma.user.findUniqueOrThrow({
@@ -39,7 +39,7 @@ describe('POST /api/auth/register', () => {
     })
     expect(dbUser.memberships).toHaveLength(1)
     expect(dbUser.memberships[0].role).toBe('owner')
-    expect(dbUser.memberships[0].organization.name).toBe('My Organization')
+    expect(dbUser.memberships[0].organization.name).toBe('Reg User')
 
     // password must be hashed, never stored in plaintext
     expect(dbUser.passwordHash).not.toBe('password123')

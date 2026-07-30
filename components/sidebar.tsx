@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Inbox, Mail, Settings, Key, Webhook, Workflow } from 'lucide-react'
 import { useAuth } from "@/components/auth-provider"
+import { getUserDisplayName, getUserInitials } from "@/lib/user-display"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -21,6 +22,8 @@ export function Sidebar() {
   const currentOrg = user?.organizations?.[0]
   const orgName = currentOrg?.name ?? "Organization"
   const orgInitial = orgName.charAt(0).toUpperCase()
+  const userName = getUserDisplayName(user)
+  const userInitials = getUserInitials(user)
 
   return (
     <div className="hidden lg:flex flex-col h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -58,13 +61,25 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
-            JD
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
-            <p className="text-xs text-muted-foreground truncate">john@example.com</p>
-          </div>
+          {user ? (
+            <>
+              <div className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm">
+                {userInitials}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium text-sidebar-foreground truncate">{userName}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-3 w-full animate-pulse" aria-hidden="true">
+              <div className="h-8 w-8 shrink-0 rounded-full bg-muted" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 w-24 rounded bg-muted" />
+                <div className="h-2.5 w-32 rounded bg-muted" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
