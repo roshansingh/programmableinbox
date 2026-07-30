@@ -1,7 +1,7 @@
 # Internal/External API Split — InboxUI Design Spec
 
 **Date**: 2026-07-30
-**Revision**: 2 (see §12)
+**Revision**: 3 (see §12)
 **Status**: AWAITING APPROVAL
 **Completes**: `2026-05-17-company-api-access-design.md` (§9 shared service layer, §11 drift-control rules)
 
@@ -78,7 +78,7 @@ JWT only, unversioned — it ships with the dashboard and has no external compat
 | `/api/app/automations/**` | `/api/v1/automations/**` |
 | `/api/app/webhooks/**` (management CRUD) | `/api/webhooks/**` |
 
-`login` and `register` remain public — they are unauthenticated by nature and simply live in this tree.
+`login` and `register` remain public. They are wrapped in `withPublic` (§5.1) rather than left bare, so "deliberately unauthenticated" is a visible decision at the route and the structural guards can still assert that every handler in the tree was classified.
 
 ### 3.3 Ingest — `/api/webhooks/*`
 
@@ -135,11 +135,14 @@ export function withApiKey<P>(
   options: { scopes: readonly ApiKeyScope[] },
   handler: PrincipalHandler<ApiKeyPrincipal, P>,
 ): RouteHandler<P>
+export function withPublic<P>(handler: RouteHandler<P>): RouteHandler<P>
 ```
 
 The principal is a separate argument rather than a mutated request, so `NextRequest` stays honest and the narrowed type is first-class. `P` carries route params so `[id]` routes keep their typing.
 
-Both wrappers tag the function they return with a non-enumerable symbol (§8.1), which is what makes the structural guards trustworthy.
+`withPublic` performs no authentication — it exists solely to tag a handler as *deliberately* unauthenticated. Without it, "this route has no auth wrapper" is indistinguishable from "someone forgot the auth wrapper", and guard 5 (§8.1) could not tell them apart. It applies to `login`, `register`, and the `/api/webhooks/*` ingest handlers, which verify provider signatures internally.
+
+All three wrappers tag the function they return with a distinct non-enumerable symbol (§8.1), which is what makes the structural guards trustworthy.
 
 ### 5.2 Credential discrimination
 
@@ -168,6 +171,8 @@ export const DEFAULT_API_KEY_SCOPES: ApiKeyScope[] = ['inboxes:read', 'messages:
 `messages:delete` retires. `DEFAULT_API_KEY_SCOPES` is **explicitly enumerated**, never `[...API_KEY_SCOPES]` — that spread is precisely how the current default came to grant delete. When a write scope is added later it must not become a default by accident.
 
 **Data migration required**: strip `messages:delete` from the `scopes` array of every existing `ApiKey` row.
+
+A key whose scopes were *only* `['messages:delete']` would be left with an empty array — it would still authenticate but authorize nothing, failing every request with a 403 that reads like a configuration error. Such keys are **backfilled to `['inboxes:read', 'messages:read']`** rather than emptied. This is a narrowing in every case (delete is being removed regardless) and it fails visibly rather than silently. The migration must report how many rows it touched in each category.
 
 **Check before landing**: the dashboard key-creation form must not submit `messages:delete`, or creation will 400 against the narrowed `API_KEY_SCOPE_SET`.
 
@@ -244,6 +249,14 @@ The grouped-thread cursor query in `app/api/v1/emailInbox/[id]/messages/grouped-
 
 The app surface keeps richer shapes and evolves freely. Divergence between the two is the intent, not duplication to be refactored away. Public serializers get snapshot tests (§8.2).
 
+### 6.5 `isOwner` on the app surface
+
+The split authority model (org-wide reads, creator-only mutations) has a UI consequence: a user now sees inboxes in the list that they cannot rename, delete, or send from. `components/emails-list.tsx` currently renders delete actions unconditionally, so without a change every user would meet buttons that always fail.
+
+The **app** serializer therefore returns a derived `isOwner: boolean` (`inbox.userId === principal.userId`), and the UI hides or disables owner-only actions when it is false. The raw `userId` is not exposed — `isOwner` answers the question the UI actually has without publishing another user's identifier.
+
+This field is **app-only**. The external serializer is unaffected: an API key has no meaningful "owner" relative to an inbox, and the external surface is read-only, so the concept does not arise there.
+
 ---
 
 ## 7. Security defects fixed
@@ -275,24 +288,33 @@ The invariants below are the mechanism that failed in 2026-05-17. They become te
 
 ### 8.1 Structural guards
 
-Text- or AST-matching on route source is not trustworthy for a security invariant: a grep passes on a comment, and an AST check is brittle across refactors. Instead, **`withUser` and `withApiKey` each attach a non-enumerable symbol to the handler they return.** The guard imports every route module and inspects the exported handlers directly.
+Text- or AST-matching on route source is not trustworthy for a security invariant: a grep passes on a comment, and an AST check is brittle across refactors. Instead, **each wrapper attaches a distinct non-enumerable symbol to the handler it returns.** The guard imports every route module and inspects the exported handlers directly.
 
 1. No `POST`/`PUT`/`PATCH`/`DELETE` export anywhere under `app/api/v1/**` — the read-only invariant
 2. Every exported handler under `app/api/v1/**` carries the `withApiKey` tag
-3. Every exported handler under `app/api/app/**` carries the `withUser` tag
-4. Every route module under both trees exports at least one tagged handler — catches an unwrapped handler, which is the failure the other guards would otherwise miss
-5. Every path in the served OpenAPI spec starts with `/api/v1`
+3. Every exported handler under `app/api/app/**` carries the `withUser` tag, **except** `auth/login` and `auth/register`, which must carry the `withPublic` tag
+4. Every exported handler under `app/api/webhooks/**` carries the `withPublic` tag
+5. **Every exported handler in all three trees carries exactly one of the three tags** — an untagged handler fails, which is the case guards 2–4 would otherwise miss entirely
+6. Every path in the served OpenAPI spec starts with `/api/v1`
 
-Guards 2–4 cannot be satisfied by a comment, and survive renaming or re-ordering. `/api/webhooks/*` is explicitly excluded from guards 2–4 and asserted to be tag-free.
+Guards 2–5 cannot be satisfied by a comment and survive renaming or re-ordering. Guard 5 is the load-bearing one: it converts "someone forgot the wrapper" from an invisible omission into a failing test, which is why `withPublic` exists rather than an allowlist of bare routes.
 
 ### 8.2 Behavioral tests
 
 6. `withApiKey` rejects a valid JWT; `withUser` rejects a valid API key
 7. `toOrgScope` returns 403 for a non-member requested org, for both principal kinds
-8. `toOwnerScope` does not accept an `ApiKeyPrincipal` (compile-time; asserted with a type test)
+8. `toOwnerScope` does not accept an `ApiKeyPrincipal`
 9. Mutation services reject a non-creator
 10. Missing scope → 403; revoked or expired key → 401
 11. Snapshot tests on every public serializer — a field appearing or disappearing fails the build
+12. App serializer sets `isOwner` true only for the creating user
+
+Test 8 is a *type-level* guarantee, and this repo does not typecheck in CI: `next.config.mjs` sets `typescript.ignoreBuildErrors: true`, Vitest does not typecheck by default, and CLAUDE.md documents pre-existing TS errors in `app/phones/*` that would make a bare `tsc --noEmit` gate fail on unrelated code. So the compiler protects a developer in an editor but proves nothing in CI unless this is closed. Two options, in preference order:
+
+1. Enable `vitest --typecheck` scoped to `**/*.test-d.ts`, so type assertions run as real tests without gating on the repo's pre-existing errors.
+2. If that proves awkward, add a **runtime** assertion in `toOwnerScope` that throws on a non-`user` principal, and test that instead. Weaker (it fails at request time rather than build time) but genuinely enforced.
+
+Do not leave test 8 as a compile-time claim with no CI backing — that is a guarantee in name only.
 
 ### 8.3 Regression
 
@@ -303,11 +325,15 @@ Guards 2–4 cannot be satisfied by a comment, and survive renaming or re-orderi
 
 ## 9. Migration mechanics
 
-### 9.1 Deploy skew — old clients must not break
+### 9.1 Deploy skew — handled client-side, not by aliases
 
 Every dashboard path changes at once. A browser holding pre-deploy JS calls `/api/v1/emailInbox` and receives **404, not 401** — so the 401 redirect in `lib/api-client.ts` never fires and the UI breaks silently until a manual refresh.
 
-Mitigation: the old app paths remain as named re-exports of the new handlers for **one release**, then are deleted. This applies only to routes moving into `/api/app/*`; it does not affect `/api/v1/*`, whose four paths are unchanged.
+The obvious mitigation — keeping old app paths aliased for one release — **is not available**. Those old paths are `/api/v1/emailInbox` (POST), `/api/v1/apiKeys` (POST/DELETE), `/api/v1/automations/**` and so on: mutations under `app/api/v1/**`, which guard 1 forbids. Aliasing them would reintroduce exactly the contradiction §3.5 exists to prevent, and an invariant with a temporary window is an invariant with a permanent exception.
+
+Instead `lib/api-client.ts` treats a 404 from a known endpoint as a version-skew signal and forces a reload, the same way it currently treats 401 as a session signal. Guard 1 stays absolute, and no mutation ever exists under `/api/v1` at any point in the migration.
+
+This does not affect `/api/v1/*`, whose four external paths are unchanged.
 
 ### 9.2 Client blast radius
 
@@ -325,7 +351,7 @@ Verified against Next 16.0.3:
 - **Named re-exports only** (`export { GET } from '…'`). `export *` breaks the generated route-export validator. Note `next.config.mjs` sets `typescript.ignoreBuildErrors: true`, so this fails silently here — enforce by review.
 - **Route segment config cannot be re-exported.** `runtime`, `maxDuration`, `preferredRegion` are read by build-time AST analysis that only matches a literal `export const X` in the route file itself. A re-export is skipped with no diagnostic. Keep any segment config inline in each `route.ts`.
 
-Both constraints apply to the §3.5 ingest alias and the §9.1 compatibility aliases.
+Both constraints apply to the §3.5 ingest alias, which is the only alias in this design.
 
 ### 9.4 proxy.ts
 
@@ -362,20 +388,33 @@ Deferred deliberately. The first three carry stated risk rather than being neutr
 
 ## 11. Success criteria
 
-- `/api/v1/*` contains exactly four GET handlers, all tagged `withApiKey`, all read-only, enforced by guards 1–4
-- `/api/app/*` contains every JWT route, all tagged `withUser`, enforced by guards 3–4
-- `/api/webhooks/*` contains only provider ingest, asserted tag-free, with in-handler signature verification
+- `/api/v1/*` contains exactly four GET handlers, all tagged `withApiKey`, all read-only
+- `/api/app/*` contains every JWT route tagged `withUser`, with `login`/`register` tagged `withPublic`
+- `/api/webhooks/*` contains only provider ingest, tagged `withPublic`, with in-handler signature verification
+- **Every handler in all three trees carries exactly one tag** — no untagged route exists (guard 5)
 - `resolveAuthContext` no longer exists; no route accepts both credential types
 - No read service receives a principal or branches on credential kind
-- No API key can reach a mutating service — enforced by `toOwnerScope`'s signature
+- No API key can reach a mutating service — enforced by `toOwnerScope`, with CI backing per §8.2
 - Every narrowing to a specific organization passes through `toOrgScope`'s membership check
 - All eight defects in §7 fixed with a test each
-- Old app paths remain aliased for one release (§9.1)
+- No mutation exists under `/api/v1` at any point in the migration, including intermediate states
+- Owner-only actions are hidden in the UI for non-owners (`isOwner`, §6.5)
 - Full suite green; test count not decreased
 
 ---
 
 ## 12. Revision history
+
+**Revision 3 (2026-07-30)** — after re-review of revision 2, which found that two of its own fixes introduced new contradictions:
+
+1. **Compatibility aliases removed (§9.1).** Revision 2 fixed the ingest contradiction by sequencing, then reintroduced the identical contradiction for the app migration: the old app paths *are* `/api/v1/**` mutations, which guard 1 forbids. Deploy skew is now handled by `api-client.ts` treating a 404 as a version-skew signal. Guard 1 has no windows and no exceptions.
+2. **`withPublic` wrapper added (§5.1, §8.1).** Revision 2's guard 3 required every `/api/app/**` handler to be `withUser`-tagged while §3.2 kept `login`/`register` public — contradictory. Tagging public routes explicitly also enables the new guard 5, which catches a handler with no wrapper at all. That case was previously invisible to every guard.
+3. **Type-level guarantee given CI backing (§8.2).** Revision 2 asserted `toOwnerScope`'s signature as a compile-time test, but this repo does not typecheck in CI (`ignoreBuildErrors: true`, no Vitest typecheck, pre-existing errors in `app/phones/*`). Now specifies `vitest --typecheck` or a runtime fallback.
+4. **`isOwner` added to the app serializer (§6.5).** Neither prior revision addressed the UI consequence of org-wide reads with creator-only mutations: users would see delete buttons on inboxes they cannot delete.
+5. **Scope migration cannot brick keys (§5.3).** A key scoped only to `messages:delete` would have been left with an empty array — authenticating but authorizing nothing. Such keys are backfilled to read scopes.
+
+**Implementation-ordering rule derived from this review:** the structural guards (§8.1) are written **first**, and the topology is made to satisfy them. Both revision 2 defects were invariants asserted in one section and violated in another — a class of error that a passing guard catches immediately and a careful re-read does not.
+
 
 **Revision 2 (2026-07-30)** — after critical security and maintenance review of revision 1:
 
