@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const webhookFindUniqueMock = vi.fn()
 const webhookEventFindManyMock = vi.fn()
 const webhookEventCountMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -28,7 +29,11 @@ async function loadRoute() {
 
 async function get(query = '') {
   const { GET } = await loadRoute()
-  return GET(new NextRequest(`http://localhost/api/webhooks/wh_1/events${query}`), {
+  return GET(
+    new NextRequest(`http://localhost/api/app/webhooks/wh_1/events${query}`, {
+      headers: { authorization: 'Bearer jwt.token.here' },
+    }),
+    {
     params: Promise.resolve({ id: 'wh_1' }),
   })
 }
@@ -37,13 +42,14 @@ function findManyArgs() {
   return webhookEventFindManyMock.mock.calls[0][0]
 }
 
-describe('GET /api/webhooks/[id]/events pagination', () => {
+describe('GET /api/app/webhooks/[id]/events pagination', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
 
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
     webhookFindUniqueMock.mockResolvedValue({ id: 'wh_1', organizationId: 'org_1' })
@@ -52,7 +58,7 @@ describe('GET /api/webhooks/[id]/events pagination', () => {
   })
 
   it('returns 401 without authentication', async () => {
-    getAuthenticatedUserMock.mockResolvedValue(null)
+    resolveUserPrincipalFromTokenMock.mockResolvedValue(null)
 
     const response = await get()
     expect(response.status).toBe(401)
@@ -124,12 +130,13 @@ describe('GET /api/webhooks/[id]/events pagination', () => {
   })
 })
 
-describe('GET /api/webhooks/[id]/events status validation', () => {
+describe('GET /api/app/webhooks/[id]/events status validation', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
     webhookFindUniqueMock.mockResolvedValue({ id: 'wh_1', organizationId: 'org_1' })

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -11,25 +11,21 @@ async function getWebhookForUser(id: string, orgIds: string[]) {
   return webhook
 }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const GET = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const webhook = await getWebhookForUser(id, orgIds)
   if (!webhook) return jsonError('Not found', 404)
 
   return jsonSuccess(webhook)
-}
+})
 
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const PATCH = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const webhook = await getWebhookForUser(id, orgIds)
   if (!webhook) return jsonError('Not found', 404)
@@ -52,14 +48,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   } catch {
     return jsonError('Internal server error', 500)
   }
-}
+})
 
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const DELETE = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const webhook = await getWebhookForUser(id, orgIds)
   if (!webhook) return jsonError('Not found', 404)
@@ -68,4 +62,4 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   await prisma.webhook.update({ where: { id }, data: { deletedAt: new Date() } })
 
   return new Response(null, { status: 204 })
-}
+})

@@ -72,8 +72,7 @@ describe('PATCH /api/app/automations/[id]', () => {
   it('rejects blank names', async () => {
     const { PATCH } = await loadRoute()
     const request = new Request('http://localhost/api/app/automations/automation_1', {
-      headers: { authorization: 'Bearer jwt.token.here' },
-      method: 'PATCH',
+            method: 'PATCH',
       body: JSON.stringify({ name: '   ' }),
       headers: {
         'content-type': 'application/json',

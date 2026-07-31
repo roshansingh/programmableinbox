@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const webhookFindManyMock = vi.fn()
 const webhookCountMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -24,7 +25,12 @@ async function loadRoute() {
 
 async function get(query = '') {
   const { GET } = await loadRoute()
-  return GET(new NextRequest(`http://localhost/api/webhooks${query}`))
+  return GET(
+    new NextRequest(`http://localhost/api/app/webhooks${query}`, {
+      headers: { authorization: 'Bearer jwt.token.here' },
+    }),
+    { params: Promise.resolve({}) },
+  )
 }
 
 /** The `{ where, skip, take, orderBy }` object handed to prisma.webhook.findMany. */
@@ -32,13 +38,14 @@ function findManyArgs() {
   return webhookFindManyMock.mock.calls[0][0]
 }
 
-describe('GET /api/webhooks pagination', () => {
+describe('GET /api/app/webhooks pagination', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
 
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
     webhookFindManyMock.mockResolvedValue([])
@@ -46,7 +53,7 @@ describe('GET /api/webhooks pagination', () => {
   })
 
   it('returns 401 without authentication', async () => {
-    getAuthenticatedUserMock.mockResolvedValue(null)
+    resolveUserPrincipalFromTokenMock.mockResolvedValue(null)
 
     const response = await get()
     expect(response.status).toBe(401)
@@ -154,12 +161,13 @@ describe('GET /api/webhooks pagination', () => {
   })
 })
 
-describe('GET /api/webhooks status validation', () => {
+describe('GET /api/app/webhooks status validation', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
     webhookFindManyMock.mockResolvedValue([])

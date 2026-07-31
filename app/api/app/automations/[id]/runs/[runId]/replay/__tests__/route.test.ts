@@ -50,7 +50,6 @@ async function loadRoute() {
 
 function replayRequest(body?: unknown, { credential = 'Bearer token' } = {}) {
   return new Request('http://localhost/api/app/automations/automation_1/runs/run_1/replay', {
-    headers: { authorization: 'Bearer jwt.token.here' },
     method: 'POST',
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     headers: {

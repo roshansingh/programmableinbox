@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { WebhookEventStatus } from '@/lib/generated/prisma/client'
 import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
@@ -10,12 +10,10 @@ const WEBHOOK_EVENT_STATUSES: readonly WebhookEventStatus[] = ['pending', 'deliv
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const GET = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const webhook = await prisma.webhook.findUnique({ where: { id } })
   if (!webhook || !orgIds.includes(webhook.organizationId)) {
@@ -55,4 +53,4 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   ])
 
   return jsonSuccess({ events, total, page, limit })
-}
+})

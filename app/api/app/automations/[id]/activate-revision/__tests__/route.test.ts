@@ -97,8 +97,7 @@ describe('POST /api/app/automations/[id]/activate-revision', () => {
 
     const { POST } = await loadRoute()
     const request = new Request('http://localhost/api/app/automations/automation_1/activate-revision', {
-      headers: { authorization: 'Bearer jwt.token.here' },
-      method: 'POST',
+            method: 'POST',
       body: JSON.stringify({ revisionId: 'rev_invalid' }),
       headers: {
         'content-type': 'application/json',

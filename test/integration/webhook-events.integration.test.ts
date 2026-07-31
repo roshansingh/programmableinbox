@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { GET as listEvents } from '@/app/api/webhooks/[id]/events/route'
-import { POST as retryEvent } from '@/app/api/webhooks/[id]/events/[eventId]/retry/route'
-import { POST as testWebhook } from '@/app/api/webhooks/[id]/test/route'
+import { GET as listEvents } from '@/app/api/app/webhooks/[id]/events/route'
+import { POST as retryEvent } from '@/app/api/app/webhooks/[id]/events/[eventId]/retry/route'
+import { POST as testWebhook } from '@/app/api/app/webhooks/[id]/test/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedWebhook } from './helpers/factories'
@@ -12,10 +12,10 @@ import { jsonRequest, params } from './helpers/request'
 // queue/Redis enqueue in either handler, so there is no external boundary to
 // stub for these integration tests.
 
-describe('GET /api/webhooks/[id]/events', () => {
+describe('GET /api/app/webhooks/[id]/events', () => {
   it('401 without a token', async () => {
     const res = await listEvents(
-      jsonRequest('http://localhost/api/webhooks/some-id/events'),
+      jsonRequest('http://localhost/api/app/webhooks/some-id/events'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -27,7 +27,7 @@ describe('GET /api/webhooks/[id]/events', () => {
     const otherWebhook = await seedWebhook(other.org.id)
 
     const res = await listEvents(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}/events`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}/events`, { credential: token }),
       params({ id: otherWebhook.id })
     )
     expect(res.status).toBe(404)
@@ -49,7 +49,7 @@ describe('GET /api/webhooks/[id]/events', () => {
     })
 
     const res = await listEvents(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}/events`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}/events`, { credential: token }),
       params({ id: webhook.id })
     )
     expect(res.status).toBe(200)
@@ -61,10 +61,10 @@ describe('GET /api/webhooks/[id]/events', () => {
   })
 })
 
-describe('POST /api/webhooks/[id]/events/[eventId]/retry', () => {
+describe('POST /api/app/webhooks/[id]/events/[eventId]/retry', () => {
   it('401 without a token', async () => {
     const res = await retryEvent(
-      jsonRequest('http://localhost/api/webhooks/some-id/events/some-event/retry', { method: 'POST' }),
+      jsonRequest('http://localhost/api/app/webhooks/some-id/events/some-event/retry', { method: 'POST' }),
       params({ id: 'some-id', eventId: 'some-event' })
     )
     expect(res.status).toBe(401)
@@ -79,7 +79,7 @@ describe('POST /api/webhooks/[id]/events/[eventId]/retry', () => {
     })
 
     const res = await retryEvent(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
       params({ id: otherWebhook.id, eventId: event.id })
     )
     expect(res.status).toBe(404)
@@ -97,7 +97,7 @@ describe('POST /api/webhooks/[id]/events/[eventId]/retry', () => {
     })
 
     const res = await retryEvent(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
       params({ id: webhook.id, eventId: event.id })
     )
     expect(res.status).toBe(404)
@@ -111,7 +111,7 @@ describe('POST /api/webhooks/[id]/events/[eventId]/retry', () => {
     })
 
     const res = await retryEvent(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}/events/${event.id}/retry`, { method: 'POST', credential: token }),
       params({ id: webhook.id, eventId: event.id })
     )
     expect(res.status).toBe(200)
@@ -125,10 +125,10 @@ describe('POST /api/webhooks/[id]/events/[eventId]/retry', () => {
   })
 })
 
-describe('POST /api/webhooks/[id]/test', () => {
+describe('POST /api/app/webhooks/[id]/test', () => {
   it('401 without a token', async () => {
     const res = await testWebhook(
-      jsonRequest('http://localhost/api/webhooks/some-id/test', { method: 'POST' }),
+      jsonRequest('http://localhost/api/app/webhooks/some-id/test', { method: 'POST' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -140,7 +140,7 @@ describe('POST /api/webhooks/[id]/test', () => {
     const otherWebhook = await seedWebhook(other.org.id)
 
     const res = await testWebhook(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}/test`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}/test`, { method: 'POST', credential: token }),
       params({ id: otherWebhook.id })
     )
     expect(res.status).toBe(404)
@@ -155,7 +155,7 @@ describe('POST /api/webhooks/[id]/test', () => {
     expect(webhook.lastTriggered).toBeNull()
 
     const res = await testWebhook(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}/test`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}/test`, { method: 'POST', credential: token }),
       params({ id: webhook.id })
     )
     expect(res.status).toBe(200)

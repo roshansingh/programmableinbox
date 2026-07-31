@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { GET, POST } from '@/app/api/webhooks/route'
-import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/webhooks/[id]/route'
+import { GET, POST } from '@/app/api/app/webhooks/route'
+import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/app/webhooks/[id]/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedWebhook } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
-describe('POST /api/webhooks', () => {
+describe('POST /api/app/webhooks', () => {
   it('401 without a token', async () => {
-    const res = await POST(jsonRequest('http://localhost/api/webhooks', { method: 'POST', body: {} }))
+    const res = await POST(jsonRequest('http://localhost/api/app/webhooks', { method: 'POST', body: {} }))
     expect(res.status).toBe(401)
   })
 
   it('creates a webhook scoped to the caller\'s org', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/webhooks', {
+    const res = await POST(jsonRequest('http://localhost/api/app/webhooks', {
       method: 'POST', credential: token,
       body: { name: 'CI Hook', url: 'https://example.test/hook', events: ['email.received'] },
     }))
@@ -32,7 +32,7 @@ describe('POST /api/webhooks', () => {
 
   it('400 without name, url, or events', async () => {
     const { token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/webhooks', {
+    const res = await POST(jsonRequest('http://localhost/api/app/webhooks', {
       method: 'POST', credential: token,
       body: { name: 'No URL' },
     }))
@@ -40,9 +40,9 @@ describe('POST /api/webhooks', () => {
   })
 })
 
-describe('GET /api/webhooks', () => {
+describe('GET /api/app/webhooks', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/webhooks'))
+    const res = await GET(jsonRequest('http://localhost/api/app/webhooks'))
     expect(res.status).toBe(401)
   })
 
@@ -53,7 +53,7 @@ describe('GET /api/webhooks', () => {
     const other = await createSecondOrg()
     await seedWebhook(other.org.id)
 
-    const res = await GET(jsonRequest('http://localhost/api/webhooks', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/webhooks', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -64,10 +64,10 @@ describe('GET /api/webhooks', () => {
   })
 })
 
-describe('GET /api/webhooks/[id]', () => {
+describe('GET /api/app/webhooks/[id]', () => {
   it('401 without a token', async () => {
     const res = await getById(
-      jsonRequest('http://localhost/api/webhooks/some-id'),
+      jsonRequest('http://localhost/api/app/webhooks/some-id'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -78,7 +78,7 @@ describe('GET /api/webhooks/[id]', () => {
     const webhook = await seedWebhook(org.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}`, { credential: token }),
       params({ id: webhook.id })
     )
     expect(res.status).toBe(200)
@@ -93,17 +93,17 @@ describe('GET /api/webhooks/[id]', () => {
     const otherWebhook = await seedWebhook(other.org.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}`, { credential: token }),
       params({ id: otherWebhook.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('PATCH /api/webhooks/[id]', () => {
+describe('PATCH /api/app/webhooks/[id]', () => {
   it('401 without a token', async () => {
     const res = await patchById(
-      jsonRequest('http://localhost/api/webhooks/some-id', { method: 'PATCH', body: {} }),
+      jsonRequest('http://localhost/api/app/webhooks/some-id', { method: 'PATCH', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -114,7 +114,7 @@ describe('PATCH /api/webhooks/[id]', () => {
     const webhook = await seedWebhook(org.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}`, {
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Renamed Hook', status: 'inactive' },
       }),
@@ -136,7 +136,7 @@ describe('PATCH /api/webhooks/[id]', () => {
     const otherWebhook = await seedWebhook(other.org.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}`, {
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Hijacked' },
       }),
@@ -149,10 +149,10 @@ describe('PATCH /api/webhooks/[id]', () => {
   })
 })
 
-describe('DELETE /api/webhooks/[id]', () => {
+describe('DELETE /api/app/webhooks/[id]', () => {
   it('401 without a token', async () => {
     const res = await deleteById(
-      jsonRequest('http://localhost/api/webhooks/some-id', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/webhooks/some-id', { method: 'DELETE' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -163,7 +163,7 @@ describe('DELETE /api/webhooks/[id]', () => {
     const webhook = await seedWebhook(org.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}`, { method: 'DELETE', credential: token }),
       params({ id: webhook.id })
     )
     expect(res.status).toBe(204)
@@ -176,13 +176,13 @@ describe('DELETE /api/webhooks/[id]', () => {
 
     // Disappears from GET by id (soft-delete filter applied on read).
     const getRes = await getById(
-      jsonRequest(`http://localhost/api/webhooks/${webhook.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${webhook.id}`, { credential: token }),
       params({ id: webhook.id })
     )
     expect(getRes.status).toBe(404)
 
     // Disappears from the list too.
-    const listRes = await GET(jsonRequest('http://localhost/api/webhooks', { credential: token }))
+    const listRes = await GET(jsonRequest('http://localhost/api/app/webhooks', { credential: token }))
     const { data } = await listRes.json()
     expect(data.webhooks.find((w: { id: string }) => w.id === webhook.id)).toBeUndefined()
   })
@@ -193,7 +193,7 @@ describe('DELETE /api/webhooks/[id]', () => {
     const otherWebhook = await seedWebhook(other.org.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/webhooks/${otherWebhook.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/webhooks/${otherWebhook.id}`, { method: 'DELETE', credential: token }),
       params({ id: otherWebhook.id })
     )
     expect(res.status).toBe(404)

@@ -81,17 +81,14 @@ describe('structural route guards', () => {
   })
 
   it('guard 4: every handler under app/api/webhooks is withPublic', async () => {
-    // TIGHTENED IN TASK 30: webhook *management* CRUD still lives under
-    // app/api/webhooks and is not public. Only the ingest is checked until
-    // management moves to app/api/app/webhooks.
-    await assertTree('app/api/webhooks/email', () => 'public')
+    await assertTree('app/api/webhooks', () => 'public')
   })
 
-  it('guard 5: no handler in app/api/v1, app/api/app or app/api/webhooks/email is untagged', async () => {
+  it('guard 5: no handler in app/api/v1, app/api/app or app/api/webhooks is untagged', async () => {
     const files = [
       ...findRouteFiles('app/api/v1'),
       ...findRouteFiles('app/api/app'),
-      ...findRouteFiles('app/api/webhooks/email'),
+      ...findRouteFiles('app/api/webhooks'),
     ]
 
     const untagged: string[] = []

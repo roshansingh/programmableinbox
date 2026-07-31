@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
 import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
@@ -8,9 +8,7 @@ import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
 /** Mirrors `enum WebhookStatus` in prisma/schema.prisma. */
 const WEBHOOK_STATUSES: readonly WebhookStatus[] = ['active', 'inactive', 'failing']
 
-export async function GET(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const GET = withUser(async (request, principal) => {
 
   const searchParams = request.nextUrl.searchParams
 
@@ -33,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
   const status = rawStatus as WebhookStatus | null
 
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const where: { organizationId: { in: string[] }; status?: WebhookStatus } = {
     organizationId: { in: orgIds },
@@ -51,11 +49,9 @@ export async function GET(request: NextRequest) {
   ])
 
   return jsonSuccess({ webhooks, total, page, limit })
-}
+})
 
-export async function POST(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const POST = withUser(async (request, principal) => {
 
   try {
     const { name, url, events, secret } = await request.json()
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
       return jsonError('name, url, and events are required', 400)
     }
 
-    const firstMembership = user.memberships[0]
+    const firstMembership = principal.memberships[0]
     if (!firstMembership) {
       return jsonError('No organization found', 400)
     }
@@ -83,4 +79,4 @@ export async function POST(request: NextRequest) {
   } catch {
     return jsonError('Internal server error', 500)
   }
-}
+})
