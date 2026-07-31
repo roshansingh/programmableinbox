@@ -1,3 +1,4 @@
+import 'server-only'
 import { jsonError } from '@/lib/api-helpers'
 import type { UserPrincipal, ApiKeyPrincipal } from '@/lib/auth/principals'
 
