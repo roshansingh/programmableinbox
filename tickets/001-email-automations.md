@@ -592,12 +592,12 @@ POST   /api/v1/automations/[id]/duplicate
 
 ## 10. Email ingest integration
 
-Hook point remains `app/api/v1/webhooks/email/route.ts`, where the system currently stores incoming `EmailMessage` rows after fetching the Resend payload.
+Hook point remains `app/api/webhooks/email/route.ts`, where the system currently stores incoming `EmailMessage` rows after fetching the Resend payload.
 
 Desired flow:
 
 ```text
-POST /api/v1/webhooks/email
+POST /api/webhooks/email
   -> validate signature
   -> fetch full email from Resend
   -> store EmailMessage

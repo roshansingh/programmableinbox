@@ -3,7 +3,7 @@
  *
  * The unique index on `email_inboxes.email` is byte-exact, but inbound routing
  * lowercases the recipient before matching it
- * (`app/api/v1/webhooks/email/route.ts`). Those two must agree, or the index
+ * (`app/api/webhooks/email/route.ts`). Those two must agree, or the index
  * stops being a routing guarantee: `Billing@corp.com` and `billing@corp.com`
  * are two rows to Postgres but one address to the router, so a second tenant
  * could claim the case variant of an address already in use and receive its

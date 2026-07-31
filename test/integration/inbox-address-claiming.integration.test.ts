@@ -154,7 +154,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
     resend.receivingGet.mockResolvedValue({ data: email })
 
     const res = await webhookPost(
-      jsonRequest('http://localhost/api/v1/webhooks/email', {
+      jsonRequest('http://localhost/api/webhooks/email', {
         method: 'POST',
         body: { type: 'email.received', data: { email_id: email.id } },
       }),

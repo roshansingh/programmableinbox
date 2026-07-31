@@ -1,7 +1,7 @@
 /**
  * Integration tests for the full async webhook processing pipeline.
  *
- * These tests exercise the POST /api/v1/webhooks/email route end-to-end,
+ * These tests exercise the POST /api/webhooks/email route end-to-end,
  * covering:
  *   - Async mode: one job enqueued per matching inbox, 200 response after enqueue
  *   - Sync mode: email stored and automations dispatched within the request
@@ -125,7 +125,7 @@ function makeWebhookRequest(
 ): Request {
   const timestamp =
     overrides.timestamp ?? String(Math.floor(Date.now() / 1000));
-  return new Request('http://localhost/api/v1/webhooks/email', {
+  return new Request('http://localhost/api/webhooks/email', {
     method: 'POST',
     body,
     headers: {
@@ -228,7 +228,7 @@ describe('Webhook Email Processing — Integration', () => {
       mockWebhooksVerify.mockImplementationOnce(() => {
         throw new Error('Missing headers');
       });
-      const request = new Request('http://localhost/api/v1/webhooks/email', {
+      const request = new Request('http://localhost/api/webhooks/email', {
         method: 'POST',
         body: emailReceivedBody('em_nosig'),
         headers: { 'content-type': 'application/json' },
@@ -247,7 +247,7 @@ describe('Webhook Email Processing — Integration', () => {
         throw new Error('Missing timestamp');
       });
       const body = emailReceivedBody('em_notimestamp');
-      const request = new Request('http://localhost/api/v1/webhooks/email', {
+      const request = new Request('http://localhost/api/webhooks/email', {
         method: 'POST',
         body,
         headers: {
@@ -271,7 +271,7 @@ describe('Webhook Email Processing — Integration', () => {
       });
       const body = emailReceivedBody('em_tampered');
       const timestamp = String(Math.floor(Date.now() / 1000));
-      const request = new Request('http://localhost/api/v1/webhooks/email', {
+      const request = new Request('http://localhost/api/webhooks/email', {
         method: 'POST',
         body,
         headers: {
@@ -297,7 +297,7 @@ describe('Webhook Email Processing — Integration', () => {
       const body = emailReceivedBody('em_wrongsecret');
       const timestamp = String(Math.floor(Date.now() / 1000));
 
-      const request = new Request('http://localhost/api/v1/webhooks/email', {
+      const request = new Request('http://localhost/api/webhooks/email', {
         method: 'POST',
         body,
         headers: {
@@ -324,7 +324,7 @@ describe('Webhook Email Processing — Integration', () => {
       const timestamp = String(Math.floor(Date.now() / 1000));
       const invalidJson = 'not valid json {]';
 
-      const request = new Request('http://localhost/api/v1/webhooks/email', {
+      const request = new Request('http://localhost/api/webhooks/email', {
         method: 'POST',
         body: invalidJson,
         headers: {

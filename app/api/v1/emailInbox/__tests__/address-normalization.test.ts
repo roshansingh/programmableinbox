@@ -3,7 +3,7 @@
  *
  * The unique index on `email_inboxes.email` is byte-exact, but the webhook
  * lowercases the inbound recipient before matching
- * (app/api/v1/webhooks/email/route.ts). Left alone, that mismatch reopens the
+ * (app/api/webhooks/email/route.ts). Left alone, that mismatch reopens the
  * cross-tenant interception the unique index was added to close:
  *
  *   1. Tenant B claims `Billing@corp.com` — stored verbatim.

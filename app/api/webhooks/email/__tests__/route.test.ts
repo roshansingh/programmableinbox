@@ -41,7 +41,7 @@ async function loadRoute() {
   return await import('../route')
 }
 
-describe('POST /api/v1/webhooks/email', () => {
+describe('POST /api/webhooks/email', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
@@ -56,7 +56,7 @@ describe('POST /api/v1/webhooks/email', () => {
       throw new Error('Invalid signature')
     })
     const { POST } = await loadRoute()
-    const request = new Request('http://localhost/api/v1/webhooks/email', {
+    const request = new Request('http://localhost/api/webhooks/email', {
       method: 'POST',
       body: JSON.stringify({
         type: 'email.received',
@@ -104,7 +104,7 @@ describe('POST /api/v1/webhooks/email', () => {
       data: { email_id: 'em_123' },
     })
     const timestamp = String(Math.floor(Date.now() / 1000))
-    const request = new Request('http://localhost/api/v1/webhooks/email', {
+    const request = new Request('http://localhost/api/webhooks/email', {
       method: 'POST',
       body,
       headers: {
@@ -159,7 +159,7 @@ describe('POST /api/v1/webhooks/email', () => {
       data: { email_id: 'em_456' },
     })
     const timestamp = String(Math.floor(Date.now() / 1000))
-    const request = new Request('http://localhost/api/v1/webhooks/email', {
+    const request = new Request('http://localhost/api/webhooks/email', {
       method: 'POST',
       body,
       headers: {
