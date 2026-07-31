@@ -56,10 +56,28 @@ async function assertTree(dir: string, expected: (file: string, method: string) 
 }
 
 describe('structural route guards', () => {
-  it('guard 2: every handler under app/api/v1 is wrapped with withApiKey', async () => {
-    // TIGHTENED IN TASK 24: currently scoped to nothing, because no /api/v1
-    // route has been converted yet. Task 24 changes this to assertTree('app/api/v1', ...).
-    await assertTree('app/api/v1/__none__', () => 'apiKey')
+  it('guard 1: no mutating handler exists anywhere under app/api/v1/emailInbox', async () => {
+    // WIDENED IN TASK 29: scoped to emailInbox, the only /api/v1 subtree
+    // converted so far. account, apiKeys, automations, phoneInbox and stats
+    // still export mutations and still use the pre-split auth layer; Tasks
+    // 27-29 move them to /api/app. Change both this path and guard 2's to
+    // 'app/api/v1' once the last of those lands.
+    const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE']
+    const offenders: string[] = []
+
+    for (const file of findRouteFiles('app/api/v1/emailInbox')) {
+      const mod = (await import(path.join(REPO_ROOT, file))) as Record<string, unknown>
+      for (const method of MUTATING) {
+        if (typeof mod[method] === 'function') offenders.push(`${file} ${method}`)
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  it('guard 2: every handler under app/api/v1/emailInbox is wrapped with withApiKey', async () => {
+    // WIDENED IN TASK 29 — see guard 1.
+    await assertTree('app/api/v1/emailInbox', () => 'apiKey')
   })
 
   it('guard 3: every handler under app/api/app is withUser, except auth/login and auth/register', async () => {
@@ -75,8 +93,10 @@ describe('structural route guards', () => {
     await assertTree('app/api/webhooks/email', () => 'public')
   })
 
-  it('guard 5: no handler in app/api/app or app/api/webhooks/email is untagged', async () => {
+  it('guard 5: no handler in the converted trees is untagged', async () => {
+    // WIDENED IN TASK 29 — see guard 1.
     const files = [
+      ...findRouteFiles('app/api/v1/emailInbox'),
       ...findRouteFiles('app/api/app'),
       ...findRouteFiles('app/api/webhooks/email'),
     ]

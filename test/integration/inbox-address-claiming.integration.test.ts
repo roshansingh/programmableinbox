@@ -14,8 +14,8 @@ const resend = vi.hoisted(() => ({ send: vi.fn(), verify: vi.fn(), receivingGet:
 vi.mock('@/lib/resend', () => ({ getResend: () => resendClient(resend) }))
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST } from '@/app/api/v1/emailInbox/route'
-import { PATCH as patchById } from '@/app/api/v1/emailInbox/[id]/route'
+import { POST } from '@/app/api/app/emailInbox/route'
+import { PATCH as patchById } from '@/app/api/app/emailInbox/[id]/route'
 import { POST as webhookPost } from '@/app/api/webhooks/email/route'
 import type { ResendEmailData } from '@/app/api/webhooks/email/route'
 import { prisma } from '@/lib/db'
@@ -25,7 +25,7 @@ import { jsonRequest, params } from './helpers/request'
 
 function createInbox(credential: string, organizationId: string, email: string) {
   return POST(
-    jsonRequest('http://localhost/api/v1/emailInbox', {
+    jsonRequest('http://localhost/api/app/emailInbox', {
       method: 'POST',
       credential,
       body: { organizationId, email },
@@ -97,7 +97,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
 
     // Onto another tenant's address...
     const ontoTaken = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${attacker.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${attacker.id}`, {
         method: 'PATCH',
         credential: a.token,
         body: { email: 'BILLING@Corp.com' },
@@ -108,7 +108,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
 
     // ...and onto a completely unused address: still refused.
     const ontoFree = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${attacker.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${attacker.id}`, {
         method: 'PATCH',
         credential: a.token,
         body: { email: 'brand-new@corp.com' },
@@ -126,7 +126,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
     const inbox = await seedInbox(a.org.id, a.user.id, { email: 'keep@corp.com', name: 'Old' })
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, {
         method: 'PATCH',
         credential: a.token,
         body: { name: 'New', email: 'keep@corp.com' },

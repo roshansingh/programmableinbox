@@ -31,6 +31,13 @@ type MessageRow = {
   tags: string[]
   extractedOtp: string | null
   createdAt: Date
+  /**
+   * Present only on rows from the grouped thread-list query. Part of the
+   * published contract — the OpenAPI spec documents it on this endpoint as
+   * "present only in grouped mode", and the pre-split route returned the raw
+   * grouped rows, so dropping it would silently break existing consumers.
+   */
+  threadCount?: number
 }
 
 export function serializePublicInbox(inbox: InboxRow) {
@@ -62,5 +69,8 @@ export function serializePublicMessage(message: MessageRow) {
     // the body, which this scope already returns.
     extractedOtp: message.extractedOtp,
     createdAt: message.createdAt.toISOString(),
+    // Omitted rather than sent as undefined when absent, so a flat listing's
+    // payload does not carry a key only the grouped view populates.
+    ...(message.threadCount !== undefined && { threadCount: message.threadCount }),
   }
 }

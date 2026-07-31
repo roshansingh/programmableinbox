@@ -1,21 +1,20 @@
-import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
+import { toOwnerScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { getResend } from '@/lib/resend'
 import logger from '@/lib/logger'
 
-type RouteContext = { params: Promise<{ id: string }> }
-
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
-
+export const POST = withUser<{ id: string }>(async (request, principal, { params }) => {
   const { id } = await params
 
-  const inbox = await prisma.emailInbox.findUnique({ where: { id } })
-  if (!inbox || inbox.userId !== user.id) {
+  // Owner-scoped, not organization-scoped: sending acts *as* the inbox, so it
+  // is an exercise of the address rather than a read of it. An org member who
+  // can see the inbox still cannot send from someone else's address.
+  const owner = toOwnerScope(principal)
+  const inbox = await prisma.emailInbox.findFirst({ where: { id, userId: owner.userId } })
+  if (!inbox) {
     return jsonError('Not found', 404)
   }
 
@@ -103,4 +102,4 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     logger.error({ inboxId: id, error }, 'Failed to send email')
     return jsonError('Failed to send email', 500)
   }
-}
+})

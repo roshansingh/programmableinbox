@@ -56,6 +56,12 @@ type MessageRow = {
   messageId: string | null
   references: string[]
   /**
+   * Enrichment output the dashboard renders (app/emails/[id]/page.tsx shows it
+   * as JSON). Excluded from the public contract as worker-internal state, but
+   * the UI reads it, so it belongs here.
+   */
+  metadata: unknown
+  /**
    * Present only on rows from the grouped thread-list query, which projects a
    * per-thread count. Optional rather than required because the flat and
    * single-thread views return plain message rows. app/emails/[id]/page.tsx
@@ -90,6 +96,7 @@ export function serializeAppMessage(message: MessageRow) {
     createdAt: message.createdAt.toISOString(),
     messageId: message.messageId,
     references: message.references,
+    metadata: message.metadata ?? null,
     // Omitted entirely rather than sent as undefined when absent, so the flat
     // view's payload does not carry a key the grouped view alone populates.
     ...(message.threadCount !== undefined && { threadCount: message.threadCount }),

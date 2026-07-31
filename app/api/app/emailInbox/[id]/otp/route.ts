@@ -1,23 +1,18 @@
-import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
+import { toOrgScope } from '@/lib/services/scope'
+import { getInbox } from '@/lib/services/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-type RouteContext = { params: Promise<{ id: string }> }
-
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
-
+export const GET = withUser<{ id: string }>(async (_request, principal, { params }) => {
   const { id } = await params
 
-  const inbox = await prisma.emailInbox.findFirst({
-    where: {
-      id,
-      organizationId: { in: user.memberships.map((m) => m.organizationId) },
-    },
-    select: { id: true },
-  })
+  // A read, so organization-scoped — matching what this route already did by
+  // hand with the membership org list.
+  const { scope, error } = toOrgScope(principal)
+  if (error) return error
+
+  const inbox = await getInbox(scope, id)
   if (!inbox) return jsonError('Not found', 404)
 
   const message = await prisma.emailMessage.findFirst({
@@ -36,4 +31,4 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     receivedAt: message.createdAt,
     messageId: message.id,
   })
-}
+})

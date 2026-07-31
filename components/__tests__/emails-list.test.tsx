@@ -30,7 +30,7 @@ describe('EmailsList', () => {
 
   it('shows empty state when no emails exist', async () => {
     server.use(
-      http.get('http://localhost:4000/api/v1/emailInbox', () => {
+      http.get('http://localhost:4000/api/app/emailInbox', () => {
         return HttpResponse.json({ data: [] })
       })
     )

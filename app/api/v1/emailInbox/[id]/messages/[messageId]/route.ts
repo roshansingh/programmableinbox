@@ -1,112 +1,29 @@
-import { NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
-import { resolveAuthContext } from '@/lib/auth/auth-context'
-import { requireScope, requireOrgAccess } from '@/lib/auth/authorization'
+import { withApiKey } from '@/lib/auth/with-auth'
+import { toOrgScope } from '@/lib/services/scope'
+import { getMessage } from '@/lib/services/email-inbox'
+import { serializePublicMessage } from '@/lib/serializers/public/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-type RouteContext = { params: Promise<{ id: string; messageId: string }> }
+/**
+ * GET only. The PATCH (star) and DELETE handlers that used to live here moved
+ * to /api/app/emailInbox — star is dashboard UI state that never belonged in a
+ * public contract, and the delete was reachable by any organization key.
+ *
+ * The PATCH was also gated by `messages:read`, so a key issued as read-only
+ * could mutate. That scope string is now declared in the withApiKey call
+ * beside the method rather than inside the handler body, where it drifted.
+ */
+export const GET = withApiKey<{ id: string; messageId: string }>(
+  { scopes: ['messages:read'] },
+  async (_request, principal, { params }) => {
+    const { id: inboxId, messageId } = await params
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const context = await resolveAuthContext(request)
-  if (!context) return jsonError('Unauthorized', 401)
+    const { scope, error } = toOrgScope(principal)
+    if (error) return error
 
-  const { id: inboxId, messageId } = await params
+    const message = await getMessage(scope, inboxId, messageId)
+    if (!message) return jsonError('Message not found', 404)
 
-  const inbox = await prisma.emailInbox.findUnique({ where: { id: inboxId } })
-  if (!inbox) {
-    return jsonError('Not found', 404)
-  }
-
-  if (context.kind === 'user') {
-    if (inbox.userId !== context.userId) {
-      return jsonError('Not found', 404)
-    }
-  } else {
-    const scopeResult = requireScope(context, 'messages:read')
-    if ('error' in scopeResult) {
-      return scopeResult.error
-    }
-
-    const orgResult = requireOrgAccess(context, inbox.organizationId)
-    if ('error' in orgResult) {
-      return orgResult.error
-    }
-  }
-
-  const message = await prisma.emailMessage.findUnique({
-    where: { id: messageId },
-  })
-
-  if (!message || message.inboxEmailAddressId !== inboxId) {
-    return jsonError('Message not found', 404)
-  }
-
-  return jsonSuccess(message)
-}
-
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const context = await resolveAuthContext(request)
-  if (!context) return jsonError('Unauthorized', 401)
-
-  const { id: inboxId, messageId } = await params
-  const body = await request.json()
-
-  if (typeof body.isStarred !== 'boolean') {
-    return jsonError('isStarred must be a boolean', 400)
-  }
-
-  const inbox = await prisma.emailInbox.findUnique({ where: { id: inboxId } })
-  if (!inbox) return jsonError('Not found', 404)
-
-  if (context.kind === 'user') {
-    if (inbox.userId !== context.userId) return jsonError('Not found', 404)
-  } else {
-    const scopeResult = requireScope(context, 'messages:read')
-    if ('error' in scopeResult) return scopeResult.error
-
-    const orgResult = requireOrgAccess(context, inbox.organizationId)
-    if ('error' in orgResult) return orgResult.error
-  }
-
-  const message = await prisma.emailMessage.findUnique({ where: { id: messageId } })
-  if (!message || message.inboxEmailAddressId !== inboxId) return jsonError('Message not found', 404)
-
-  const updated = await prisma.emailMessage.update({
-    where: { id: messageId },
-    data: { isStarred: body.isStarred },
-  })
-
-  return jsonSuccess(updated)
-}
-
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const context = await resolveAuthContext(request)
-  if (!context) return jsonError('Unauthorized', 401)
-
-  const { id: inboxId, messageId } = await params
-
-  const inbox = await prisma.emailInbox.findUnique({ where: { id: inboxId } })
-  if (!inbox) return jsonError('Not found', 404)
-
-  if (context.kind === 'user') {
-    if (inbox.userId !== context.userId) return jsonError('Not found', 404)
-  } else {
-    const scopeResult = requireScope(context, 'messages:delete')
-    if ('error' in scopeResult) return scopeResult.error
-
-    const orgResult = requireOrgAccess(context, inbox.organizationId)
-    if ('error' in orgResult) return orgResult.error
-  }
-
-  const message = await prisma.emailMessage.findUnique({ where: { id: messageId } })
-  if (!message || message.inboxEmailAddressId !== inboxId) return jsonError('Message not found', 404)
-
-  // Soft delete (F8): reads filter `deletedAt: null` via the client extension,
-  // so the message is unreachable from this point on.
-  await prisma.emailMessage.update({
-    where: { id: messageId },
-    data: { deletedAt: new Date() },
-  })
-
-  return jsonSuccess({ deleted: true })
-}
+    return jsonSuccess(serializePublicMessage(message))
+  },
+)

@@ -126,6 +126,20 @@ async function ownedInbox(owner: OwnerScope, id: string) {
   return prisma.emailInbox.findFirst({ where: { id, userId: owner.userId } })
 }
 
+/**
+ * Owner-scoped read, for handlers that must establish mutation authority
+ * *before* they inspect the request body.
+ *
+ * PATCH needs the stored row to compare the submitted address against, and
+ * resolving that row through the read scope would answer body-shaped questions
+ * for a caller who is not allowed to mutate at all — a non-owner in the same
+ * organization would get 409 "address is immutable" instead of 404, which
+ * distinguishes an inbox they may not touch from one that does not exist.
+ */
+export async function getOwnedInbox(owner: OwnerScope, id: string) {
+  return ownedInbox(owner, id)
+}
+
 export async function updateInbox(
   owner: OwnerScope,
   id: string,
