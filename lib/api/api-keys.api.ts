@@ -1,7 +1,8 @@
 /**
  * API Keys API module
  * Handles API key management API calls
- * Based on OpenAPI spec: /v1/apiKeys
+ * Targets the dashboard tree at /api/app/apiKeys. Not a published API —
+ * these are user-created credentials managed from the dashboard only.
  */
 
 import { apiClient } from '../api-client'
@@ -31,7 +32,7 @@ export interface CreateApiKeyRequest {
 
 /**
  * Get all API keys
- * GET /v1/apiKeys
+ * GET /app/apiKeys
  */
 export async function getApiKeys(params?: {
   organizationId?: string
@@ -42,30 +43,30 @@ export async function getApiKeys(params?: {
   }
 
   const query = queryParams.toString()
-  return apiClient.get<ApiKeyListItem[]>(`/v1/apiKeys${query ? `?${query}` : ''}`)
+  return apiClient.get<ApiKeyListItem[]>(`/app/apiKeys${query ? `?${query}` : ''}`)
 }
 
 /**
  * Get a single API key by ID
- * GET /v1/apiKeys/{id}
+ * GET /app/apiKeys/{id}
  */
 export async function getApiKey(id: string): Promise<ApiKeyListItem> {
-  return apiClient.get<ApiKeyListItem>(`/v1/apiKeys/${id}`)
+  return apiClient.get<ApiKeyListItem>(`/app/apiKeys/${id}`)
 }
 
 /**
  * Create a new API key
- * POST /v1/apiKeys
+ * POST /app/apiKeys
  * Note: The full API key is returned only once on creation
  */
 export async function createApiKey(data: CreateApiKeyRequest): Promise<CreatedApiKey> {
-  return apiClient.post<CreatedApiKey>('/v1/apiKeys', data)
+  return apiClient.post<CreatedApiKey>('/app/apiKeys', data)
 }
 
 /**
  * Delete an API key
- * DELETE /v1/apiKeys/{id}
+ * DELETE /app/apiKeys/{id}
  */
 export async function deleteApiKey(id: string): Promise<void> {
-  return apiClient.delete<void>(`/v1/apiKeys/${id}`)
+  return apiClient.delete<void>(`/app/apiKeys/${id}`)
 }

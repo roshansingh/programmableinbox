@@ -4,11 +4,11 @@ import { mockApiKeyList, mockCreatedApiKey } from '../fixtures/api-keys'
 const BASE = 'http://localhost:4000/api'
 
 export const apiKeyHandlers = [
-  http.get(`${BASE}/v1/apiKeys`, () => {
+  http.get(`${BASE}/app/apiKeys`, () => {
     return HttpResponse.json({ data: [...mockApiKeyList] })
   }),
 
-  http.post(`${BASE}/v1/apiKeys`, async ({ request }) => {
+  http.post(`${BASE}/app/apiKeys`, async ({ request }) => {
     const body = (await request.json()) as {
       name: string
       organizationId: string
@@ -25,7 +25,7 @@ export const apiKeyHandlers = [
     })
   }),
 
-  http.delete(`${BASE}/v1/apiKeys/:id`, () => {
+  http.delete(`${BASE}/app/apiKeys/:id`, () => {
     return new HttpResponse(null, { status: 204 })
   }),
 ]

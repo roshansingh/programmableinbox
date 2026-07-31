@@ -1,12 +1,10 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { resolveAuthContext } from '@/lib/auth/auth-context'
+import { withUser } from '@/lib/auth/with-auth'
+import { toOrgScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-export async function PATCH(request: NextRequest) {
-  const context = await resolveAuthContext(request)
-  if (!context) return jsonError('Unauthorized', 401)
-  if (context.kind !== 'user') return jsonError('Forbidden', 403)
+export const PATCH = withUser(async (request, principal) => {
 
   const body = await request.json()
   const { organizationId, name } = body
@@ -19,8 +17,12 @@ export async function PATCH(request: NextRequest) {
     return jsonError('name is required', 400)
   }
 
-  const isMember = context.memberships.some((m) => m.organizationId === organizationId)
-  if (!isMember) return jsonError('Forbidden', 403)
+
+  // Membership now resolves through the one place that owns that decision.
+  // Note this changes the body from 'Forbidden' to toOrgScope's message; the
+  // status is unchanged and no client reads the string.
+  const { error } = toOrgScope(principal, organizationId)
+  if (error) return error
 
   const org = await prisma.organization.update({
     where: { id: organizationId },
@@ -28,4 +30,4 @@ export async function PATCH(request: NextRequest) {
   })
 
   return jsonSuccess(org)
-}
+})

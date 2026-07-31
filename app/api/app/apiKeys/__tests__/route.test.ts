@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const apiKeyFindManyMock = vi.fn()
 const apiKeyCreateMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -22,13 +23,14 @@ async function loadRoute() {
   return await import('../route')
 }
 
-describe('GET /api/v1/apiKeys', () => {
+describe('GET /api/app/apiKeys', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
 
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
   })
@@ -49,7 +51,7 @@ describe('GET /api/v1/apiKeys', () => {
     ])
 
     const { GET } = await loadRoute()
-    const response = await GET(new NextRequest('http://localhost/api/v1/apiKeys'))
+    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys', { headers: { authorization: 'Bearer jwt.token.here' } }))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -69,20 +71,21 @@ describe('GET /api/v1/apiKeys', () => {
   })
 })
 
-describe('POST /api/v1/apiKeys', () => {
+describe('POST /api/app/apiKeys', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
 
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
   })
 
   it('rejects invalid scopes', async () => {
     const { POST } = await loadRoute()
-    const request = new Request('http://localhost/api/v1/apiKeys', {
+    const request = new NextRequest('http://localhost/api/app/apiKeys', {
       method: 'POST',
       body: JSON.stringify({
         organizationId: 'org_1',
@@ -117,7 +120,7 @@ describe('POST /api/v1/apiKeys', () => {
     })
 
     const { POST } = await loadRoute()
-    const request = new Request('http://localhost/api/v1/apiKeys', {
+    const request = new NextRequest('http://localhost/api/app/apiKeys', {
       method: 'POST',
       body: JSON.stringify({
         organizationId: 'org_1',

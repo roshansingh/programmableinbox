@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const apiKeyFindUniqueMock = vi.fn()
 const apiKeyUpdateMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -21,12 +22,13 @@ async function loadRoute() {
   return await import('../route')
 }
 
-describe('GET /api/v1/apiKeys/[id]', () => {
+describe('GET /api/app/apiKeys/[id]', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
   })
@@ -45,7 +47,7 @@ describe('GET /api/v1/apiKeys/[id]', () => {
     })
 
     const { GET } = await loadRoute()
-    const response = await GET(new Request('http://localhost/api/v1/apiKeys/key_1') as any, {
+    const response = await GET(new Request('http://localhost/api/app/apiKeys/key_1', { headers: { authorization: 'Bearer jwt.token.here' } }) as any, {
       params: Promise.resolve({ id: 'key_1' }),
     })
     const body = await response.json()
@@ -65,12 +67,13 @@ describe('GET /api/v1/apiKeys/[id]', () => {
   })
 })
 
-describe('DELETE /api/v1/apiKeys/[id]', () => {
+describe('DELETE /api/app/apiKeys/[id]', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
   })
@@ -84,7 +87,7 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     apiKeyUpdateMock.mockResolvedValue({})
 
     const { DELETE } = await loadRoute()
-    const response = await DELETE(new Request('http://localhost/api/v1/apiKeys/key_1', {
+    const response = await DELETE(new Request('http://localhost/api/app/apiKeys/key_1', {
       method: 'DELETE',
       headers: { authorization: 'Bearer token' },
     }) as any, {
@@ -106,7 +109,7 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     })
 
     const { DELETE } = await loadRoute()
-    const response = await DELETE(new Request('http://localhost/api/v1/apiKeys/key_1', {
+    const response = await DELETE(new Request('http://localhost/api/app/apiKeys/key_1', {
       method: 'DELETE',
       headers: { authorization: 'Bearer token' },
     }) as any, {

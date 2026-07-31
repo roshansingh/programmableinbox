@@ -1,13 +1,10 @@
 import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
-import { resolveAuthContext } from '@/lib/auth/auth-context'
+import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-export async function PATCH(request: NextRequest) {
-  const context = await resolveAuthContext(request)
-  if (!context) return jsonError('Unauthorized', 401)
-  if (context.kind !== 'user') return jsonError('Forbidden', 403)
+export const PATCH = withUser(async (request, principal) => {
 
   const body = await request.json()
   const { currentPassword, newPassword } = body
@@ -26,7 +23,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: context.userId },
+    where: { id: principal.userId },
     select: { id: true, passwordHash: true },
   })
   const dummyHash = '$2a$10$AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
@@ -37,4 +34,4 @@ export async function PATCH(request: NextRequest) {
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } })
 
   return jsonSuccess({ message: 'Password updated' })
-}
+})

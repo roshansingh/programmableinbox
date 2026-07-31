@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
+import { toOrgScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 import { API_KEY_SCOPE_SET } from '@/lib/api-key-scopes'
@@ -42,24 +43,20 @@ export function serializeApiKey(key: SerializableApiKey) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const GET = withUser(async (request, principal) => {
 
   const organizationId = request.nextUrl.searchParams.get('organizationId')
 
   if (organizationId) {
-    const membership = user.memberships.find((m) => m.organizationId === organizationId)
-    if (!membership) {
-      return jsonError('Not a member of this organization', 403)
-    }
+    const { error } = toOrgScope(principal, organizationId)
+    if (error) return error
   }
 
   // Revoked keys are hidden here rather than by the soft-delete extension in
   // lib/db.ts: ApiKey tracks its lifecycle with `revokedAt` (F5), not the
   // `deletedAt` column that extension keys off.
   const where: { userId: string; organizationId?: string; revokedAt: null } = {
-    userId: user.id,
+    userId: principal.userId,
     revokedAt: null,
   }
   if (organizationId) where.organizationId = organizationId
@@ -71,11 +68,9 @@ export async function GET(request: NextRequest) {
   })
 
   return jsonSuccess(keys.map(serializeApiKey))
-}
+})
 
-export async function POST(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const POST = withUser(async (request, principal) => {
 
   try {
     const { organizationId, name, scopes } = await request.json()
@@ -106,10 +101,8 @@ export async function POST(request: NextRequest) {
       return jsonError('At least one valid scope is required', 400)
     }
 
-    const membership = user.memberships.find((m) => m.organizationId === organizationId)
-    if (!membership) {
-      return jsonError('Not a member of this organization', 403)
-    }
+    const { error } = toOrgScope(principal, organizationId)
+    if (error) return error
 
     const apiKey = `sk_live_${crypto.randomBytes(24).toString('hex')}`
     const prefix = getKeyPrefix(apiKey)
@@ -123,7 +116,7 @@ export async function POST(request: NextRequest) {
         name: normalizedName,
         scopes: normalizedScopes,
         organizationId,
-        userId: user.id,
+        userId: principal.userId,
       },
     })
 
@@ -138,4 +131,4 @@ export async function POST(request: NextRequest) {
     logger.error({ error }, 'Error creating API key')
     return jsonError('Internal server error', 500)
   }
-}
+})

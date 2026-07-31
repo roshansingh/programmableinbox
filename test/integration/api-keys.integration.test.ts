@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { GET, POST } from '@/app/api/v1/apiKeys/route'
-import { GET as getById, DELETE as deleteById } from '@/app/api/v1/apiKeys/[id]/route'
+import { GET, POST } from '@/app/api/app/apiKeys/route'
+import { GET as getById, DELETE as deleteById } from '@/app/api/app/apiKeys/[id]/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg, createApiKey } from './helpers/auth'
 import { jsonRequest, params } from './helpers/request'
 
-describe('POST /api/v1/apiKeys', () => {
+describe('POST /api/app/apiKeys', () => {
   it('401 without a token', async () => {
-    const res = await POST(jsonRequest('http://localhost/api/v1/apiKeys', { method: 'POST', body: {} }))
+    const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', { method: 'POST', body: {} }))
     expect(res.status).toBe(401)
   })
 
   it('creates a key, returns the raw key once, stores only the hash', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/apiKeys', {
+    const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, name: 'CI', scopes: ['messages:read'] },
     }))
@@ -27,7 +27,7 @@ describe('POST /api/v1/apiKeys', () => {
 
   it('400 on an invalid scope', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/apiKeys', {
+    const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, name: 'CI', scopes: ['not:a:scope'] },
     }))
@@ -37,7 +37,7 @@ describe('POST /api/v1/apiKeys', () => {
   it('403 creating a key in an org you do not belong to', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await POST(jsonRequest('http://localhost/api/v1/apiKeys', {
+    const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', {
       method: 'POST', credential: token,
       body: { organizationId: other.org.id, name: 'x', scopes: ['messages:read'] },
     }))
@@ -45,9 +45,9 @@ describe('POST /api/v1/apiKeys', () => {
   })
 })
 
-describe('GET /api/v1/apiKeys', () => {
+describe('GET /api/app/apiKeys', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/v1/apiKeys'))
+    const res = await GET(jsonRequest('http://localhost/api/app/apiKeys'))
     expect(res.status).toBe(401)
   })
 
@@ -58,7 +58,7 @@ describe('GET /api/v1/apiKeys', () => {
     const other = await createSecondOrg()
     await createApiKey(other.org.id, other.user.id, ['messages:read'])
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/apiKeys', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/apiKeys', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -74,17 +74,17 @@ describe('GET /api/v1/apiKeys', () => {
   it('403 filtering by an organizationId the caller is not a member of', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await GET(jsonRequest(`http://localhost/api/v1/apiKeys?organizationId=${other.org.id}`, {
+    const res = await GET(jsonRequest(`http://localhost/api/app/apiKeys?organizationId=${other.org.id}`, {
       credential: token,
     }))
     expect(res.status).toBe(403)
   })
 })
 
-describe('GET /api/v1/apiKeys/[id]', () => {
+describe('GET /api/app/apiKeys/[id]', () => {
   it('401 without a token', async () => {
     const res = await getById(
-      jsonRequest('http://localhost/api/v1/apiKeys/some-id'),
+      jsonRequest('http://localhost/api/app/apiKeys/some-id'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -95,7 +95,7 @@ describe('GET /api/v1/apiKeys/[id]', () => {
     const key = await createApiKey(org.id, user.id, ['messages:read'])
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/apiKeys/${key.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/apiKeys/${key.id}`, { credential: token }),
       params({ id: key.id })
     )
     expect(res.status).toBe(200)
@@ -112,17 +112,17 @@ describe('GET /api/v1/apiKeys/[id]', () => {
     const otherKey = await createApiKey(other.org.id, other.user.id, ['messages:read'])
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/apiKeys/${otherKey.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/apiKeys/${otherKey.id}`, { credential: token }),
       params({ id: otherKey.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('DELETE /api/v1/apiKeys/[id]', () => {
+describe('DELETE /api/app/apiKeys/[id]', () => {
   it('401 without a token', async () => {
     const res = await deleteById(
-      jsonRequest('http://localhost/api/v1/apiKeys/some-id', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/apiKeys/some-id', { method: 'DELETE' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -133,7 +133,7 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     const key = await createApiKey(org.id, user.id, ['messages:read'])
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/apiKeys/${key.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/apiKeys/${key.id}`, { method: 'DELETE', credential: token }),
       params({ id: key.id })
     )
     expect(res.status).toBe(204)
@@ -141,7 +141,7 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     const row = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
     expect(row.revokedAt).not.toBeNull()
 
-    const listRes = await GET(jsonRequest('http://localhost/api/v1/apiKeys', { credential: token }))
+    const listRes = await GET(jsonRequest('http://localhost/api/app/apiKeys', { credential: token }))
     const { data } = await listRes.json()
     expect(data.find((k: { id: string }) => k.id === key.id)).toBeUndefined()
   })
@@ -152,7 +152,7 @@ describe('DELETE /api/v1/apiKeys/[id]', () => {
     const otherKey = await createApiKey(other.org.id, other.user.id, ['messages:read'])
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/apiKeys/${otherKey.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/apiKeys/${otherKey.id}`, { method: 'DELETE', credential: token }),
       params({ id: otherKey.id })
     )
     expect(res.status).toBe(404)

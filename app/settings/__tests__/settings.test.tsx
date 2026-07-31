@@ -47,7 +47,7 @@ describe('SettingsPage', () => {
 
   it('shows error when current password is wrong', async () => {
     server.use(
-      http.patch('http://localhost:4000/api/v1/account/password', () =>
+      http.patch('http://localhost:4000/api/app/account/password', () =>
         HttpResponse.json({ message: 'Current password is incorrect' }, { status: 401 })
       )
     )

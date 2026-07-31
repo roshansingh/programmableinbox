@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import bcrypt from 'bcryptjs'
-import { PATCH as patchOrganization } from '@/app/api/v1/account/organization/route'
-import { PATCH as patchPassword } from '@/app/api/v1/account/password/route'
+import { PATCH as patchOrganization } from '@/app/api/app/account/organization/route'
+import { PATCH as patchPassword } from '@/app/api/app/account/password/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { jsonRequest } from './helpers/request'
 
-describe('PATCH /api/v1/account/organization', () => {
+describe('PATCH /api/app/account/organization', () => {
   it('401 without a token', async () => {
-    const res = await patchOrganization(jsonRequest('http://localhost/api/v1/account/organization', {
+    const res = await patchOrganization(jsonRequest('http://localhost/api/app/account/organization', {
       method: 'PATCH',
       body: { organizationId: 'does-not-matter', name: 'New Name' },
     }))
@@ -19,7 +19,7 @@ describe('PATCH /api/v1/account/organization', () => {
 
   it('renames the caller\'s own org and persists the new name', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await patchOrganization(jsonRequest('http://localhost/api/v1/account/organization', {
+    const res = await patchOrganization(jsonRequest('http://localhost/api/app/account/organization', {
       method: 'PATCH',
       credential: token,
       body: { organizationId: org.id, name: 'Renamed Org' },
@@ -35,23 +35,25 @@ describe('PATCH /api/v1/account/organization', () => {
   it('403 renaming an org the caller does not belong to', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await patchOrganization(jsonRequest('http://localhost/api/v1/account/organization', {
+    const res = await patchOrganization(jsonRequest('http://localhost/api/app/account/organization', {
       method: 'PATCH',
       credential: token,
       body: { organizationId: other.org.id, name: 'Hijacked Name' },
     }))
     expect(res.status).toBe(403)
     const { message } = await res.json()
-    expect(message).toBe('Forbidden')
+    // toOrgScope owns the membership decision now, so the body carries its
+    // message rather than the route's old literal. Status is unchanged.
+    expect(message).toBe('Not authorized for this organization')
 
     const row = await prisma.organization.findUniqueOrThrow({ where: { id: other.org.id } })
     expect(row.name).not.toBe('Hijacked Name')
   })
 })
 
-describe('PATCH /api/v1/account/password', () => {
+describe('PATCH /api/app/account/password', () => {
   it('401 without a token', async () => {
-    const res = await patchPassword(jsonRequest('http://localhost/api/v1/account/password', {
+    const res = await patchPassword(jsonRequest('http://localhost/api/app/account/password', {
       method: 'PATCH',
       body: { currentPassword: 'password123', newPassword: 'newpassword123' },
     }))
@@ -62,7 +64,7 @@ describe('PATCH /api/v1/account/password', () => {
 
   it('changes the password with the correct current password and stores a hash that verifies', async () => {
     const { user, token } = await createOrgWithUser()
-    const res = await patchPassword(jsonRequest('http://localhost/api/v1/account/password', {
+    const res = await patchPassword(jsonRequest('http://localhost/api/app/account/password', {
       method: 'PATCH',
       credential: token,
       body: { currentPassword: 'password123', newPassword: 'newpassword123' },
@@ -79,7 +81,7 @@ describe('PATCH /api/v1/account/password', () => {
 
   it('401 with the wrong current password, leaving the hash unchanged', async () => {
     const { user, token } = await createOrgWithUser()
-    const res = await patchPassword(jsonRequest('http://localhost/api/v1/account/password', {
+    const res = await patchPassword(jsonRequest('http://localhost/api/app/account/password', {
       method: 'PATCH',
       credential: token,
       body: { currentPassword: 'wrong-password', newPassword: 'newpassword123' },
