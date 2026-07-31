@@ -76,7 +76,7 @@ const mockStoreIncomingEmail = vi.fn();
 const mockDispatchAutomationsForEmail = vi.fn().mockResolvedValue([]);
 const mockEnrichMessage = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@/app/api/v1/webhooks/email/route', () => ({
+vi.mock('@/app/api/webhooks/email/route', () => ({
   storeIncomingEmail: (...args: unknown[]) => mockStoreIncomingEmail(...args),
   ResendEmailData: {},
 }));
@@ -106,7 +106,7 @@ async function freshImport() {
       emailJobDeadLetter: { upsert: mockDeadLetterUpsert },
     },
   }));
-  vi.mock('@/app/api/v1/webhooks/email/route', () => ({
+  vi.mock('@/app/api/webhooks/email/route', () => ({
     storeIncomingEmail: (...args: unknown[]) => mockStoreIncomingEmail(...args),
     ResendEmailData: {},
   }));

@@ -253,10 +253,15 @@ In your PikaPods Kuma instance:
 Point your Resend inbound webhook at:
 
 ```
-https://$DOMAIN/api/v1/webhooks/email
+https://$DOMAIN/api/webhooks/email
 ```
 
 Use the same HMAC secret you set as `WEBHOOK_SECRET`.
+
+> The previous path, `/api/v1/webhooks/email`, still works as a temporary alias
+> so existing Resend configurations keep delivering. It is removed once the
+> dashboard is repointed at the URL above — update it at your earliest
+> convenience.
 
 **Webhook processing has two modes, set by `ENABLE_ASYNC_WEBHOOK_PROCESSING`:**
 

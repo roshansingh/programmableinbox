@@ -4,8 +4,8 @@ const resend = vi.hoisted(() => ({ send: vi.fn(), verify: vi.fn(), receivingGet:
 vi.mock('@/lib/resend', () => ({ getResend: () => resendClient(resend) }))
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { POST } from '@/app/api/v1/webhooks/email/route'
-import type { ResendEmailData } from '@/app/api/v1/webhooks/email/route'
+import { POST } from '@/app/api/webhooks/email/route'
+import type { ResendEmailData } from '@/app/api/webhooks/email/route'
 import { prisma } from '@/lib/db'
 import { getLogger } from '@/lib/logger'
 import { createOrgWithUser } from './helpers/auth'
