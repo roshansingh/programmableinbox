@@ -327,9 +327,11 @@ export default function InboxPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-1">
+                        {inbox?.isOwner && (
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={selectedMessage.isStarred ? 'Unstar message' : 'Star message'}
                           className="h-8 w-8 hidden sm:flex"
                           onClick={() => toggleStar(selectedMessage)}
                         >
@@ -339,28 +341,42 @@ export default function InboxPage() {
                             stroke={selectedMessage.isStarred ? '#eab308' : 'currentColor'}
                           />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => handleDelete(selectedMessage.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        )}
+                        {/*
+                          Owner-only, like the star above and Reply/Forward
+                          below. Reads are organization-wide so a colleague can
+                          open this inbox, but starring, deleting and sending
+                          all resolve through toOwnerScope and 404 for them.
+                        */}
+                        {inbox?.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Delete message"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleDelete(selectedMessage.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto" onClick={() => openCompose("reply", threadMessages[threadMessages.length - 1] || selectedMessage)}>
-                        <Reply className="h-3 w-3 mr-2" />
-                        Reply
-                      </Button>
+                      {inbox?.isOwner && (
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto" onClick={() => openCompose("reply", threadMessages[threadMessages.length - 1] || selectedMessage)}>
+                          <Reply className="h-3 w-3 mr-2" />
+                          Reply
+                        </Button>
+                      )}
+                      {inbox?.isOwner && (
                       <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => openCompose("forward", threadMessages[threadMessages.length - 1] || selectedMessage)}>
                         <Forward className="h-3 w-3 mr-2" />
                         Forward
                       </Button>
+                      )}
                     </div>
                   </div>
 
