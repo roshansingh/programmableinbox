@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { GET as listMessages } from '@/app/api/v1/emailInbox/[id]/messages/route'
+import { GET as listMessages } from '@/app/api/app/emailInbox/[id]/messages/route'
 import {
   GET as getMessage,
   PATCH as patchMessage,
   DELETE as deleteMessage,
-} from '@/app/api/v1/emailInbox/[id]/messages/[messageId]/route'
-import { GET as getOtp } from '@/app/api/v1/emailInbox/[id]/otp/route'
+} from '@/app/api/app/emailInbox/[id]/messages/[messageId]/route'
+import { GET as getOtp } from '@/app/api/app/emailInbox/[id]/otp/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedInbox, seedMessage } from './helpers/factories'
@@ -17,10 +17,10 @@ import { jsonRequest, params } from './helpers/request'
 const BASE_MS = Date.parse('2026-01-01T00:00:00.000Z')
 const at = (n: number) => new Date(BASE_MS + n * 1000)
 
-describe('GET /api/v1/emailInbox/[id]/messages', () => {
+describe('GET /api/app/emailInbox/[id]/messages', () => {
   it('401 without a token', async () => {
     const res = await listMessages(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/messages'),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/messages'),
       params({ id: 'some-id' }),
     )
     expect(res.status).toBe(401)
@@ -34,7 +34,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const m3 = await seedMessage(inbox.id, org.id, { subject: 'third', createdAt: at(3) })
 
     const res = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages`, { credential: token }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(200)
@@ -53,7 +53,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const m3 = await seedMessage(inbox.id, org.id, { subject: 'third', createdAt: at(3) })
 
     const page1 = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?limit=2`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages?limit=2`, { credential: token }),
       params({ id: inbox.id }),
     )
     expect(page1.status).toBe(200)
@@ -64,7 +64,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
 
     const page2 = await listMessages(
       jsonRequest(
-        `http://localhost/api/v1/emailInbox/${inbox.id}/messages?limit=2&cursor=${encodeURIComponent(body1.nextCursor)}`,
+        `http://localhost/api/app/emailInbox/${inbox.id}/messages?limit=2&cursor=${encodeURIComponent(body1.nextCursor)}`,
         { credential: token },
       ),
       params({ id: inbox.id }),
@@ -95,7 +95,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const b1 = await seedMessage(inbox.id, org.id, { threadId: threadB, subject: 'B1', createdAt: at(3) })
 
     const res = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?grouped=true`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages?grouped=true`, { credential: token }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(200)
@@ -115,7 +115,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
 
     // Cursor-paginate across the two thread heads with limit=1.
     const page1 = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?grouped=true&limit=1`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages?grouped=true&limit=1`, { credential: token }),
       params({ id: inbox.id }),
     )
     const body1 = (await page1.json()).data
@@ -126,7 +126,7 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
 
     const page2 = await listMessages(
       jsonRequest(
-        `http://localhost/api/v1/emailInbox/${inbox.id}/messages?grouped=true&limit=1&cursor=${encodeURIComponent(body1.nextCursor)}`,
+        `http://localhost/api/app/emailInbox/${inbox.id}/messages?grouped=true&limit=1&cursor=${encodeURIComponent(body1.nextCursor)}`,
         { credential: token },
       ),
       params({ id: inbox.id }),
@@ -147,21 +147,21 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     const a2 = await seedMessage(inbox.id, org.id, { threadId: threadA, subject: 'A2', createdAt: at(2) })
 
     await deleteMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${a2.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${a2.id}`, {
         method: 'DELETE', credential: token,
       }),
       params({ id: inbox.id, messageId: a2.id }),
     )
 
     const flatRes = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages`, { credential: token }),
       params({ id: inbox.id }),
     )
     const flatBody = (await flatRes.json()).data
     expect(flatBody.messages.map((m: { id: string }) => m.id)).toEqual([a1.id])
 
     const groupedRes = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages?grouped=true`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages?grouped=true`, { credential: token }),
       params({ id: inbox.id }),
     )
     const groupedBody = (await groupedRes.json()).data
@@ -171,10 +171,10 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
   })
 })
 
-describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
+describe('GET /api/app/emailInbox/[id]/messages/[messageId]', () => {
   it('401 without a token', async () => {
     const res = await getMessage(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/messages/some-message'),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/messages/some-message'),
       params({ id: 'some-id', messageId: 'some-message' }),
     )
     expect(res.status).toBe(401)
@@ -186,7 +186,7 @@ describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const message = await seedMessage(inbox.id, org.id, { subject: 'hello' })
 
     const res = await getMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${message.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, { credential: token }),
       params({ id: inbox.id, messageId: message.id }),
     )
     expect(res.status).toBe(200)
@@ -205,7 +205,7 @@ describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
 
     // Try to reach org A's message through org B's own inbox id.
     const res = await getMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inboxB.id}/messages/${messageA.id}`, { credential: tokenB }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inboxB.id}/messages/${messageA.id}`, { credential: tokenB }),
       params({ id: inboxB.id, messageId: messageA.id }),
     )
     expect(res.status).toBe(404)
@@ -219,17 +219,17 @@ describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const { token: tokenB } = await createSecondOrg()
 
     const res = await getMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inboxA.id}/messages/${messageA.id}`, { credential: tokenB }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inboxA.id}/messages/${messageA.id}`, { credential: tokenB }),
       params({ id: inboxA.id, messageId: messageA.id }),
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('PATCH /api/v1/emailInbox/[id]/messages/[messageId]', () => {
+describe('PATCH /api/app/emailInbox/[id]/messages/[messageId]', () => {
   it('401 without a token', async () => {
     const res = await patchMessage(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/messages/some-message', { method: 'PATCH', body: {} }),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/messages/some-message', { method: 'PATCH', body: {} }),
       params({ id: 'some-id', messageId: 'some-message' }),
     )
     expect(res.status).toBe(401)
@@ -241,7 +241,7 @@ describe('PATCH /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const message = await seedMessage(inbox.id, org.id, { isStarred: false })
 
     const res = await patchMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${message.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
         method: 'PATCH', credential: token,
         body: { isStarred: true },
       }),
@@ -261,7 +261,7 @@ describe('PATCH /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const message = await seedMessage(inbox.id, org.id)
 
     const res = await patchMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${message.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
         method: 'PATCH', credential: token,
         body: { isStarred: 'yes' },
       }),
@@ -278,7 +278,7 @@ describe('PATCH /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const { token: tokenB } = await createSecondOrg()
 
     const res = await patchMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inboxA.id}/messages/${messageA.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inboxA.id}/messages/${messageA.id}`, {
         method: 'PATCH', credential: tokenB,
         body: { isStarred: true },
       }),
@@ -291,10 +291,10 @@ describe('PATCH /api/v1/emailInbox/[id]/messages/[messageId]', () => {
   })
 })
 
-describe('DELETE /api/v1/emailInbox/[id]/messages/[messageId]', () => {
+describe('DELETE /api/app/emailInbox/[id]/messages/[messageId]', () => {
   it('401 without a token', async () => {
     const res = await deleteMessage(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/messages/some-message', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/messages/some-message', { method: 'DELETE' }),
       params({ id: 'some-id', messageId: 'some-message' }),
     )
     expect(res.status).toBe(401)
@@ -306,27 +306,28 @@ describe('DELETE /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const message = await seedMessage(inbox.id, org.id)
 
     const res = await deleteMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${message.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
         method: 'DELETE', credential: token,
       }),
       params({ id: inbox.id, messageId: message.id }),
     )
-    expect(res.status).toBe(200)
-    const { data } = await res.json()
-    expect(data.deleted).toBe(true)
+    // 204 rather than the pre-split 200 + { deleted: true }: this matches the
+    // inbox DELETE, and lib/api/emails.api.ts declares deleteEmailMessage as
+    // Promise<void> and never reads the body.
+    expect(res.status).toBe(204)
 
     const row = await prisma.emailMessage.findFirst({ where: { id: message.id, deletedAt: { not: null } } })
     expect(row).not.toBeNull()
     expect(row!.deletedAt).not.toBeNull()
 
     const getRes = await getMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages/${message.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, { credential: token }),
       params({ id: inbox.id, messageId: message.id }),
     )
     expect(getRes.status).toBe(404)
 
     const listRes = await listMessages(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/messages`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages`, { credential: token }),
       params({ id: inbox.id }),
     )
     const listBody = (await listRes.json()).data
@@ -341,7 +342,7 @@ describe('DELETE /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     const { token: tokenB } = await createSecondOrg()
 
     const res = await deleteMessage(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inboxA.id}/messages/${messageA.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inboxA.id}/messages/${messageA.id}`, {
         method: 'DELETE', credential: tokenB,
       }),
       params({ id: inboxA.id, messageId: messageA.id }),
@@ -353,10 +354,10 @@ describe('DELETE /api/v1/emailInbox/[id]/messages/[messageId]', () => {
   })
 })
 
-describe('GET /api/v1/emailInbox/[id]/otp', () => {
+describe('GET /api/app/emailInbox/[id]/otp', () => {
   it('401 without a token', async () => {
     const res = await getOtp(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/otp'),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/otp'),
       params({ id: 'some-id' }),
     )
     expect(res.status).toBe(401)
@@ -369,7 +370,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     const latest = await seedMessage(inbox.id, org.id, { extractedOtp: '222222', createdAt: at(2) })
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: token }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(200)
@@ -384,7 +385,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     await seedMessage(inbox.id, org.id, { extractedOtp: null })
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: token }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(404)
@@ -400,7 +401,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     const { token: otherToken } = await createSecondOrg()
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: otherToken }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: otherToken }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(404)

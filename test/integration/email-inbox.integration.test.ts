@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { GET, POST } from '@/app/api/v1/emailInbox/route'
-import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/v1/emailInbox/[id]/route'
+import { GET, POST } from '@/app/api/app/emailInbox/route'
+import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/app/emailInbox/[id]/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedInbox } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
-describe('POST /api/v1/emailInbox', () => {
+describe('POST /api/app/emailInbox', () => {
   it('401 without a token', async () => {
-    const res = await POST(jsonRequest('http://localhost/api/v1/emailInbox', { method: 'POST', body: {} }))
+    const res = await POST(jsonRequest('http://localhost/api/app/emailInbox', { method: 'POST', body: {} }))
     expect(res.status).toBe(401)
   })
 
   it('creates an inbox scoped to the org and caller', async () => {
     const { org, user, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/emailInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/emailInbox', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, email: 'new-inbox@test.dev', name: 'My Inbox' },
     }))
@@ -33,7 +33,7 @@ describe('POST /api/v1/emailInbox', () => {
   it('403 creating an inbox in an org you do not belong to', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await POST(jsonRequest('http://localhost/api/v1/emailInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/emailInbox', {
       method: 'POST', credential: token,
       body: { organizationId: other.org.id, email: 'other-inbox@test.dev' },
     }))
@@ -42,7 +42,7 @@ describe('POST /api/v1/emailInbox', () => {
 
   it('400 without organizationId or email', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/emailInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/emailInbox', {
       method: 'POST', credential: token,
       body: { organizationId: org.id },
     }))
@@ -54,7 +54,7 @@ describe('POST /api/v1/emailInbox', () => {
     await seedInbox(org.id, user.id, { email: 'dupe@test.dev' })
 
     const other = await createSecondOrg()
-    const res = await POST(jsonRequest('http://localhost/api/v1/emailInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/emailInbox', {
       method: 'POST', credential: other.token,
       body: { organizationId: other.org.id, email: 'dupe@test.dev' },
     }))
@@ -62,9 +62,9 @@ describe('POST /api/v1/emailInbox', () => {
   })
 })
 
-describe('GET /api/v1/emailInbox', () => {
+describe('GET /api/app/emailInbox', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/v1/emailInbox'))
+    const res = await GET(jsonRequest('http://localhost/api/app/emailInbox'))
     expect(res.status).toBe(401)
   })
 
@@ -75,7 +75,7 @@ describe('GET /api/v1/emailInbox', () => {
     const other = await createSecondOrg()
     await seedInbox(other.org.id, other.user.id)
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/emailInbox', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/emailInbox', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -85,10 +85,10 @@ describe('GET /api/v1/emailInbox', () => {
   })
 })
 
-describe('GET /api/v1/emailInbox/[id]', () => {
+describe('GET /api/app/emailInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await getById(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id'),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -99,7 +99,7 @@ describe('GET /api/v1/emailInbox/[id]', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, { credential: token }),
       params({ id: inbox.id })
     )
     expect(res.status).toBe(200)
@@ -114,17 +114,17 @@ describe('GET /api/v1/emailInbox/[id]', () => {
     const otherInbox = await seedInbox(other.org.id, other.user.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${otherInbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${otherInbox.id}`, { credential: token }),
       params({ id: otherInbox.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('PATCH /api/v1/emailInbox/[id]', () => {
+describe('PATCH /api/app/emailInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await patchById(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id', { method: 'PATCH', body: {} }),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id', { method: 'PATCH', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -135,7 +135,7 @@ describe('PATCH /api/v1/emailInbox/[id]', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Renamed Inbox' },
       }),
@@ -155,7 +155,7 @@ describe('PATCH /api/v1/emailInbox/[id]', () => {
     await seedInbox(org.id, user.id, { email: 'taken@test.dev' })
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, {
         method: 'PATCH', credential: token,
         body: { email: 'taken@test.dev' },
       }),
@@ -170,7 +170,7 @@ describe('PATCH /api/v1/emailInbox/[id]', () => {
     const otherInbox = await seedInbox(other.org.id, other.user.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${otherInbox.id}`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${otherInbox.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Hijacked' },
       }),
@@ -183,10 +183,10 @@ describe('PATCH /api/v1/emailInbox/[id]', () => {
   })
 })
 
-describe('DELETE /api/v1/emailInbox/[id]', () => {
+describe('DELETE /api/app/emailInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await deleteById(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id', { method: 'DELETE' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -197,7 +197,7 @@ describe('DELETE /api/v1/emailInbox/[id]', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, { method: 'DELETE', credential: token }),
       params({ id: inbox.id })
     )
     expect(res.status).toBe(204)
@@ -210,13 +210,13 @@ describe('DELETE /api/v1/emailInbox/[id]', () => {
 
     // Disappears from GET by id (soft-delete filter applied on read).
     const getRes = await getById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}`, { credential: token }),
       params({ id: inbox.id })
     )
     expect(getRes.status).toBe(404)
 
     // Disappears from the list too.
-    const listRes = await GET(jsonRequest('http://localhost/api/v1/emailInbox', { credential: token }))
+    const listRes = await GET(jsonRequest('http://localhost/api/app/emailInbox', { credential: token }))
     const { data } = await listRes.json()
     expect(data.find((i: { id: string }) => i.id === inbox.id)).toBeUndefined()
   })
@@ -227,7 +227,7 @@ describe('DELETE /api/v1/emailInbox/[id]', () => {
     const otherInbox = await seedInbox(other.org.id, other.user.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${otherInbox.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/emailInbox/${otherInbox.id}`, { method: 'DELETE', credential: token }),
       params({ id: otherInbox.id })
     )
     expect(res.status).toBe(404)

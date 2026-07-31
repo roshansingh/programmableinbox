@@ -1,249 +1,126 @@
+/**
+ * Rewritten for the read-only external surface.
+ *
+ * The previous version asserted on `messages:delete` — a scope that gated a
+ * destructive operation and was granted to every key by default. Both the
+ * scope and the DELETE handler are gone; what remains is a GET, and the
+ * assertion that nothing mutating can be reached here.
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
-const resolveAuthContextMock = vi.fn()
-const emailInboxFindUniqueMock = vi.fn()
-const emailMessageFindUniqueMock = vi.fn()
+const resolveApiKeyPrincipalMock = vi.fn()
+const getMessageMock = vi.fn()
 
-vi.mock('@/lib/auth/auth-context', () => ({
-  resolveAuthContext: (...args: unknown[]) => resolveAuthContextMock(...args),
+vi.mock('@/lib/auth/api-key-auth', () => ({
+  resolveApiKeyPrincipal: (...a: unknown[]) => resolveApiKeyPrincipalMock(...a),
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    emailInbox: {
-      findUnique: (...args: unknown[]) => emailInboxFindUniqueMock(...args),
-    },
-    emailMessage: {
-      findUnique: (...args: unknown[]) => emailMessageFindUniqueMock(...args),
-    },
-  },
+vi.mock('@/lib/services/email-inbox', () => ({
+  getMessage: (...a: unknown[]) => getMessageMock(...a),
 }))
 
-async function loadRoute() {
-  return await import('../route')
+const KEY = {
+  kind: 'apiKey',
+  apiKeyId: 'key_1',
+  organizationId: 'org_1',
+  scopes: ['inboxes:read', 'messages:read'],
 }
 
+const MESSAGE = {
+  id: 'msg_1',
+  threadId: 'thread_1',
+  parentMessageId: null,
+  subject: 'Hello',
+  from: 'sender@example.com',
+  to: ['a@example.com'],
+  cc: [],
+  bcc: [],
+  text: 'body',
+  html: '<p>body</p>',
+  isStarred: false,
+  tags: [],
+  extractedOtp: '123456',
+  createdAt: new Date('2026-01-03T00:00:00.000Z'),
+  externalId: 'resend_abc',
+  headers: { 'x-provider': 'resend' },
+}
+
+const params = Promise.resolve({ id: 'inbox_1', messageId: 'msg_1' })
+
+function request(authorization = 'Bearer sk_live_abcdef123456') {
+  return new NextRequest(
+    'http://localhost:4000/api/v1/emailInbox/inbox_1/messages/msg_1',
+    { headers: { authorization } },
+  )
+}
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.resetModules()
+})
+
 describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
-  beforeEach(() => {
-    vi.resetAllMocks()
-    vi.resetModules()
-  })
+  it('rejects a JWT without attempting a key lookup', async () => {
+    const { GET } = await import('../route')
 
-  it('returns a message with user JWT token', async () => {
-    const userId = 'user_1'
-    const inboxId = 'inbox_1'
-    const messageId = 'msg_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user',
-      userId,
-      email: 'user@example.com',
-      memberships: [{ organizationId: orgId, role: 'owner' }],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId,
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    emailMessageFindUniqueMock.mockResolvedValue({
-      id: messageId,
-      inboxEmailAddressId: inboxId,
-      from: 'sender@example.com',
-      subject: 'Test',
-      threadId: 'thread_1',
-      createdAt: new Date(),
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_1'),
-      { params: Promise.resolve({ id: inboxId, messageId }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.id).toBe(messageId)
-  })
-
-  it('returns 401 without authentication', async () => {
-    resolveAuthContextMock.mockResolvedValue(null)
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_1'),
-      { params: Promise.resolve({ id: 'inbox_1', messageId: 'msg_1' }) } as any
-    )
-    const body = await response.json()
+    const response = await GET(request('Bearer eyJhbGciOiJIUzI1NiJ9.x.y'), { params })
 
     expect(response.status).toBe(401)
-    expect(body.message).toBe('Unauthorized')
+    expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when inbox not found', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user',
-      userId: 'user_1',
-      email: 'user@example.com',
-      memberships: [{ organizationId: 'org_1', role: 'owner' }],
-    })
+  it('403s a key lacking messages:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+    const { GET } = await import('../route')
 
-    emailInboxFindUniqueMock.mockResolvedValue(null)
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_invalid/messages/msg_1'),
-      { params: Promise.resolve({ id: 'inbox_invalid', messageId: 'msg_1' }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(404)
-    expect(body.message).toBe('Not found')
-  })
-
-  it('returns 404 when message not found', async () => {
-    const inboxId = 'inbox_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user',
-      userId: 'user_1',
-      email: 'user@example.com',
-      memberships: [{ organizationId: orgId, role: 'owner' }],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    emailMessageFindUniqueMock.mockResolvedValue(null)
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_invalid'),
-      { params: Promise.resolve({ id: inboxId, messageId: 'msg_invalid' }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(404)
-    expect(body.message).toBe('Message not found')
-  })
-
-  it('returns message with API key auth', async () => {
-    const inboxId = 'inbox_1'
-    const messageId = 'msg_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: orgId,
-      scopes: ['messages:read'],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    emailMessageFindUniqueMock.mockResolvedValue({
-      id: messageId,
-      inboxEmailAddressId: inboxId,
-      from: 'sender@example.com',
-      subject: 'Test',
-      threadId: 'thread_1',
-      createdAt: new Date(),
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_1'),
-      { params: Promise.resolve({ id: inboxId, messageId }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.id).toBe(messageId)
-  })
-
-  it('returns 403 when API key lacks messages:read scope', async () => {
-    const inboxId = 'inbox_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: orgId,
-      scopes: ['inboxes:read'],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_1'),
-      { params: Promise.resolve({ id: inboxId, messageId: 'msg_1' }) } as any
-    )
-    const body = await response.json()
+    const response = await GET(request(), { params })
 
     expect(response.status).toBe(403)
-    expect(body.message).toContain('Missing required scope')
+    expect(getMessageMock).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when message is in different inbox', async () => {
-    const inboxId = 'inbox_1'
-    const messageId = 'msg_1'
-    const orgId = 'org_1'
+  it('404s a message in another organization', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    getMessageMock.mockResolvedValue(null)
+    const { GET } = await import('../route')
 
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: orgId,
-      scopes: ['messages:read'],
-    })
+    expect((await GET(request(), { params })).status).toBe(404)
+  })
 
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
+  it('404s a message that does not belong to the inbox', async () => {
+    // getMessage constrains the message to the inbox, so this is the same null.
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    getMessageMock.mockResolvedValue(null)
+    const { GET } = await import('../route')
 
-    emailMessageFindUniqueMock.mockResolvedValue({
-      id: messageId,
-      inboxEmailAddressId: 'different_inbox',
-      from: 'sender@example.com',
-      subject: 'Test',
-      threadId: 'thread_1',
-      createdAt: new Date(),
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new Request('http://localhost/api/v1/emailInbox/inbox_1/messages/msg_1'),
-      { params: Promise.resolve({ id: inboxId, messageId }) } as any
-    )
-    const body = await response.json()
+    const response = await GET(request(), { params })
 
     expect(response.status).toBe(404)
-    expect(body.message).toBe('Message not found')
+    expect((await response.json()).message).toBe('Message not found')
+  })
+
+  it('returns the public shape without provider internals', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    getMessageMock.mockResolvedValue(MESSAGE)
+    const { GET } = await import('../route')
+
+    const body = await (await GET(request(), { params })).json()
+
+    expect(body.data.id).toBe('msg_1')
+    expect(body.data).not.toHaveProperty('externalId')
+    expect(body.data).not.toHaveProperty('headers')
+    // Published deliberately: derived from a body the same scope returns.
+    expect(body.data.extractedOtp).toBe('123456')
+  })
+
+  it('exports no PATCH — starring is dashboard state, and it was gated by messages:read', async () => {
+    const mod = await import('../route')
+    expect(mod).not.toHaveProperty('PATCH')
+  })
+
+  it('exports no DELETE — it was reachable by any organization key', async () => {
+    const mod = await import('../route')
+    expect(mod).not.toHaveProperty('DELETE')
   })
 })

@@ -4,13 +4,13 @@ const resend = vi.hoisted(() => ({ send: vi.fn(), verify: vi.fn(), receivingGet:
 vi.mock('@/lib/resend', () => ({ getResend: () => resendClient(resend) }))
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST } from '@/app/api/v1/emailInbox/[id]/send/route'
+import { POST } from '@/app/api/app/emailInbox/[id]/send/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedInbox } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
-describe('POST /api/v1/emailInbox/[id]/send', () => {
+describe('POST /api/app/emailInbox/[id]/send', () => {
   beforeEach(() => {
     resend.send.mockReset()
     resend.verify.mockReset()
@@ -19,7 +19,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
 
   it('401 without a token', async () => {
     const res = await POST(
-      jsonRequest('http://localhost/api/v1/emailInbox/some-id/send', { method: 'POST', body: {} }),
+      jsonRequest('http://localhost/api/app/emailInbox/some-id/send', { method: 'POST', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -31,7 +31,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     const otherInbox = await seedInbox(other.org.id, other.user.id)
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${otherInbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${otherInbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: ['dest@test.dev'], subject: 'Hi', text: 'body' },
       }),
@@ -46,7 +46,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { subject: 'Hi', text: 'body' },
       }),
@@ -63,7 +63,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: [], subject: 'Hi', text: 'body' },
       }),
@@ -77,7 +77,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: ['dest@test.dev'], text: 'body' },
       }),
@@ -94,7 +94,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     const inbox = await seedInbox(org.id, user.id)
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: ['dest@test.dev'], subject: 'Hi' },
       }),
@@ -110,7 +110,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     resend.send.mockResolvedValue({ data: { id: 'resend-sent-1' }, error: null })
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: ['dest@test.dev'], subject: 'Hello there', text: 'body text' },
       }),
@@ -166,7 +166,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     resend.send.mockResolvedValue({ data: { id: 'resend-sent-reply-1' }, error: null })
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: {
           to: ['someone@test.dev'],
@@ -191,7 +191,7 @@ describe('POST /api/v1/emailInbox/[id]/send', () => {
     resend.send.mockResolvedValue({ data: null, error: { message: 'Resend rejected the request' } })
 
     const res = await POST(
-      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/send`, {
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: { to: ['dest@test.dev'], subject: 'Hello there', text: 'body text' },
       }),

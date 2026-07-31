@@ -1,401 +1,176 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { encodeCursor } from '@/lib/pagination/cursor'
+import { MAX_LIMIT } from '@/lib/pagination/params'
 
-const resolveAuthContextMock = vi.fn()
-const emailInboxFindUniqueMock = vi.fn()
-const emailMessageFindManyMock = vi.fn()
+const resolveApiKeyPrincipalMock = vi.fn()
+const listMessagesMock = vi.fn()
 
-vi.mock('@/lib/auth/auth-context', () => ({
-  resolveAuthContext: (...args: unknown[]) => resolveAuthContextMock(...args),
+vi.mock('@/lib/auth/api-key-auth', () => ({
+  resolveApiKeyPrincipal: (...a: unknown[]) => resolveApiKeyPrincipalMock(...a),
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    emailInbox: {
-      findUnique: (...args: unknown[]) => emailInboxFindUniqueMock(...args),
-    },
-    emailMessage: {
-      findMany: (...args: unknown[]) => emailMessageFindManyMock(...args),
-    },
-  },
+vi.mock('@/lib/services/email-inbox', () => ({
+  listMessages: (...a: unknown[]) => listMessagesMock(...a),
 }))
 
-const fetchGroupedThreadHeadsMock = vi.fn()
-vi.mock('@/lib/services/grouped-query', () => ({
-  fetchGroupedThreadHeads: (...args: unknown[]) => fetchGroupedThreadHeadsMock(...args),
-}))
-
-async function loadRoute() {
-  return await import('../route')
+const KEY = {
+  kind: 'apiKey',
+  apiKeyId: 'key_1',
+  organizationId: 'org_1',
+  scopes: ['inboxes:read', 'messages:read'],
 }
 
+function message(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'msg_1',
+    threadId: 'thread_1',
+    parentMessageId: null,
+    subject: 'Hello',
+    from: 'sender@example.com',
+    to: ['a@example.com'],
+    cc: [],
+    bcc: [],
+    text: 'body',
+    html: '<p>body</p>',
+    isStarred: false,
+    tags: [],
+    extractedOtp: null,
+    createdAt: new Date('2026-01-03T00:00:00.000Z'),
+    externalId: 'resend_abc',
+    ...overrides,
+  }
+}
+
+const params = Promise.resolve({ id: 'inbox_1' })
+
+function request(query = '', authorization = 'Bearer sk_live_abcdef123456') {
+  return new NextRequest(
+    `http://localhost:4000/api/v1/emailInbox/inbox_1/messages${query}`,
+    { headers: { authorization } },
+  )
+}
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.resetModules()
+  listMessagesMock.mockResolvedValue({ messages: [], nextCursor: null, hasMore: false })
+})
+
 describe('GET /api/v1/emailInbox/[id]/messages', () => {
-  beforeEach(() => {
-    vi.resetAllMocks()
-    vi.resetModules()
-  })
+  it('rejects a JWT without attempting a key lookup', async () => {
+    const { GET } = await import('../route')
 
-  it('returns messages with user JWT token', async () => {
-    const userId = 'user_1'
-    const inboxId = 'inbox_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user',
-      userId,
-      email: 'user@example.com',
-      memberships: [{ organizationId: orgId, role: 'owner' }],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId,
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    emailMessageFindManyMock.mockResolvedValue([
-      {
-        id: 'msg_1',
-        inboxEmailAddressId: inboxId,
-        from: 'sender@example.com',
-        subject: 'Test',
-        threadId: 'thread_1',
-        createdAt: new Date(),
-      },
-    ])
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: inboxId }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.messages).toHaveLength(1)
-    expect(body.data.hasMore).toBe(false)
-    expect(body.data.nextCursor).toBeNull()
-  })
-
-  it('returns 401 without authentication', async () => {
-    resolveAuthContextMock.mockResolvedValue(null)
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any
-    )
-    const body = await response.json()
+    const response = await GET(request('', 'Bearer eyJhbGciOiJIUzI1NiJ9.x.y'), { params })
 
     expect(response.status).toBe(401)
-    expect(body.message).toBe('Unauthorized')
+    expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when inbox not found', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user',
-      userId: 'user_1',
-      email: 'user@example.com',
-      memberships: [{ organizationId: 'org_1', role: 'owner' }],
-    })
+  it('403s a key lacking messages:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+    const { GET } = await import('../route')
 
-    emailInboxFindUniqueMock.mockResolvedValue(null)
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_invalid/messages'),
-      { params: Promise.resolve({ id: 'inbox_invalid' }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(404)
-    expect(body.message).toBe('Not found')
-  })
-
-  it('returns messages for API key with messages:read scope', async () => {
-    const inboxId = 'inbox_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: orgId,
-      scopes: ['messages:read'],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    emailMessageFindManyMock.mockResolvedValue([
-      {
-        id: 'msg_1',
-        inboxEmailAddressId: inboxId,
-        from: 'sender@example.com',
-        subject: 'Test',
-        threadId: 'thread_1',
-        createdAt: new Date(),
-      },
-    ])
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: inboxId }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.messages).toHaveLength(1)
-  })
-
-  it('returns 403 when API key lacks messages:read scope', async () => {
-    const inboxId = 'inbox_1'
-    const orgId = 'org_1'
-
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: orgId,
-      scopes: ['inboxes:read'], // Only inboxes:read, not messages:read
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: orgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: inboxId }) } as any
-    )
-    const body = await response.json()
+    const response = await GET(request(), { params })
 
     expect(response.status).toBe(403)
-    expect(body.message).toContain('Missing required scope')
+    expect(listMessagesMock).not.toHaveBeenCalled()
   })
 
-  it('returns 403 when API key from different organization tries to access inbox', async () => {
-    const inboxId = 'inbox_1'
-    const inboxOrgId = 'org_1'
-    const keyOrgId = 'org_2'
+  it('404s when the inbox is outside the key organization', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listMessagesMock.mockResolvedValue(null)
+    const { GET } = await import('../route')
 
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'apiKey',
-      apiKeyId: 'key_1',
-      organizationId: keyOrgId,
-      scopes: ['messages:read'],
-    })
-
-    emailInboxFindUniqueMock.mockResolvedValue({
-      id: inboxId,
-      organizationId: inboxOrgId,
-      userId: 'user_1',
-      email: 'test@example.com',
-      name: 'Test Inbox',
-    })
-
-    const { GET } = await loadRoute()
-    const response = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: inboxId }) } as any
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(403)
-    expect(body.message).toContain('Not authorized')
+    expect((await GET(request(), { params })).status).toBe(404)
   })
 
-  it('returns nextCursor and hasMore=true when more rows exist', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
-    })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-    // limit defaults to 50 → route fetches 51; return 51 so hasMore is true
-    const rows = Array.from({ length: 51 }, (_, i) => ({
-      id: `msg_${i}`, threadId: 't', inboxEmailAddressId: 'inbox_1',
-      createdAt: new Date(Date.now() - i * 1000),
-    }))
-    emailMessageFindManyMock.mockResolvedValue(rows)
+  it('scopes the listing to the organization bound to the key', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { GET } = await import('../route')
 
-    const { GET } = await loadRoute()
-    const res = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages'),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-    const body = await res.json()
-    expect(body.data.messages).toHaveLength(50)
+    await GET(request(), { params })
+
+    expect(listMessagesMock.mock.calls[0][0]).toEqual({ organizationIds: ['org_1'] })
+    expect(listMessagesMock.mock.calls[0][1]).toBe('inbox_1')
+  })
+
+  it('keeps the messages/nextCursor/hasMore envelope', async () => {
+    // The OpenAPI spec and existing consumers depend on these key names.
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listMessagesMock.mockResolvedValue({
+      messages: [message()],
+      nextCursor: 'cursor_abc',
+      hasMore: true,
+    })
+    const { GET } = await import('../route')
+
+    const body = await (await GET(request(), { params })).json()
+
+    expect(Object.keys(body.data).sort()).toEqual(['hasMore', 'messages', 'nextCursor'])
     expect(body.data.hasMore).toBe(true)
-    expect(typeof body.data.nextCursor).toBe('string')
+    expect(body.data.nextCursor).toBe('cursor_abc')
   })
 
-  it('applies a keyset filter when a cursor is supplied', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
+  it('serializes messages without provider internals', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listMessagesMock.mockResolvedValue({
+      messages: [message()],
+      nextCursor: null,
+      hasMore: false,
     })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-    emailMessageFindManyMock.mockResolvedValue([])
+    const { GET } = await import('../route')
 
-    const { encodeCursor } = await import('@/lib/pagination/cursor')
-    const cursor = encodeCursor({ createdAt: new Date('2026-07-13T00:00:00.000Z'), id: 'msg_10' })
+    const body = await (await GET(request(), { params })).json()
 
-    const { GET } = await loadRoute()
-    await GET(
-      new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages?cursor=${cursor}`),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-    const findArgs = emailMessageFindManyMock.mock.calls[0][0]
-    const boundary = new Date('2026-07-13T00:00:00.000Z')
-    expect(findArgs.where.OR).toEqual([
-      { createdAt: { lt: boundary } },
-      { createdAt: boundary, id: { lt: 'msg_10' } },
-    ])
-    expect(findArgs.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
-    expect(findArgs.take).toBe(51)
+    expect(body.data.messages[0]).not.toHaveProperty('externalId')
   })
 
-  it('applies a keyset filter with thread mode (ascending, greater-than)', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
-    })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-    emailMessageFindManyMock.mockResolvedValue([])
+  it('clamps an absurd limit before it reaches the service', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { GET } = await import('../route')
 
-    const { encodeCursor } = await import('@/lib/pagination/cursor')
-    const cursor = encodeCursor({ createdAt: new Date('2026-07-13T00:00:00.000Z'), id: 'msg_10' })
+    await GET(request('?limit=100000000'), { params })
 
-    const { GET } = await loadRoute()
-    await GET(
-      new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages?threadId=t1&cursor=${cursor}`),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-    const findArgs = emailMessageFindManyMock.mock.calls[0][0]
-    const boundary = new Date('2026-07-13T00:00:00.000Z')
-    expect(findArgs.where.threadId).toBe('t1')
-    expect(findArgs.where.OR).toEqual([
-      { createdAt: { gt: boundary } },
-      { createdAt: boundary, id: { gt: 'msg_10' } },
-    ])
-    expect(findArgs.orderBy).toEqual([{ createdAt: 'asc' }, { id: 'asc' }])
+    expect(listMessagesMock.mock.calls[0][2].limit).toBe(MAX_LIMIT)
   })
 
-  it('returns 400 for a malformed cursor', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
-    })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
+  it('400s a malformed cursor without calling the service', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { GET } = await import('../route')
 
-    const { GET } = await loadRoute()
-    const res = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?cursor=@@garbage@@'),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-    const body = await res.json()
-    expect(res.status).toBe(400)
-    expect(body.message).toBe('Invalid cursor')
+    const response = await GET(request('?cursor=not-a-cursor'), { params })
+
+    expect(response.status).toBe(400)
+    expect(listMessagesMock).not.toHaveBeenCalled()
   })
 
-  describe('limit clamping', () => {
-    async function takeFor(query: string) {
-      resolveAuthContextMock.mockResolvedValue({
-        kind: 'user', userId: 'u1', email: 'u@e.com',
-        memberships: [{ organizationId: 'o1', role: 'owner' }],
-      })
-      emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-      emailMessageFindManyMock.mockResolvedValue([])
+  it('passes a decoded cursor through', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const cursor = encodeCursor({ createdAt: new Date('2026-01-02T00:00:00.000Z'), id: 'msg_5' })
+    const { GET } = await import('../route')
 
-      const { GET } = await loadRoute()
-      const res = await GET(
-        new NextRequest(`http://localhost/api/v1/emailInbox/inbox_1/messages${query}`),
-        { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-      )
-      expect(res!.status).toBe(200)
-      // The route over-fetches by one to detect hasMore.
-      return emailMessageFindManyMock.mock.calls[0][0].take
-    }
+    await GET(request(`?cursor=${encodeURIComponent(cursor)}`), { params })
 
-    it('clamps ?limit=100000000 to the max page size', async () => {
-      expect(await takeFor('?limit=100000000')).toBe(101)
-    })
+    expect(listMessagesMock.mock.calls[0][2].cursor).toMatchObject({ id: 'msg_5' })
+  })
 
-    it('rejects ?limit=-1 rather than passing a negative take to Prisma', async () => {
-      expect(await takeFor('?limit=-1')).toBe(51)
-    })
+  it('forwards threadId and grouped', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { GET } = await import('../route')
 
-    it('rejects ?limit=abc', async () => {
-      expect(await takeFor('?limit=abc')).toBe(51)
-    })
+    await GET(request('?threadId=thread_1&grouped=true'), { params })
 
-    it('rejects ?limit=1e9', async () => {
-      expect(await takeFor('?limit=1e9')).toBe(51)
-    })
-
-    it('rejects ?limit=Infinity', async () => {
-      expect(await takeFor('?limit=Infinity')).toBe(51)
-    })
-
-    it('clamps ?limit=0 up to one row', async () => {
-      expect(await takeFor('?limit=0')).toBe(2)
-    })
-
-    it('honours a valid limit', async () => {
-      expect(await takeFor('?limit=10')).toBe(11)
+    expect(listMessagesMock.mock.calls[0][2]).toMatchObject({
+      threadId: 'thread_1',
+      grouped: true,
     })
   })
 
-  it('bounds the grouped branch with a clamped take', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
-    })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-    fetchGroupedThreadHeadsMock.mockResolvedValue([])
-
-    const { GET } = await loadRoute()
-    const res = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?grouped=true&limit=100000000'),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-
-    expect(res!.status).toBe(200)
-    // fetchGroupedThreadHeads(inboxId, cursor, take) — take must be bounded.
-    expect(fetchGroupedThreadHeadsMock.mock.calls[0][2]).toBe(101)
-    expect(emailMessageFindManyMock).not.toHaveBeenCalled()
-  })
-
-  it('uses the grouped query and returns threadCount rows for grouped=true', async () => {
-    resolveAuthContextMock.mockResolvedValue({
-      kind: 'user', userId: 'u1', email: 'u@e.com',
-      memberships: [{ organizationId: 'o1', role: 'owner' }],
-    })
-    emailInboxFindUniqueMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'o1', userId: 'u1' })
-    fetchGroupedThreadHeadsMock.mockResolvedValue([
-      { id: 'm1', threadId: 't1', createdAt: new Date(), threadCount: 3 },
-    ])
-
-    const { GET } = await loadRoute()
-    const res = await GET(
-      new NextRequest('http://localhost/api/v1/emailInbox/inbox_1/messages?grouped=true'),
-      { params: Promise.resolve({ id: 'inbox_1' }) } as any,
-    )
-    const body = await res.json()
-    expect(fetchGroupedThreadHeadsMock).toHaveBeenCalledTimes(1)
-    expect(emailMessageFindManyMock).not.toHaveBeenCalled()
-    expect(body.data.messages[0].threadCount).toBe(3)
-    expect(body.data.hasMore).toBe(false)
+  it('exports no mutating handlers', async () => {
+    const mod = await import('../route')
+    expect(mod).not.toHaveProperty('POST')
+    expect(mod).not.toHaveProperty('PATCH')
+    expect(mod).not.toHaveProperty('DELETE')
   })
 })
