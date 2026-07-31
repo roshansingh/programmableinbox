@@ -26,7 +26,7 @@ import {
 import {
   storeIncomingEmail,
   ResendEmailData,
-} from "@/app/api/v1/webhooks/email/route";
+} from "@/app/api/webhooks/email/route";
 import { dispatchAutomationsForEmail } from "@/lib/automations/dispatcher";
 import { enrichMessage } from "@/lib/llm/enrichment";
 import { prisma } from "@/lib/db";
