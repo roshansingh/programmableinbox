@@ -6,7 +6,7 @@ import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { encodeCursor, decodeCursor, DecodedCursor } from '@/lib/pagination/cursor'
 import { clampLimit } from '@/lib/pagination/params'
-import { fetchGroupedThreadHeads } from './grouped-query'
+import { fetchGroupedThreadHeads } from '@/lib/services/grouped-query'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
