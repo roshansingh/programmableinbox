@@ -75,7 +75,7 @@ describe('structural route guards', () => {
     await assertTree('app/api/webhooks/email', () => 'public')
   })
 
-  it('guard 5: no handler in any of the three trees is untagged', async () => {
+  it('guard 5: no handler in app/api/app or app/api/webhooks/email is untagged', async () => {
     const files = [
       ...findRouteFiles('app/api/app'),
       ...findRouteFiles('app/api/webhooks/email'),
