@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const automationFindFirstMock = vi.fn()
 const automationRevisionCreateMock = vi.fn()
 const automationUpdateMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -26,12 +27,13 @@ async function loadRoute() {
   return await import('../route')
 }
 
-describe('PATCH /api/v1/automations/[id]', () => {
+describe('PATCH /api/app/automations/[id]', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
 
@@ -69,7 +71,8 @@ describe('PATCH /api/v1/automations/[id]', () => {
 
   it('rejects blank names', async () => {
     const { PATCH } = await loadRoute()
-    const request = new Request('http://localhost/api/v1/automations/automation_1', {
+    const request = new Request('http://localhost/api/app/automations/automation_1', {
+      headers: { authorization: 'Bearer jwt.token.here' },
       method: 'PATCH',
       body: JSON.stringify({ name: '   ' }),
       headers: {

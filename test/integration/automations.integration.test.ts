@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { GET, POST } from '@/app/api/v1/automations/route'
-import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/v1/automations/[id]/route'
-import { POST as duplicatePost } from '@/app/api/v1/automations/[id]/duplicate/route'
-import { POST as activateRevisionPost } from '@/app/api/v1/automations/[id]/activate-revision/route'
+import { GET, POST } from '@/app/api/app/automations/route'
+import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/app/automations/[id]/route'
+import { POST as duplicatePost } from '@/app/api/app/automations/[id]/duplicate/route'
+import { POST as activateRevisionPost } from '@/app/api/app/automations/[id]/activate-revision/route'
 import { prisma } from '@/lib/db'
 import { createDefaultAutomationConfig } from '@/lib/automations/definitions'
 import { AUTOMATION_SCHEMA_VERSION } from '@/lib/automations/types'
@@ -10,15 +10,15 @@ import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { seedAutomation, seedInbox } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
-describe('POST /api/v1/automations', () => {
+describe('POST /api/app/automations', () => {
   it('401 without a token', async () => {
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', { method: 'POST', body: {} }))
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', { method: 'POST', body: {} }))
     expect(res.status).toBe(401)
   })
 
   it('400 without organizationId', async () => {
     const { token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { name: 'No Org' },
     }))
@@ -28,7 +28,7 @@ describe('POST /api/v1/automations', () => {
   it('403 creating in an org you do not belong to', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { organizationId: other.org.id, name: 'Nope' },
     }))
@@ -37,7 +37,7 @@ describe('POST /api/v1/automations', () => {
 
   it('400 without a name', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { organizationId: org.id },
     }))
@@ -46,7 +46,7 @@ describe('POST /api/v1/automations', () => {
 
   it('404 when inboxId does not resolve inside the org', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, name: 'Bad Inbox', inboxId: '00000000-0000-7000-8000-000000000000' },
     }))
@@ -57,7 +57,7 @@ describe('POST /api/v1/automations', () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)
 
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, name: '  My Automation  ', description: '  desc  ', inboxId: inbox.id },
     }))
@@ -98,7 +98,7 @@ describe('POST /api/v1/automations', () => {
     const config = createDefaultAutomationConfig()
     config.settings.priority = 42
 
-    const res = await POST(jsonRequest('http://localhost/api/v1/automations', {
+    const res = await POST(jsonRequest('http://localhost/api/app/automations', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, name: 'Custom Config', config },
     }))
@@ -111,9 +111,9 @@ describe('POST /api/v1/automations', () => {
   })
 })
 
-describe('GET /api/v1/automations', () => {
+describe('GET /api/app/automations', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/v1/automations'))
+    const res = await GET(jsonRequest('http://localhost/api/app/automations'))
     expect(res.status).toBe(401)
   })
 
@@ -125,7 +125,7 @@ describe('GET /api/v1/automations', () => {
     const other = await createSecondOrg()
     await seedAutomation(other.org.id)
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/automations', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/automations', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -139,7 +139,7 @@ describe('GET /api/v1/automations', () => {
     const { org, token } = await createOrgWithUser()
     const { automation } = await seedAutomation(org.id)
 
-    const res = await GET(jsonRequest(`http://localhost/api/v1/automations?organizationId=${org.id}`, { credential: token }))
+    const res = await GET(jsonRequest(`http://localhost/api/app/automations?organizationId=${org.id}`, { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
     expect(data).toHaveLength(1)
@@ -150,15 +150,15 @@ describe('GET /api/v1/automations', () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
 
-    const res = await GET(jsonRequest(`http://localhost/api/v1/automations?organizationId=${other.org.id}`, { credential: token }))
+    const res = await GET(jsonRequest(`http://localhost/api/app/automations?organizationId=${other.org.id}`, { credential: token }))
     expect(res.status).toBe(403)
   })
 })
 
-describe('GET /api/v1/automations/[id]', () => {
+describe('GET /api/app/automations/[id]', () => {
   it('401 without a token', async () => {
     const res = await getById(
-      jsonRequest('http://localhost/api/v1/automations/some-id'),
+      jsonRequest('http://localhost/api/app/automations/some-id'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -169,7 +169,7 @@ describe('GET /api/v1/automations/[id]', () => {
     const { automation, revision } = await seedAutomation(org.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, { credential: token }),
       params({ id: automation.id })
     )
     expect(res.status).toBe(200)
@@ -184,17 +184,17 @@ describe('GET /api/v1/automations/[id]', () => {
     const { automation: theirs } = await seedAutomation(other.org.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/automations/${theirs.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${theirs.id}`, { credential: token }),
       params({ id: theirs.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('PATCH /api/v1/automations/[id]', () => {
+describe('PATCH /api/app/automations/[id]', () => {
   it('401 without a token', async () => {
     const res = await patchById(
-      jsonRequest('http://localhost/api/v1/automations/some-id', { method: 'PATCH', body: {} }),
+      jsonRequest('http://localhost/api/app/automations/some-id', { method: 'PATCH', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -205,7 +205,7 @@ describe('PATCH /api/v1/automations/[id]', () => {
     const { automation } = await seedAutomation(org.id, undefined, { isActive: false })
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Renamed', description: 'new desc', isActive: true },
       }),
@@ -235,7 +235,7 @@ describe('PATCH /api/v1/automations/[id]', () => {
     })
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, {
         method: 'PATCH', credential: token,
         body: { isActive: true },
       }),
@@ -249,7 +249,7 @@ describe('PATCH /api/v1/automations/[id]', () => {
     const { automation } = await seedAutomation(org.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, {
         method: 'PATCH', credential: token,
         body: { name: '   ' },
       }),
@@ -266,7 +266,7 @@ describe('PATCH /api/v1/automations/[id]', () => {
     newConfig.settings.priority = 7
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, {
         method: 'PATCH', credential: token,
         body: { config: newConfig },
       }),
@@ -300,7 +300,7 @@ describe('PATCH /api/v1/automations/[id]', () => {
     const { automation: theirs } = await seedAutomation(other.org.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/automations/${theirs.id}`, {
+      jsonRequest(`http://localhost/api/app/automations/${theirs.id}`, {
         method: 'PATCH', credential: token,
         body: { name: 'Hijacked' },
       }),
@@ -313,10 +313,10 @@ describe('PATCH /api/v1/automations/[id]', () => {
   })
 })
 
-describe('DELETE /api/v1/automations/[id]', () => {
+describe('DELETE /api/app/automations/[id]', () => {
   it('401 without a token', async () => {
     const res = await deleteById(
-      jsonRequest('http://localhost/api/v1/automations/some-id', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/automations/some-id', { method: 'DELETE' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -327,7 +327,7 @@ describe('DELETE /api/v1/automations/[id]', () => {
     const { automation } = await seedAutomation(org.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, { method: 'DELETE', credential: token }),
       params({ id: automation.id })
     )
     expect(res.status).toBe(204)
@@ -342,13 +342,13 @@ describe('DELETE /api/v1/automations/[id]', () => {
 
     // Disappears from GET by id (soft-delete filter applied on read).
     const getRes = await getById(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}`, { credential: token }),
       params({ id: automation.id })
     )
     expect(getRes.status).toBe(404)
 
     // Disappears from the list too.
-    const listRes = await GET(jsonRequest('http://localhost/api/v1/automations', { credential: token }))
+    const listRes = await GET(jsonRequest('http://localhost/api/app/automations', { credential: token }))
     const { data } = await listRes.json()
     expect(data.find((a: { id: string }) => a.id === automation.id)).toBeUndefined()
   })
@@ -359,7 +359,7 @@ describe('DELETE /api/v1/automations/[id]', () => {
     const { automation: theirs } = await seedAutomation(other.org.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/automations/${theirs.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${theirs.id}`, { method: 'DELETE', credential: token }),
       params({ id: theirs.id })
     )
     expect(res.status).toBe(404)
@@ -369,10 +369,10 @@ describe('DELETE /api/v1/automations/[id]', () => {
   })
 })
 
-describe('POST /api/v1/automations/[id]/duplicate', () => {
+describe('POST /api/app/automations/[id]/duplicate', () => {
   it('401 without a token', async () => {
     const res = await duplicatePost(
-      jsonRequest('http://localhost/api/v1/automations/some-id/duplicate', { method: 'POST', body: {} }),
+      jsonRequest('http://localhost/api/app/automations/some-id/duplicate', { method: 'POST', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -384,7 +384,7 @@ describe('POST /api/v1/automations/[id]/duplicate', () => {
     const { automation, revision } = await seedAutomation(org.id, inbox.id, { name: 'Original', description: 'orig desc' })
 
     const res = await duplicatePost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/duplicate`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/duplicate`, { method: 'POST', credential: token }),
       params({ id: automation.id })
     )
     expect(res.status).toBe(201)
@@ -424,7 +424,7 @@ describe('POST /api/v1/automations/[id]/duplicate', () => {
     const { automation: theirs } = await seedAutomation(other.org.id)
 
     const res = await duplicatePost(
-      jsonRequest(`http://localhost/api/v1/automations/${theirs.id}/duplicate`, { method: 'POST', credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${theirs.id}/duplicate`, { method: 'POST', credential: token }),
       params({ id: theirs.id })
     )
     expect(res.status).toBe(404)
@@ -434,10 +434,10 @@ describe('POST /api/v1/automations/[id]/duplicate', () => {
   })
 })
 
-describe('POST /api/v1/automations/[id]/activate-revision', () => {
+describe('POST /api/app/automations/[id]/activate-revision', () => {
   it('401 without a token', async () => {
     const res = await activateRevisionPost(
-      jsonRequest('http://localhost/api/v1/automations/some-id/activate-revision', { method: 'POST', body: {} }),
+      jsonRequest('http://localhost/api/app/automations/some-id/activate-revision', { method: 'POST', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -448,7 +448,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     const { automation } = await seedAutomation(org.id, undefined, { isActive: false })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/activate-revision`, {
         method: 'POST', credential: token, body: {},
       }),
       params({ id: automation.id })
@@ -472,7 +472,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/activate-revision`, {
         method: 'POST', credential: token, body: { revisionId: secondRevision.id },
       }),
       params({ id: automation.id })
@@ -493,7 +493,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     const { automation } = await seedAutomation(org.id, undefined, { isActive: false })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/activate-revision`, {
         method: 'POST', credential: token, body: { revisionId: '00000000-0000-7000-8000-000000000000' },
       }),
       params({ id: automation.id })
@@ -510,7 +510,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     const { revision: foreignRevision } = await seedAutomation(org.id, undefined, { isActive: false })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/activate-revision`, {
         method: 'POST', credential: token, body: { revisionId: foreignRevision.id },
       }),
       params({ id: automation.id })
@@ -535,7 +535,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/activate-revision`, {
         method: 'POST', credential: token, body: { revisionId: badRevision.id },
       }),
       params({ id: automation.id })
@@ -552,7 +552,7 @@ describe('POST /api/v1/automations/[id]/activate-revision', () => {
     const { automation: theirs, revision: theirRevision } = await seedAutomation(other.org.id, undefined, { isActive: false })
 
     const res = await activateRevisionPost(
-      jsonRequest(`http://localhost/api/v1/automations/${theirs.id}/activate-revision`, {
+      jsonRequest(`http://localhost/api/app/automations/${theirs.id}/activate-revision`, {
         method: 'POST', credential: token, body: { revisionId: theirRevision.id },
       }),
       params({ id: theirs.id })

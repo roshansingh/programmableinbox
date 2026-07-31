@@ -1,29 +1,27 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { withUser } from '@/lib/auth/with-auth'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 import {
   formatAutomationRecord,
   readJsonObject,
-  requireAuthenticatedUser,
   requireOrganizationMembership,
 } from './_utils'
 
-export async function GET(request: NextRequest) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const GET = withUser(async (request, principal) => {
 
   const organizationId = request.nextUrl.searchParams.get('organizationId')
   if (organizationId) {
-    const scoped = requireOrganizationMembership(auth.user, organizationId)
+    const scoped = requireOrganizationMembership(principal, organizationId)
     if (scoped.error) return scoped.error
   }
 
   const orgIds = organizationId
     ? [organizationId]
-    : auth.user.memberships.map((membership) => membership.organizationId)
+    : principal.memberships.map((membership) => membership.organizationId)
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -43,18 +41,16 @@ export async function GET(request: NextRequest) {
   })
 
   return jsonSuccess(automations.map(formatAutomationRecord))
-}
+})
 
-export async function POST(request: NextRequest) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const POST = withUser(async (request, principal) => {
 
   const parsed = await readJsonObject(request)
   if (parsed.error) return parsed.error
 
   const organizationId =
     typeof parsed.body.organizationId === 'string' ? parsed.body.organizationId : null
-  const scoped = requireOrganizationMembership(auth.user, organizationId)
+  const scoped = requireOrganizationMembership(principal, organizationId)
   if (scoped.error) return scoped.error
 
   const name = typeof parsed.body.name === 'string' && parsed.body.name.trim() ? parsed.body.name.trim() : null
@@ -102,7 +98,7 @@ export async function POST(request: NextRequest) {
           schemaVersion: config.version,
           config,
           layout,
-          createdByUserId: auth.user.id,
+          createdByUserId: principal.userId,
         },
       },
     },
@@ -127,4 +123,4 @@ export async function POST(request: NextRequest) {
   })
 
   return jsonSuccess(formatAutomationRecord(finalized), 201)
-}
+})

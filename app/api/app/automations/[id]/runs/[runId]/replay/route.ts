@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { withUser } from '@/lib/auth/with-auth'
 import { replayAutomationRun } from '@/lib/automations/dispatcher'
 import { consumeReplayRateLimit, type ReplayMode } from '@/lib/automations/replay-rate-limit'
 import logger from '@/lib/logger'
-import { loadAutomationForUser, requireAuthenticatedUser } from '../../../../_utils'
+import { loadAutomationForUser } from '../../../../_utils'
 
 type RouteContext = { params: Promise<{ id: string; runId: string }> }
 
@@ -84,9 +85,7 @@ async function parseReplayRequest(request: NextRequest): Promise<ParsedReplayReq
   return { mode: rawMode }
 }
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const POST = withUser(async (request, principal, { params }: RouteContext) => {
 
   const parsed = await parseReplayRequest(request)
   if (parsed.error) return parsed.error
@@ -94,7 +93,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const isDryRun = mode === 'dry_run'
 
   const { id, runId } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   const run = await prisma.automationRun.findFirst({
@@ -109,7 +108,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   // Rate limit only after auth + tenant scoping, so an attacker cannot burn a
   // victim's budget by guessing ids.
   const decision = await consumeReplayRateLimit({
-    userId: auth.user.id,
+    userId: principal.userId,
     automationId: automation.id,
     mode,
   })
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (decision.reason === 'limit_exceeded') {
       logger.warn(
         {
-          userId: auth.user.id,
+          userId: principal.userId,
           automationId: automation.id,
           runId: run.id,
           mode,
@@ -142,23 +141,23 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     // replay is precisely the abuse primitive this endpoint must not offer.
     if (!isDryRun) {
       logger.error(
-        { userId: auth.user.id, automationId: automation.id, runId: run.id },
+        { userId: principal.userId, automationId: automation.id, runId: run.id },
         'Refusing live automation replay: rate limiter unavailable'
       )
       return jsonError('Live replay is temporarily unavailable (rate limiter offline). Retry later.', 503)
     }
 
     logger.warn(
-      { userId: auth.user.id, automationId: automation.id, runId: run.id },
+      { userId: principal.userId, automationId: automation.id, runId: run.id },
       'Automation replay rate limiter unavailable; allowing dry-run replay'
     )
   }
 
   logger.info(
-    { userId: auth.user.id, automationId: automation.id, runId: run.id, mode },
+    { userId: principal.userId, automationId: automation.id, runId: run.id, mode },
     'Replaying automation run'
   )
 
   const result = await replayAutomationRun(run.id, { isDryRun })
   return jsonSuccess({ ...result, mode, isDryRun }, 201)
-}
+})

@@ -1,5 +1,5 @@
 /**
- * Route tests for POST /api/v1/automations/[id]/runs/[runId]/replay
+ * Route tests for POST /api/app/automations/[id]/runs/[runId]/replay
  * (security issue #40).
  *
  * The invariant under test: replay NEVER re-executes real side effects unless
@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getAuthenticatedUserMock = vi.fn()
+const resolveUserPrincipalFromTokenMock = vi.fn()
 const automationFindFirstMock = vi.fn()
 const automationRunFindFirstMock = vi.fn()
 const automationRunFindUniqueMock = vi.fn()
@@ -18,7 +18,8 @@ const executeAutomationMock = vi.fn()
 const consumeReplayRateLimitMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
-  getAuthenticatedUser: (...args: unknown[]) => getAuthenticatedUserMock(...args),
+  resolveUserPrincipalFromToken: (...args: unknown[]) =>
+    resolveUserPrincipalFromTokenMock(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -48,7 +49,8 @@ async function loadRoute() {
 }
 
 function replayRequest(body?: unknown, { credential = 'Bearer token' } = {}) {
-  return new Request('http://localhost/api/v1/automations/automation_1/runs/run_1/replay', {
+  return new Request('http://localhost/api/app/automations/automation_1/runs/run_1/replay', {
+    headers: { authorization: 'Bearer jwt.token.here' },
     method: 'POST',
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     headers: {
@@ -68,13 +70,14 @@ const ORIGINAL_LIVE_RUN = {
   emailMessageId: 'message_1',
 }
 
-describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
+describe('POST /api/app/automations/[id]/runs/[runId]/replay', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
 
-    getAuthenticatedUserMock.mockResolvedValue({
-      id: 'user_1',
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({
+      kind: 'user',
+      userId: 'user_1',
       memberships: [{ organizationId: 'org_1' }],
     })
     automationFindFirstMock.mockResolvedValue({
@@ -293,7 +296,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
 
   describe('authorization', () => {
     it('401 without a token, without touching the rate limiter or executor', async () => {
-      getAuthenticatedUserMock.mockResolvedValue(null)
+      resolveUserPrincipalFromTokenMock.mockResolvedValue(null)
       const { POST } = await loadRoute()
       const response = await POST(replayRequest({ mode: 'live', confirm: true }, { credential: '' }), routeParams)
 

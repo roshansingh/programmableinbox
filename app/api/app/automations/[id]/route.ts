@@ -2,37 +2,33 @@ import { NextRequest } from 'next/server'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { withUser } from '@/lib/auth/with-auth'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
 import { validateAutomationGraph } from '@/lib/automations/validation'
 import {
   formatAutomationRecord,
   loadAutomationForUser,
   readJsonObject,
-  requireAuthenticatedUser,
 } from '../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const GET = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   return jsonSuccess(formatAutomationRecord(automation))
-}
+})
 
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const PATCH = withUser(async (request, principal, { params }: RouteContext) => {
 
   const parsed = await readJsonObject(request)
   if (parsed.error) return parsed.error
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   const shellData: Record<string, string | boolean | null> = {}
@@ -80,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         schemaVersion: (nextConfig ?? (automation.activeRevision && parseAutomationConfig(automation.activeRevision.config)))?.version ?? 1,
         config: (nextConfig ?? automation.activeRevision?.config ?? null) as Prisma.InputJsonValue,
         layout: (nextLayout ?? automation.activeRevision?.layout ?? null) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined,
-        createdByUserId: auth.user.id,
+        createdByUserId: principal.userId,
       },
     })
     revisionId = revision.id
@@ -102,14 +98,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   })
 
   return jsonSuccess(formatAutomationRecord(updated))
-}
+})
 
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const DELETE = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   // Soft delete (F8). Revisions and run history are left intact rather than
@@ -120,4 +114,4 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   })
 
   return new Response(null, { status: 204 })
-}
+})

@@ -1,26 +1,21 @@
 import { NextRequest } from 'next/server'
-import { getAuthenticatedUser } from '@/lib/auth-server'
 import { jsonError } from '@/lib/api-helpers'
+import { toOrgScope } from '@/lib/services/scope'
+import type { UserPrincipal } from '@/lib/auth/principals'
 import { prisma } from '@/lib/db'
 import { compileAutomationGraph } from '@/lib/automations/graph'
 import { parseRevisionPayload } from '@/lib/automations/serialization'
 import { validateAutomationGraph } from '@/lib/automations/validation'
 import type { Automation, AutomationRevision } from '@/lib/generated/prisma/client'
 
-type AuthenticatedUser = NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>
+/**
+ * These helpers take the principal withUser resolves, not a Prisma user. Both
+ * carry `memberships`, so the membership-shaped logic below is unchanged; what
+ * goes away is this module doing its own authentication.
+ */
+type AuthenticatedUser = UserPrincipal
 
 export type JsonObject = Record<string, unknown>
-
-export async function requireAuthenticatedUser(request: NextRequest): Promise<
-  { user: AuthenticatedUser; error?: never } | { user?: never; error: Response }
-> {
-  const user = await getAuthenticatedUser(request)
-  if (!user) {
-    return { error: jsonError('Unauthorized', 401) }
-  }
-
-  return { user }
-}
 
 export function requireOrganizationMembership(
   user: AuthenticatedUser,
@@ -30,13 +25,12 @@ export function requireOrganizationMembership(
     return { error: jsonError('organizationId is required', 400) }
   }
 
-  const membership = user.memberships.find(
-    (membership: AuthenticatedUser['memberships'][number]) =>
-      membership.organizationId === organizationId
-  )
-  if (!membership) {
-    return { error: jsonError('Not a member of this organization', 403) }
-  }
+  // The membership decision itself lives in toOrgScope, so every tree answers
+  // it the same way. The 400 above stays here because it is a request-shape
+  // check, not an authorization one — toOrgScope treats a missing id as
+  // "no narrowing" rather than an error.
+  const { error } = toOrgScope(user, organizationId)
+  if (error) return { error }
 
   return { organizationId }
 }

@@ -2,16 +2,15 @@ import { NextRequest } from 'next/server'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
-import { formatAutomationRecord, loadAutomationForUser, requireAuthenticatedUser } from '../../_utils'
+import { withUser } from '@/lib/auth/with-auth'
+import { formatAutomationRecord, loadAutomationForUser } from '../../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const POST = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation || !automation.activeRevision) {
     return jsonError('Not found', 404)
   }
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           schemaVersion: automation.activeRevision.schemaVersion,
           config: automation.activeRevision.config as Prisma.InputJsonValue,
           layout: automation.activeRevision.layout as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined,
-          createdByUserId: auth.user.id,
+          createdByUserId: principal.userId,
         },
       },
     },
@@ -52,4 +51,4 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   })
 
   return jsonSuccess(formatAutomationRecord(activated), 201)
-}
+})

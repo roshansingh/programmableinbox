@@ -1,15 +1,14 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { withUser } from '@/lib/auth/with-auth'
 import { parseRevisionPayload } from '@/lib/automations/serialization'
 import { validateAutomationGraph } from '@/lib/automations/validation'
-import { formatAutomationRecord, loadAutomationForUser, readJsonObject, requireAuthenticatedUser } from '../../_utils'
+import { formatAutomationRecord, loadAutomationForUser, readJsonObject } from '../../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const POST = withUser(async (request, principal, { params }: RouteContext) => {
 
   const parsed = await readJsonObject(request)
   if (parsed.error) return parsed.error
@@ -19,7 +18,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!revisionId) return jsonError('revisionId is required', 400)
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   const revision = await prisma.automationRevision.findFirst({
@@ -55,4 +54,4 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   })
 
   return jsonSuccess(formatAutomationRecord(updated))
-}
+})

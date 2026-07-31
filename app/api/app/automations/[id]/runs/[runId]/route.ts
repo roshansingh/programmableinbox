@@ -1,16 +1,15 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
-import { loadAutomationForUser, requireAuthenticatedUser } from '../../../_utils'
+import { withUser } from '@/lib/auth/with-auth'
+import { loadAutomationForUser } from '../../../_utils'
 
 type RouteContext = { params: Promise<{ id: string; runId: string }> }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const GET = withUser(async (request, principal, { params }: RouteContext) => {
 
   const { id, runId } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   const run = await prisma.automationRun.findFirst({
@@ -46,4 +45,4 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       finishedAt: nodeRun.finishedAt?.toISOString() ?? null,
     })),
   })
-}
+})

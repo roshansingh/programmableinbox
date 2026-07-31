@@ -1,20 +1,19 @@
 import { NextRequest } from 'next/server'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { withUser } from '@/lib/auth/with-auth'
 import { runAutomationDryRun } from '@/lib/automations/dispatcher'
 import { clampLimit } from '@/lib/pagination/params'
-import { loadAutomationForUser, readJsonObject, requireAuthenticatedUser } from '../../_utils'
+import { loadAutomationForUser, readJsonObject } from '../../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function POST(request: NextRequest, { params }: RouteContext) {
-  const auth = await requireAuthenticatedUser(request)
-  if (auth.error) return auth.error
+export const POST = withUser(async (request, principal, { params }: RouteContext) => {
 
   const parsed = await readJsonObject(request)
   if (parsed.error) return parsed.error
 
   const { id } = await params
-  const automation = await loadAutomationForUser(auth.user, id)
+  const automation = await loadAutomationForUser(principal, id)
   if (!automation) return jsonError('Not found', 404)
 
   // Dry runs execute the whole automation per message, so they keep the tighter
@@ -23,4 +22,4 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const results = await runAutomationDryRun(automation.id, limit)
   return jsonSuccess(results)
-}
+})
