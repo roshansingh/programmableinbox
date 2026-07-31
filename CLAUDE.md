@@ -80,7 +80,7 @@ This is a Next.js 16 App Router app that is **both** the frontend and the API �
 
 ### Request flow
 
-Browser → `lib/api-client.ts` → `/api/...` Next.js route handler → `getAuthenticatedUser` → Prisma → PostgreSQL.
+Browser → `lib/api-client.ts` → `/api/app/...` Next.js route handler → `withUser` → service layer → Prisma → PostgreSQL.
 
 - Base URL is built at runtime as `window.location.origin + '/api'` (see `lib/api-client.ts:6`). There is no `NEXT_PUBLIC_API_BASE_URL`.
 - `NEXT_PUBLIC_API_MODE=local` is set but currently the client always hits same-origin `/api`.
@@ -88,8 +88,13 @@ Browser → `lib/api-client.ts` → `/api/...` Next.js route handler → `getAut
 ### Auth (JWT, not cookies)
 
 - **Client**: token in `localStorage.auth_token`. `apiClient` adds `Authorization: Bearer <token>`. On 401 it clears the token and redirects to `/auth/login` unless already on an auth page.
-- **Server**: `getAuthenticatedUser(request)` in `lib/auth-server.ts` parses the bearer token, verifies via `jsonwebtoken`, and loads the user with `memberships.organization` included. Every protected route calls this and returns `jsonError('Unauthorized', 401)` on null.
-- `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via `getAuthenticatedUser`**, not at the proxy level.
+- **Server**: route handlers do not authenticate themselves. Each is wrapped in one of three tagged wrappers from `lib/auth/with-auth.ts`, which resolves the credential and passes a principal in:
+  - `withUser` — JWT only, via `resolveUserPrincipalFromToken`. An API key is rejected without a lookup.
+  - `withApiKey({ scopes })` — API key only, via `resolveApiKeyPrincipal`. A JWT is rejected without verification, and the declared scopes are checked before the handler runs.
+  - `withPublic` — no authentication, and no behavior. It marks intent so "deliberately open" is distinguishable from "someone forgot the wrapper".
+- **Credential type is decided by the `sk_live_` prefix before any verification.** The superseded `resolveAuthContext` verified a JWT first and fell back to an API-key lookup on the same header value — the RFC 8725 §2.8 Cross-JWT Confusion class.
+- `getAuthenticatedUser` survives for `/api/app/auth/me` only, inside `withUser`, because `formatUserResponse` needs the organization relation the principal resolver deliberately does not load.
+- `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via the wrappers**, not at the proxy level.
 - `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/app/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
 - **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/app/auth/{login,register}` are accessible without authentication.
 
@@ -103,10 +108,26 @@ All API routes use `lib/api-helpers.ts`:
 
 ### Multi-tenancy model
 
-Every resource (EmailInbox, PhoneInbox, ApiKey, Webhook, EmailMessage) is scoped to an `Organization` via `organizationId`, and a user accesses orgs through `Membership`. Auth-loaded user always has `memberships` with org included. Two scoping patterns coexist in the route handlers — match the existing pattern when extending:
+Every resource (EmailInbox, PhoneInbox, ApiKey, Webhook, EmailMessage) is scoped to an `Organization` via `organizationId`, and a user accesses orgs through `Membership`.
 
-- **User-scoped**: `where: { userId: user.id }` then verify `memberships.find(m => m.organizationId === body.organizationId)` before writing (e.g. `app/api/v1/apiKeys/route.ts`, `emailInbox/route.ts`).
-- **Org-scoped**: `where: { organizationId: { in: user.memberships.map(m => m.organizationId) } }` (e.g. `app/api/webhooks/route.ts`).
+Handlers never query with a principal. They convert it into one of two scope types from `lib/services/scope.ts` and pass only that to the service layer, which therefore cannot branch on credential type:
+
+- **`OrgScope` — who can SEE.** Organization-wide for both principal kinds: a user gets every organization they belong to, a key gets the one it is bound to. Produced by `toOrgScope(principal, requestedOrganizationId?)`, which is the single place the membership check happens. A route cannot narrow to an organization without being checked.
+- **`OwnerScope` — who can CHANGE.** Creator-only, and deliberately a different type. Only a `UserPrincipal` can produce one (`toOwnerScope`), so **no API key can reach a mutating service** — enforced by the compiler, independently of which route tree the handler lives in. There is a type test for this in `lib/services/__tests__/scope.test-d.ts`.
+
+Reads widened to organization-wide; mutation authority did not. A user therefore sees inboxes they cannot rename, delete or send from, which is why `serializeAppInbox` derives `isOwner` — the UI gates on it rather than rendering actions that 404.
+
+### The three route trees
+
+| Tree | Wrapper | Contents |
+|---|---|---|
+| `app/api/v1/**` | `withApiKey` | The published external API. **Read-only** — GET handlers only. |
+| `app/api/app/**` | `withUser` (`withPublic` for `auth/login`, `auth/register`) | Everything the dashboard calls. |
+| `app/api/webhooks/**` | `withPublic` | Provider ingest, which authenticates the *request* by HMAC rather than the caller. |
+
+`lib/__tests__/route-guards.test.ts` enforces this structurally, by importing every route module and reading a non-enumerable symbol the wrappers attach. Source-text matching cannot answer "was this wrapped?" honestly; a symbol can only be present if the wrapper actually ran. The guards assert no mutating handler exists under `/api/v1`, each tree carries its expected wrapper, no handler is untagged, and every documented OpenAPI path sits under `/api/v1`.
+
+Serializers are hand-written allowlists (`lib/serializers/public/` for the external contract, `lib/serializers/app/` for the dashboard) so a column added to the schema cannot publish itself. The public ones are snapshot-tested. Note the snapshots catch *additions*; they do not catch omitting a field a consumer already reads.
 
 ### API Key security architecture
 
@@ -115,8 +136,8 @@ API keys use **SHA-256 hashing** with scopes for fine-grained access control:
 - **Storage**: `apiKey` field stores `null` (never store raw key); `keyHash` stores SHA-256 hash; `prefix` stores first 12 chars of raw key for display
 - **Creation** (`POST /api/v1/apiKeys`): Returns full `sk_live_*` prefixed key exactly once — user must copy/save it immediately
 - **Listing** (`GET /api/v1/apiKeys`): Returns serialized response via `serializeApiKey()` which exposes only `prefix` (12-char identifier) and `scopes`, never the raw key or hash
-- **Scopes**: Fine-grained permissions like `inboxes:read`, `messages:read` — validate against `API_KEY_SCOPE_SET` on creation
-- **Validation**: Incoming requests validated via `lib/api-key-scopes.ts` (scope matching) and `lib/api-key-security.ts` (HMAC validation)
+- **Scopes**: exactly `inboxes:read` and `messages:read` — validated against `API_KEY_SCOPE_SET` on creation. There are no write scopes; the external surface is read-only. `messages:delete` was retired and migrated away in `prisma/migrations/*_retire_messages_delete_scope`. `DEFAULT_API_KEY_SCOPES` is enumerated explicitly rather than spread from the list, so a future write scope cannot become a default grant by accident.
+- **Validation**: scope enforcement lives in the `withApiKey` wrapper, declared per route beside the HTTP method rather than inside the handler body
 
 ### Email ingestion (Resend webhook)
 
