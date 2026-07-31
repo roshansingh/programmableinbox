@@ -4,7 +4,7 @@ import { Prisma } from '@/lib/generated/prisma/client'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 import { encodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { fetchGroupedThreadHeads, type GroupedThreadHead } from './grouped-query'
-import type { OrgScope } from './scope'
+import type { OrgScope, OwnerScope } from './scope'
 
 export type ListMessagesOptions = {
   limit: number
@@ -110,4 +110,89 @@ export async function getMessage(scope: OrgScope, inboxId: string, messageId: st
   return prisma.emailMessage.findFirst({
     where: { id: messageId, inboxEmailAddressId: inboxId },
   })
+}
+
+/**
+ * Mutations are creator-scoped, not organization-scoped (2026-07-30 split spec
+ * §7.1). Reads widened to the organization; mutation authority deliberately did
+ * not. Organization-wide delete would let any member destroy any inbox, which
+ * cascades to its messages and permanently retires the address — soft-deleted
+ * rows keep their `email` so it can never be reclaimed.
+ *
+ * Every function here resolves ownership through a single `userId`-constrained
+ * lookup, so there is no path that mutates a row it did not first prove is owned.
+ */
+async function ownedInbox(owner: OwnerScope, id: string) {
+  return prisma.emailInbox.findFirst({ where: { id, userId: owner.userId } })
+}
+
+export async function updateInbox(
+  owner: OwnerScope,
+  id: string,
+  data: { name?: string | null },
+) {
+  const inbox = await ownedInbox(owner, id)
+  if (!inbox) return null
+
+  return prisma.emailInbox.update({
+    where: { id },
+    data: { ...(data.name !== undefined && { name: data.name }) },
+  })
+}
+
+export async function deleteInbox(owner: OwnerScope, id: string): Promise<boolean> {
+  const inbox = await ownedInbox(owner, id)
+  if (!inbox) return false
+
+  // The inbox and its messages are stamped in the same transaction so neither
+  // can be served while the other is hidden. The row is kept rather than
+  // removed so its address stays claimed by the unique index (F1).
+  const deletedAt = new Date()
+  await prisma.$transaction([
+    prisma.emailMessage.updateMany({
+      where: { inboxEmailAddressId: id, deletedAt: null },
+      data: { deletedAt },
+    }),
+    prisma.emailInbox.update({ where: { id }, data: { deletedAt } }),
+  ])
+
+  return true
+}
+
+export async function setMessageStarred(
+  owner: OwnerScope,
+  inboxId: string,
+  messageId: string,
+  isStarred: boolean,
+) {
+  const inbox = await ownedInbox(owner, inboxId)
+  if (!inbox) return null
+
+  const message = await prisma.emailMessage.findFirst({
+    where: { id: messageId, inboxEmailAddressId: inboxId },
+  })
+  if (!message) return null
+
+  return prisma.emailMessage.update({ where: { id: messageId }, data: { isStarred } })
+}
+
+export async function deleteMessage(
+  owner: OwnerScope,
+  inboxId: string,
+  messageId: string,
+): Promise<boolean> {
+  const inbox = await ownedInbox(owner, inboxId)
+  if (!inbox) return false
+
+  const message = await prisma.emailMessage.findFirst({
+    where: { id: messageId, inboxEmailAddressId: inboxId },
+  })
+  if (!message) return false
+
+  await prisma.emailMessage.update({
+    where: { id: messageId },
+    data: { deletedAt: new Date() },
+  })
+
+  return true
 }
