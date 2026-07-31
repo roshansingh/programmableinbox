@@ -1,7 +1,7 @@
 /**
  * Email Inbox API module
  * Handles all email inbox-related API calls
- * Based on OpenAPI spec: /v1/emailInbox
+ * Based on OpenAPI spec: /app/emailInbox
  */
 
 import { apiClient } from '../api-client'
@@ -24,7 +24,7 @@ export interface CreateInboxEmailRequest {
 
 export interface UpdateInboxEmailRequest {
   // `email` is intentionally omitted: an inbox address is immutable once created
-  // (see PATCH /v1/emailInbox/[id]). To change an address, create a new inbox.
+  // (see PATCH /app/emailInbox/[id]). To change an address, create a new inbox.
   name?: string
 }
 
@@ -77,7 +77,7 @@ export interface SendEmailRequest {
 
 /**
  * Get all inbox email addresses
- * GET /v1/emailInbox
+ * GET /app/emailInbox
  */
 export async function getEmailInboxes(params?: {
   organizationId?: string
@@ -88,47 +88,47 @@ export async function getEmailInboxes(params?: {
   }
 
   const query = queryParams.toString()
-  return apiClient.get<InboxEmail[]>(`/v1/emailInbox${query ? `?${query}` : ''}`)
+  return apiClient.get<InboxEmail[]>(`/app/emailInbox${query ? `?${query}` : ''}`)
 }
 
 /**
  * Get a single inbox email address by ID
- * GET /v1/emailInbox/{id}
+ * GET /app/emailInbox/{id}
  */
 export async function getEmailInbox(id: string): Promise<InboxEmail> {
-  return apiClient.get<InboxEmail>(`/v1/emailInbox/${id}`)
+  return apiClient.get<InboxEmail>(`/app/emailInbox/${id}`)
 }
 
 /**
  * Create a new inbox email address
- * POST /v1/emailInbox
+ * POST /app/emailInbox
  */
 export async function createEmailInbox(data: CreateInboxEmailRequest): Promise<InboxEmail> {
-  return apiClient.post<InboxEmail>('/v1/emailInbox', data)
+  return apiClient.post<InboxEmail>('/app/emailInbox', data)
 }
 
 /**
  * Update an inbox email address
- * PATCH /v1/emailInbox/{id}
+ * PATCH /app/emailInbox/{id}
  */
 export async function updateEmailInbox(
   id: string,
   data: UpdateInboxEmailRequest
 ): Promise<InboxEmail> {
-  return apiClient.patch<InboxEmail>(`/v1/emailInbox/${id}`, data)
+  return apiClient.patch<InboxEmail>(`/app/emailInbox/${id}`, data)
 }
 
 /**
  * Delete an inbox email address
- * DELETE /v1/emailInbox/{id}
+ * DELETE /app/emailInbox/{id}
  */
 export async function deleteEmailInbox(id: string): Promise<void> {
-  return apiClient.delete<void>(`/v1/emailInbox/${id}`)
+  return apiClient.delete<void>(`/app/emailInbox/${id}`)
 }
 
 /**
  * Get email messages for an inbox
- * GET /v1/emailInbox/{id}/messages
+ * GET /app/emailInbox/{id}/messages
  */
 export async function getEmailMessages(
   inboxId: string,
@@ -141,23 +141,23 @@ export async function getEmailMessages(
   if (params?.grouped) queryParams.append('grouped', 'true')
   const query = queryParams.toString()
   return apiClient.get<EmailMessagesResponse>(
-    `/v1/emailInbox/${inboxId}/messages${query ? `?${query}` : ''}`
+    `/app/emailInbox/${inboxId}/messages${query ? `?${query}` : ''}`
   )
 }
 
 /**
  * Send an email from an inbox
- * POST /v1/emailInbox/{id}/send
+ * POST /app/emailInbox/{id}/send
  */
 export async function sendEmail(
   inboxId: string,
   data: SendEmailRequest
 ): Promise<{ messageId: string }> {
-  return apiClient.post<{ messageId: string }>(`/v1/emailInbox/${inboxId}/send`, data)
+  return apiClient.post<{ messageId: string }>(`/app/emailInbox/${inboxId}/send`, data)
 }
 
 export async function deleteEmailMessage(inboxId: string, messageId: string): Promise<void> {
-  return apiClient.delete<void>(`/v1/emailInbox/${inboxId}/messages/${messageId}`)
+  return apiClient.delete<void>(`/app/emailInbox/${inboxId}/messages/${messageId}`)
 }
 
 export async function starEmailMessage(
@@ -165,7 +165,7 @@ export async function starEmailMessage(
   messageId: string,
   isStarred: boolean
 ): Promise<EmailMessage> {
-  return apiClient.patch<EmailMessage>(`/v1/emailInbox/${inboxId}/messages/${messageId}`, {
+  return apiClient.patch<EmailMessage>(`/app/emailInbox/${inboxId}/messages/${messageId}`, {
     isStarred,
   })
 }
@@ -178,8 +178,8 @@ export interface OtpResult {
 
 /**
  * Get the most recently received OTP for an inbox
- * GET /v1/emailInbox/{id}/otp
+ * GET /app/emailInbox/{id}/otp
  */
 export async function getLatestOtp(inboxId: string): Promise<OtpResult> {
-  return apiClient.get<OtpResult>(`/v1/emailInbox/${inboxId}/otp`)
+  return apiClient.get<OtpResult>(`/app/emailInbox/${inboxId}/otp`)
 }
