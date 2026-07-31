@@ -29,10 +29,10 @@ function makeEmail(over: Partial<ResendEmailData> = {}): ResendEmailData {
 }
 
 function webhookRequest(body: unknown) {
-  return jsonRequest('http://localhost/api/v1/webhooks/email', { method: 'POST', body })
+  return jsonRequest('http://localhost/api/webhooks/email', { method: 'POST', body })
 }
 
-describe('POST /api/v1/webhooks/email', () => {
+describe('POST /api/webhooks/email', () => {
   beforeEach(() => {
     resend.send.mockReset()
     resend.verify.mockReset()

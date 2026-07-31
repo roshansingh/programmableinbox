@@ -149,7 +149,7 @@ try {
 
 ### Webhook signature validation failure
 
-`app/api/v1/webhooks/email/route.ts`
+`app/api/webhooks/email/route.ts`
 
 ```ts
 import logger from '@/lib/logger'

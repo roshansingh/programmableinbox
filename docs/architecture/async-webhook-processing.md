@@ -13,7 +13,7 @@ InboxUI supports **asynchronous email ingestion** to decouple Resend webhook rec
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Resend                                                      │
-│ POST /api/v1/webhooks/email                                │
+│ POST /api/webhooks/email                                    │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
@@ -66,7 +66,7 @@ InboxUI supports **asynchronous email ingestion** to decouple Resend webhook rec
 
 ### 1. Webhook Route Handler
 
-**Location**: `app/api/v1/webhooks/email/route.ts`
+**Location**: `app/api/webhooks/email/route.ts`
 
 **Responsibilities**:
 - Validate HMAC signature (`x-webhook-signature`, `x-webhook-timestamp`) against `WEBHOOK_SECRET`
@@ -361,7 +361,7 @@ Load Balancer
 
 ### 2. Job Processing → Email Storage
 
-**Function**: `storeIncomingEmail(resendEmail, [inboxId])` in `app/api/v1/webhooks/email/route.ts`
+**Function**: `storeIncomingEmail(resendEmail, [inboxId])` in `app/api/webhooks/email/route.ts`
 
 **Input**: Resend email object, array of inbox IDs to filter by
 
@@ -449,4 +449,4 @@ Load Balancer
 
 - **Operator Guide**: `docs/async-webhook-processing-operator-guide.md` (deployment, monitoring, troubleshooting)
 - **README**: `README.md` (quick start, configuration)
-- **Code**: `app/api/v1/webhooks/email/route.ts` (webhook handler), `lib/webhooks/queue.ts` (enqueue)
+- **Code**: `app/api/webhooks/email/route.ts` (webhook handler), `lib/webhooks/queue.ts` (enqueue)

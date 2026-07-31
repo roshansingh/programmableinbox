@@ -68,7 +68,7 @@ Defined in `prisma/schema.prisma`. Names matter — they are the contract.
 - UI: dashboard shows inbox cards + a per-inbox detail page at `/emails/[id]`.
 
 ### 5.3 Receiving email (Resend webhook)
-- `POST /api/v1/webhooks/email` accepts `email.received` events from Resend.
+- `POST /api/webhooks/email` accepts `email.received` events from Resend.
 - HMAC validation: `x-webhook-signature` + `x-webhook-timestamp`, verified against `WEBHOOK_SECRET` using `crypto.timingSafeEqual`. **5-minute replay window** by timestamp.
 - **Threading rules** (in `determineThreading`):
   1. Match `In-Reply-To` / `References` against existing `EmailMessage.messageId`.

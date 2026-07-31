@@ -120,7 +120,7 @@ API keys use **SHA-256 hashing** with scopes for fine-grained access control:
 
 ### Email ingestion (Resend webhook)
 
-`app/api/v1/webhooks/email/route.ts` receives `email.received` events from Resend.
+`app/api/webhooks/email/route.ts` receives `email.received` events from Resend.
 - **HMAC validation**: `x-webhook-signature` + `x-webhook-timestamp` headers, verified against `WEBHOOK_SECRET`, with a 5-minute replay window (`validateSignature`). Uses `crypto.timingSafeEqual`.
 - **Threading**: `determineThreading` first matches by `In-Reply-To` / `References` headers against `EmailMessage.messageId`, then falls back to subject match (stripped `Re:`/`Fwd:` prefix) within the same inbox. New threads use the new message's own DB id as `threadId`.
 - Resend's outgoing `Message-ID` doesn't always match what the recipient sees, hence the subject fallback — don't remove it.
