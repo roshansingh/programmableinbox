@@ -41,6 +41,22 @@ export default defineConfig({
           environment: 'node',
           globals: true,
           env: { NEXT_PUBLIC_API_MODE: 'local' },
+          typecheck: {
+            enabled: true,
+            include: ['lib/**/__tests__/**/*.test-d.ts'],
+            // Scoped to type-test files only. A repo-wide `tsc --noEmit` would
+            // fail on the pre-existing MobileSidebarProps errors in
+            // app/phones/* (see CLAUDE.md), and next.config.mjs sets
+            // ignoreBuildErrors, so without this the toOwnerScope guarantee
+            // would hold in an editor but be unverified in CI.
+            //
+            // `include` alone is not enough: it selects which files' assertions
+            // are collected, but tsc still walks the whole project and reports
+            // every error it finds as an unhandled source error. There are 147
+            // of those today. ignoreSourceErrors keeps this run failing only on
+            // the type assertions below, which is the guarantee being verified.
+            ignoreSourceErrors: true,
+          },
         },
         resolve: { alias },
       },

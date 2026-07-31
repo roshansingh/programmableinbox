@@ -21,7 +21,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const fetchGroupedThreadHeadsMock = vi.fn()
-vi.mock('../grouped-query', () => ({
+vi.mock('@/lib/services/grouped-query', () => ({
   fetchGroupedThreadHeads: (...args: unknown[]) => fetchGroupedThreadHeadsMock(...args),
 }))
 
