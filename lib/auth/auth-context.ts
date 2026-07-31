@@ -2,19 +2,9 @@ import { NextRequest } from 'next/server'
 import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
 
-export type UserPrincipal = {
-  kind: 'user'
-  userId: string
-  email: string
-  memberships: Array<{ organizationId: string; role: string }>
-}
+export type { UserPrincipal, ApiKeyPrincipal } from './principals'
 
-export type ApiKeyPrincipal = {
-  kind: 'apiKey'
-  apiKeyId: string
-  organizationId: string
-  scopes: string[]
-}
+import type { UserPrincipal, ApiKeyPrincipal } from './principals'
 
 export type AuthContext = UserPrincipal | ApiKeyPrincipal
 

@@ -2,7 +2,11 @@
 import { defineConfig } from 'vitest/config'
 import path from 'path'
 
-const alias = { '@': path.resolve(__dirname, '.') }
+// See vitest.config.ts for why `server-only` is aliased to its empty module.
+const alias = {
+  '@': path.resolve(__dirname, '.'),
+  'server-only': path.resolve(__dirname, 'node_modules/server-only/empty.js'),
+}
 
 export default defineConfig({
   test: {
