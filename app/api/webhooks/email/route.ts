@@ -6,6 +6,7 @@ import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
 import { isUniqueViolation } from '@/lib/api-helpers'
+import { withPublic } from '@/lib/auth/with-auth'
 import logger from '@/lib/logger'
 
 /**
@@ -233,7 +234,13 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
   return created
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * Unauthenticated by design: Resend has no bearer credential to present. The
+ * handler authenticates the *request* instead, via the Svix HMAC check below.
+ * withPublic carries no behavior — it marks the intent so the structural guards
+ * can tell "deliberately open" apart from "someone forgot the wrapper".
+ */
+export const POST = withPublic(async (request: NextRequest) => {
   const rawBody = await request.text()
 
   // Verify webhook signature using Resend's Svix-based verification (includes replay attack prevention)
@@ -370,4 +377,4 @@ export async function POST(request: NextRequest) {
     logger.error({ error }, 'Failed to process email webhook')
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 })
   }
-}
+})

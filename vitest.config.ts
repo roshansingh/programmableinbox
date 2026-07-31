@@ -2,7 +2,16 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-const alias = { '@': path.resolve(__dirname, '.') }
+// `server-only` resolves to a module that throws unless the bundler sets the
+// `react-server` export condition, which Next does for server builds and Vitest
+// does not. Point it at the package's own empty module so server modules that
+// declare the marker stay importable from tests. Aliasing only this specifier
+// is narrower than enabling `react-server` globally, which would change how
+// other packages resolve.
+const alias = {
+  '@': path.resolve(__dirname, '.'),
+  'server-only': path.resolve(__dirname, 'node_modules/server-only/empty.js'),
+}
 
 export default defineConfig({
   plugins: [react()],
