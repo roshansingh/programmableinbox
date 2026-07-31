@@ -1,17 +1,27 @@
 /**
  * Email Inbox API module
  * Handles all email inbox-related API calls
- * Based on OpenAPI spec: /app/emailInbox
+ *
+ * Targets the dashboard tree at /api/app/emailInbox. These shapes are NOT the
+ * published contract — that is /api/v1, documented in lib/openapi/, and served
+ * by lib/serializers/public/. The types below mirror
+ * lib/serializers/app/email-inbox.ts and change with it.
  */
 
 import { apiClient } from '../api-client'
 
+/** Mirrors serializeAppInbox. */
 export interface InboxEmail {
   id: string
   organizationId: string
-  userId: string
   email: string
-  name?: string
+  name: string | null
+  /**
+   * Derived server-side from the creator. Reads are organization-wide but
+   * mutations are creator-only, so the UI gates rename/delete/send on this —
+   * the raw creator id is deliberately not exposed.
+   */
+  isOwner: boolean
   createdAt: string
   updatedAt: string
 }
@@ -28,6 +38,11 @@ export interface UpdateInboxEmailRequest {
   name?: string
 }
 
+/**
+ * Mirrors serializeAppMessage. `headers`, `externalId`, `organizationId` and
+ * `inReplyTo` are not returned by the app routes — they were on this type
+ * before the split, when routes echoed the Prisma row.
+ */
 export interface EmailMessage {
   id: string
   from: string
@@ -37,14 +52,11 @@ export interface EmailMessage {
   subject: string
   text: string
   html: string
-  headers: Record<string, string>
-  externalId: string
   inboxEmailAddressId: string
-  organizationId: string
   threadId: string
   parentMessageId: string | null
-  messageId: string
-  inReplyTo: string | null
+  /** RFC-822 Message-ID; compose-email-dialog builds reply headers from it. */
+  messageId: string | null
   references: string[]
   tags: string[]
   isStarred: boolean
@@ -55,6 +67,7 @@ export interface EmailMessage {
     timestamps: string[]
   } | null
   createdAt: string
+  /** Grouped listings only. */
   threadCount?: number
 }
 

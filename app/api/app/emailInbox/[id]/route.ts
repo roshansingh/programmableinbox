@@ -1,6 +1,6 @@
 import { withUser } from '@/lib/auth/with-auth'
 import { toOrgScope, toOwnerScope } from '@/lib/services/scope'
-import { getInbox, updateInbox, deleteInbox } from '@/lib/services/email-inbox'
+import { getInbox, getOwnedInbox, updateInbox, deleteInbox } from '@/lib/services/email-inbox'
 import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { parseInboxAddress } from '@/lib/email-address'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
@@ -27,12 +27,12 @@ export const PATCH = withUser<{ id: string }>(async (request, principal, { param
   try {
     const { email, name } = await request.json()
 
-    // Reads are organization-wide but mutations are creator-only, so this
-    // lookup is deliberately owner-scoped rather than reusing the read scope.
-    const { scope, error } = toOrgScope(principal)
-    if (error) return error
-
-    const existing = await getInbox(scope, id)
+    // Owner-scoped, and resolved before any body field is inspected. Using the
+    // read scope here would answer a body-shaped question for a caller with no
+    // authority to mutate: a non-owner in the same organization would get the
+    // 409 below instead of 404, which tells them the inbox exists and that
+    // their address guess was wrong.
+    const existing = await getOwnedInbox(toOwnerScope(principal), id)
     if (!existing) return jsonError('Not found', 404)
 
     // The address is immutable once the inbox exists (F1). Re-pointing it was a

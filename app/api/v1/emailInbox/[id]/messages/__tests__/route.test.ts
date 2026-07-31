@@ -167,6 +167,36 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     })
   })
 
+  it('preserves threadCount on grouped rows', async () => {
+    // The OpenAPI spec documents threadCount on this endpoint as "present only
+    // in grouped mode", and the pre-split route returned the raw grouped rows.
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listMessagesMock.mockResolvedValue({
+      messages: [message({ threadCount: 4 })],
+      nextCursor: null,
+      hasMore: false,
+    })
+    const { GET } = await import('../route')
+
+    const body = await (await GET(request('?grouped=true'), { params })).json()
+
+    expect(body.data.messages[0].threadCount).toBe(4)
+  })
+
+  it('omits threadCount on a flat listing', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listMessagesMock.mockResolvedValue({
+      messages: [message()],
+      nextCursor: null,
+      hasMore: false,
+    })
+    const { GET } = await import('../route')
+
+    const body = await (await GET(request(), { params })).json()
+
+    expect(body.data.messages[0]).not.toHaveProperty('threadCount')
+  })
+
   it('exports no mutating handlers', async () => {
     const mod = await import('../route')
     expect(mod).not.toHaveProperty('POST')

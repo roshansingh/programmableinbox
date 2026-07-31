@@ -244,6 +244,28 @@ describe('PATCH /api/app/emailInbox/[id] — address immutability', () => {
     expect((await response.json()).data.name).toBe('Renamed')
   })
 
+  it('404s a non-owner before evaluating the address, not 409', async () => {
+    // Ownership resolves first, so a colleague who can *read* the inbox cannot
+    // tell "exists but not yours" apart from "does not exist" by submitting an
+    // address. Answering 409 here would leak both facts.
+    emailInboxFindFirstMock.mockResolvedValue(null)
+
+    const response = await patch('inbox_1', { email: 'guessed@corp.com' })
+
+    expect(response.status).toBe(404)
+    expect(emailInboxUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves ownership with a userId-constrained lookup', async () => {
+    emailInboxFindFirstMock.mockResolvedValue(ROW)
+
+    await patch('inbox_1', { name: 'Renamed' })
+
+    expect(emailInboxFindFirstMock.mock.calls[0][0]).toEqual({
+      where: { id: 'inbox_1', userId: 'user_1' },
+    })
+  })
+
   it('409s an invalid address rather than treating it as absent', async () => {
     emailInboxFindFirstMock.mockResolvedValue(ROW)
 

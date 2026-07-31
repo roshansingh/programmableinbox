@@ -117,4 +117,14 @@ describe('serializePublicMessage', () => {
     const withNewColumn = { ...MESSAGE_ROW, someFutureSecret: 'leaked' }
     expect(serializePublicMessage(withNewColumn)).not.toHaveProperty('someFutureSecret')
   })
+
+  it('passes threadCount through for grouped rows', () => {
+    // Documented in the OpenAPI spec for this endpoint as "present only in
+    // grouped mode", and the pre-split route returned the raw grouped rows.
+    expect(serializePublicMessage({ ...MESSAGE_ROW, threadCount: 4 }).threadCount).toBe(4)
+  })
+
+  it('omits threadCount entirely for a flat message row', () => {
+    expect(serializePublicMessage(MESSAGE_ROW)).not.toHaveProperty('threadCount')
+  })
 })
