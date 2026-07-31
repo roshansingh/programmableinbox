@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { POST as register } from '@/app/api/auth/register/route'
-import { POST as login } from '@/app/api/auth/login/route'
-import { GET as me } from '@/app/api/auth/me/route'
+import { POST as register } from '@/app/api/app/auth/register/route'
+import { POST as login } from '@/app/api/app/auth/login/route'
+import { GET as me } from '@/app/api/app/auth/me/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser } from './helpers/auth'
 import { jsonRequest } from './helpers/request'
 
-describe('POST /api/auth/register', () => {
+describe('POST /api/app/auth/register', () => {
   it('400 when email or password is missing', async () => {
-    const res = await register(jsonRequest('http://localhost/api/auth/register', {
+    const res = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email: 'nopass@test.dev' },
     }))
@@ -19,7 +19,7 @@ describe('POST /api/auth/register', () => {
 
   it('creates a user + name-derived organization + owner membership, returns token + user', async () => {
     const email = `register-${Date.now()}@test.dev`
-    const res = await register(jsonRequest('http://localhost/api/auth/register', {
+    const res = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123', firstName: 'Reg', lastName: 'User' },
     }))
@@ -48,13 +48,13 @@ describe('POST /api/auth/register', () => {
 
   it('409 on duplicate email', async () => {
     const email = `dupe-${Date.now()}@test.dev`
-    const first = await register(jsonRequest('http://localhost/api/auth/register', {
+    const first = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
     }))
     expect(first.status).toBe(200)
 
-    const second = await register(jsonRequest('http://localhost/api/auth/register', {
+    const second = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
     }))
@@ -66,9 +66,9 @@ describe('POST /api/auth/register', () => {
   })
 })
 
-describe('POST /api/auth/login', () => {
+describe('POST /api/app/auth/login', () => {
   it('400 when email or password is missing', async () => {
-    const res = await login(jsonRequest('http://localhost/api/auth/login', {
+    const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
       body: { email: 'nopass@test.dev' },
     }))
@@ -77,12 +77,12 @@ describe('POST /api/auth/login', () => {
 
   it('correct creds return { token, user }', async () => {
     const email = `login-${Date.now()}@test.dev`
-    await register(jsonRequest('http://localhost/api/auth/register', {
+    await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
     }))
 
-    const res = await login(jsonRequest('http://localhost/api/auth/login', {
+    const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
       body: { email, password: 'password123' },
     }))
@@ -94,12 +94,12 @@ describe('POST /api/auth/login', () => {
 
   it('401 on wrong password', async () => {
     const email = `wrongpw-${Date.now()}@test.dev`
-    await register(jsonRequest('http://localhost/api/auth/register', {
+    await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
     }))
 
-    const res = await login(jsonRequest('http://localhost/api/auth/login', {
+    const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
       body: { email, password: 'wrong-password' },
     }))
@@ -109,7 +109,7 @@ describe('POST /api/auth/login', () => {
   })
 
   it('401 on unknown email', async () => {
-    const res = await login(jsonRequest('http://localhost/api/auth/login', {
+    const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
       body: { email: 'no-such-user@test.dev', password: 'password123' },
     }))
@@ -119,22 +119,22 @@ describe('POST /api/auth/login', () => {
   })
 })
 
-describe('GET /api/auth/me', () => {
+describe('GET /api/app/auth/me', () => {
   it('401 without a token', async () => {
-    const res = await me(jsonRequest('http://localhost/api/auth/me'))
+    const res = await me(jsonRequest('http://localhost/api/app/auth/me'))
     expect(res.status).toBe(401)
     const { message } = await res.json()
     expect(message).toBe('Unauthorized')
   })
 
   it('401 with an invalid token', async () => {
-    const res = await me(jsonRequest('http://localhost/api/auth/me', { credential: 'not-a-real-jwt' }))
+    const res = await me(jsonRequest('http://localhost/api/app/auth/me', { credential: 'not-a-real-jwt' }))
     expect(res.status).toBe(401)
   })
 
   it('valid token returns the current user', async () => {
     const { user, org, token } = await createOrgWithUser()
-    const res = await me(jsonRequest('http://localhost/api/auth/me', { credential: token }))
+    const res = await me(jsonRequest('http://localhost/api/app/auth/me', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
     expect(data.id).toBe(user.id)

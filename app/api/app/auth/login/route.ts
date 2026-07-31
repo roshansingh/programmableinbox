@@ -2,9 +2,15 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { verifyPassword, signToken, formatUserResponse } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { withPublic } from '@/lib/auth/with-auth'
 import logger from '@/lib/logger'
 
-export async function POST(request: NextRequest) {
+/**
+ * Unauthenticated by design: a caller has no credential yet. withPublic
+ * carries no behavior — it marks the intent so the structural guards can tell
+ * "deliberately open" apart from "someone forgot the wrapper".
+ */
+export const POST = withPublic(async (request: NextRequest) => {
   try {
     const { email, password } = await request.json()
 
@@ -40,4 +46,4 @@ export async function POST(request: NextRequest) {
     logger.error({ error }, 'Error logging in user')
     return jsonError('Internal server error', 500)
   }
-}
+})

@@ -65,7 +65,7 @@ export interface User {
  * POST /auth/login
  */
 export async function signIn(credentials: SignInRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/auth/login', credentials)
+  const response = await apiClient.post<AuthResponse>('/app/auth/login', credentials)
   
   // Store token after successful sign in
   // Handle different possible token field names
@@ -82,7 +82,7 @@ export async function signIn(credentials: SignInRequest): Promise<AuthResponse> 
  * POST /auth/register
  */
 export async function signUp(data: SignUpRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/auth/register', data)
+  const response = await apiClient.post<AuthResponse>('/app/auth/register', data)
   
   // Store token after successful registration
   // Handle different possible token field names
@@ -99,7 +99,7 @@ export async function signUp(data: SignUpRequest): Promise<AuthResponse> {
  * GET /auth/me
  */
 export async function getCurrentUser(): Promise<User> {
-  return apiClient.get<User>('/auth/me')
+  return apiClient.get<User>('/app/auth/me')
 }
 
 /**
