@@ -40,7 +40,7 @@ describe('ApiKeysPage', () => {
 
   it('shows empty state when no keys exist', async () => {
     server.use(
-      http.get('http://localhost:4000/api/v1/apiKeys', () => {
+      http.get('http://localhost:4000/api/app/apiKeys', () => {
         return HttpResponse.json({ data: [] })
       })
     )

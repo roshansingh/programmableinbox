@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { GET as listRuns, POST as postRun } from '@/app/api/v1/automations/[id]/runs/route'
-import { GET as getRun } from '@/app/api/v1/automations/[id]/runs/[runId]/route'
-import { POST as replayRun } from '@/app/api/v1/automations/[id]/runs/[runId]/replay/route'
-import { POST as dryRun } from '@/app/api/v1/automations/[id]/dry-run/route'
+import { GET as listRuns, POST as postRun } from '@/app/api/app/automations/[id]/runs/route'
+import { GET as getRun } from '@/app/api/app/automations/[id]/runs/[runId]/route'
+import { POST as replayRun } from '@/app/api/app/automations/[id]/runs/[runId]/replay/route'
+import { POST as dryRun } from '@/app/api/app/automations/[id]/dry-run/route'
 import { prisma } from '@/lib/db'
 import { REPLAY_RATE_LIMITS, setReplayRateLimitClient } from '@/lib/automations/replay-rate-limit'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
@@ -77,7 +77,7 @@ async function setupAutomation() {
 
 async function triggerRun(automationId: string, messageId: string, token: string) {
   const res = await postRun(
-    jsonRequest(`http://localhost/api/v1/automations/${automationId}/runs`, {
+    jsonRequest(`http://localhost/api/app/automations/${automationId}/runs`, {
       method: 'POST',
       credential: token,
       body: { emailMessageId: messageId },
@@ -88,10 +88,10 @@ async function triggerRun(automationId: string, messageId: string, token: string
   return { res, json }
 }
 
-describe('POST /api/v1/automations/[id]/runs', () => {
+describe('POST /api/app/automations/[id]/runs', () => {
   it('401 without a token', async () => {
     const res = await postRun(
-      jsonRequest('http://localhost/api/v1/automations/some-id/runs', { method: 'POST', body: {} }),
+      jsonRequest('http://localhost/api/app/automations/some-id/runs', { method: 'POST', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -100,7 +100,7 @@ describe('POST /api/v1/automations/[id]/runs', () => {
   it('400 without emailMessageId', async () => {
     const { automation, token } = await setupAutomation()
     const res = await postRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs`, {
         method: 'POST',
         credential: token,
         body: {},
@@ -117,7 +117,7 @@ describe('POST /api/v1/automations/[id]/runs', () => {
     const otherMessage = await seedMessage(otherInbox.id, other.org.id)
 
     const res = await postRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs`, {
         method: 'POST',
         credential: token,
         body: { emailMessageId: otherMessage.id },
@@ -132,7 +132,7 @@ describe('POST /api/v1/automations/[id]/runs', () => {
     const other = await createSecondOrg()
 
     const res = await postRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs`, {
         method: 'POST',
         credential: other.token,
         body: { emailMessageId: message.id },
@@ -173,10 +173,10 @@ describe('POST /api/v1/automations/[id]/runs', () => {
   })
 })
 
-describe('GET /api/v1/automations/[id]/runs', () => {
+describe('GET /api/app/automations/[id]/runs', () => {
   it('401 without a token', async () => {
     const res = await listRuns(
-      jsonRequest('http://localhost/api/v1/automations/some-id/runs'),
+      jsonRequest('http://localhost/api/app/automations/some-id/runs'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -188,7 +188,7 @@ describe('GET /api/v1/automations/[id]/runs', () => {
     const second = await triggerRun(automation.id, message.id, token)
 
     const res = await listRuns(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs`, { credential: token }),
       params({ id: automation.id })
     )
     expect(res.status).toBe(200)
@@ -212,7 +212,7 @@ describe('GET /api/v1/automations/[id]/runs', () => {
     await triggerRun(automationA.id, message.id, token)
 
     const res = await listRuns(
-      jsonRequest(`http://localhost/api/v1/automations/${automationB.id}/runs`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/automations/${automationB.id}/runs`, { credential: token }),
       params({ id: automationB.id })
     )
     expect(res.status).toBe(200)
@@ -225,17 +225,17 @@ describe('GET /api/v1/automations/[id]/runs', () => {
     const other = await createSecondOrg()
 
     const res = await listRuns(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs`, { credential: other.token }),
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs`, { credential: other.token }),
       params({ id: automation.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
+describe('GET /api/app/automations/[id]/runs/[runId]', () => {
   it('401 without a token', async () => {
     const res = await getRun(
-      jsonRequest('http://localhost/api/v1/automations/some-id/runs/some-run'),
+      jsonRequest('http://localhost/api/app/automations/some-id/runs/some-run'),
       params({ id: 'some-id', runId: 'some-run' })
     )
     expect(res.status).toBe(401)
@@ -246,7 +246,7 @@ describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
     const { json } = await triggerRun(automation.id, message.id, token)
 
     const res = await getRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${json.data.runId}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${json.data.runId}`, {
         credential: token,
       }),
       params({ id: automation.id, runId: json.data.runId })
@@ -268,7 +268,7 @@ describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
   it('404 for a nonexistent runId under a real automation', async () => {
     const { automation, token } = await setupAutomation()
     const res = await getRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${NONEXISTENT_ID}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${NONEXISTENT_ID}`, {
         credential: token,
       }),
       params({ id: automation.id, runId: NONEXISTENT_ID })
@@ -285,7 +285,7 @@ describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
     const { json } = await triggerRun(automationA.id, message.id, token)
 
     const res = await getRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automationB.id}/runs/${json.data.runId}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automationB.id}/runs/${json.data.runId}`, {
         credential: token,
       }),
       params({ id: automationB.id, runId: json.data.runId })
@@ -299,7 +299,7 @@ describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
     const other = await createSecondOrg()
 
     const res = await getRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${json.data.runId}`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${json.data.runId}`, {
         credential: other.token,
       }),
       params({ id: automation.id, runId: json.data.runId })
@@ -308,10 +308,10 @@ describe('GET /api/v1/automations/[id]/runs/[runId]', () => {
   })
 })
 
-describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
+describe('POST /api/app/automations/[id]/runs/[runId]/replay', () => {
   it('401 without a token', async () => {
     const res = await replayRun(
-      jsonRequest('http://localhost/api/v1/automations/some-id/runs/some-run/replay', { method: 'POST' }),
+      jsonRequest('http://localhost/api/app/automations/some-id/runs/some-run/replay', { method: 'POST' }),
       params({ id: 'some-id', runId: 'some-run' })
     )
     expect(res.status).toBe(401)
@@ -328,7 +328,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(originalRun.isDryRun).toBe(false)
 
     const res = await replayRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${original.data.runId}/replay`, {
         method: 'POST',
         credential: token,
       }),
@@ -358,7 +358,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     const { json: original } = await triggerRun(automation.id, message.id, token)
 
     const res = await replayRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${original.data.runId}/replay`, {
         method: 'POST',
         credential: token,
         body: { mode: 'live' },
@@ -377,7 +377,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     expect(safeFetchMock).toHaveBeenCalledTimes(1)
 
     const res = await replayRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${original.data.runId}/replay`, {
         method: 'POST',
         credential: token,
         body: { mode: 'live', confirm: true },
@@ -402,7 +402,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     const statuses: number[] = []
     for (let i = 0; i < liveBudget + 2; i += 1) {
       const res = await replayRun(
-        jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${original.data.runId}/replay`, {
+        jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${original.data.runId}/replay`, {
           method: 'POST',
           credential: token,
           body: { mode: 'live', confirm: true },
@@ -421,7 +421,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
   it('404 for a nonexistent runId', async () => {
     const { automation, token } = await setupAutomation()
     const res = await replayRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${NONEXISTENT_ID}/replay`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${NONEXISTENT_ID}/replay`, {
         method: 'POST',
         credential: token,
       }),
@@ -436,7 +436,7 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
     const other = await createSecondOrg()
 
     const res = await replayRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/runs/${json.data.runId}/replay`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/runs/${json.data.runId}/replay`, {
         method: 'POST',
         credential: other.token,
       }),
@@ -450,10 +450,10 @@ describe('POST /api/v1/automations/[id]/runs/[runId]/replay', () => {
   })
 })
 
-describe('POST /api/v1/automations/[id]/dry-run', () => {
+describe('POST /api/app/automations/[id]/dry-run', () => {
   it('401 without a token', async () => {
     const res = await dryRun(
-      jsonRequest('http://localhost/api/v1/automations/some-id/dry-run', { method: 'POST', body: {} }),
+      jsonRequest('http://localhost/api/app/automations/some-id/dry-run', { method: 'POST', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -468,7 +468,7 @@ describe('POST /api/v1/automations/[id]/dry-run', () => {
       const secondMessage = await seedMessage(inbox.id, org.id, { subject: 'Second message' })
 
       const res = await dryRun(
-        jsonRequest(`http://localhost/api/v1/automations/${automation.id}/dry-run`, {
+        jsonRequest(`http://localhost/api/app/automations/${automation.id}/dry-run`, {
           method: 'POST',
           credential: token,
           body: {},
@@ -525,7 +525,7 @@ describe('POST /api/v1/automations/[id]/dry-run', () => {
     const other = await createSecondOrg()
 
     const res = await dryRun(
-      jsonRequest(`http://localhost/api/v1/automations/${automation.id}/dry-run`, {
+      jsonRequest(`http://localhost/api/app/automations/${automation.id}/dry-run`, {
         method: 'POST',
         credential: other.token,
         body: {},

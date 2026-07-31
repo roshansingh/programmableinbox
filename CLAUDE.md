@@ -90,8 +90,8 @@ Browser → `lib/api-client.ts` → `/api/...` Next.js route handler → `getAut
 - **Client**: token in `localStorage.auth_token`. `apiClient` adds `Authorization: Bearer <token>`. On 401 it clears the token and redirects to `/auth/login` unless already on an auth page.
 - **Server**: `getAuthenticatedUser(request)` in `lib/auth-server.ts` parses the bearer token, verifies via `jsonwebtoken`, and loads the user with `memberships.organization` included. Every protected route calls this and returns `jsonError('Unauthorized', 401)` on null.
 - `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via `getAuthenticatedUser`**, not at the proxy level.
-- `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
-- **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/auth/login` are accessible without authentication.
+- `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/app/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
+- **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/app/auth/{login,register}` are accessible without authentication.
 
 ### Response envelope (load-bearing)
 

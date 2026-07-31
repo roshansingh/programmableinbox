@@ -1,7 +1,7 @@
 /**
  * Phone Inbox API module
  * Handles all phone inbox-related API calls
- * Based on OpenAPI spec: /v1/phoneInbox
+ * Targets the dashboard tree at /api/app/phoneInbox.
  */
 
 import { apiClient } from '../api-client'
@@ -29,7 +29,7 @@ export interface UpdateInboxPhoneRequest {
 
 /**
  * Get all inbox phone numbers
- * GET /v1/phoneInbox
+ * GET /app/phoneInbox
  */
 export async function getPhoneInboxes(params?: {
   organizationId?: string
@@ -40,40 +40,40 @@ export async function getPhoneInboxes(params?: {
   }
 
   const query = queryParams.toString()
-  return apiClient.get<InboxPhone[]>(`/v1/phoneInbox${query ? `?${query}` : ''}`)
+  return apiClient.get<InboxPhone[]>(`/app/phoneInbox${query ? `?${query}` : ''}`)
 }
 
 /**
  * Get a single inbox phone number by ID
- * GET /v1/phoneInbox/{id}
+ * GET /app/phoneInbox/{id}
  */
 export async function getPhoneInbox(id: string): Promise<InboxPhone> {
-  return apiClient.get<InboxPhone>(`/v1/phoneInbox/${id}`)
+  return apiClient.get<InboxPhone>(`/app/phoneInbox/${id}`)
 }
 
 /**
  * Create a new inbox phone number
- * POST /v1/phoneInbox
+ * POST /app/phoneInbox
  */
 export async function createPhoneInbox(data: CreateInboxPhoneRequest): Promise<InboxPhone> {
-  return apiClient.post<InboxPhone>('/v1/phoneInbox', data)
+  return apiClient.post<InboxPhone>('/app/phoneInbox', data)
 }
 
 /**
  * Update an inbox phone number
- * PATCH /v1/phoneInbox/{id}
+ * PATCH /app/phoneInbox/{id}
  */
 export async function updatePhoneInbox(
   id: string,
   data: UpdateInboxPhoneRequest
 ): Promise<InboxPhone> {
-  return apiClient.patch<InboxPhone>(`/v1/phoneInbox/${id}`, data)
+  return apiClient.patch<InboxPhone>(`/app/phoneInbox/${id}`, data)
 }
 
 /**
  * Delete an inbox phone number
- * DELETE /v1/phoneInbox/{id}
+ * DELETE /app/phoneInbox/{id}
  */
 export async function deletePhoneInbox(id: string): Promise<void> {
-  return apiClient.delete<void>(`/v1/phoneInbox/${id}`)
+  return apiClient.delete<void>(`/app/phoneInbox/${id}`)
 }

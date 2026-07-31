@@ -4,7 +4,7 @@ import { mockUser } from '../fixtures/users'
 const BASE = 'http://localhost:4000/api'
 
 export const authHandlers = [
-  http.get(`${BASE}/auth/me`, ({ request }) => {
+  http.get(`${BASE}/app/auth/me`, ({ request }) => {
     const auth = request.headers.get('Authorization')
     if (!auth || !auth.startsWith('Bearer ')) {
       return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 })
@@ -12,7 +12,7 @@ export const authHandlers = [
     return HttpResponse.json({ data: mockUser })
   }),
 
-  http.post(`${BASE}/auth/login`, async ({ request }) => {
+  http.post(`${BASE}/app/auth/login`, async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string }
     if (body.email === 'test@example.com' && body.password === 'password') {
       return HttpResponse.json({
@@ -22,7 +22,7 @@ export const authHandlers = [
     return HttpResponse.json({ message: 'Invalid credentials' }, { status: 401 })
   }),
 
-  http.post(`${BASE}/auth/register`, async () => {
+  http.post(`${BASE}/app/auth/register`, async () => {
     return HttpResponse.json({
       data: { token: 'mock-jwt-token', user: mockUser },
     })

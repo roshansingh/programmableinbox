@@ -1,0 +1,49 @@
+import { NextRequest } from 'next/server'
+import { prisma } from '@/lib/db'
+import { verifyPassword, signToken, formatUserResponse } from '@/lib/auth-server'
+import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { withPublic } from '@/lib/auth/with-auth'
+import logger from '@/lib/logger'
+
+/**
+ * Unauthenticated by design: a caller has no credential yet. withPublic
+ * carries no behavior — it marks the intent so the structural guards can tell
+ * "deliberately open" apart from "someone forgot the wrapper".
+ */
+export const POST = withPublic(async (request: NextRequest) => {
+  try {
+    const { email, password } = await request.json()
+
+    if (!email || !password) {
+      return jsonError('Email and password are required', 400)
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        memberships: {
+          include: { organization: true },
+        },
+      },
+    })
+
+    if (!user) {
+      return jsonError('Invalid email or password', 401)
+    }
+
+    const valid = await verifyPassword(password, user.passwordHash)
+    if (!valid) {
+      return jsonError('Invalid email or password', 401)
+    }
+
+    const token = signToken({ userId: user.id })
+
+    return jsonSuccess({
+      token,
+      user: formatUserResponse(user),
+    })
+  } catch (error) {
+    logger.error({ error }, 'Error logging in user')
+    return jsonError('Internal server error', 500)
+  }
+})

@@ -70,21 +70,21 @@ export async function getWebhooks(params?: {
   if (params?.status) queryParams.append('status', params.status)
 
   const query = queryParams.toString()
-  return apiClient.get<WebhookListResponse>(`/webhooks${query ? `?${query}` : ''}`)
+  return apiClient.get<WebhookListResponse>(`/app/webhooks${query ? `?${query}` : ''}`)
 }
 
 /**
  * Get a single webhook by ID
  */
 export async function getWebhook(id: string): Promise<WebhookConfig> {
-  return apiClient.get<WebhookConfig>(`/webhooks/${id}`)
+  return apiClient.get<WebhookConfig>(`/app/webhooks/${id}`)
 }
 
 /**
  * Create a new webhook
  */
 export async function createWebhook(data: CreateWebhookRequest): Promise<WebhookConfig> {
-  return apiClient.post<WebhookConfig>('/webhooks', data)
+  return apiClient.post<WebhookConfig>('/app/webhooks', data)
 }
 
 /**
@@ -94,21 +94,21 @@ export async function updateWebhook(
   id: string,
   data: UpdateWebhookRequest
 ): Promise<WebhookConfig> {
-  return apiClient.patch<WebhookConfig>(`/webhooks/${id}`, data)
+  return apiClient.patch<WebhookConfig>(`/app/webhooks/${id}`, data)
 }
 
 /**
  * Delete a webhook
  */
 export async function deleteWebhook(id: string): Promise<void> {
-  return apiClient.delete<void>(`/webhooks/${id}`)
+  return apiClient.delete<void>(`/app/webhooks/${id}`)
 }
 
 /**
  * Test a webhook (trigger a test event)
  */
 export async function testWebhook(id: string): Promise<void> {
-  return apiClient.post<void>(`/webhooks/${id}/test`)
+  return apiClient.post<void>(`/app/webhooks/${id}/test`)
 }
 
 /**
@@ -129,7 +129,7 @@ export async function getWebhookEvents(
 
   const query = queryParams.toString()
   return apiClient.get<WebhookEventsResponse>(
-    `/webhooks/${webhookId}/events${query ? `?${query}` : ''}`
+    `/app/webhooks/${webhookId}/events${query ? `?${query}` : ''}`
   )
 }
 
@@ -140,6 +140,6 @@ export async function retryWebhookEvent(
   webhookId: string,
   eventId: string
 ): Promise<void> {
-  return apiClient.post<void>(`/webhooks/${webhookId}/events/${eventId}/retry`)
+  return apiClient.post<void>(`/app/webhooks/${webhookId}/events/${eventId}/retry`)
 }
 

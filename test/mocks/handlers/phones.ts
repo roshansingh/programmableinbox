@@ -4,11 +4,11 @@ import { mockPhones } from '../fixtures/phones'
 const BASE = 'http://localhost:4000/api'
 
 export const phoneHandlers = [
-  http.get(`${BASE}/v1/phoneInbox`, () => {
+  http.get(`${BASE}/app/phoneInbox`, () => {
     return HttpResponse.json({ data: [...mockPhones] })
   }),
 
-  http.post(`${BASE}/v1/phoneInbox`, async ({ request }) => {
+  http.post(`${BASE}/app/phoneInbox`, async ({ request }) => {
     const body = (await request.json()) as { phoneNumber: string; countryCode: string; organizationId: string }
     const newPhone = {
       id: 'phone-new',
@@ -22,7 +22,7 @@ export const phoneHandlers = [
     return HttpResponse.json({ data: newPhone })
   }),
 
-  http.delete(`${BASE}/v1/phoneInbox/:id`, () => {
+  http.delete(`${BASE}/app/phoneInbox/:id`, () => {
     return new HttpResponse(null, { status: 204 })
   }),
 ]

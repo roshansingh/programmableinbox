@@ -53,11 +53,11 @@ export async function getAutomations(params?: { organizationId?: string }) {
   const queryParams = new URLSearchParams()
   if (params?.organizationId) queryParams.append('organizationId', params.organizationId)
   const query = queryParams.toString()
-  return apiClient.get<AutomationRecord[]>(`/v1/automations${query ? `?${query}` : ''}`)
+  return apiClient.get<AutomationRecord[]>(`/app/automations${query ? `?${query}` : ''}`)
 }
 
 export async function getAutomation(id: string) {
-  return apiClient.get<AutomationRecord>(`/v1/automations/${id}`)
+  return apiClient.get<AutomationRecord>(`/app/automations/${id}`)
 }
 
 export async function createAutomation(data: {
@@ -68,7 +68,7 @@ export async function createAutomation(data: {
   config?: AutomationConfig
   layout?: AutomationLayout
 }) {
-  return apiClient.post<AutomationRecord>('/v1/automations', data)
+  return apiClient.post<AutomationRecord>('/app/automations', data)
 }
 
 export async function updateAutomation(
@@ -81,30 +81,30 @@ export async function updateAutomation(
     layout: AutomationLayout
   }>
 ) {
-  return apiClient.patch<AutomationRecord>(`/v1/automations/${id}`, data)
+  return apiClient.patch<AutomationRecord>(`/app/automations/${id}`, data)
 }
 
 export async function deleteAutomation(id: string) {
-  return apiClient.delete<void>(`/v1/automations/${id}`)
+  return apiClient.delete<void>(`/app/automations/${id}`)
 }
 
 export async function activateAutomationRevision(id: string, revisionId: string) {
-  return apiClient.post<AutomationRecord>(`/v1/automations/${id}/activate-revision`, { revisionId })
+  return apiClient.post<AutomationRecord>(`/app/automations/${id}/activate-revision`, { revisionId })
 }
 
 export async function duplicateAutomation(id: string) {
-  return apiClient.post<AutomationRecord>(`/v1/automations/${id}/duplicate`)
+  return apiClient.post<AutomationRecord>(`/app/automations/${id}/duplicate`)
 }
 
 export async function dryRunAutomation(id: string, limit = 10) {
   return apiClient.post<Array<{ matched: boolean; status: string; runId: string }>>(
-    `/v1/automations/${id}/dry-run`,
+    `/app/automations/${id}/dry-run`,
     { limit }
   )
 }
 
 export async function getAutomationRuns(id: string) {
-  return apiClient.get<AutomationRunRecord[]>(`/v1/automations/${id}/runs`)
+  return apiClient.get<AutomationRunRecord[]>(`/app/automations/${id}/runs`)
 }
 
 export type AutomationReplayMode = 'dry_run' | 'live'
@@ -129,5 +129,5 @@ export async function replayAutomationRun(
 ) {
   const body =
     mode === 'live' ? { mode: 'live' as const, confirm: true as const } : { mode: 'dry_run' as const }
-  return apiClient.post<AutomationReplayResult>(`/v1/automations/${id}/runs/${runId}/replay`, body)
+  return apiClient.post<AutomationReplayResult>(`/app/automations/${id}/runs/${runId}/replay`, body)
 }
