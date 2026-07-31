@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'

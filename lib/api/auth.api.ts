@@ -62,7 +62,7 @@ export interface User {
 
 /**
  * Sign in an existing user
- * POST /auth/login
+ * POST /app/auth/login
  */
 export async function signIn(credentials: SignInRequest): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse>('/app/auth/login', credentials)
@@ -79,7 +79,7 @@ export async function signIn(credentials: SignInRequest): Promise<AuthResponse> 
 
 /**
  * Register a new user
- * POST /auth/register
+ * POST /app/auth/register
  */
 export async function signUp(data: SignUpRequest): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse>('/app/auth/register', data)
@@ -96,7 +96,7 @@ export async function signUp(data: SignUpRequest): Promise<AuthResponse> {
 
 /**
  * Get current user information
- * GET /auth/me
+ * GET /app/auth/me
  */
 export async function getCurrentUser(): Promise<User> {
   return apiClient.get<User>('/app/auth/me')

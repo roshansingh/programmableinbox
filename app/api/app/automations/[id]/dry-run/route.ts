@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import { jsonError, jsonSuccess } from '@/lib/api-helpers'
 import { withUser } from '@/lib/auth/with-auth'
 import { runAutomationDryRun } from '@/lib/automations/dispatcher'

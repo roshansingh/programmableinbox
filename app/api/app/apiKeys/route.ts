@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'

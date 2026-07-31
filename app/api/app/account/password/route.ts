@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
