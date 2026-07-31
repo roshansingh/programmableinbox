@@ -1,16 +1,24 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
+import { toOrgScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
-export async function GET(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
-
+export const GET = withUser(async (request, principal) => {
   const organizationId = request.nextUrl.searchParams.get('organizationId')
 
-  const where: { userId: string; organizationId?: string } = { userId: user.id }
+  // The requested organization used to be applied to the query unchecked. It
+  // was harmless only because the userId predicate below also constrained the
+  // result — a caller could narrow to an org they did not belong to and simply
+  // get nothing back. Checked properly now, so the filter cannot outlive that
+  // second predicate if it is ever relaxed.
+  const { error } = toOrgScope(principal, organizationId)
+  if (error) return error
+
+  // Visibility itself is unchanged: phone inboxes stay creator-scoped. This
+  // task fixes the missing check, it does not widen who can see what.
+  const where: { userId: string; organizationId?: string } = { userId: principal.userId }
   if (organizationId) where.organizationId = organizationId
 
   const inboxes = await prisma.phoneInbox.findMany({
@@ -23,11 +31,9 @@ export async function GET(request: NextRequest) {
   })
 
   return jsonSuccess(inboxes)
-}
+})
 
-export async function POST(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const POST = withUser(async (request, principal) => {
 
   try {
     const { organizationId, phoneNumber, countryCode } = await request.json()
@@ -36,15 +42,13 @@ export async function POST(request: NextRequest) {
       return jsonError('organizationId, phoneNumber, and countryCode are required', 400)
     }
 
-    const membership = user.memberships.find((m) => m.organizationId === organizationId)
-    if (!membership) {
-      return jsonError('Not a member of this organization', 403)
-    }
+    const { error } = toOrgScope(principal, organizationId)
+    if (error) return error
 
     const inbox = await prisma.phoneInbox.create({
       data: {
         organizationId,
-        userId: user.id,
+        userId: principal.userId,
         phoneNumber,
         countryCode,
       },
@@ -54,4 +58,4 @@ export async function POST(request: NextRequest) {
   } catch {
     return jsonError('Internal server error', 500)
   }
-}
+})

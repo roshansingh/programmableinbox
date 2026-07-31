@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { GET } from '@/app/api/v1/stats/route'
+import { GET } from '@/app/api/app/stats/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg, createApiKey } from './helpers/auth'
 import { seedInbox, seedMessage, seedAutomation } from './helpers/factories'
 import { jsonRequest } from './helpers/request'
 
-describe('GET /api/v1/stats', () => {
+describe('GET /api/app/stats', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/v1/stats'))
+    const res = await GET(jsonRequest('http://localhost/api/app/stats'))
     expect(res.status).toBe(401)
   })
 
@@ -40,7 +40,7 @@ describe('GET /api/v1/stats', () => {
     await seedAutomation(other.org.id, inboxB1.id)
     await seedAutomation(other.org.id, inboxB1.id)
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/stats', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/stats', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -63,7 +63,7 @@ describe('GET /api/v1/stats', () => {
     await seedMessage(inbox.id, org.id, { createdAt: yesterday })
     await seedMessage(inbox.id, org.id) // today
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/stats', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/stats', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -79,7 +79,7 @@ describe('GET /api/v1/stats', () => {
       data: { organizationId: org.id, name: 'draft-automation', activeRevisionId: null },
     })
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/stats', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/stats', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -92,7 +92,7 @@ describe('GET /api/v1/stats', () => {
     const deleted = await seedInbox(org.id, user.id)
     await prisma.emailInbox.update({ where: { id: deleted.id }, data: { deletedAt: new Date() } })
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/stats', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/stats', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 

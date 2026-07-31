@@ -1,13 +1,11 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getAuthenticatedUser } from '@/lib/auth-server'
+import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-export async function GET(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  if (!user) return jsonError('Unauthorized', 401)
+export const GET = withUser(async (request, principal) => {
 
-  const orgIds = user.memberships.map((m) => m.organizationId)
+  const orgIds = principal.memberships.map((m) => m.organizationId)
 
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
@@ -39,4 +37,4 @@ export async function GET(request: NextRequest) {
     apiKeys: apiKeyCount,
     activeAutomations: automationCount,
   })
-}
+})

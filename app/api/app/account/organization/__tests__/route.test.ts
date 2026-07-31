@@ -44,7 +44,7 @@ describe('PATCH /api/app/account/organization', () => {
   it('returns 401 when not authenticated', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue(null)
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(401)
   })
 
@@ -53,7 +53,7 @@ describe('PATCH /api/app/account/organization', () => {
     // withUser discriminates on the sk_live_ prefix first, so a key never
     // reaches the handler and the check became unreachable.
     const { PATCH } = await loadRoute()
-    const res = await PATCH(keyRequest({ organizationId: 'o1', name: 'New Name' }))
+    const res = await PATCH(keyRequest({ organizationId: 'o1', name: 'New Name' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(401)
     expect(resolveUserPrincipalFromTokenMock).not.toHaveBeenCalled()
   })
@@ -61,14 +61,14 @@ describe('PATCH /api/app/account/organization', () => {
   it('returns 400 when name is missing', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
   })
 
   it('returns 400 when name is whitespace-only', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '   ' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '   ' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
   })
 
@@ -76,7 +76,7 @@ describe('PATCH /api/app/account/organization', () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
     orgUpdateMock.mockResolvedValue({ id: 'o1', name: 'New Name', slug: 'my-org' })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '  New Name  ' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: '  New Name  ' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     expect(orgUpdateMock).toHaveBeenCalledWith({
       where: { id: 'o1' },
@@ -87,7 +87,7 @@ describe('PATCH /api/app/account/organization', () => {
   it('returns 403 when user is not a member of the org', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'other-org', role: 'owner' }] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(403)
   })
 
@@ -95,7 +95,7 @@ describe('PATCH /api/app/account/organization', () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [{ organizationId: 'o1', role: 'owner' }] })
     orgUpdateMock.mockResolvedValue({ id: 'o1', name: 'New Name', slug: 'my-org' })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }))
+    const res = await PATCH(makeRequest({ organizationId: 'o1', name: 'New Name' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.name).toBe('New Name')

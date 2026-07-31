@@ -8,5 +8,5 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  return apiClient.get<DashboardStats>('/v1/stats')
+  return apiClient.get<DashboardStats>('/app/stats')
 }

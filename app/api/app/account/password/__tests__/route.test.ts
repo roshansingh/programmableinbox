@@ -54,7 +54,7 @@ describe('PATCH /api/app/account/password', () => {
   it('returns 401 when not authenticated', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue(null)
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'new123' }))
+    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'new123' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(401)
   })
 
@@ -63,7 +63,7 @@ describe('PATCH /api/app/account/password', () => {
     // withUser discriminates on the sk_live_ prefix first, so a key never
     // reaches the handler and the check became unreachable.
     const { PATCH } = await loadRoute()
-    const res = await PATCH(keyRequest({ currentPassword: 'old', newPassword: 'new123' }))
+    const res = await PATCH(keyRequest({ currentPassword: 'old', newPassword: 'new123' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(401)
     expect(resolveUserPrincipalFromTokenMock).not.toHaveBeenCalled()
   })
@@ -71,21 +71,21 @@ describe('PATCH /api/app/account/password', () => {
   it('returns 400 when fields are missing', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'old' }))
+    const res = await PATCH(makeRequest({ currentPassword: 'old' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
   })
 
   it('returns 400 when newPassword is less than 8 chars', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'short' }))
+    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'short' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
   })
 
   it('returns 400 when newPassword is more than 72 chars', async () => {
     resolveUserPrincipalFromTokenMock.mockResolvedValue({ kind: 'user', userId: 'u1', email: 'a@b.com', memberships: [] })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'a'.repeat(73) }))
+    const res = await PATCH(makeRequest({ currentPassword: 'old', newPassword: 'a'.repeat(73) }), { params: Promise.resolve({}) })
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.message).toBe('New password must be at most 72 characters')
@@ -97,7 +97,7 @@ describe('PATCH /api/app/account/password', () => {
     const bcrypt = await import('bcryptjs')
     vi.mocked(bcrypt.default.compare).mockResolvedValue(false as never)
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'wrong', newPassword: 'newpass123' }))
+    const res = await PATCH(makeRequest({ currentPassword: 'wrong', newPassword: 'newpass123' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(401)
     const body = await res.json()
     expect(body.message).toBe('Current password is incorrect')
@@ -111,7 +111,7 @@ describe('PATCH /api/app/account/password', () => {
     vi.mocked(bcrypt.default.hash).mockResolvedValue('newhash' as never)
     userUpdateMock.mockResolvedValue({ id: 'u1' })
     const { PATCH } = await loadRoute()
-    const res = await PATCH(makeRequest({ currentPassword: 'correct', newPassword: 'newpass123' }))
+    const res = await PATCH(makeRequest({ currentPassword: 'correct', newPassword: 'newpass123' }), { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
     expect(userUpdateMock).toHaveBeenCalledWith({
       where: { id: 'u1' },

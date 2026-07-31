@@ -51,7 +51,7 @@ describe('GET /api/app/apiKeys', () => {
     ])
 
     const { GET } = await loadRoute()
-    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys', { headers: { authorization: 'Bearer jwt.token.here' } }))
+    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys', { headers: { authorization: 'Bearer jwt.token.here' } }), { params: Promise.resolve({}) })
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -98,7 +98,7 @@ describe('POST /api/app/apiKeys', () => {
       },
     })
 
-    const response = await POST(request as any)
+    const response = await POST(request as any, { params: Promise.resolve({}) })
     const body = await response.json()
 
     expect(response.status).toBe(400)
@@ -133,7 +133,7 @@ describe('POST /api/app/apiKeys', () => {
       },
     })
 
-    const response = await POST(request as any)
+    const response = await POST(request as any, { params: Promise.resolve({}) })
     const body = await response.json()
 
     expect(response.status).toBe(201)

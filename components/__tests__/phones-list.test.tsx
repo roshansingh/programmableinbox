@@ -27,7 +27,7 @@ describe('PhonesList', () => {
 
   it('shows empty state when no phones exist', async () => {
     server.use(
-      http.get('http://localhost:4000/api/v1/phoneInbox', () => {
+      http.get('http://localhost:4000/api/app/phoneInbox', () => {
         return HttpResponse.json({ data: [] })
       })
     )

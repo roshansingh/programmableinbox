@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { GET, POST } from '@/app/api/v1/phoneInbox/route'
-import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/v1/phoneInbox/[id]/route'
+import { GET, POST } from '@/app/api/app/phoneInbox/route'
+import { GET as getById, PATCH as patchById, DELETE as deleteById } from '@/app/api/app/phoneInbox/[id]/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { jsonRequest, params } from './helpers/request'
@@ -16,15 +16,15 @@ function seedPhoneInbox(orgId: string, userId: string, over: { phoneNumber?: str
   })
 }
 
-describe('POST /api/v1/phoneInbox', () => {
+describe('POST /api/app/phoneInbox', () => {
   it('401 without a token', async () => {
-    const res = await POST(jsonRequest('http://localhost/api/v1/phoneInbox', { method: 'POST', body: {} }))
+    const res = await POST(jsonRequest('http://localhost/api/app/phoneInbox', { method: 'POST', body: {} }))
     expect(res.status).toBe(401)
   })
 
   it('creates a phone inbox scoped to the org and caller', async () => {
     const { org, user, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/phoneInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/phoneInbox', {
       method: 'POST', credential: token,
       body: { organizationId: org.id, phoneNumber: '+15551234567', countryCode: 'US' },
     }))
@@ -44,7 +44,7 @@ describe('POST /api/v1/phoneInbox', () => {
   it('403 creating a phone inbox in an org you do not belong to', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const res = await POST(jsonRequest('http://localhost/api/v1/phoneInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/phoneInbox', {
       method: 'POST', credential: token,
       body: { organizationId: other.org.id, phoneNumber: '+15559876543', countryCode: 'US' },
     }))
@@ -53,7 +53,7 @@ describe('POST /api/v1/phoneInbox', () => {
 
   it('400 without organizationId, phoneNumber, or countryCode', async () => {
     const { org, token } = await createOrgWithUser()
-    const res = await POST(jsonRequest('http://localhost/api/v1/phoneInbox', {
+    const res = await POST(jsonRequest('http://localhost/api/app/phoneInbox', {
       method: 'POST', credential: token,
       body: { organizationId: org.id },
     }))
@@ -61,9 +61,9 @@ describe('POST /api/v1/phoneInbox', () => {
   })
 })
 
-describe('GET /api/v1/phoneInbox', () => {
+describe('GET /api/app/phoneInbox', () => {
   it('401 without a token', async () => {
-    const res = await GET(jsonRequest('http://localhost/api/v1/phoneInbox'))
+    const res = await GET(jsonRequest('http://localhost/api/app/phoneInbox'))
     expect(res.status).toBe(401)
   })
 
@@ -74,7 +74,7 @@ describe('GET /api/v1/phoneInbox', () => {
     const other = await createSecondOrg()
     await seedPhoneInbox(other.org.id, other.user.id)
 
-    const res = await GET(jsonRequest('http://localhost/api/v1/phoneInbox', { credential: token }))
+    const res = await GET(jsonRequest('http://localhost/api/app/phoneInbox', { credential: token }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
 
@@ -84,10 +84,10 @@ describe('GET /api/v1/phoneInbox', () => {
   })
 })
 
-describe('GET /api/v1/phoneInbox/[id]', () => {
+describe('GET /api/app/phoneInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await getById(
-      jsonRequest('http://localhost/api/v1/phoneInbox/some-id'),
+      jsonRequest('http://localhost/api/app/phoneInbox/some-id'),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -98,7 +98,7 @@ describe('GET /api/v1/phoneInbox/[id]', () => {
     const inbox = await seedPhoneInbox(org.id, user.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${inbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/phoneInbox/${inbox.id}`, { credential: token }),
       params({ id: inbox.id })
     )
     expect(res.status).toBe(200)
@@ -113,17 +113,17 @@ describe('GET /api/v1/phoneInbox/[id]', () => {
     const otherInbox = await seedPhoneInbox(other.org.id, other.user.id)
 
     const res = await getById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${otherInbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/phoneInbox/${otherInbox.id}`, { credential: token }),
       params({ id: otherInbox.id })
     )
     expect(res.status).toBe(404)
   })
 })
 
-describe('PATCH /api/v1/phoneInbox/[id]', () => {
+describe('PATCH /api/app/phoneInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await patchById(
-      jsonRequest('http://localhost/api/v1/phoneInbox/some-id', { method: 'PATCH', body: {} }),
+      jsonRequest('http://localhost/api/app/phoneInbox/some-id', { method: 'PATCH', body: {} }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -134,7 +134,7 @@ describe('PATCH /api/v1/phoneInbox/[id]', () => {
     const inbox = await seedPhoneInbox(org.id, user.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${inbox.id}`, {
+      jsonRequest(`http://localhost/api/app/phoneInbox/${inbox.id}`, {
         method: 'PATCH', credential: token,
         body: { phoneNumber: '+15557654321', countryCode: 'CA' },
       }),
@@ -156,7 +156,7 @@ describe('PATCH /api/v1/phoneInbox/[id]', () => {
     const otherInbox = await seedPhoneInbox(other.org.id, other.user.id)
 
     const res = await patchById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${otherInbox.id}`, {
+      jsonRequest(`http://localhost/api/app/phoneInbox/${otherInbox.id}`, {
         method: 'PATCH', credential: token,
         body: { phoneNumber: '+19998887777' },
       }),
@@ -169,10 +169,10 @@ describe('PATCH /api/v1/phoneInbox/[id]', () => {
   })
 })
 
-describe('DELETE /api/v1/phoneInbox/[id]', () => {
+describe('DELETE /api/app/phoneInbox/[id]', () => {
   it('401 without a token', async () => {
     const res = await deleteById(
-      jsonRequest('http://localhost/api/v1/phoneInbox/some-id', { method: 'DELETE' }),
+      jsonRequest('http://localhost/api/app/phoneInbox/some-id', { method: 'DELETE' }),
       params({ id: 'some-id' })
     )
     expect(res.status).toBe(401)
@@ -183,7 +183,7 @@ describe('DELETE /api/v1/phoneInbox/[id]', () => {
     const inbox = await seedPhoneInbox(org.id, user.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${inbox.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/phoneInbox/${inbox.id}`, { method: 'DELETE', credential: token }),
       params({ id: inbox.id })
     )
     expect(res.status).toBe(204)
@@ -196,13 +196,13 @@ describe('DELETE /api/v1/phoneInbox/[id]', () => {
 
     // Disappears from GET by id (soft-delete filter applied on read).
     const getRes = await getById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${inbox.id}`, { credential: token }),
+      jsonRequest(`http://localhost/api/app/phoneInbox/${inbox.id}`, { credential: token }),
       params({ id: inbox.id })
     )
     expect(getRes.status).toBe(404)
 
     // Disappears from the list too.
-    const listRes = await GET(jsonRequest('http://localhost/api/v1/phoneInbox', { credential: token }))
+    const listRes = await GET(jsonRequest('http://localhost/api/app/phoneInbox', { credential: token }))
     const { data } = await listRes.json()
     expect(data.find((i: { id: string }) => i.id === inbox.id)).toBeUndefined()
   })
@@ -213,7 +213,7 @@ describe('DELETE /api/v1/phoneInbox/[id]', () => {
     const otherInbox = await seedPhoneInbox(other.org.id, other.user.id)
 
     const res = await deleteById(
-      jsonRequest(`http://localhost/api/v1/phoneInbox/${otherInbox.id}`, { method: 'DELETE', credential: token }),
+      jsonRequest(`http://localhost/api/app/phoneInbox/${otherInbox.id}`, { method: 'DELETE', credential: token }),
       params({ id: otherInbox.id })
     )
     expect(res.status).toBe(404)
