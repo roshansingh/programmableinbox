@@ -211,7 +211,7 @@ export function CreateEmailDialog({ open, onOpenChange, organizationId, onSucces
                 id="localPart"
                 value={localPart}
                 onChange={(e) => setLocalPart(e.target.value)}
-                placeholder="support"
+                placeholder="john"
                 // The domain is part of the field's accessible name, so a
                 // screen-reader user hears the address being composed rather
                 // than an unlabelled fragment.
@@ -258,7 +258,7 @@ export function CreateEmailDialog({ open, onOpenChange, organizationId, onSucces
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., QA Team"
+              placeholder="e.g., John Doe"
               aria-invalid={error?.field === "name" ? "true" : undefined}
               aria-describedby={error?.field === "name" ? errorId : undefined}
               className="bg-background text-foreground"
