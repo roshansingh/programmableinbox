@@ -28,6 +28,7 @@
  */
 
 import { Redis } from 'ioredis'
+import { config } from '@/lib/config'
 import logger from '@/lib/logger'
 
 export type ReplayMode = 'dry_run' | 'live'
@@ -90,7 +91,9 @@ let _client: ReplayRateLimitClient | null = null
  */
 function getLimiterRedis(): ReplayRateLimitClient {
   if (!_client) {
-    const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
+    // The default lives in lib/config/schema.ts, written exactly once —
+    // it used to be spelled out both here and in lib/webhooks/queue.ts.
+    const client = new Redis(config.redis.url, {
       maxRetriesPerRequest: 1,
       connectTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,
       commandTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,

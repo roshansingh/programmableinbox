@@ -10,11 +10,12 @@
 
 import { getEmailWebhookWorker } from "@/lib/webhooks/worker";
 import { jsonSuccess, jsonError } from "@/lib/api-helpers";
+import { config } from "@/lib/config";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   // Only expose health check when async webhook processing is enabled.
-  if (process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING !== 'true') {
+  if (!config.webhooks.asyncProcessingEnabled) {
     return jsonError('async webhook processing is disabled', 503);
   }
 

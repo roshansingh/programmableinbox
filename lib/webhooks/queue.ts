@@ -9,6 +9,7 @@
 
 import { Queue } from "bullmq";
 import { Redis, type RedisOptions } from "ioredis";
+import { config } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Job type
@@ -31,31 +32,31 @@ export interface EmailWebhookJobData {
 export const WEBHOOK_QUEUE_NAME = "email-webhook-jobs";
 
 /**
- * Parses a positive integer from an environment variable string.
- * Returns `fallback` if the value is absent, non-numeric, non-finite, or <= 0.
- */
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const n = parseInt(value, 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
-/**
- * Runtime configuration derived from environment variables.
- * All values have sensible defaults so the app works in development without
- * manual env setup.
+ * Runtime configuration for the queue.
+ *
+ * Getters rather than eagerly-read values: this module is imported by route
+ * handlers that `next build` evaluates with no environment present, so reading
+ * config at module load would fail the build rather than the misconfiguration.
+ * The shape is unchanged for consumers, who still write
+ * `WEBHOOK_QUEUE_CONFIG.maxRetries`.
+ *
+ * Both values keep their existing defaults when unset. What changed is invalid
+ * input: the previous `parsePositiveInt` returned the fallback for anything it
+ * could not parse, so `WEBHOOK_QUEUE_MAX_RETRIES=abc` was indistinguishable
+ * from an unset variable. It now throws.
  */
 export const WEBHOOK_QUEUE_CONFIG = {
   /** Number of times a failed job is retried before being dead-lettered. */
-  maxRetries: parsePositiveInt(process.env.WEBHOOK_QUEUE_MAX_RETRIES, 3),
+  get maxRetries(): number {
+    return config.webhooks.maxRetries;
+  },
   /**
    * Maximum number of inboxes processed concurrently by the worker.
    * Each inbox is processed serially; this caps parallel inbox processing.
    */
-  concurrencyPerInbox: parsePositiveInt(
-    process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX,
-    5,
-  ),
+  get concurrencyPerInbox(): number {
+    return config.webhooks.concurrencyPerInbox;
+  },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -63,13 +64,15 @@ export const WEBHOOK_QUEUE_CONFIG = {
 // ---------------------------------------------------------------------------
 
 export function buildRedisOptions(): RedisOptions {
-  const url = process.env.REDIS_URL ?? "redis://localhost:6379";
-
   // Parse the URL manually so we can inject ioredis-specific options that
   // BullMQ requires (maxRetriesPerRequest: null) while still accepting a URL.
-  const parsed = new URL(url);
+  //
+  // `config.redis.url` is already known to parse and to carry a host, so the
+  // old `parsed.hostname || "127.0.0.1"` fallback is gone: a hostless URL is
+  // now rejected at config read rather than silently rewritten to loopback.
+  const parsed = new URL(config.redis.url);
   return {
-    host: parsed.hostname || "127.0.0.1",
+    host: parsed.hostname,
     port: parsed.port ? parseInt(parsed.port, 10) : 6379,
     // BullMQ blocking commands require this to be null; ioredis default is 20.
     maxRetriesPerRequest: null,
