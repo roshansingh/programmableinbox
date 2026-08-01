@@ -26,9 +26,7 @@ jobs:
       - run: npx prisma generate
         env:
           DATABASE_URL: postgresql://dummy:dummy@127.0.0.1:5432/dummy
-      # NOTE: `npm run lint` is intentionally omitted — the repo's eslint
-      # config is currently missing (pre-existing). Re-add this step once
-      # eslint.config.js is added.
+      - run: npm run lint
       - run: npm run test
 
   build:
