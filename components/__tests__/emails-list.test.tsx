@@ -185,4 +185,35 @@ describe('EmailsList', () => {
     expect(screen.getByRole('button', { name: /copy address/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete inbox/i })).not.toBeInTheDocument()
   })
+
+  it('links the open-in-new-tab control at the inbox it labels', async () => {
+    // It carries an accessible name, so it has to actually navigate — an
+    // announced control that only swallows the click is worse than no control.
+    server.use(
+      http.get('http://localhost:4000/api/app/emailInbox', () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: 'inbox_1',
+              email: 'mine@example.com',
+              name: 'Mine',
+              isOwner: true,
+              organizationId: 'org_1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    )
+
+    render(<EmailsList />)
+
+    await screen.findByText('mine@example.com')
+
+    const open = screen.getByRole('link', { name: /open inbox mine@example\.com/i })
+    expect(open).toHaveAttribute('href', '/emails/inbox_1')
+    expect(open).toHaveAttribute('target', '_blank')
+    expect(open).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })

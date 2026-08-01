@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -163,13 +164,20 @@ export function EmailsList() {
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
+                      asChild
                       variant="ghost"
                       size="icon"
-                      aria-label={`Open inbox ${email.email}`}
-                      onClick={(e) => e.stopPropagation()}
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
                     >
-                      <ExternalLink className="h-4 w-4" />
+                      <Link
+                        href={`/emails/${email.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open inbox ${email.email} in a new tab`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
                     </Button>
                     {/*
                       Owner-only. Reads widened to the whole organization but
