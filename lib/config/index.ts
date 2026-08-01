@@ -32,9 +32,11 @@ export class ConfigError extends Error {
 /**
  * Renders zod issues as `VAR_NAME <constraint>` lines.
  *
- * Only `path` and `message` are read. The input value and `issue.received` are
- * deliberately never touched — that is what keeps secrets out of error output,
- * including for issues zod would otherwise annotate with the received value.
+ * Only `path` and `message` are ever emitted; the input value is never read.
+ * `issue.received` is consulted below but never printed, and for `invalid_type`
+ * it holds a *type name* (`'undefined'`, `'string'`) rather than the value — so
+ * comparing against it cannot leak a secret. That is the invariant keeping
+ * secrets out of error output.
  */
 function formatIssues(domain: DomainName, issues: readonly z.ZodIssue[]): string[] {
   return issues.map((issue) => {

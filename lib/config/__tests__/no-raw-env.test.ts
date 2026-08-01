@@ -35,9 +35,17 @@ const COMMENT_ONLY = new Set(['lib/db.ts'])
 
 describe('process.env is confined to lib/config', () => {
   it('has no production reads outside the allowlist', () => {
+    // `--untracked` also scans new files that are not staged yet (it still
+    // honours .gitignore). Without it a violation in a brand-new file is
+    // invisible locally and only fails once committed, which is the wrong
+    // moment to find out.
+    //
+    // The `*.ts` pathspecs do match nested paths: git globs with wildmatch and
+    // no WM_PATHNAME, so `*` crosses `/`. Verified against a file four
+    // directories deep.
     const output = execFileSync(
       'git',
-      ['grep', '-l', '-e', 'process\\.env', '--', '*.ts', '*.tsx', '*.mjs'],
+      ['grep', '-l', '--untracked', '-e', 'process\\.env', '--', '*.ts', '*.tsx', '*.mjs'],
       { cwd: ROOT, encoding: 'utf8' },
     )
 

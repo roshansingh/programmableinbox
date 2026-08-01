@@ -46,6 +46,13 @@ describe('zSecret', () => {
       zSecret({ min: 16 }).parse('leaky-value')
       throw new Error('expected zSecret to throw')
     } catch (error) {
+      // Assert on all three surfaces. `JSON.stringify` alone is not enough:
+      // `message` is non-enumerable on Error, so a plain Error serialises to
+      // `{}` and the assertion would pass vacuously. It happens to carry the
+      // issues today because this is a ZodError, but the guarantee under test
+      // must not depend on which error type the implementation throws.
+      expect((error as Error).message).not.toContain('leaky-value')
+      expect(String(error)).not.toContain('leaky-value')
       expect(JSON.stringify(error)).not.toContain('leaky-value')
     }
   })
