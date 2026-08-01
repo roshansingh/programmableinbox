@@ -1,14 +1,18 @@
 /**
- * Next.js instrumentation hook for initializing the async webhook worker.
+ * Async webhook worker bootstrap, run on server startup before any requests are
+ * processed, so the worker is ready when jobs arrive.
  *
- * This file is loaded by Next.js on server startup (before any requests are
- * processed), ensuring the worker is running and ready to process jobs.
+ * Invoked from the root `instrumentation.ts` — Next only loads the hook from
+ * the project root, so this module is reached through that one rather than
+ * being picked up directly.
  * See: https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 
 export async function register() {
+  const { config } = await import('@/lib/config')
+
   // Only initialize the worker if async webhook processing is enabled.
-  if (process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING !== 'true') {
+  if (!config.webhooks.asyncProcessingEnabled) {
     return
   }
 

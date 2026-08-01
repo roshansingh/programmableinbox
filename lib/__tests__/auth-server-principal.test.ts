@@ -36,7 +36,8 @@ const ROW = {
 beforeEach(() => {
   vi.resetAllMocks()
   vi.resetModules()
-  process.env.JWT_SECRET = 'test-secret-not-for-production'
+  // No JWT_SECRET assignment: jsonwebtoken is mocked above, so the secret only
+  // needs to be *valid*, which the baseline in vitest.config.ts guarantees.
 })
 
 async function resolve(token: string) {

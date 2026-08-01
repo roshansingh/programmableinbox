@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { config } from '@/lib/config'
 
 /**
  * Lazily-constructed Resend client.
@@ -12,7 +13,7 @@ let client: Resend | null = null
 
 export function getResend(): Resend {
   if (!client) {
-    client = new Resend(process.env.AUTH_RESEND_API_KEY)
+    client = new Resend(config.email.resendApiKey.reveal())
   }
   return client
 }

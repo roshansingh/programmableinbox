@@ -13,6 +13,30 @@ const alias = {
   'server-only': path.resolve(__dirname, 'node_modules/server-only/empty.js'),
 }
 
+/**
+ * A configuration baseline every suite starts from.
+ *
+ * `lib/config` validates on first read and refuses to hand back an unvalidated
+ * value, so any test that transitively touches a validated module needs a
+ * parseable environment. Providing it here rather than in eight separate test
+ * files keeps the requirement in one place; suites that exercise a specific
+ * value still override it and call `resetConfigCache()` (see test/config.ts).
+ */
+const configEnv = {
+  NEXT_PUBLIC_API_MODE: 'local',
+  DATABASE_URL: 'postgresql://test:test@localhost:5432/test?options=-c%20timezone%3DUTC',
+  JWT_SECRET: 'test-jwt-secret-at-least-16-chars',
+  WEBHOOK_SECRET: 'test-webhook-secret',
+  AUTH_RESEND_API_KEY: 're_test_placeholder',
+  AUTH_EMAIL_FROM: 'test@example.com',
+  AUTH_EMAIL_FROM_NAME: 'Test',
+  // REDIS_URL has no production default on purpose (see lib/config/schema.ts).
+  // Supplying one here is a test fixture, not a fallback: suites that mock
+  // ioredis still need a configured URL to build connection options from, and
+  // the tests that exercise the unset case delete it explicitly.
+  REDIS_URL: 'redis://localhost:6379',
+}
+
 export default defineConfig({
   plugins: [react()],
   test: {
@@ -29,7 +53,7 @@ export default defineConfig({
           environmentOptions: { jsdom: { url: 'http://localhost:4000' } },
           globals: true,
           setupFiles: ['./test/setup.ts'],
-          env: { NEXT_PUBLIC_API_MODE: 'local' },
+          env: configEnv,
         },
         resolve: { alias },
       },
@@ -40,7 +64,7 @@ export default defineConfig({
           include: ['lib/__tests__/**/*.test.*', 'lib/**/__tests__/**/*.test.*'],
           environment: 'node',
           globals: true,
-          env: { NEXT_PUBLIC_API_MODE: 'local' },
+          env: configEnv,
           typecheck: {
             enabled: true,
             include: ['lib/**/__tests__/**/*.test-d.ts'],

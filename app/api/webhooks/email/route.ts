@@ -7,6 +7,7 @@ import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
+import { config } from '@/lib/config'
 import logger from '@/lib/logger'
 
 /**
@@ -15,7 +16,7 @@ import logger from '@/lib/logger'
  * Controlled by the ENABLE_ASYNC_WEBHOOK_PROCESSING environment variable.
  */
 function isAsyncWebhookProcessingEnabled(): boolean {
-  return process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING === 'true'
+  return config.webhooks.asyncProcessingEnabled
 }
 
 interface WebhookEvent {
@@ -252,7 +253,10 @@ export const POST = withPublic(async (request: NextRequest) => {
         timestamp: request.headers.get('svix-timestamp')!,
         signature: request.headers.get('svix-signature')!,
       },
-      webhookSecret: process.env.WEBHOOK_SECRET!,
+      // No `!` needed: config.webhooks.secret is a validated non-empty
+      // string. The assertion here used to let an unset WEBHOOK_SECRET reach
+      // signature verification as undefined.
+      webhookSecret: config.webhooks.secret.reveal(),
     });
   } catch (error) {
     logger.warn({

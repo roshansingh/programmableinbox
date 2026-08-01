@@ -1,5 +1,6 @@
 import type { LoggerOptions } from 'pino'
 import pino from 'pino'
+import { config } from '@/lib/config'
 
 /**
  * Build the Pino logger configuration based on the current environment.
@@ -8,19 +9,14 @@ import pino from 'pino'
  * - Production: plain JSON output for log aggregators.
  * - Log level defaults to `debug` in development and `info` in production,
  *   but is overridden by the `LOG_LEVEL` environment variable when set.
+ *
+ * An unrecognised `LOG_LEVEL` is rejected by the config schema rather than
+ * warned about and ignored: `LOG_LEVEL=warning` used to mean production quietly
+ * kept logging at `info`, with the warning itself buried in the startup output.
  */
-/** Pino's complete set of accepted level strings. */
-const VALID_LEVELS = new Set(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'])
-
 export function buildLoggerConfig(): LoggerOptions {
-  const isDev = process.env.NODE_ENV !== 'production'
-  const rawLevel = process.env.LOG_LEVEL?.trim()
-  const defaultLevel = isDev ? 'debug' : 'info'
-  const level = rawLevel && VALID_LEVELS.has(rawLevel) ? rawLevel : defaultLevel
-
-  if (rawLevel && !VALID_LEVELS.has(rawLevel)) {
-    console.warn(`[logger] Invalid LOG_LEVEL "${rawLevel}"; falling back to "${defaultLevel}"`)
-  }
+  const isDev = !config.runtime.isProduction
+  const level = config.logging.level ?? (isDev ? 'debug' : 'info')
 
   const base: LoggerOptions = {
     level,

@@ -28,6 +28,7 @@
  */
 
 import { Redis } from 'ioredis'
+import { requireRedisUrl } from '@/lib/config'
 import logger from '@/lib/logger'
 
 export type ReplayMode = 'dry_run' | 'live'
@@ -90,7 +91,12 @@ let _client: ReplayRateLimitClient | null = null
  */
 function getLimiterRedis(): ReplayRateLimitClient {
   if (!_client) {
-    const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
+    // Throws when REDIS_URL is unset. consumeReplayRateLimit catches it and
+    // reports `unavailable`, which is the same outcome the old
+    // `redis://localhost:6379` default produced on a box without Redis — only
+    // now it is immediate and names the variable, instead of retrying a
+    // loopback connection with backoff and logging a connection error.
+    const client = new Redis(requireRedisUrl(), {
       maxRetriesPerRequest: 1,
       connectTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,
       commandTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,

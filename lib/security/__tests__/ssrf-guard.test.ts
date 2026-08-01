@@ -1,6 +1,7 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resetConfigCache } from '@/lib/config'
 import {
   SsrfBlockedError,
   assertPublicUrl,
@@ -67,6 +68,9 @@ async function startServer(
 
 afterEach(async () => {
   vi.unstubAllEnvs()
+  // Config memoizes per domain, so restoring the env is only half the job —
+  // without this a suite leaks its parse into the tests that follow.
+  resetConfigCache()
   await Promise.all(openServers.splice(0).map((server) => server.close()))
 })
 
@@ -413,25 +417,41 @@ describe('safeFetch', () => {
 // ---------------------------------------------------------------------------
 
 describe('environment configuration', () => {
+  // These read config repeatedly with different values inside one test. Config
+  // memoizes per domain, so each change needs the memo cleared to take effect.
   it('parses WEBHOOK_EGRESS_ALLOWLIST', () => {
     vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', '')
+    resetConfigCache()
     expect(readEgressAllowlist()).toBeNull()
 
     vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', ' hooks.example.com , .partner.io ')
+    resetConfigCache()
     expect(readEgressAllowlist()).toEqual(['hooks.example.com', '.partner.io'])
   })
 
   it('honours the private-network escape hatch outside production only', () => {
     vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'true')
     vi.stubEnv('NODE_ENV', 'development')
+    resetConfigCache()
     expect(readAllowPrivateNetwork()).toBe(true)
 
     vi.stubEnv('NODE_ENV', 'production')
+    resetConfigCache()
     expect(readAllowPrivateNetwork()).toBe(false)
 
     vi.stubEnv('NODE_ENV', 'development')
     vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'false')
+    resetConfigCache()
     expect(readAllowPrivateNetwork()).toBe(false)
+  })
+
+  it('rejects an unrecognised WEBHOOK_ALLOW_PRIVATE_NETWORK rather than reading it as false', () => {
+    // Silently reading a typo as "off" is the safe direction here, but it also
+    // means an operator who meant to enable the hatch gets no feedback.
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'yes-please')
+    resetConfigCache()
+    expect(() => readAllowPrivateNetwork()).toThrow(/WEBHOOK_ALLOW_PRIVATE_NETWORK/)
   })
 
   it('blocks loopback by default when the escape hatch is off', async () => {

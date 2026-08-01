@@ -61,18 +61,47 @@ Production-ready structured logging via **Pino v10** (`lib/logger.ts`):
 
 - **API**: Direct method calls — `logger.error({ error }, 'message')` (not `logger().error()`)
 - **Config**: `lib/logger.config.ts` returns dev config (colorized via pino-pretty) or prod (JSON for log aggregators)
-- **Environment**: `LOG_LEVEL` env var (valid: `debug`, `info`, `warn`, `error`, `fatal`); falls back to `debug` (dev) or `info` (prod)
+- **Environment**: `LOG_LEVEL` env var (valid: `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent`); unset means `debug` (dev) or `info` (prod). An *invalid* value is rejected by `lib/config` rather than warned about and ignored
 - **Error serialization**: Both `err` and `error` keys use Pino's error serializer for consistent stack traces
 - **Singleton**: Lazy-loaded via Proxy pattern in `lib/logger.ts` — module load has zero overhead
 - **Route instrumentation**: API routes use `logger.error({ error }, 'message')` on failures; use `logger.info()` for success logging with context
 
+## Configuration (`lib/config/`)
+
+**`lib/config/` is the only place `process.env` is read.** An ESLint rule and `lib/config/__tests__/no-raw-env.test.ts` both enforce that; the allowlist is `lib/config/**`, `prisma.config.ts`, `prisma/seed.ts`, `next.config.mjs`, `instrumentation.ts`, the vitest configs, and test files. `prisma.config.ts` and `prisma/seed.ts` are exempt because they run outside Next, under the Prisma CLI and `tsx`, and must not pull in `server-only` or the app's module graph.
+
+| File | Role |
+|---|---|
+| `schema.ts` | One zod schema per domain, plus the `DOMAIN_SCHEMAS` registry. `vars` there is the authoritative variable list — the env slice, the `assertConfig()` report and the `.env.example` coverage test all derive from it. |
+| `index.ts` | `server-only`. The lazy, memoized `config` object and `ConfigError`. |
+| `assert.ts` | `assertConfig()` — validates every domain and reports all failures at once. |
+| `client.ts` | `NEXT_PUBLIC_*` only. The one config module a client component may import. |
+| `secret.ts` / `primitives.ts` | The `Secret` box; the shared boolean/int/URL coercions. |
+
+Four properties are load-bearing:
+
+- **Accessors are lazy and memoized per domain.** Nothing parses at module load, because `next build` evaluates every module with no secrets present. Each domain parses once per process, so a later `process.env` mutation cannot reintroduce an unvalidated value — which also means **rotating a secret takes effect on restart, not on the next call**. Memoizing per domain rather than globally keeps a broken `LLM_PROVIDER` from failing an unrelated database read.
+- **Set-but-invalid always throws.** Unset + a default → the default; unset + required → throw; **set but malformed → throw, never a silent fallback**. `WEBHOOK_QUEUE_MAX_RETRIES=abc` stops the server instead of quietly becoming `3`. Blank (`FOO=`) counts as unset, not as invalid.
+- **`assertConfig()` runs at boot**, from the root `instrumentation.ts`, so a misconfigured deployment gets one aggregated report naming every offending variable instead of failing one crash at a time.
+- **Secrets are boxed.** `config.auth.jwtSecret` is a `Secret`, not a string: `toString`, `toJSON` (what Pino uses) and `util.inspect` (what `console.log` uses) all render `[redacted]`, and the value is reachable only via `.reveal()`. Validation errors print the variable name and the constraint, never the value.
+
+`instrumentation.ts` at the repo root is the real Next.js hook. `lib/instrumentation.ts` was orphaned before this — Next only loads the hook from the project root or `src/`, so the webhook worker bootstrap that lived there had never run.
+
 ## Required env vars (`.env`)
 
-`DATABASE_URL`, `JWT_SECRET`, `AUTH_RESEND_API_KEY`, `WEBHOOK_SECRET`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `NEXT_PUBLIC_API_MODE`.
+**Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`.
 
-**`JWT_SECRET` has no fallback and never should.** `getJwtSecret()` in `lib/auth-server.ts` throws when it is unset or empty/whitespace, so `signToken`/`verifyToken` fail closed instead of signing with a guessable value. It is read per call, not at module load, because every protected route imports `lib/auth-server` and `next build` evaluates those modules with no secrets in the environment — a module-scope assertion would break the build rather than the misconfigured deployment. Generate one with `openssl rand -base64 32`; rotating it invalidates every issued session.
+**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`.
 
-**`DATABASE_URL` must carry `options=-c%20timezone%3DUTC`.** Prisma sends timestamps as naive strings, so Postgres interprets them in the *session* timezone before storing them in `timestamptz` columns. A non-UTC session (a Mac inheriting `America/New_York`, say) stores every timestamp shifted by the local offset. Prisma reverses the shift on read, so the ORM looks correct while raw SQL sees the wrong instant — which silently broke the grouped-threads cursor pagination in `app/api/v1/emailInbox/[id]/messages/grouped-query.ts`. The deployed container also pins `timezone = 'UTC'` in `deploy/postgres/postgresql.conf`; the connection option is what covers local dev.
+**Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` — `assertConfig()` refuses to start without it. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
+
+`.env.example` documents all of them with their formats, and a test fails if the schema and that file drift apart.
+
+**`NEXT_PUBLIC_API_MODE` is not required.** It is validated in `lib/config/client.ts` as `local | external` and is currently informational — `lib/api-client.ts` always builds a same-origin base URL, so nothing branches on it. It is kept rather than deleted because every deployed environment already sets it, and validating it makes a typo visible.
+
+**`JWT_SECRET` has no fallback and never should.** `getJwtSecret()` in `lib/auth-server.ts` resolves it through `config.auth`, which throws when it is unset, blank, or under 16 characters — so `signToken`/`verifyToken` fail closed instead of signing with a guessable value. It is resolved per call rather than captured at module load, because every protected route imports `lib/auth-server` and `next build` evaluates those modules with no secrets in the environment; a module-scope assertion would break the build rather than the misconfigured deployment. Generate one with `openssl rand -base64 32`; rotating it invalidates every issued session and requires a restart to take effect.
+
+**`DATABASE_URL` must carry `options=-c%20timezone%3DUTC`.** This is now enforced: the `db` schema parses the URL, reads its `options` parameter and requires a UTC session timezone, so a connection string without one fails at boot. The check is semantic rather than a substring match, because `URLSearchParams` serialises the space as `+` (`options=-c+timezone%3DUTC`) and that is the same option. Prisma sends timestamps as naive strings, so Postgres interprets them in the *session* timezone before storing them in `timestamptz` columns. A non-UTC session (a Mac inheriting `America/New_York`, say) stores every timestamp shifted by the local offset. Prisma reverses the shift on read, so the ORM looks correct while raw SQL sees the wrong instant — which silently broke the grouped-threads cursor pagination in `app/api/v1/emailInbox/[id]/messages/grouped-query.ts`. The deployed container also pins `timezone = 'UTC'` in `deploy/postgres/postgresql.conf`; the connection option is what covers local dev.
 
 ## Architecture
 
@@ -83,7 +112,7 @@ This is a Next.js 16 App Router app that is **both** the frontend and the API �
 Browser → `lib/api-client.ts` → `/api/app/...` Next.js route handler → `withUser` → service layer → Prisma → PostgreSQL.
 
 - Base URL is built at runtime as `window.location.origin + '/api'` (see `lib/api-client.ts:6`). There is no `NEXT_PUBLIC_API_BASE_URL`.
-- `NEXT_PUBLIC_API_MODE=local` is set but currently the client always hits same-origin `/api`.
+- `NEXT_PUBLIC_API_MODE` is validated in `lib/config/client.ts` but nothing branches on it — the client always hits same-origin `/api`. See the note under *Required env vars*.
 
 ### Auth (JWT, not cookies)
 

@@ -1,4 +1,5 @@
 import { jsonSuccess } from '@/lib/api-helpers'
+import { config } from '@/lib/config'
 import { prisma } from '@/lib/db'
 
 const TOLERANCES_SECONDS: Record<string, number> = {
@@ -43,9 +44,9 @@ export async function GET(request?: Request) {
 
   const freshnessBreach = staleJobs.length > 0
   const healthy = dbOk && !freshnessBreach
-  const healthzSecret = process.env.HEALTHZ_SECRET
+  const healthzSecret = config.security.healthzSecret
   const providedSecret = request?.headers.get('x-healthz-secret')
-  const includeDetails = Boolean(healthzSecret) && providedSecret === healthzSecret
+  const includeDetails = healthzSecret !== null && providedSecret === healthzSecret.reveal()
 
   if (!includeDetails) {
     return jsonSuccess(
