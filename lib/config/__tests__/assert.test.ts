@@ -115,12 +115,58 @@ describe('assertConfig', () => {
     expect(() => assertConfig()).toThrow(/REDIS_URL is required/)
   })
 
-  it('does not require REDIS_URL when async processing is off', () => {
+  it('does not require REDIS_URL when async processing and rate limiting are both off', () => {
     setValidEnv()
     delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING
+    process.env.AUTH_RATE_LIMIT_ENABLED = 'false'
     delete process.env.REDIS_URL
 
     expect(() => assertConfig()).not.toThrow()
+  })
+
+  it('requires REDIS_URL because auth rate limiting is on by default', () => {
+    // The whole point of the default: an operator who never heard of this
+    // feature still gets a boot failure naming the variable, rather than a
+    // silently unthrottled login endpoint.
+    setValidEnv()
+    delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING
+    delete process.env.AUTH_RATE_LIMIT_ENABLED
+    delete process.env.REDIS_URL
+
+    expect(() => assertConfig()).toThrow(/REDIS_URL is required/)
+  })
+
+  it('names the opt-out in the rate-limit failure so the fix is discoverable', () => {
+    setValidEnv()
+    delete process.env.REDIS_URL
+
+    expect(() => assertConfig()).toThrow(/AUTH_RATE_LIMIT_ENABLED=false/)
+  })
+
+  it('reports both reasons when async processing and rate limiting each need Redis', () => {
+    setValidEnv()
+    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.AUTH_RATE_LIMIT_ENABLED = 'true'
+    delete process.env.REDIS_URL
+
+    expect(() => assertConfig()).toThrow(
+      /ENABLE_ASYNC_WEBHOOK_PROCESSING or AUTH_RATE_LIMIT_ENABLED are enabled/,
+    )
+  })
+
+  it('reports REDIS_URL once when it is both malformed and required', () => {
+    // Guards the `variables.includes('REDIS_URL')` short-circuit: the schema
+    // failure and the cross-domain requirement must not both fire.
+    setValidEnv()
+    process.env.REDIS_URL = 'http://localhost:6379'
+
+    try {
+      assertConfig()
+      throw new Error('expected assertConfig to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConfigError)
+      expect((error as ConfigError).variables).toEqual(['REDIS_URL'])
+    }
   })
 
   it('accepts async webhook processing with a valid REDIS_URL', () => {
