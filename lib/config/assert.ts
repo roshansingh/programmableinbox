@@ -31,21 +31,34 @@ export function assertConfig(): void {
     }
   }
 
-  // Cross-domain requirement. The queue client and the worker both dial Redis
-  // the moment async processing is on, and REDIS_URL has no default — so an
-  // absent or malformed one is a boot-time failure rather than a
-  // first-connection one. Checked here rather than in a schema because it spans
-  // two domains, and only when Redis itself parsed, so the operator does not
-  // get the same variable reported twice.
+  // Cross-domain requirements on REDIS_URL. Both the webhook queue and the auth
+  // rate limiter dial Redis, and REDIS_URL has no default — so an absent or
+  // malformed one is a boot-time failure rather than a first-connection one.
+  // Checked here rather than in a schema because each spans two domains, and
+  // only when Redis itself parsed, so the operator does not get the same
+  // variable reported twice.
   if (!variables.includes('REDIS_URL')) {
     const webhooks = safeParse('webhooks')
+    const rateLimit = safeParse('rateLimit')
     const redis = safeParse('redis')
+    const redisMissing = redis?.url == null
 
-    if (webhooks?.asyncProcessingEnabled && redis?.url == null) {
+    const requiredBy: string[] = []
+    if (webhooks?.asyncProcessingEnabled) requiredBy.push('ENABLE_ASYNC_WEBHOOK_PROCESSING')
+    // Unlike the queue, an unbacked limiter does not fail visibly: it returns
+    // "allowed" for every request and the only symptom is a log line. Refusing
+    // to boot is what makes "auth rate limiting is off" a decision rather than
+    // an oversight. Opt out with AUTH_RATE_LIMIT_ENABLED=false.
+    if (rateLimit?.enabled) requiredBy.push('AUTH_RATE_LIMIT_ENABLED')
+
+    if (redisMissing && requiredBy.length > 0) {
       failures.push(
         'Invalid redis configuration:\n  - REDIS_URL is required when ' +
-          'ENABLE_ASYNC_WEBHOOK_PROCESSING is enabled, and must be a redis:// or ' +
-          'rediss:// URL',
+          `${requiredBy.join(' or ')} ${requiredBy.length > 1 ? 'are' : 'is'} enabled, ` +
+          'and must be a redis:// or rediss:// URL' +
+          (rateLimit?.enabled
+            ? '\n    (set AUTH_RATE_LIMIT_ENABLED=false to run without auth rate limiting)'
+            : ''),
       )
       variables.push('REDIS_URL')
     }

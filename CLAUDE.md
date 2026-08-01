@@ -91,9 +91,9 @@ Four properties are load-bearing:
 
 **Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `EMAIL_INBOX_DOMAINS`.
 
-**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`.
+**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
 
-**Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` — `assertConfig()` refuses to start without it. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
+**Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` **or** `AUTH_RATE_LIMIT_ENABLED` is on (it defaults to on) — `assertConfig()` refuses to start without it, naming both reasons. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
 
 `.env.example` documents all of them with their formats, and a test fails if the schema and that file drift apart.
 
@@ -128,6 +128,34 @@ Browser → `lib/api-client.ts` → `/api/app/...` Next.js route handler → `wi
 - `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via the wrappers**, not at the proxy level.
 - `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/app/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
 - **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/app/auth/{login,register}` are accessible without authentication.
+
+### Auth rate limiting and lockout (issue #42)
+
+`lib/security/rate-limit.ts` throttles `POST /api/app/auth/{login,register}`. Sliding-window *counter* (`estimate = prev × (1 − elapsed/window) + curr`), not a fixed window — a fixed window lets an attacker spend a full budget either side of a boundary for 2× the intended rate. The counter is incremented unconditionally inside one `MULTI` (`INCR`, `PEXPIRE`, `GET prev`), so there is no read-modify-write to race, and rejected attempts count too. Every reply in the `MULTI` is checked, not just the `INCR`: a failed `PEXPIRE` or `GET` makes the limiter *under*-count, which is the direction that must not fail silently.
+
+Defaults: login 20/5min per IP and 10/15min per account; register 10/hour per IP and 5/hour per address; lockout after 5 consecutive failures for 1m doubling to a 15m cap, failure counter TTL 1h. All env-overridable — see `.env.example`.
+
+**Three distinct "no answer from Redis" states, deliberately not collapsed:**
+
+| State | Trigger | Behavior |
+|---|---|---|
+| Disabled | `AUTH_RATE_LIMIT_ENABLED=false` | No client, no commands, no per-request logging. `degraded` is false — off by policy is not a malfunction. |
+| Unconfigured | limiter on, `REDIS_URL` unset | **Never reaches runtime.** `assertConfig()` refuses to boot. |
+| Unreachable | configured but down/slow | Bounded by `RATE_LIMIT_TIMEOUT_MS` (250ms) with `enableOfflineQueue: false`, so it is an immediate rejection rather than a hang. `RATE_LIMIT_FAIL_MODE=open` (default) allows and flags `degraded`; `closed` returns 429. |
+
+Refusing to boot is the load-bearing part. An unbacked limiter allows every request and says so only in a log line, so *"auth rate limiting is off"* has to be a decision someone wrote down rather than a variable someone forgot. Fail-open is the runtime default because a Redis outage would otherwise become a full authentication outage, including for the operators who need to log in to fix it.
+
+**Per-account limits report; they do not deny.** The per-IP limit rejects early, before bcrypt — that is the control that caps CPU. The per-account limit and the lockout are consumed up front but the password is still verified, and a *correct* password logs in and clears the lock; only a wrong one gets the 429. Anything keyed on the submitted address is otherwise a weapon aimed at its owner: anyone who knows your email could spend ~1 request per 90 seconds from a single host and keep you permanently unable to log in, and unlike the lockout (capped at 15 minutes) that denial had no ceiling, because the sliding window never decays under sustained pressure.
+
+**`X-Forwarded-For` trust model.** Caddy is the only public ingress (`deploy/docker-compose.yml` publishes ports on `caddy` alone; `app` is internal-only) and its `reverse_proxy` *appends* the TCP peer to any inbound XFF. The chain is therefore `[...client-forged..., real IP]` and we take the entry at `length − TRUSTED_PROXY_COUNT` — **rightmost by default, never `split(',')[0]`**, which anyone could forge to mint a fresh budget per request. Set `TRUSTED_PROXY_COUNT=2` for a CDN in front of Caddy. IPv6 buckets by /64 (with `::` expanded first), since end users routinely get a whole /64.
+
+When no trustworthy address can be derived — header absent, chain shorter than the declared hop count, or `TRUSTED_PROXY_COUNT=0` — `getClientIp` returns `null` and **per-IP limiting is skipped**, with a throttled warning. It does *not* fall back to a shared `unknown` bucket: that would put every user of a proxy-less deployment (or `npm run dev`) into one 20-per-5-minutes login budget, which is a self-inflicted auth outage rather than a conservative default. Per-account limiting and lockout are unaffected. `X-Real-IP` is deliberately not a fallback — if XFF is absent there is no evidence a trusted proxy was involved, so it is exactly as forgeable.
+
+**Enumeration safety.** One message for every throttled outcome (`Too many login attempts. Please try again later.`), so a 429 carries no signal about account existence; per-account limits and failure counters key on the **submitted** address (SHA-256 bucketed, so no PII in Redis) and are recorded for unknown addresses too, otherwise lockout itself becomes the oracle. A test asserts the throttled response is identical for a real vs. non-existent account. Login compares against a dummy cost-10 hash when no user matches, fixing a pre-existing timing oracle where the bcrypt round was skipped entirely.
+
+`/api/healthz` reports limiter state (`rate_limit.state`) in its authenticated detail block. It is **passive** — derived from what real requests experienced, not a probe — and a degraded limiter does not fail the health check, since fail-open means logins still work and a 503 would pull a working instance out of its load balancer.
+
+`lib/automations/replay-rate-limit.ts` (issue #40) is a second, narrower limiter with its own connection. The two should be unified onto this module.
 
 ### Response envelope (load-bearing)
 

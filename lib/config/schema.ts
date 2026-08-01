@@ -11,6 +11,13 @@ export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal', '
 export const LLM_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'ollama'] as const
 export const NODE_ENVS = ['development', 'test', 'production'] as const
 
+/**
+ * What the rate limiter does when Redis is reachable-but-broken at request
+ * time. Not the same question as "is Redis configured at all" — that one is
+ * answered at boot by `assertConfig()`. See `RateLimitSchema`.
+ */
+export const RATE_LIMIT_FAIL_MODES = ['open', 'closed'] as const
+
 export type LogLevel = (typeof LOG_LEVELS)[number]
 export type LlmProviderName = (typeof LLM_PROVIDERS)[number]
 
@@ -267,6 +274,89 @@ const BillingSchema = z
   })
   .transform((v) => ({ enabled: v.ENABLE_BILLING ?? false }))
 
+/**
+ * Authentication rate limiting, account lockout, and the proxy trust model
+ * (issue #42). Consumed by `lib/security/rate-limit.ts`.
+ *
+ * `AUTH_RATE_LIMIT_ENABLED` defaults to **true**, and `assertConfig()` requires
+ * `REDIS_URL` whenever it is on. That combination is the point: a limiter whose
+ * backend is merely absent would otherwise sit there returning "allowed" on
+ * every request, and the only symptom is a log line nobody reads. Turning the
+ * control off has to be a decision someone wrote down, not a variable someone
+ * forgot. A development box with no Redis sets `AUTH_RATE_LIMIT_ENABLED=false`
+ * and gets an explicitly unthrottled app rather than an accidentally one.
+ *
+ * Every window is expressed in seconds and every timeout in milliseconds, which
+ * is how operators think about them; the transform converts to the milliseconds
+ * the limiter arithmetic wants so no call site does its own `* 1000`.
+ */
+const RateLimitSchema = z
+  .object({
+    AUTH_RATE_LIMIT_ENABLED: zBool.optional(),
+
+    AUTH_RATE_LIMIT_LOGIN_IP_MAX: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+
+    AUTH_RATE_LIMIT_REGISTER_IP_MAX: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+
+    AUTH_LOCKOUT_THRESHOLD: zBoundedInt(1, 1_000).optional(),
+    AUTH_LOCKOUT_BASE_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_LOCKOUT_MAX_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_LOCKOUT_FAILURE_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+
+    RATE_LIMIT_TIMEOUT_MS: zBoundedInt(10, 5_000).optional(),
+    RATE_LIMIT_FAIL_MODE: z.enum(RATE_LIMIT_FAIL_MODES).optional(),
+    /**
+     * 0 is a meaningful value, not a disabled sentinel: it declares "no trusted
+     * proxy in front of this process", which makes `X-Forwarded-For`
+     * untrustworthy and turns off per-IP limiting rather than bucketing every
+     * caller together. See `getClientIp`.
+     */
+    TRUSTED_PROXY_COUNT: zBoundedInt(0, 10).optional(),
+  })
+  .transform((v) => ({
+    enabled: v.AUTH_RATE_LIMIT_ENABLED ?? true,
+    login: {
+      ip: {
+        limit: v.AUTH_RATE_LIMIT_LOGIN_IP_MAX ?? 20,
+        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S ?? 5 * 60) * 1000,
+      },
+      account: {
+        limit: v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX ?? 10,
+        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S ?? 15 * 60) * 1000,
+      },
+    },
+    register: {
+      ip: {
+        limit: v.AUTH_RATE_LIMIT_REGISTER_IP_MAX ?? 10,
+        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S ?? 60 * 60) * 1000,
+      },
+      account: {
+        limit: v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX ?? 5,
+        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S ?? 60 * 60) * 1000,
+      },
+    },
+    lockout: {
+      threshold: v.AUTH_LOCKOUT_THRESHOLD ?? 5,
+      baseMs: (v.AUTH_LOCKOUT_BASE_S ?? 60) * 1000,
+      /**
+       * Modest by design. Per-account lockout is itself a denial-of-service
+       * primitive — anyone who knows an address can trigger it — so it decays
+       * rather than freezing an account indefinitely.
+       */
+      maxMs: (v.AUTH_LOCKOUT_MAX_S ?? 15 * 60) * 1000,
+      failureWindowMs: (v.AUTH_LOCKOUT_FAILURE_WINDOW_S ?? 60 * 60) * 1000,
+    },
+    timeoutMs: v.RATE_LIMIT_TIMEOUT_MS ?? 250,
+    failMode: v.RATE_LIMIT_FAIL_MODE ?? 'open',
+    trustedProxyCount: v.TRUSTED_PROXY_COUNT ?? 1,
+  }))
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -313,6 +403,27 @@ export const DOMAIN_SCHEMAS = {
   },
   billing: { schema: BillingSchema, vars: ['ENABLE_BILLING'] },
   emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
+  rateLimit: {
+    schema: RateLimitSchema,
+    vars: [
+      'AUTH_RATE_LIMIT_ENABLED',
+      'AUTH_RATE_LIMIT_LOGIN_IP_MAX',
+      'AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S',
+      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX',
+      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S',
+      'AUTH_RATE_LIMIT_REGISTER_IP_MAX',
+      'AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S',
+      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX',
+      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S',
+      'AUTH_LOCKOUT_THRESHOLD',
+      'AUTH_LOCKOUT_BASE_S',
+      'AUTH_LOCKOUT_MAX_S',
+      'AUTH_LOCKOUT_FAILURE_WINDOW_S',
+      'RATE_LIMIT_TIMEOUT_MS',
+      'RATE_LIMIT_FAIL_MODE',
+      'TRUSTED_PROXY_COUNT',
+    ],
+  },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
 
 export type DomainName = keyof typeof DOMAIN_SCHEMAS
