@@ -29,6 +29,7 @@ import http from 'node:http'
 import https from 'node:https'
 import type { LookupAddress } from 'node:dns'
 import { lookup as dnsLookup } from 'node:dns/promises'
+import { config } from '@/lib/config'
 import {
   SsrfBlockedError,
   assertUrlShapeAllowed,
@@ -92,13 +93,7 @@ export type SafeFetchInit = {
  * (`.example.com`). When unset every public host is permitted.
  */
 export function readEgressAllowlist(): string[] | null {
-  const raw = process.env.WEBHOOK_EGRESS_ALLOWLIST
-  if (!raw) return null
-  const entries = raw
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0)
-  return entries.length > 0 ? entries : null
+  return config.security.egressAllowlist
 }
 
 /**
@@ -110,8 +105,10 @@ export function readEgressAllowlist(): string[] | null {
  * be reachable by flipping one env var on a deployed box.
  */
 export function readAllowPrivateNetwork(): boolean {
-  if (process.env.NODE_ENV === 'production') return false
-  return process.env.WEBHOOK_ALLOW_PRIVATE_NETWORK === 'true'
+  // The production guard stays ahead of the flag read on purpose: that
+  // ordering is the security property, not an optimisation.
+  if (config.runtime.isProduction) return false
+  return config.security.allowPrivateNetwork
 }
 
 function resolveOptions(options: SsrfGuardOptions) {
