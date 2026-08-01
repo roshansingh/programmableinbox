@@ -1,6 +1,6 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SsrfBlockedError,
   assertPublicUrl,
@@ -8,6 +8,7 @@ import {
   readEgressAllowlist,
   safeFetch,
 } from '@/lib/security/ssrf-guard'
+import { _resetConfigCache } from '@/lib/config'
 
 // ---------------------------------------------------------------------------
 // Test harness — real loopback HTTP servers
@@ -413,10 +414,17 @@ describe('safeFetch', () => {
 // ---------------------------------------------------------------------------
 
 describe('environment configuration', () => {
+  beforeEach(() => {
+    // The config module memoizes parsed env values. Reset the cache before
+    // each test so that vi.stubEnv changes are picked up by config accessors.
+    _resetConfigCache()
+  })
+
   it('parses WEBHOOK_EGRESS_ALLOWLIST', () => {
     vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', '')
     expect(readEgressAllowlist()).toBeNull()
 
+    _resetConfigCache()
     vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', ' hooks.example.com , .partner.io ')
     expect(readEgressAllowlist()).toEqual(['hooks.example.com', '.partner.io'])
   })
@@ -426,9 +434,11 @@ describe('environment configuration', () => {
     vi.stubEnv('NODE_ENV', 'development')
     expect(readAllowPrivateNetwork()).toBe(true)
 
+    _resetConfigCache()
     vi.stubEnv('NODE_ENV', 'production')
     expect(readAllowPrivateNetwork()).toBe(false)
 
+    _resetConfigCache()
     vi.stubEnv('NODE_ENV', 'development')
     vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'false')
     expect(readAllowPrivateNetwork()).toBe(false)

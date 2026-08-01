@@ -7,8 +7,17 @@
  */
 
 export async function register() {
+  const { assertConfig } = await import('@/lib/config')
+
+  // Validate all environment variables at server boot. Reports every problem
+  // at once (rather than one per request) and fails loudly with a clear message
+  // listing each misconfigured variable.
+  assertConfig()
+
+  const { config } = await import('@/lib/config')
+
   // Only initialize the worker if async webhook processing is enabled.
-  if (process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING !== 'true') {
+  if (!config.runtime.asyncWebhookProcessing) {
     return
   }
 

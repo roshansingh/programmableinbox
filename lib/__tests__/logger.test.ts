@@ -62,20 +62,20 @@ describe('logger config', () => {
     expect(config.level).toBe('info')
   })
 
-  it('falls back to default level when LOG_LEVEL is invalid', async () => {
+  it('throws for invalid LOG_LEVEL (not in valid enum)', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('LOG_LEVEL', 'verbose') // not a valid pino level
     vi.resetModules()
     const { buildLoggerConfig } = await import('../logger.config')
-    expect(buildLoggerConfig().level).toBe('info')
+    expect(() => buildLoggerConfig()).toThrow()
   })
 
-  it('rejects uppercase LOG_LEVEL and falls back', async () => {
+  it('throws for uppercase LOG_LEVEL (must be exact lowercase match)', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('LOG_LEVEL', 'WARN')
     vi.resetModules()
     const { buildLoggerConfig } = await import('../logger.config')
-    expect(buildLoggerConfig().level).toBe('info')
+    expect(() => buildLoggerConfig()).toThrow()
   })
 
   it('includes timestamp serializer in config', async () => {

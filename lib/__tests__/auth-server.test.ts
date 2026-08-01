@@ -7,9 +7,10 @@ import jwt from 'jsonwebtoken'
 // token tests touch the database, so keep it out of the way.
 vi.mock('@/lib/db', () => ({ prisma: {} }))
 
-// The module reads process.env lazily, so a single import is enough — no
-// resetModules dance required.
+// The module reads env lazily via the config module; resetting the config
+// cache between tests lets us change JWT_SECRET without module reloads.
 import { signToken, verifyToken } from '@/lib/auth-server'
+import { _resetConfigCache } from '@/lib/config'
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET
 
@@ -19,6 +20,9 @@ afterEach(() => {
   } else {
     process.env.JWT_SECRET = ORIGINAL_JWT_SECRET
   }
+  // Clear the memoized config so the next test gets a fresh read of
+  // process.env. This is equivalent to a server restart for config purposes.
+  _resetConfigCache()
 })
 
 describe('auth-server JWT secret handling', () => {
@@ -81,9 +85,13 @@ describe('auth-server JWT secret handling', () => {
       expect(verifyToken('not-a-jwt')).toBeNull()
     })
 
-    it('picks up a rotated secret without a restart (no module-load caching)', () => {
+    it('picks up a rotated secret after the config cache is cleared (requires restart)', () => {
       const token = signToken({ userId: 'user_42' })
-      process.env.JWT_SECRET = 'rotated-secret'
+      // Simulate rotating the secret — in production this means redeploying.
+      // The config module memoizes secrets, so a restart (cache reset) is
+      // needed for rotation to take effect.
+      process.env.JWT_SECRET = 'rotated-secret-12345'
+      _resetConfigCache()
       expect(verifyToken(token)).toBeNull()
     })
   })

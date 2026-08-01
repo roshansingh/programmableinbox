@@ -8,6 +8,7 @@ import { getResend } from '@/lib/resend'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import logger from '@/lib/logger'
+import { config } from '@/lib/config'
 
 /**
  * Returns true when async (BullMQ) webhook processing is enabled.
@@ -15,7 +16,7 @@ import logger from '@/lib/logger'
  * Controlled by the ENABLE_ASYNC_WEBHOOK_PROCESSING environment variable.
  */
 function isAsyncWebhookProcessingEnabled(): boolean {
-  return process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING === 'true'
+  return config.runtime.asyncWebhookProcessing
 }
 
 interface WebhookEvent {
@@ -252,7 +253,7 @@ export const POST = withPublic(async (request: NextRequest) => {
         timestamp: request.headers.get('svix-timestamp')!,
         signature: request.headers.get('svix-signature')!,
       },
-      webhookSecret: process.env.WEBHOOK_SECRET!,
+      webhookSecret: config.email.webhookSecret.reveal(),
     });
   } catch (error) {
     logger.warn({

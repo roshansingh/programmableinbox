@@ -102,34 +102,36 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(5);
     });
 
-    it('falls back to default for non-numeric WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    // --- Invalid values must now throw, never silently fall back ---
+
+    it('throws for non-numeric WEBHOOK_QUEUE_MAX_RETRIES (never silently defaults)', async () => {
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'invalid';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow();
     });
 
-    it('falls back to default for "NaN" WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    it('throws for "NaN" WEBHOOK_QUEUE_MAX_RETRIES', async () => {
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'NaN';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow();
     });
 
-    it('falls back to default for empty string WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    it('defaults to 3 for empty string WEBHOOK_QUEUE_MAX_RETRIES (treated as unset)', async () => {
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = '';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
     });
 
-    it('falls back to default for negative WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    it('throws for negative WEBHOOK_QUEUE_MAX_RETRIES', async () => {
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = '-5';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow();
     });
 
-    it('falls back to default for zero WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    it('throws for zero WEBHOOK_QUEUE_MAX_RETRIES', async () => {
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = '0';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow();
     });
 
     it('parses WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX from env', async () => {
@@ -138,16 +140,16 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(10);
     });
 
-    it('falls back to default for zero WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
+    it('throws for zero WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
       process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = '0';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(5);
+      expect(() => WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toThrow();
     });
 
-    it('falls back to default for negative WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
+    it('throws for negative WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
       process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = '-1';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(5);
+      expect(() => WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toThrow();
     });
   });
 

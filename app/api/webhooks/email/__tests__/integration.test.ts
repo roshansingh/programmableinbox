@@ -201,6 +201,9 @@ describe('Webhook Email Processing — Integration', () => {
   beforeEach(() => {
     process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
     process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true';
+    process.env.AUTH_RESEND_API_KEY = 're_test_key_placeholder';
+    process.env.AUTH_EMAIL_FROM = 'test@example.com';
+    process.env.AUTH_EMAIL_FROM_NAME = 'Test';
     mockWebhooksVerify.mockReturnValue(undefined); // default: passes verification
     enqueueEmailWebhookJobMock.mockResolvedValue(undefined);
     dispatchAutomationsForEmailMock.mockResolvedValue([]);
@@ -215,6 +218,9 @@ describe('Webhook Email Processing — Integration', () => {
     vi.clearAllMocks();
     delete process.env.WEBHOOK_SECRET;
     delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING;
+    delete process.env.AUTH_RESEND_API_KEY;
+    delete process.env.AUTH_EMAIL_FROM;
+    delete process.env.AUTH_EMAIL_FROM_NAME;
   });
 
   // -------------------------------------------------------------------------

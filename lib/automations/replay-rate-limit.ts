@@ -29,6 +29,7 @@
 
 import { Redis } from 'ioredis'
 import logger from '@/lib/logger'
+import { config } from '@/lib/config'
 
 export type ReplayMode = 'dry_run' | 'live'
 export type ReplayRateLimitScope = 'user' | 'automation'
@@ -90,7 +91,7 @@ let _client: ReplayRateLimitClient | null = null
  */
 function getLimiterRedis(): ReplayRateLimitClient {
   if (!_client) {
-    const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
+    const client = new Redis(config.redis.url, {
       maxRetriesPerRequest: 1,
       connectTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,
       commandTimeout: REPLAY_RATE_LIMIT_TIMEOUT_MS,

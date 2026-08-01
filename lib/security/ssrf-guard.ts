@@ -37,6 +37,7 @@ import {
   parseIPv4,
   stripIpv6Brackets,
 } from './ssrf-rules'
+import { config } from '@/lib/config'
 
 export {
   SsrfBlockedError,
@@ -92,7 +93,7 @@ export type SafeFetchInit = {
  * (`.example.com`). When unset every public host is permitted.
  */
 export function readEgressAllowlist(): string[] | null {
-  const raw = process.env.WEBHOOK_EGRESS_ALLOWLIST
+  const raw = config.security.egressAllowlist
   if (!raw) return null
   const entries = raw
     .split(',')
@@ -110,8 +111,8 @@ export function readEgressAllowlist(): string[] | null {
  * be reachable by flipping one env var on a deployed box.
  */
 export function readAllowPrivateNetwork(): boolean {
-  if (process.env.NODE_ENV === 'production') return false
-  return process.env.WEBHOOK_ALLOW_PRIVATE_NETWORK === 'true'
+  if (config.logging.nodeEnv === 'production') return false
+  return config.security.allowPrivateNetwork
 }
 
 function resolveOptions(options: SsrfGuardOptions) {

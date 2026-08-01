@@ -9,6 +9,7 @@
 
 import { Queue } from "bullmq";
 import { Redis, type RedisOptions } from "ioredis";
+import { config } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Job type
@@ -31,39 +32,26 @@ export interface EmailWebhookJobData {
 export const WEBHOOK_QUEUE_NAME = "email-webhook-jobs";
 
 /**
- * Parses a positive integer from an environment variable string.
- * Returns `fallback` if the value is absent, non-numeric, non-finite, or <= 0.
- */
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const n = parseInt(value, 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
-/**
- * Runtime configuration derived from environment variables.
- * All values have sensible defaults so the app works in development without
- * manual env setup.
+ * Runtime configuration derived from the validated config module.
+ * Values are lazily read on first access so that module evaluation at build
+ * time does not trigger config validation.
  */
 export const WEBHOOK_QUEUE_CONFIG = {
   /** Number of times a failed job is retried before being dead-lettered. */
-  maxRetries: parsePositiveInt(process.env.WEBHOOK_QUEUE_MAX_RETRIES, 3),
+  get maxRetries(): number { return config.webhookQueue.maxRetries; },
   /**
    * Maximum number of inboxes processed concurrently by the worker.
    * Each inbox is processed serially; this caps parallel inbox processing.
    */
-  concurrencyPerInbox: parsePositiveInt(
-    process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX,
-    5,
-  ),
-} as const;
+  get concurrencyPerInbox(): number { return config.webhookQueue.concurrencyPerInbox; },
+};
 
 // ---------------------------------------------------------------------------
 // Redis connection singleton
 // ---------------------------------------------------------------------------
 
 export function buildRedisOptions(): RedisOptions {
-  const url = process.env.REDIS_URL ?? "redis://localhost:6379";
+  const url = config.redis.url;
 
   // Parse the URL manually so we can inject ioredis-specific options that
   // BullMQ requires (maxRetriesPerRequest: null) while still accepting a URL.

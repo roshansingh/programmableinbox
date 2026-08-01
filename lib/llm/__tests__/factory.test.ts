@@ -77,9 +77,9 @@ describe('getProvider', () => {
     expect(provider.baseURL).toBe('https://openrouter.ai/api/v1')
   })
 
-  it('returns null for unknown provider', async () => {
+  it('throws for unknown provider instead of returning null', async () => {
     vi.stubEnv('LLM_PROVIDER', 'unknown-provider')
     const { getProvider } = await import('../factory')
-    expect(getProvider()).toBeNull()
+    expect(() => getProvider()).toThrow()
   })
 })

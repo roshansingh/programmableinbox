@@ -45,8 +45,11 @@ describe('POST /api/webhooks/email', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    process.env.WEBHOOK_SECRET = 'test-secret'
+    process.env.WEBHOOK_SECRET = 'test-webhook-secret-12345'
     process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.AUTH_RESEND_API_KEY = 're_test_key_placeholder'
+    process.env.AUTH_EMAIL_FROM = 'test@example.com'
+    process.env.AUTH_EMAIL_FROM_NAME = 'Test'
     mockWebhooksVerify.mockReturnValue(undefined) // default: passes verification
     enqueueEmailWebhookJobMock.mockResolvedValue(undefined)
   })

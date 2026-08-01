@@ -19,8 +19,9 @@ async function loadRoute() {
 describe('GET /api/internal/webhook-worker/health', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    // Ensure env var is set for most tests
+    // Ensure env vars are set for most tests
     process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.REDIS_URL = 'redis://localhost:6379'
   })
 
   afterEach(() => {
