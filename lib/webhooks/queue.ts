@@ -9,7 +9,7 @@
 
 import { Queue } from "bullmq";
 import { Redis, type RedisOptions } from "ioredis";
-import { config } from "@/lib/config";
+import { config, requireRedisUrl } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Job type
@@ -67,10 +67,12 @@ export function buildRedisOptions(): RedisOptions {
   // Parse the URL manually so we can inject ioredis-specific options that
   // BullMQ requires (maxRetriesPerRequest: null) while still accepting a URL.
   //
-  // `config.redis.url` is already known to parse and to carry a host, so the
-  // old `parsed.hostname || "127.0.0.1"` fallback is gone: a hostless URL is
-  // now rejected at config read rather than silently rewritten to loopback.
-  const parsed = new URL(config.redis.url);
+  // The URL is already known to parse and to carry a host, so the old
+  // `parsed.hostname || "127.0.0.1"` fallback is gone: a hostless URL is
+  // rejected at config read rather than silently rewritten to loopback. An
+  // unset REDIS_URL throws here too — reaching this function means the queue is
+  // about to connect, so there is nothing sensible to fall back to.
+  const parsed = new URL(requireRedisUrl());
   return {
     host: parsed.hostname,
     port: parsed.port ? parseInt(parsed.port, 10) : 6379,

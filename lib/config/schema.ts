@@ -14,13 +14,6 @@ export const NODE_ENVS = ['development', 'test', 'production'] as const
 export type LogLevel = (typeof LOG_LEVELS)[number]
 export type LlmProviderName = (typeof LLM_PROVIDERS)[number]
 
-/**
- * Defined exactly once. Previously written out in both `lib/webhooks/queue.ts`
- * and `lib/automations/replay-rate-limit.ts`, where changing one and not the
- * other would have gone unnoticed.
- */
-export const DEFAULT_REDIS_URL = 'redis://localhost:6379'
-
 export const DEFAULT_WEBHOOK_QUEUE_MAX_RETRIES = 3
 export const DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = 5
 
@@ -124,7 +117,22 @@ const RedisSchema = z
   .object({
     REDIS_URL: zUrl(['redis:', 'rediss:']).optional(),
   })
-  .transform((v) => ({ url: v.REDIS_URL ?? DEFAULT_REDIS_URL }))
+  /**
+   * Null when unset — there is deliberately no `redis://localhost:6379`
+   * fallback.
+   *
+   * A default that points at localhost is the wrong shape for this variable:
+   * on a production box where the operator forgot to set it, the app silently
+   * dials a Redis that either does not exist (an outage that looks like a
+   * network fault) or, worse, is some *other* service's Redis on the same
+   * host, at which point two deployments quietly share a queue and a rate
+   * limiter. Neither failure names the missing variable.
+   *
+   * Consumers must handle `null` explicitly. `assertConfig()` additionally
+   * requires it to be set whenever async webhook processing is enabled, so
+   * the common misconfiguration is caught at boot rather than at first use.
+   */
+  .transform((v) => ({ url: v.REDIS_URL ?? null }))
 
 const WebhooksSchema = z
   .object({

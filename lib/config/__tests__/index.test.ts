@@ -101,6 +101,23 @@ describe('config accessors', () => {
     expect(message).toContain('WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX')
   })
 
+  it('leaves REDIS_URL null when unset rather than defaulting to localhost', () => {
+    delete process.env.REDIS_URL
+    expect(config.redis.url).toBeNull()
+  })
+
+  it('requireRedisUrl throws naming the variable when it is unset', async () => {
+    const { requireRedisUrl } = await import('../index')
+    delete process.env.REDIS_URL
+    expect(() => requireRedisUrl()).toThrow(/REDIS_URL is required/)
+  })
+
+  it('requireRedisUrl returns the configured URL when it is set', async () => {
+    const { requireRedisUrl } = await import('../index')
+    process.env.REDIS_URL = 'rediss://cache.example.com:6380/1'
+    expect(requireRedisUrl()).toBe('rediss://cache.example.com:6380/1')
+  })
+
   it('exposes ConfigError with the offending variable names attached', async () => {
     const { ConfigError } = await import('../index')
     process.env.LOG_LEVEL = 'warning'

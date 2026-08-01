@@ -100,8 +100,8 @@ describe('logging schema', () => {
 })
 
 describe('redis schema', () => {
-  it('defaults to redis://localhost:6379', () => {
-    expect(parse('redis', {}).url).toBe('redis://localhost:6379')
+  it('yields null when unset — there is no localhost default', () => {
+    expect(parse('redis', {}).url).toBeNull()
   })
 
   it('accepts a rediss:// URL for managed providers', () => {

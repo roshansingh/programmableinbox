@@ -103,6 +103,24 @@ describe('assertConfig', () => {
     expect(() => assertConfig()).toThrow(/REDIS_URL/)
   })
 
+  it('requires REDIS_URL to be set at all when async processing is enabled', () => {
+    // The variable has no default, so "unset" is a distinct failure from
+    // "malformed" and has to be caught at boot rather than at first enqueue.
+    setValidEnv()
+    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    delete process.env.REDIS_URL
+
+    expect(() => assertConfig()).toThrow(/REDIS_URL is required/)
+  })
+
+  it('does not require REDIS_URL when async processing is off', () => {
+    setValidEnv()
+    delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING
+    delete process.env.REDIS_URL
+
+    expect(() => assertConfig()).not.toThrow()
+  })
+
   it('accepts async webhook processing with a valid REDIS_URL', () => {
     setValidEnv()
     process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'

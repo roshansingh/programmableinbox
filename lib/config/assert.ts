@@ -32,16 +32,20 @@ export function assertConfig(): void {
   }
 
   // Cross-domain requirement. The queue client and the worker both dial Redis
-  // the moment async processing is on, so an unusable REDIS_URL is a boot-time
-  // failure rather than a first-connection one. Checked here rather than in a
-  // schema because it spans two domains, and only when Redis itself parsed —
-  // otherwise the operator gets the same variable reported twice.
+  // the moment async processing is on, and REDIS_URL has no default — so an
+  // absent or malformed one is a boot-time failure rather than a
+  // first-connection one. Checked here rather than in a schema because it spans
+  // two domains, and only when Redis itself parsed, so the operator does not
+  // get the same variable reported twice.
   if (!variables.includes('REDIS_URL')) {
     const webhooks = safeParse('webhooks')
-    if (webhooks?.asyncProcessingEnabled && safeParse('redis') === null) {
+    const redis = safeParse('redis')
+
+    if (webhooks?.asyncProcessingEnabled && redis?.url == null) {
       failures.push(
-        'Invalid redis configuration:\n  - REDIS_URL must be a reachable redis:// or ' +
-          'rediss:// URL when ENABLE_ASYNC_WEBHOOK_PROCESSING is enabled',
+        'Invalid redis configuration:\n  - REDIS_URL is required when ' +
+          'ENABLE_ASYNC_WEBHOOK_PROCESSING is enabled, and must be a redis:// or ' +
+          'rediss:// URL',
       )
       variables.push('REDIS_URL')
     }

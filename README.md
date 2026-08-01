@@ -89,7 +89,7 @@ curl http://localhost:4000/api/internal/webhook-worker/health
 | Setting | Default | Purpose |
 |---------|---------|---------|
 | `ENABLE_ASYNC_WEBHOOK_PROCESSING` | `false` | Enable/disable async mode |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
+| `REDIS_URL` | *(none — required when async is on)* | Redis connection URL |
 | `WEBHOOK_QUEUE_MAX_RETRIES` | `3` | Max retries before dead-letter |
 | `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` | `5` | Parallel jobs |
 
@@ -188,7 +188,7 @@ Optional:
 
 - `NEXT_PUBLIC_API_MODE` — `local` (same-origin) or `external`. Validated but currently informational: the client always builds a same-origin base URL
 - `ENABLE_ASYNC_WEBHOOK_PROCESSING` — `true` for async, `false` for sync (default `false`)
-- `REDIS_URL` — Redis connection, default `redis://localhost:6379`. Required to be valid when async processing is on
+- `REDIS_URL` — Redis connection. **No default.** Required when `ENABLE_ASYNC_WEBHOOK_PROCESSING=true`, and the server refuses to start without it; a localhost fallback would silently connect to the wrong Redis, or none
 - `WEBHOOK_QUEUE_MAX_RETRIES` — Job retry count (default `3`)
 - `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` — Parallel jobs (default `5`)
 - `LOG_LEVEL` — `trace`…`silent`; unset means `debug` in development, `info` in production

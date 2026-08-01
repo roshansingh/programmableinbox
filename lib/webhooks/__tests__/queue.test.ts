@@ -168,14 +168,13 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(opts.port).toBe(1234);
     });
 
-    it('defaults to localhost:6379 when REDIS_URL is absent', async () => {
-      // The default lives in lib/config/schema.ts (DEFAULT_REDIS_URL) and is
-      // written exactly once, rather than here and in replay-rate-limit.ts.
+    it('throws when REDIS_URL is absent rather than defaulting to localhost', async () => {
+      // There is deliberately no redis://localhost:6379 fallback: on a box
+      // where the operator forgot to set it, that default silently dials a
+      // Redis that either does not exist or belongs to another service.
       delete process.env.REDIS_URL;
       const { buildRedisOptions } = await freshImport();
-      const opts = buildRedisOptions();
-      expect(opts.host).toBe('localhost');
-      expect(opts.port).toBe(6379);
+      expect(() => buildRedisOptions()).toThrow(/REDIS_URL is required/);
     });
 
     it.each(['not-a-url', 'http://localhost:6379', 'localhost:6379'])(

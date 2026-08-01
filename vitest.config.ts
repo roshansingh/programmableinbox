@@ -30,6 +30,11 @@ const configEnv = {
   AUTH_RESEND_API_KEY: 're_test_placeholder',
   AUTH_EMAIL_FROM: 'test@example.com',
   AUTH_EMAIL_FROM_NAME: 'Test',
+  // REDIS_URL has no production default on purpose (see lib/config/schema.ts).
+  // Supplying one here is a test fixture, not a fallback: suites that mock
+  // ioredis still need a configured URL to build connection options from, and
+  // the tests that exercise the unset case delete it explicitly.
+  REDIS_URL: 'redis://localhost:6379',
 }
 
 export default defineConfig({

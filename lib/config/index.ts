@@ -4,7 +4,6 @@ import { emptyAsUndefined } from './primitives'
 import { DOMAIN_SCHEMAS, type ConfigShape, type DomainName } from './schema'
 
 export {
-  DEFAULT_REDIS_URL,
   DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX,
   DEFAULT_WEBHOOK_QUEUE_MAX_RETRIES,
   LLM_PROVIDERS,
@@ -124,6 +123,30 @@ function getDomain<K extends DomainName>(domain: K): ConfigShape[K] {
  * ones; `assertConfig()` is the single place that demands every domain at once,
  * and it runs at boot.
  */
+/**
+ * Returns `REDIS_URL`, or throws naming the variable.
+ *
+ * `config.redis.url` is `string | null` because Redis is optional — a
+ * deployment with async webhook processing off never needs it. Every code path
+ * that genuinely requires a connection goes through here, so the failure is one
+ * consistent message that names the variable, rather than each call site
+ * inventing its own or defaulting to localhost.
+ */
+export function requireRedisUrl(): string {
+  const url = config.redis.url
+
+  if (url === null) {
+    throw new ConfigError(
+      'REDIS_URL is required but not set. It has no default: a localhost ' +
+        'fallback would silently connect to the wrong Redis (or none) instead ' +
+        'of reporting the missing variable.',
+      ['REDIS_URL'],
+    )
+  }
+
+  return url
+}
+
 export const config: ConfigShape = Object.freeze(
   Object.defineProperties(
     {} as ConfigShape,
