@@ -27,17 +27,35 @@ const ENV_ALLOWED = [
 ]
 
 export default tseslint.config(
-  // Ignore generated/build artefacts and dependency trees
+  // Ignore generated/build artefacts and dependency trees.
+  // `.claude/**` holds agent git worktrees — full checkouts of other branches,
+  // including their node_modules and build output. Linting them produces tens of
+  // thousands of irrelevant errors and is never what you want.
   {
     ignores: [
       'node_modules/**',
       'lib/generated/**',
       '.next/**',
       'dist/**',
+      'coverage/**',
+      '.claude/**',
     ],
   },
   // TypeScript-aware base config for all source files
   ...tseslint.configs.recommended,
+  // Noise from issues that pre-date this lint setup. Applied globally (not just
+  // to the non-allowlisted files below) so the recommended set does not fail the
+  // build on test files and other pre-existing code.
+  {
+    files: ['**/*.{ts,tsx,mts,cts,js,mjs,cjs}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
   // Process.env access ban — everything except the allowed seams
   {
     files: ['**/*.{ts,tsx,mts,cts,js,mjs,cjs}'],
@@ -47,18 +65,17 @@ export default tseslint.config(
         'error',
         {
           // Ban direct process.env property access outside the allowed seams.
-          // Use `config.*` from lib/config instead.
+          // Use `config.*` from lib/config instead. Both dotted and computed
+          // access are matched so `process['env']` cannot slip through.
           selector:
-            'MemberExpression[object.name="process"][property.name="env"]',
+            'MemberExpression[object.name="process"][property.name="env"], ' +
+            'MemberExpression[object.name="process"][property.value="env"]',
           message:
             'Direct process.env access is banned. Import from @/lib/config instead. ' +
             'Only lib/config/**, prisma.config.ts, prisma/seed.ts, next.config.mjs, ' +
             'and vitest*.config.ts are allowed to read process.env directly.',
         },
       ],
-      // Pre-existing codebase uses `any` in places; disable to avoid noise from
-      // issues that pre-date this lint setup.
-      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 )

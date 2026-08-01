@@ -377,6 +377,9 @@ export function assertConfig(): void {
     )
   }
 
-  // Populate the memoized cache with fresh values now that we know they're valid.
+  // Drop any sections memoized before this point (e.g. by a module that read
+  // config during import) so the first real access re-reads the environment we
+  // just validated. Each section is parsed again on demand; validation above
+  // used safeParse against a separate copy and does not populate the cache.
   _resetConfigCache()
 }

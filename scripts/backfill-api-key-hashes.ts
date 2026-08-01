@@ -1,3 +1,16 @@
+/**
+ * Backfills SHA-256 hashes and display prefixes for API keys created before
+ * hashed storage landed.
+ *
+ *   npm run backfill:api-keys -- --dry-run
+ *   npm run backfill:api-keys
+ *
+ * Run it through the npm script, not `node --import tsx` directly: importing
+ * `@/lib/db` pulls in `lib/config`, which is marked `server-only`. That package
+ * throws unless the `react-server` export condition is set, which the npm script
+ * supplies via `node --conditions=react-server`. Next.js and Vitest set/alias it
+ * themselves; a bare Node invocation does not.
+ */
 import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { DEFAULT_API_KEY_SCOPES } from '@/lib/api-key-scopes'

@@ -8,6 +8,12 @@
  *
  *   npm run backfill:org-names -- --dry-run
  *   npm run backfill:org-names
+ *
+ * Run it through the npm script, not `node --import tsx` directly: importing
+ * `@/lib/db` pulls in `lib/config`, which is marked `server-only`. That package
+ * throws unless the `react-server` export condition is set, which the npm script
+ * supplies via `node --conditions=react-server`. Next.js and Vitest set/alias it
+ * themselves; a bare Node invocation does not.
  */
 import 'dotenv/config'
 import { prisma } from '@/lib/db'

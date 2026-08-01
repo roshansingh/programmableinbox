@@ -9,8 +9,8 @@
     "build": "next build --webpack",
     "dev": "next dev --port 4000",
     "lint": "eslint .",
-    "backfill:api-keys": "node --import tsx scripts/backfill-api-key-hashes.ts",
-    "backfill:org-names": "node --import tsx scripts/backfill-org-names.ts",
+    "backfill:api-keys": "node --conditions=react-server --import tsx scripts/backfill-api-key-hashes.ts",
+    "backfill:org-names": "node --conditions=react-server --import tsx scripts/backfill-org-names.ts",
     "start": "next start --port 4000",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -87,7 +87,6 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
