@@ -61,9 +61,12 @@ let _instance: ExtendedPrismaClient | undefined
  * the first property access.
  */
 export const prisma = new Proxy({} as ExtendedPrismaClient, {
-  get(_target, prop, receiver) {
+  get(_target, prop) {
     _instance ??= getPrismaClient()
-    return Reflect.get(_instance as object, prop, receiver)
+    // The receiver is deliberately left as the real client rather than
+    // forwarded as the proxy: any getter Prisma defines would otherwise run
+    // with `this` bound to the proxy, which breaks private-field access.
+    return Reflect.get(_instance as object, prop)
   },
   has(_target, prop) {
     _instance ??= getPrismaClient()
