@@ -5,6 +5,9 @@
  */
 
 import { apiClient, setAuthToken, removeAuthToken } from '../api-client'
+import type { AppConfig } from '../config/app-config'
+
+export type { AppConfig }
 
 /**
  * Sign in request DTO
@@ -58,6 +61,12 @@ export interface User {
   lastName?: string
   emailVerified: boolean
   organizations: Organization[]
+  /**
+   * Client-visible platform config, served only by `GET /app/auth/me` — the
+   * `user` nested in a login/register response does not carry it, hence
+   * optional. Read it through `useAuth().config`, never off the user directly.
+   */
+  config?: AppConfig
 }
 
 /**

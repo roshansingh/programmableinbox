@@ -6,10 +6,10 @@
  * (app/api/webhooks/email/route.ts). Left alone, that mismatch reopens the
  * cross-tenant interception the unique index was added to close:
  *
- *   1. Tenant B claims `Billing@corp.com` — stored verbatim.
- *   2. Inbound mail for that address is lowercased to `billing@corp.com`,
+ *   1. Tenant B claims `Payroll@corp.com` — stored verbatim.
+ *   2. Inbound mail for that address is lowercased to `payroll@corp.com`,
  *      matches nothing, and Tenant B's inbox stays empty.
- *   3. Tenant A claims `billing@corp.com` — a different byte string, so the
+ *   3. Tenant A claims `payroll@corp.com` — a different byte string, so the
  *      unique index allows it — and receives all of Tenant B's mail.
  *
  * These tests pin the fix: every claimed address is normalized before it is
@@ -21,7 +21,7 @@
  * getAuthenticatedUser, and every request carries a bearer token that is not
  * an sk_live_ key — withUser rejects those by prefix before verification.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
@@ -70,7 +70,7 @@ const ROW = {
   id: 'inbox_1',
   organizationId: 'org_1',
   userId: 'user_1',
-  email: 'billing@corp.com',
+  email: 'payroll@corp.com',
   name: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -81,6 +81,14 @@ beforeEach(() => {
   vi.resetModules()
   resolveUserPrincipalFromTokenMock.mockResolvedValue(PRINCIPAL)
   emailInboxFindFirstMock.mockResolvedValue(null)
+  // Creation is fail-closed on the domain allowlist (issue #98), so these
+  // normalization tests must configure the domain they claim at or every POST
+  // stops at a 503 before reaching the behavior under test.
+  process.env.EMAIL_INBOX_DOMAINS = 'corp.com'
+})
+
+afterEach(() => {
+  delete process.env.EMAIL_INBOX_DOMAINS
 })
 
 async function post(body: unknown) {
@@ -111,24 +119,24 @@ describe('POST /api/app/emailInbox — address normalization', () => {
   it('persists the address lowercased and trimmed', async () => {
     emailInboxCreateMock.mockResolvedValue(ROW)
 
-    const response = await post({ organizationId: 'org_1', email: '  Billing@Corp.com ' })
+    const response = await post({ organizationId: 'org_1', email: '  Payroll@Corp.com ' })
 
     expect(response.status).toBe(201)
-    expect(emailInboxCreateMock.mock.calls[0][0].data.email).toBe('billing@corp.com')
+    expect(emailInboxCreateMock.mock.calls[0][0].data.email).toBe('payroll@corp.com')
   })
 
   it('checks availability against the normalized address, not the raw input', async () => {
     emailInboxCreateMock.mockResolvedValue(ROW)
 
-    await post({ organizationId: 'org_1', email: 'Billing@Corp.com' })
+    await post({ organizationId: 'org_1', email: 'Payroll@Corp.com' })
 
-    expect(emailInboxFindFirstMock.mock.calls[0][0].where.email).toBe('billing@corp.com')
+    expect(emailInboxFindFirstMock.mock.calls[0][0].where.email).toBe('payroll@corp.com')
   })
 
   it('409s when the address is already claimed', async () => {
-    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'billing@corp.com' })
+    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'payroll@corp.com' })
 
-    const response = await post({ organizationId: 'org_1', email: 'billing@corp.com' })
+    const response = await post({ organizationId: 'org_1', email: 'payroll@corp.com' })
 
     expect(response.status).toBe(409)
     expect((await response.json()).message).toBe(UNAVAILABLE)
@@ -136,20 +144,20 @@ describe('POST /api/app/emailInbox — address normalization', () => {
   })
 
   it('409s on a case variant of an address another tenant already holds', async () => {
-    // The core of the bug: `Billing@corp.com` must not be claimable while
-    // `billing@corp.com` exists, because routing treats them as one address.
-    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'billing@corp.com' })
+    // The core of the bug: `Payroll@corp.com` must not be claimable while
+    // `payroll@corp.com` exists, because routing treats them as one address.
+    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'payroll@corp.com' })
 
-    const response = await post({ organizationId: 'org_1', email: 'Billing@corp.com' })
+    const response = await post({ organizationId: 'org_1', email: 'Payroll@corp.com' })
 
     expect(response.status).toBe(409)
     expect(emailInboxCreateMock).not.toHaveBeenCalled()
   })
 
   it('409s on a whitespace-padded variant', async () => {
-    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'billing@corp.com' })
+    emailInboxFindFirstMock.mockResolvedValue({ id: 'inbox_other', email: 'payroll@corp.com' })
 
-    const response = await post({ organizationId: 'org_1', email: ' billing@corp.com ' })
+    const response = await post({ organizationId: 'org_1', email: ' payroll@corp.com ' })
 
     expect(response.status).toBe(409)
   })
@@ -159,7 +167,7 @@ describe('POST /api/app/emailInbox — address normalization', () => {
     // it. The unique index decides, and its violation must read as "taken".
     emailInboxCreateMock.mockRejectedValue(uniqueViolation())
 
-    const response = await post({ organizationId: 'org_1', email: 'billing@corp.com' })
+    const response = await post({ organizationId: 'org_1', email: 'payroll@corp.com' })
 
     expect(response.status).toBe(409)
     expect((await response.json()).message).toBe(UNAVAILABLE)
@@ -172,7 +180,7 @@ describe('POST /api/app/emailInbox — address normalization', () => {
     emailInboxFindFirstMock.mockResolvedValue(null)
     emailInboxCreateMock.mockRejectedValue(uniqueViolation())
 
-    const response = await post({ organizationId: 'org_1', email: 'billing@corp.com' })
+    const response = await post({ organizationId: 'org_1', email: 'payroll@corp.com' })
 
     expect(response.status).toBe(409)
     expect((await response.json()).message).toBe(UNAVAILABLE)
@@ -186,7 +194,7 @@ describe('POST /api/app/emailInbox — address normalization', () => {
   })
 
   it('403s a request for an organization the user does not belong to', async () => {
-    const response = await post({ organizationId: 'org_other', email: 'billing@corp.com' })
+    const response = await post({ organizationId: 'org_other', email: 'payroll@corp.com' })
 
     expect(response.status).toBe(403)
     expect(emailInboxCreateMock).not.toHaveBeenCalled()
@@ -200,7 +208,7 @@ describe('POST /api/app/emailInbox — address normalization', () => {
       new NextRequest('http://localhost/api/app/emailInbox', {
         method: 'POST',
         headers: { authorization: 'Bearer sk_live_abcdef123456' },
-        body: JSON.stringify({ organizationId: 'org_1', email: 'billing@corp.com' }),
+        body: JSON.stringify({ organizationId: 'org_1', email: 'payroll@corp.com' }),
       }),
       { params: Promise.resolve({}) },
     )
@@ -227,7 +235,7 @@ describe('PATCH /api/app/emailInbox/[id] — address immutability', () => {
   it('409s a case variant, which routing would treat as the same address', async () => {
     emailInboxFindFirstMock.mockResolvedValue(ROW)
 
-    const response = await patch('inbox_1', { email: 'Billing@Corp.com', name: 'x' })
+    const response = await patch('inbox_1', { email: 'Payroll@Corp.com', name: 'Renamed' })
 
     // Normalizing the submission makes it equal to the stored address, so this
     // is a no-op rather than a change — it must be allowed through to the rename.

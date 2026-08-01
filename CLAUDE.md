@@ -89,7 +89,7 @@ Four properties are load-bearing:
 
 ## Required env vars (`.env`)
 
-**Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`.
+**Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `EMAIL_INBOX_DOMAINS`.
 
 **Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`.
 
@@ -102,6 +102,8 @@ Four properties are load-bearing:
 **`JWT_SECRET` has no fallback and never should.** `getJwtSecret()` in `lib/auth-server.ts` resolves it through `config.auth`, which throws when it is unset, blank, or under 16 characters — so `signToken`/`verifyToken` fail closed instead of signing with a guessable value. It is resolved per call rather than captured at module load, because every protected route imports `lib/auth-server` and `next build` evaluates those modules with no secrets in the environment; a module-scope assertion would break the build rather than the misconfigured deployment. Generate one with `openssl rand -base64 32`; rotating it invalidates every issued session and requires a restart to take effect.
 
 **`DATABASE_URL` must carry `options=-c%20timezone%3DUTC`.** This is now enforced: the `db` schema parses the URL, reads its `options` parameter and requires a UTC session timezone, so a connection string without one fails at boot. The check is semantic rather than a substring match, because `URLSearchParams` serialises the space as `+` (`options=-c+timezone%3DUTC`) and that is the same option. Prisma sends timestamps as naive strings, so Postgres interprets them in the *session* timezone before storing them in `timestamptz` columns. A non-UTC session (a Mac inheriting `America/New_York`, say) stores every timestamp shifted by the local offset. Prisma reverses the shift on read, so the ORM looks correct while raw SQL sees the wrong instant — which silently broke the grouped-threads cursor pagination in `app/api/v1/emailInbox/[id]/messages/grouped-query.ts`. The deployed container also pins `timezone = 'UTC'` in `deploy/postgres/postgresql.conf`; the connection option is what covers local dev.
+
+**`EMAIL_INBOX_DOMAINS` is required and asserted at boot.** A comma-separated list of the domains an inbox may be created at, parsed by the `emailInbox` schema in `lib/config/schema.ts` into a validated, de-duplicated `string[]`. Every entry must be verified in Resend *and* have its inbound route pointed at `POST /api/webhooks/email`: mail only ever reaches us for those domains, so an inbox anywhere else is unroutable by construction — created, listed, looking live in the UI, and unable to receive a single message. `assertConfig()` refuses to start without at least one valid entry, so a misconfigured deployment fails loudly at boot rather than serving a creation form that cannot work. Matching is exact — `pibx.dev` does not admit `evil.pibx.dev`. Reaches the browser as `config.emailInboxDomains` on `GET /api/app/auth/me` (see Client-visible config below), never as a `NEXT_PUBLIC_*` var, which would need a rebuild rather than a restart to change.
 
 ## Architecture
 
@@ -167,6 +169,25 @@ API keys use **SHA-256 hashing** with scopes for fine-grained access control:
 - **Listing** (`GET /api/v1/apiKeys`): Returns serialized response via `serializeApiKey()` which exposes only `prefix` (12-char identifier) and `scopes`, never the raw key or hash
 - **Scopes**: exactly `inboxes:read` and `messages:read` — validated against `API_KEY_SCOPE_SET` on creation. There are no write scopes; the external surface is read-only. `messages:delete` was retired and migrated away in `prisma/migrations/*_retire_messages_delete_scope`. `DEFAULT_API_KEY_SCOPES` is enumerated explicitly rather than spread from the list, so a future write scope cannot become a default grant by accident.
 - **Validation**: scope enforcement lives in the `withApiKey` wrapper, declared per route beside the HTTP method rather than inside the handler body
+
+### Inbox creation policy (issue #98)
+
+Address *syntax* validation (`lib/email-address.ts`) never claimed to know which domains we can receive at, so creation used to accept any well-formed address. Two rules now sit on every write path, both in `lib/validation/inbox-policy.ts`:
+
+- **Domain allowlist** — `EMAIL_INBOX_DOMAINS` (above). Unconfigured → 503; wrong domain → 400.
+- **Impersonation blocklist** — `lib/security/blocked-inbox-terms.ts`, applied to the local part *and* the display name → 422. Because every inbox now sits on a domain we own and genuinely receive at, `amazon-security@<our-domain>` is not a spoof but a working address for collecting phishing replies; `pi-support@` is the same aimed at our own users. Matching normalizes (lowercase → leetspeak fold → strip non-alphanumerics) so `g-o-o-g-l-e`, `g00gle` and `g.o.o.g.l.e` all collapse to `google`. Distinctive brands match as substrings; short or English-colliding terms (`pi`, `x`, `ups`, `chase`, `meta`, `wise`) match only as standalone tokens, so `pizza` and `purchase` survive. Display names are additionally ASCII-only — a Cyrillic `Аmazon` normalizes to `mazon` and only the charset guard stops it.
+
+**Both routes must call the policy, and rename is not optional.** `PATCH /api/app/emailInbox/[id]` runs the same name check as `POST`; without it an inbox is created as `qa` and renamed to `Amazon Support` afterwards, and the blocklist is worthless. The rules live in `lib/` rather than a route handler precisely so a future creation path cannot quietly skip them.
+
+The client half (`components/create-email-dialog.tsx`) composes the address from a local-part input plus a fixed suffix (one domain) or a `Select` (two or more) — the user cannot type a domain at all — and shows inline field errors. It is convenience; the server rejects the same inputs when a request bypasses the UI. Shared wording lives in `lib/validation/inbox-policy-messages.ts`, which imports nothing so the client can use it without pulling Pino into the browser bundle.
+
+The allowlist reaches the browser as `config.emailInboxDomains` on `GET /api/app/auth/me` — see the `AppConfig` note under Response envelope below — never as a `NEXT_PUBLIC_*` var, which would be inlined at build time and need a rebuild to change.
+
+### Client-visible config (`AppConfig`)
+
+`GET /api/app/auth/me` returns the user fields plus a sibling `config` object built by `getAppConfig()` (`lib/config/app-config.ts`). `AuthProvider` already fetches that route once on mount, so config costs no extra round-trip; read it through `useAuth().config`, never off `user.config`. `login`/`register` deliberately do **not** carry it — they nest the user under `{ user: ... }` and are followed by a `/me` refetch anyway, hence `User.config` is optional.
+
+**`AppConfig` is an allowlist type and the review gate.** Everything in it is published to every authenticated user, so nothing secret goes in it; `lib/config/__tests__/app-config.test.ts` pins the exact key set so an addition cannot land unnoticed. `useAuth()` falls back to empty values when the server sends none — empty must always read as "feature unavailable", never "no restrictions".
 
 ### Email ingestion (Resend webhook)
 

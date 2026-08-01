@@ -198,6 +198,69 @@ const SecuritySchema = z
     }
   })
 
+/**
+ * Domains an inbox may be created at (issue #98).
+ *
+ * Required, and `assertConfig()` refuses to boot without at least one valid
+ * entry. That is deliberate rather than defensive: mail only ever reaches this
+ * platform for domains verified in Resend and pointed at
+ * `POST /api/webhooks/email`, so with no allowlist there is no address the
+ * product can hand out that actually works — a server that starts anyway would
+ * serve a creation form guaranteed to produce dead inboxes.
+ *
+ * Malformed entries throw rather than being dropped with a warning. An earlier
+ * draft dropped-and-warned per request, which both spammed the log and silently
+ * narrowed the allowlist; failing at boot names the typo once, loudly.
+ */
+const LDH_LABEL = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?'
+const DOMAIN_PATTERN = new RegExp(`^${LDH_LABEL}(?:\\.${LDH_LABEL})+$`)
+
+const EmailInboxSchema = z
+  .object({
+    EMAIL_INBOX_DOMAINS: zNonEmpty,
+  })
+  .transform((v, ctx) => {
+    const seen = new Set<string>()
+    const domains: string[] = []
+    const malformed: string[] = []
+
+    // Lowercased so comparison happens in the same space as the stored,
+    // normalized address (`lib/email-address.ts`); otherwise a mixed-case
+    // entry in `.env` would allow nothing.
+    for (const entry of v.EMAIL_INBOX_DOMAINS.split(',')) {
+      const domain = entry.trim().toLowerCase()
+      if (domain === '') continue
+      if (!DOMAIN_PATTERN.test(domain)) {
+        malformed.push(domain)
+        continue
+      }
+      if (seen.has(domain)) continue
+      seen.add(domain)
+      domains.push(domain)
+    }
+
+    if (malformed.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_INBOX_DOMAINS'],
+        message: `contains malformed domains (${malformed.join(', ')}) — each must be a dotted, ASCII hostname with no @`,
+      })
+      return z.NEVER
+    }
+
+    if (domains.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_INBOX_DOMAINS'],
+        message: 'must list at least one domain',
+      })
+      return z.NEVER
+    }
+
+    /** Operator-declared order is preserved; the first is the UI default. */
+    return { domains }
+  })
+
 const BillingSchema = z
   .object({
     ENABLE_BILLING: zBool.optional(),
@@ -249,6 +312,7 @@ export const DOMAIN_SCHEMAS = {
     ],
   },
   billing: { schema: BillingSchema, vars: ['ENABLE_BILLING'] },
+  emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
 
 export type DomainName = keyof typeof DOMAIN_SCHEMAS

@@ -11,6 +11,7 @@ const REQUIRED_VARS = [
   'AUTH_RESEND_API_KEY',
   'AUTH_EMAIL_FROM',
   'AUTH_EMAIL_FROM_NAME',
+  'EMAIL_INBOX_DOMAINS',
 ] as const
 
 /** Strips the valid baseline vitest.config.ts provides to every suite. */
@@ -26,6 +27,7 @@ function setValidEnv() {
   process.env.AUTH_RESEND_API_KEY = 're_test_placeholder'
   process.env.AUTH_EMAIL_FROM = 'no-reply@example.com'
   process.env.AUTH_EMAIL_FROM_NAME = 'Inbox'
+  process.env.EMAIL_INBOX_DOMAINS = 'inbox.example.com'
 }
 
 beforeEach(() => {
