@@ -1,3 +1,5 @@
+import { config } from '@/lib/config'
+
 /**
  * Initialize the commercial layer.
  *
@@ -7,7 +9,7 @@
  * Called from app/layout.tsx at app startup.
  */
 export function initializeCommercial(): void {
-  if (process.env.ENABLE_BILLING === 'true') {
+  if (config.billing.enabled) {
     console.log('[Commercial] Billing enabled, waiting for billing app to configure...')
   } else {
     console.log('[Commercial] Billing disabled, using OSS defaults (allow all)')

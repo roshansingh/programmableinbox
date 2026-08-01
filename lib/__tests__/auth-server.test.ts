@@ -7,11 +7,18 @@ import jwt from 'jsonwebtoken'
 // token tests touch the database, so keep it out of the way.
 vi.mock('@/lib/db', () => ({ prisma: {} }))
 
-// The module reads process.env lazily, so a single import is enough — no
-// resetModules dance required.
+// The module resolves the secret lazily through @/lib/config, so a single
+// import is enough — no resetModules dance required.
 import { signToken, verifyToken } from '@/lib/auth-server'
+import { resetConfigCache } from '@/lib/config'
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET
+
+// Config memoizes per domain, so a test that changes JWT_SECRET must clear the
+// memo or it reads the previous test's parse.
+beforeEach(() => {
+  resetConfigCache()
+})
 
 afterEach(() => {
   if (ORIGINAL_JWT_SECRET === undefined) {
@@ -19,6 +26,7 @@ afterEach(() => {
   } else {
     process.env.JWT_SECRET = ORIGINAL_JWT_SECRET
   }
+  resetConfigCache()
 })
 
 describe('auth-server JWT secret handling', () => {
@@ -81,9 +89,26 @@ describe('auth-server JWT secret handling', () => {
       expect(verifyToken('not-a-jwt')).toBeNull()
     })
 
-    it('picks up a rotated secret without a restart (no module-load caching)', () => {
+    it('is not captured at module load — a first read after import still sees the env', () => {
+      // This is the property that keeps `next build` working: auth-server is
+      // imported transitively by every protected route, and the build evaluates
+      // those modules with no JWT_SECRET present.
+      resetConfigCache()
+      process.env.JWT_SECRET = 'a-different-real-secret'
       const token = signToken({ userId: 'user_42' })
-      process.env.JWT_SECRET = 'rotated-secret'
+      expect(jwt.verify(token, 'a-different-real-secret')).toMatchObject({ userId: 'user_42' })
+    })
+
+    it('memoizes the secret, so a rotation takes effect only after a restart', () => {
+      // Deliberate consequence of memoizing the parsed config: re-reading
+      // process.env later must not be able to reintroduce an unvalidated value.
+      // In practice nothing is lost — a deployed container cannot see a changed
+      // env var without restarting anyway.
+      const token = signToken({ userId: 'user_42' })
+      process.env.JWT_SECRET = 'rotated-secret-long-enough'
+      expect(verifyToken(token)?.userId).toBe('user_42')
+
+      resetConfigCache()
       expect(verifyToken(token)).toBeNull()
     })
   })

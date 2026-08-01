@@ -2,15 +2,30 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { getCurrentUser, type User } from "@/lib/api/auth.api"
+import { getCurrentUser, type User, type AppConfig } from "@/lib/api/auth.api"
 
 interface AuthContextValue {
   user: User | null
   organizationId: string | null
+  /**
+   * Client-visible platform config from `GET /app/auth/me` (issue #98).
+   * Always an object, so consumers never branch on null — but a server that
+   * has not been configured yields empty values, and every consumer must treat
+   * that as "this feature is unavailable" rather than "no restrictions".
+   */
+  config: AppConfig
   isLoading: boolean
   isAuthenticated: boolean
   refreshUser: () => Promise<void>
 }
+
+/**
+ * Used before `/auth/me` resolves and whenever the server sends no `config`.
+ * Empty on purpose: an empty domain list disables inbox creation, which is the
+ * fail-closed direction. Defaulting to anything permissive here would
+ * reintroduce the bug on the client.
+ */
+const EMPTY_CONFIG: AppConfig = { emailInboxDomains: [] }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
@@ -23,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   const organizationId = user?.organizations?.[0]?.id ?? null
+  const config = user?.config ?? EMPTY_CONFIG
 
   const isPublicRoute = PUBLIC_ROUTES.some(route =>
     pathname === route || pathname.startsWith(route + '/')
@@ -51,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isPublicRoute])
 
   return (
-    <AuthContext.Provider value={{ user, organizationId, isLoading, isAuthenticated, refreshUser }}>
+    <AuthContext.Provider value={{ user, organizationId, config, isLoading, isAuthenticated, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

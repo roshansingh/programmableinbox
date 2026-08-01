@@ -11,7 +11,7 @@
  *     path that mutates a row it did not first prove is owned, so "foreign
  *     inbox" is expressed as the lookup returning null.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
@@ -66,6 +66,14 @@ beforeEach(() => {
   resolveUserPrincipalFromTokenMock.mockResolvedValue(PRINCIPAL)
   emailInboxFindFirstMock.mockResolvedValue(null)
   transactionMock.mockResolvedValue([])
+  // Creation is fail-closed on the domain allowlist (issue #98): without a
+  // configured domain every POST here would stop at 503 before reaching the
+  // uniqueness behavior under test.
+  process.env.EMAIL_INBOX_DOMAINS = 'corp.com'
+})
+
+afterEach(() => {
+  delete process.env.EMAIL_INBOX_DOMAINS
 })
 
 describe('POST /api/app/emailInbox — address uniqueness (F1)', () => {

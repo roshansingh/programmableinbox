@@ -59,30 +59,30 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
   it('stores a claimed address normalized', async () => {
     const { org, token } = await createOrgWithUser()
 
-    const res = await createInbox(token, org.id, '  Billing@Corp.com ')
+    const res = await createInbox(token, org.id, '  Payroll@Corp.com ')
     expect(res.status).toBe(201)
 
     const { data } = await res.json()
-    expect(data.email).toBe('billing@corp.com')
+    expect(data.email).toBe('payroll@corp.com')
 
     const row = await prisma.emailInbox.findUniqueOrThrow({ where: { id: data.id } })
-    expect(row.email).toBe('billing@corp.com')
+    expect(row.email).toBe('payroll@corp.com')
   })
 
   it('409s a second tenant claiming a case variant of an address already in use', async () => {
-    // The attack: tenant B holds `Billing@Corp.com`, tenant A tries to claim
+    // The attack: tenant B holds `Payroll@Corp.com`, tenant A tries to claim
     // the lowercase form the router actually matches on.
     const b = await createOrgWithUser()
-    expect((await createInbox(b.token, b.org.id, 'Billing@Corp.com')).status).toBe(201)
+    expect((await createInbox(b.token, b.org.id, 'Payroll@Corp.com')).status).toBe(201)
 
     const a = await createSecondOrg()
-    for (const variant of ['billing@corp.com', 'BILLING@CORP.COM', ' Billing@corp.com ']) {
+    for (const variant of ['payroll@corp.com', 'PAYROLL@CORP.COM', ' Payroll@corp.com ']) {
       const res = await createInbox(a.token, a.org.id, variant)
       expect(res.status).toBe(409)
       expect((await res.json()).message).toBe('Email address is not available')
     }
 
-    expect(await prisma.emailInbox.count({ where: { email: 'billing@corp.com' } })).toBe(1)
+    expect(await prisma.emailInbox.count({ where: { email: 'payroll@corp.com' } })).toBe(1)
   })
 
   it('refuses to change an inbox address at all — the address is immutable', async () => {
@@ -90,7 +90,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
     // onto a case variant of a tenant's address), so PATCH no longer changes
     // the address for any target, occupied or free.
     const b = await createOrgWithUser()
-    await seedInbox(b.org.id, b.user.id, { email: 'billing@corp.com' })
+    await seedInbox(b.org.id, b.user.id, { email: 'payroll@corp.com' })
 
     const a = await createSecondOrg()
     const attacker = await seedInbox(a.org.id, a.user.id, { email: 'throwaway@corp.com' })
@@ -100,7 +100,7 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
       jsonRequest(`http://localhost/api/app/emailInbox/${attacker.id}`, {
         method: 'PATCH',
         credential: a.token,
-        body: { email: 'BILLING@Corp.com' },
+        body: { email: 'PAYROLL@Corp.com' },
       }),
       params({ id: attacker.id }),
     )
@@ -142,15 +142,15 @@ describe('inbox address claiming — cross-tenant interception (#37)', () => {
 
   it('delivers an inbound email to exactly one inbox, in the owning org', async () => {
     const b = await createOrgWithUser()
-    const created = await createInbox(b.token, b.org.id, 'Billing@Corp.com')
+    const created = await createInbox(b.token, b.org.id, 'Payroll@Corp.com')
     const { data: victim } = await created.json()
 
     // The attacker cannot get a second row for this address at all.
     const a = await createSecondOrg()
-    expect((await createInbox(a.token, a.org.id, 'billing@corp.com')).status).toBe(409)
+    expect((await createInbox(a.token, a.org.id, 'payroll@corp.com')).status).toBe(409)
 
     resend.verify.mockReturnValue(undefined)
-    const email = makeEmail({ id: 'resend-claim-fanout', to: ['Billing@Corp.com'] })
+    const email = makeEmail({ id: 'resend-claim-fanout', to: ['Payroll@Corp.com'] })
     resend.receivingGet.mockResolvedValue({ data: email })
 
     const res = await webhookPost(

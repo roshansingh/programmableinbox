@@ -22,6 +22,15 @@ if (!/test/i.test(dbName)) {
 // at first import and caches the client on globalThis).
 process.env.DATABASE_URL = appUrl
 
+// Inbox creation is fail-closed on the domain allowlist (issue #98), so without
+// this every create in the suite would stop at a 503 before reaching the
+// behavior under test. Set here rather than read from .env.test on purpose: the
+// domains the fixtures claim at are a property of the tests, not of whoever
+// configured the machine, and a suite whose outcome depends on an operator's
+// env value is not reproducible. Tests that exercise the allowlist itself
+// override this per-test and restore it afterwards.
+process.env.EMAIL_INBOX_DOMAINS = 'test.dev,corp.com,example.com,case.dev'
+
 // Imported AFTER DATABASE_URL is set so the singleton binds to the test DB.
 const { prisma } = await import('@/lib/db')
 

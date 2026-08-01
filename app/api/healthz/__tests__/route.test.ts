@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { setConfigEnv, withConfigEnv } from '@/test/config'
 
 const findManyMock = vi.fn()
 const queryRawMock = vi.fn()
@@ -17,10 +18,11 @@ async function loadRoute() {
 }
 
 describe('GET /api/healthz', () => {
+  withConfigEnv({ HEALTHZ_SECRET: 'topsecret' })
+
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    process.env.HEALTHZ_SECRET = 'topsecret'
   })
 
   it('returns 200 with db ok and fresh backups when everything is healthy', async () => {
@@ -132,7 +134,7 @@ describe('GET /api/healthz', () => {
   })
 
   it('returns only public status fields when no healthz secret is provided', async () => {
-    delete process.env.HEALTHZ_SECRET
+    setConfigEnv({ HEALTHZ_SECRET: undefined })
     queryRawMock.mockResolvedValue([{ '?column?': 1 }])
     const fresh = new Date()
     findManyMock.mockResolvedValue([
@@ -151,7 +153,7 @@ describe('GET /api/healthz', () => {
   })
 
   it('returns backup details only when the healthz secret header matches', async () => {
-    process.env.HEALTHZ_SECRET = 'topsecret'
+    setConfigEnv({ HEALTHZ_SECRET: 'topsecret' })
     queryRawMock.mockResolvedValue([{ '?column?': 1 }])
     const fresh = new Date()
     findManyMock.mockResolvedValue([

@@ -77,9 +77,24 @@ describe('getProvider', () => {
     expect(provider.baseURL).toBe('https://openrouter.ai/api/v1')
   })
 
-  it('returns null for unknown provider', async () => {
+  it('throws on an unknown provider instead of silently disabling enrichment', async () => {
+    // A typo in LLM_PROVIDER used to hit the switch's `default:` branch and
+    // return null, which is indistinguishable from "enrichment is turned off".
     vi.stubEnv('LLM_PROVIDER', 'unknown-provider')
     const { getProvider } = await import('../factory')
+    expect(() => getProvider()).toThrow(/LLM_PROVIDER/)
+  })
+
+  it('returns null when no provider is configured, which is how it is disabled', async () => {
+    vi.stubEnv('LLM_PROVIDER', '')
+    const { getProvider } = await import('../factory')
     expect(getProvider()).toBeNull()
+  })
+
+  it('throws when a hosted provider is set without an API key', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'anthropic')
+    vi.stubEnv('LLM_API_KEY', '')
+    const { getProvider } = await import('../factory')
+    expect(() => getProvider()).toThrow(/LLM_API_KEY/)
   })
 })

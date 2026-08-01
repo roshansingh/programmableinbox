@@ -87,3 +87,36 @@ export function parseInboxAddress(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   return isValidInboxAddress(raw) ? normalizeInboxAddress(raw) : null
 }
+
+/**
+ * Splits an address into the two halves the inbox-creation policy judges
+ * separately: the domain, which must be one we actually receive mail at
+ * (the `emailInbox` slice of `lib/config`), and the local part, which must not
+ * impersonate a brand (`lib/security/blocked-inbox-terms.ts`).
+ *
+ * **Splitting is not validation.** This normalizes and splits whatever it is
+ * given: `a@b@corp.com` returns `{ localPart: 'a@b', domain: 'corp.com' }`
+ * rather than `null`. Callers that need a *valid* address must run
+ * `isValidInboxAddress` / `parseInboxAddress` — `validateInboxAddress` in
+ * `lib/validation/inbox-policy.ts` does exactly that before calling here, and
+ * does not rely on its own caller having done so.
+ *
+ * Splits on the *last* `@` because that is the one that decides routing: a
+ * helper returning the wrong half would hand the domain check a string the
+ * submitter controls.
+ *
+ * Normalizes first, so no caller can compare a raw, mixed-case address against
+ * the lowercased allowlist and get a false negative.
+ */
+export function splitAddress(
+  raw: string,
+): { localPart: string; domain: string } | null {
+  const normalized = normalizeInboxAddress(raw)
+  const at = normalized.lastIndexOf('@')
+  if (at <= 0 || at === normalized.length - 1) return null
+
+  return {
+    localPart: normalized.slice(0, at),
+    domain: normalized.slice(at + 1),
+  }
+}

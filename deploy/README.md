@@ -110,6 +110,12 @@ AUTH_RESEND_API_KEY=
 AUTH_EMAIL_FROM=
 AUTH_EMAIL_FROM_NAME=
 NEXT_PUBLIC_API_MODE=local
+# Domains an inbox may be created at, comma-separated. REQUIRED: unset means
+# inbox creation returns 503, never "any domain". Every entry must be verified
+# in Resend AND have its inbound route pointed at https://$DOMAIN/api/webhooks/email
+# — an inbox at an unrouted domain can never receive mail. Public config: it is
+# served to every authenticated client on /api/app/auth/me.
+EMAIL_INBOX_DOMAINS=inbox.example.com
 HEALTHZ_SECRET=              # optional; gates /api/healthz
 # LLM
 LLM_PROVIDER=

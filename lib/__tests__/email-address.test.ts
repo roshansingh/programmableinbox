@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeInboxAddress, isValidInboxAddress } from '@/lib/email-address'
+import { normalizeInboxAddress, isValidInboxAddress, splitAddress } from '@/lib/email-address'
+
+describe('splitAddress', () => {
+  it('splits a normalized address into local part and domain', () => {
+    expect(splitAddress('billing@corp.com')).toEqual({
+      localPart: 'billing',
+      domain: 'corp.com',
+    })
+  })
+
+  it('splits on the last @, so a quoted local part cannot smuggle the domain', () => {
+    // ADDRESS_PATTERN rejects multiple @ today, but splitting on the last one
+    // means this helper can never hand a caller a domain that is really part of
+    // the local part — the domain check must see the routable half.
+    expect(splitAddress('a@b@corp.com')).toEqual({ localPart: 'a@b', domain: 'corp.com' })
+  })
+
+  it('lowercases, so callers cannot compare a raw address against the allowlist', () => {
+    expect(splitAddress('Billing@Corp.com')).toEqual({
+      localPart: 'billing',
+      domain: 'corp.com',
+    })
+  })
+
+  it('returns null when there is no domain to check', () => {
+    expect(splitAddress('billing')).toBeNull()
+    expect(splitAddress('billing@')).toBeNull()
+    expect(splitAddress('@corp.com')).toBeNull()
+  })
+})
 
 describe('normalizeInboxAddress', () => {
   it('lowercases the whole address', () => {

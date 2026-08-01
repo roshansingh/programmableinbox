@@ -3,6 +3,7 @@ import { toOrgScope, toOwnerScope } from '@/lib/services/scope'
 import { getInbox, getOwnedInbox, updateInbox, deleteInbox } from '@/lib/services/email-inbox'
 import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { parseInboxAddress } from '@/lib/email-address'
+import { validateInboxName } from '@/lib/validation/inbox-policy'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 
@@ -46,7 +47,19 @@ export const PATCH = withUser<{ id: string }>(async (request, principal, { param
       return jsonError(EMAIL_IMMUTABLE, 409)
     }
 
-    const updated = await updateInbox(toOwnerScope(principal), id, { name })
+    // The same name policy as creation (issue #98). Without it the blocklist is
+    // worthless: an inbox created as `qa` could simply be renamed to
+    // `Amazon Support` afterwards, and the display name is what a recipient
+    // actually reads.
+    const nameViolation = validateInboxName(name)
+    if (nameViolation) return jsonError(nameViolation.message, nameViolation.status)
+
+    // Persist the trimmed value the policy judged, not the raw submission —
+    // otherwise `" "` stores as a lone space after validating as absent.
+    const displayName =
+      name === undefined ? undefined : typeof name === 'string' ? name.trim() || null : null
+
+    const updated = await updateInbox(toOwnerScope(principal), id, { name: displayName })
     if (!updated) return jsonError('Not found', 404)
 
     return jsonSuccess(serializeAppInbox(updated, principal.userId))

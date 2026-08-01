@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { withConfigEnv } from '@/test/config'
 
 const getEmailMock = vi.fn()
 const inboxFindManyMock = vi.fn()
@@ -42,11 +43,14 @@ async function loadRoute() {
 }
 
 describe('POST /api/webhooks/email', () => {
+  withConfigEnv({
+    WEBHOOK_SECRET: 'test-webhook-secret',
+    ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true',
+  })
+
   beforeEach(() => {
     vi.resetAllMocks()
     vi.resetModules()
-    process.env.WEBHOOK_SECRET = 'test-secret'
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
     mockWebhooksVerify.mockReturnValue(undefined) // default: passes verification
     enqueueEmailWebhookJobMock.mockResolvedValue(undefined)
   })

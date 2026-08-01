@@ -53,7 +53,9 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Restore env to original state before each test.
+    // Restore env to original state before each test. `freshImport()` resets
+    // the module registry, which also gives lib/config a fresh (empty) memo, so
+    // no explicit resetConfigCache is needed here.
     process.env = { ...originalEnv };
   });
 
@@ -102,32 +104,27 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(5);
     });
 
-    it('falls back to default for non-numeric WEBHOOK_QUEUE_MAX_RETRIES', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'invalid';
+    // A typo'd tuning value used to be indistinguishable from an unset one:
+    // parsePositiveInt returned the fallback for anything it could not parse,
+    // so the operator got 3 retries and no indication their setting was ignored.
+    it.each(['invalid', 'NaN', '-5', '0', '3.5', '1e2'])(
+      'throws on WEBHOOK_QUEUE_MAX_RETRIES=%s rather than silently using 3',
+      async (raw) => {
+        process.env.WEBHOOK_QUEUE_MAX_RETRIES = raw;
+        const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
+        expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_RETRIES/);
+      },
+    );
+
+    it('rejects a value above the sanity bound', async () => {
+      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '101';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_RETRIES/);
     });
 
-    it('falls back to default for "NaN" WEBHOOK_QUEUE_MAX_RETRIES', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'NaN';
-      const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
-    });
-
-    it('falls back to default for empty string WEBHOOK_QUEUE_MAX_RETRIES', async () => {
+    it('treats an empty WEBHOOK_QUEUE_MAX_RETRIES as unset', async () => {
+      // `FOO=` in a .env file means "not configured", not "configured badly".
       process.env.WEBHOOK_QUEUE_MAX_RETRIES = '';
-      const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
-    });
-
-    it('falls back to default for negative WEBHOOK_QUEUE_MAX_RETRIES', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '-5';
-      const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
-    });
-
-    it('falls back to default for zero WEBHOOK_QUEUE_MAX_RETRIES', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '0';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
     });
@@ -138,16 +135,23 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(10);
     });
 
-    it('falls back to default for zero WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
-      process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = '0';
-      const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(5);
-    });
+    it.each(['0', '-1', 'lots', '1001'])(
+      'throws on WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=%s rather than silently using 5',
+      async (raw) => {
+        process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = raw;
+        const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
+        expect(() => WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toThrow(
+          /WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX/,
+        );
+      },
+    );
 
-    it('falls back to default for negative WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', async () => {
-      process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = '-1';
-      const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(5);
+    it('is lazy — importing the module with a bad value does not throw', async () => {
+      // next build evaluates every route module, and these route modules import
+      // the queue. A module-load read would fail the build instead of the
+      // misconfigured deployment.
+      process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'nonsense';
+      await expect(freshImport()).resolves.toBeDefined();
     });
   });
 
@@ -164,16 +168,26 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(opts.port).toBe(1234);
     });
 
-    it('defaults to localhost:6379 when REDIS_URL is absent', async () => {
-      // The module falls back to "redis://localhost:6379"; URL.parse yields
-      // hostname="localhost" (not "127.0.0.1" — that sentinel only fires when
-      // the hostname field is empty after parsing).
+    it('throws when REDIS_URL is absent rather than defaulting to localhost', async () => {
+      // There is deliberately no redis://localhost:6379 fallback: on a box
+      // where the operator forgot to set it, that default silently dials a
+      // Redis that either does not exist or belongs to another service.
       delete process.env.REDIS_URL;
       const { buildRedisOptions } = await freshImport();
-      const opts = buildRedisOptions();
-      expect(opts.host).toBe('localhost');
-      expect(opts.port).toBe(6379);
+      expect(() => buildRedisOptions()).toThrow(/REDIS_URL is required/);
     });
+
+    it.each(['not-a-url', 'http://localhost:6379', 'localhost:6379'])(
+      'throws on REDIS_URL=%s at config read rather than at first connection',
+      async (raw) => {
+        // Previously `new URL()` threw from inside buildRedisOptions when the
+        // queue first dialled Redis, and a hostless URL was quietly rewritten
+        // to 127.0.0.1.
+        process.env.REDIS_URL = raw;
+        const { buildRedisOptions } = await freshImport();
+        expect(() => buildRedisOptions()).toThrow(/REDIS_URL/);
+      },
+    );
 
     it('includes password when present in REDIS_URL', async () => {
       process.env.REDIS_URL = 'redis://:s3cr3t@myhost:6379';

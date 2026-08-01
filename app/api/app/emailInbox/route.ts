@@ -4,6 +4,7 @@ import { listInboxes } from '@/lib/services/email-inbox'
 import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { prisma } from '@/lib/db'
 import { parseInboxAddress } from '@/lib/email-address'
+import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-policy'
 import { jsonSuccess, jsonError, isUniqueViolation } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 
@@ -43,6 +44,24 @@ export const POST = withUser(async (request, principal) => {
     const address = parseInboxAddress(email)
     if (!address) return jsonError('email must be a valid email address', 400)
 
+    // Policy, before the address is claimed (issue #98). Syntax validation
+    // above only proves the address is well-formed; these prove it is one we
+    // can actually receive at, and that it does not impersonate a brand or the
+    // platform on a domain we own. Enforced here and not only in the UI —
+    // a direct request bypasses the dialog entirely.
+    const addressViolation = validateInboxAddress(address)
+    if (addressViolation) {
+      return jsonError(addressViolation.message, addressViolation.status)
+    }
+
+    const nameViolation = validateInboxName(name)
+    if (nameViolation) return jsonError(nameViolation.message, nameViolation.status)
+
+    // Store the value the policy actually judged. Persisting the raw string
+    // while validating the trimmed one lets `" "` through as a name that
+    // validated as absent — and any padding survives into every listing.
+    const displayName = typeof name === 'string' ? name.trim() || null : null
+
     // Friendly pre-check. Not authoritative: reads are soft-delete filtered, so
     // an address held by a deleted inbox is invisible here, and two concurrent
     // requests can both pass. The unique index below is what decides.
@@ -53,7 +72,7 @@ export const POST = withUser(async (request, principal) => {
     if (existing) return jsonError(ADDRESS_UNAVAILABLE, 409)
 
     const inbox = await prisma.emailInbox.create({
-      data: { organizationId, userId: principal.userId, email: address, name: name || null },
+      data: { organizationId, userId: principal.userId, email: address, name: displayName },
     })
 
     return jsonSuccess(serializeAppInbox(inbox, principal.userId), 201)

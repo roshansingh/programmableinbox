@@ -1,4 +1,13 @@
-import type { User, Organization } from '@/lib/api/auth.api'
+import type { User, Organization, AppConfig } from '@/lib/api/auth.api'
+
+/**
+ * Two domains, so the default fixture exercises the picker branch of the create
+ * dialog. Tests that need the single-domain or unconfigured branch override the
+ * `/app/auth/me` handler per test.
+ */
+export const mockAppConfig: AppConfig = {
+  emailInboxDomains: ['inbox.example.com', 'mail.example.com'],
+}
 
 export const mockOrganization: Organization = {
   id: 'org-1',
@@ -16,4 +25,5 @@ export const mockUser: User = {
   lastName: 'User',
   emailVerified: true,
   organizations: [mockOrganization],
+  config: mockAppConfig,
 }
