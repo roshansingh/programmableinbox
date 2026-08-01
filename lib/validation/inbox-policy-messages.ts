@@ -42,7 +42,7 @@ export const NAME_CHARSET =
 export const NAME_NOT_A_STRING = 'name must be a string'
 
 /** Generous for a label, small enough that the column cannot be used as storage. */
-export const MAX_NAME_LENGTH = 200
+export const MAX_NAME_LENGTH = 100
 
 export const NAME_TOO_LONG = `Display name must be ${MAX_NAME_LENGTH} characters or fewer`
 
@@ -52,6 +52,20 @@ export const LOCAL_PART_REQUIRED = 'Email address is required'
 
 export const LOCAL_PART_INVALID =
   'Use only letters, numbers and . _ % + - before the @'
+
+/**
+ * The part before the `@`, capped well below the 254-character *address* limit
+ * that `lib/email-address.ts` enforces for RFC/routing reasons.
+ *
+ * That limit answers "can SMTP carry this"; this one answers "is this an
+ * address a person would be given". Keeping it short also shrinks the room a
+ * long local part offers for padding a lookalike — the blocklist matches
+ * distinctive brands as substrings, so the shorter the field, the less material
+ * there is to bury one in.
+ */
+export const MAX_LOCAL_PART_LENGTH = 50
+
+export const LOCAL_PART_TOO_LONG = `Email address must be ${MAX_LOCAL_PART_LENGTH} characters or fewer before the @`
 
 /** Echoes the allowed domains, which are already public config on `/auth/me`. */
 export function domainNotAllowed(domains: string[]): string {

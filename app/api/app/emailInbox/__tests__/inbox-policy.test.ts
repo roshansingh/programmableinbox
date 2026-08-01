@@ -207,6 +207,48 @@ describe('POST /api/app/emailInbox — impersonation blocklist', () => {
   })
 })
 
+describe('POST /api/app/emailInbox — length caps', () => {
+  it('400s a local part past 50 characters and writes nothing', async () => {
+    const response = await post({
+      organizationId: 'org_1',
+      email: `${'a'.repeat(51)}@inbox.example.com`,
+    })
+
+    expect(response.status).toBe(400)
+    expect(emailInboxCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('creates at exactly 50 characters', async () => {
+    const response = await post({
+      organizationId: 'org_1',
+      email: `${'a'.repeat(50)}@inbox.example.com`,
+    })
+
+    expect(response.status).toBe(201)
+  })
+
+  it('400s a display name past 100 characters and writes nothing', async () => {
+    const response = await post({
+      organizationId: 'org_1',
+      email: 'qa@inbox.example.com',
+      name: 'a'.repeat(101),
+    })
+
+    expect(response.status).toBe(400)
+    expect(emailInboxCreateMock).not.toHaveBeenCalled()
+  })
+
+  it('creates with a display name at exactly 100 characters', async () => {
+    const response = await post({
+      organizationId: 'org_1',
+      email: 'qa@inbox.example.com',
+      name: 'a'.repeat(100),
+    })
+
+    expect(response.status).toBe(201)
+  })
+})
+
 describe('PATCH /api/app/emailInbox/[id] — rename policy', () => {
   beforeEach(() => {
     emailInboxFindFirstMock.mockResolvedValue(ROW)
@@ -239,6 +281,13 @@ describe('PATCH /api/app/emailInbox/[id] — rename policy', () => {
     const response = await patch({ name: 'Аmazon' })
 
     expect(response.status).toBe(422)
+    expect(emailInboxUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('400s a rename past 100 characters — the cap is not create-only either', async () => {
+    const response = await patch({ name: 'a'.repeat(101) })
+
+    expect(response.status).toBe(400)
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 
