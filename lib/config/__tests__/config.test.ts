@@ -44,11 +44,34 @@ describe('DatabaseSchema', () => {
     expect(result.DATABASE_URL).toContain('options=-c%20timezone%3DUTC')
   })
 
+  // The option can be spelled several equivalent ways. Accepting only the
+  // %20 form rejects correctly-configured deployments — it broke the whole
+  // integration suite, whose harness builds the URL with URLSearchParams and
+  // therefore encodes the space as '+'.
+  it.each([
+    ['+ as the encoded space (URLSearchParams output)', 'postgresql://inbox:test@localhost:5432/inbox_test?schema=public&options=-c+timezone%3DUTC'],
+    ['%20 as the encoded space', 'postgresql://localhost:5432/mydb?options=-c%20timezone%3DUTC'],
+    ['mixed-case parameter name', 'postgresql://localhost:5432/mydb?options=-c%20TimeZone%3DUTC'],
+    ['lower-case utc value', 'postgresql://localhost:5432/mydb?options=-c%20timezone%3Dutc'],
+    ['additional -c settings alongside', 'postgresql://localhost:5432/mydb?options=-c%20timezone%3DUTC%20-c%20statement_timeout%3D5000'],
+    ['timezone not first among the settings', 'postgresql://localhost:5432/mydb?options=-c%20statement_timeout%3D5000%20-c%20timezone%3DUTC'],
+  ])('accepts %s', (_label, url) => {
+    expect(safeParse(DatabaseSchema, { DATABASE_URL: url }).success).toBe(true)
+  })
+
   it('rejects a URL missing the UTC timezone option', () => {
     const result = safeParse(DatabaseSchema, {
       DATABASE_URL: 'postgresql://localhost:5432/mydb',
     })
     expect(result.success).toBe(false)
+  })
+
+  it.each([
+    ['a non-UTC timezone', 'postgresql://localhost:5432/mydb?options=-c%20timezone%3DAmerica%2FNew_York'],
+    ['an options param with no timezone setting', 'postgresql://localhost:5432/mydb?options=-c%20statement_timeout%3D5000'],
+    ['timezone as a substring of another setting', 'postgresql://localhost:5432/mydb?options=-c%20log_timezone%3DUTC'],
+  ])('rejects %s', (_label, url) => {
+    expect(safeParse(DatabaseSchema, { DATABASE_URL: url }).success).toBe(false)
   })
 
   it('rejects a non-URL string', () => {

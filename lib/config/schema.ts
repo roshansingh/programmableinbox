@@ -85,14 +85,42 @@ export const optionalNonEmptyString = z.preprocess(
 // Per-domain schemas
 // ---------------------------------------------------------------------------
 
+/**
+ * True when the connection string sets the Postgres session timezone to UTC.
+ *
+ * Inspects the *decoded* `options` query parameter rather than substring-matching
+ * one particular spelling. All of these are the same correctly-configured URL:
+ *
+ *   ?options=-c%20timezone%3DUTC      (what .env.example documents)
+ *   ?options=-c+timezone%3DUTC        (what URLSearchParams produces — '+' is a space)
+ *   ?options=-c TimeZone=UTC          (Postgres parameter names are case-insensitive)
+ *   ?options=-c%20timezone%3DUTC%20-c%20statement_timeout%3D5000   (extra settings)
+ *
+ * A literal substring check rejects every form but the first, which fails a
+ * correctly-configured deployment — the opposite of what this validation is for.
+ */
+export function hasUtcTimezoneOption(raw: string): boolean {
+  let options: string | null
+  try {
+    // searchParams decodes %20/%3D and converts '+' to a space.
+    options = new URL(raw).searchParams.get('options')
+  } catch {
+    return false
+  }
+  if (!options) return false
+  return /(^|\s)-c\s*timezone\s*=\s*UTC(\s|$)/i.test(options)
+}
+
 export const DatabaseSchema = z
   .object({
     DATABASE_URL: z
       .string()
       .url({ message: 'DATABASE_URL must be a valid URL' })
       .refine(
-        (u) => u.includes('options=-c%20timezone%3DUTC'),
-        'DATABASE_URL must include "options=-c%20timezone%3DUTC" to ensure the UTC session timezone — see CLAUDE.md',
+        hasUtcTimezoneOption,
+        'DATABASE_URL must set the UTC session timezone, e.g. "?options=-c%20timezone%3DUTC". ' +
+          'Without it Postgres interprets Prisma timestamps in the server\'s local ' +
+          'timezone and stores them shifted — see CLAUDE.md',
       ),
   })
 
