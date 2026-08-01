@@ -103,6 +103,47 @@ describe('validateInboxAddress', () => {
     })
   })
 
+  /**
+   * A separate, tighter cap than the RFC's 254-character address limit in
+   * `lib/email-address.ts`. That one is about what SMTP can route; this one is
+   * about what a person can plausibly be given as a receiving address — and it
+   * shrinks the surface a 200-character local part offers for stuffing a
+   * lookalike past the substring blocklist.
+   */
+  describe('local-part length', () => {
+    it('accepts a local part at the limit', () => {
+      configure('inbox.example.com')
+      expect(validateInboxAddress(`${'a'.repeat(50)}@inbox.example.com`)).toBeNull()
+    })
+
+    it('rejects a local part past the limit with 400', () => {
+      configure('inbox.example.com')
+      const result = validateInboxAddress(`${'a'.repeat(51)}@inbox.example.com`)
+      expect(result?.status).toBe(400)
+      expect(result?.message).toMatch(/50 characters or fewer/i)
+    })
+
+    /**
+     * The domain is checked first, as it is for the blocklist: answering
+     * "that local part is too long" for a domain we do not receive at is both
+     * useless and a marginally better oracle than necessary.
+     */
+    it('checks the domain before the local-part length', () => {
+      configure('inbox.example.com')
+      const result = validateInboxAddress(`${'a'.repeat(51)}@gmail.com`)
+      expect(result?.message).toMatch(/domain not allowed/i)
+    })
+
+    /**
+     * Length is judged on the normalized address, so the cap cannot be dodged
+     * with case or surrounding whitespace.
+     */
+    it('measures the normalized local part', () => {
+      configure('inbox.example.com')
+      expect(validateInboxAddress(`  ${'A'.repeat(50)}@inbox.example.com  `)).toBeNull()
+    })
+  })
+
   describe('local-part blocklist', () => {
     it.each([
       'amazon-security',
@@ -178,11 +219,13 @@ describe('validateInboxName', () => {
    */
   describe('length', () => {
     it('accepts a name at the limit', () => {
-      expect(validateInboxName('a'.repeat(200))).toBeNull()
+      expect(validateInboxName('a'.repeat(100))).toBeNull()
     })
 
     it('rejects a name past the limit with 400', () => {
-      expect(validateInboxName('a'.repeat(201))?.status).toBe(400)
+      const result = validateInboxName('a'.repeat(101))
+      expect(result?.status).toBe(400)
+      expect(result?.message).toMatch(/100 characters or fewer/i)
     })
 
     it('rejects a megabyte of otherwise-valid text', () => {
@@ -190,7 +233,7 @@ describe('validateInboxName', () => {
     })
 
     it('measures the trimmed value, so padding alone does not fail', () => {
-      expect(validateInboxName(`  ${'a'.repeat(200)}  `)).toBeNull()
+      expect(validateInboxName(`  ${'a'.repeat(100)}  `)).toBeNull()
     })
   })
 })

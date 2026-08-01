@@ -208,18 +208,18 @@ describe('CreateEmailDialog — inline validation blocks submission', () => {
   })
 
   it('rejects an over-long display name without a round-trip to the server', async () => {
-    // The server caps it at 200 and answers 400. Checking here too turns an
+    // The server caps it at 100 and answers 400. Checking here too turns an
     // avoidable request into an inline error.
     const bodies = captureCreates()
     const { user } = renderDialog()
 
     await user.type(await localPartInput(), 'qa-team')
-    // paste rather than type: 201 keystrokes is needlessly slow
+    // paste rather than type: 101 keystrokes is needlessly slow
     await user.click(screen.getByLabelText(/display name/i))
-    await user.paste('a'.repeat(201))
+    await user.paste('a'.repeat(101))
     await user.click(screen.getByRole('button', { name: /create email/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/200 characters or fewer/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/100 characters or fewer/i)
     expect(bodies).toHaveLength(0)
   })
 
@@ -229,7 +229,30 @@ describe('CreateEmailDialog — inline validation blocks submission', () => {
 
     await user.type(await localPartInput(), 'qa-team')
     await user.click(screen.getByLabelText(/display name/i))
-    await user.paste('a'.repeat(200))
+    await user.paste('a'.repeat(100))
+    await user.click(screen.getByRole('button', { name: /create email/i }))
+
+    await waitFor(() => expect(bodies).toHaveLength(1))
+  })
+
+  it('rejects an over-long local part without a round-trip to the server', async () => {
+    const bodies = captureCreates()
+    const { user } = renderDialog()
+
+    await user.click(await localPartInput())
+    await user.paste('a'.repeat(51))
+    await user.click(screen.getByRole('button', { name: /create email/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/50 characters or fewer/i)
+    expect(bodies).toHaveLength(0)
+  })
+
+  it('accepts a local part exactly at the limit', async () => {
+    const bodies = captureCreates()
+    const { user } = renderDialog()
+
+    await user.click(await localPartInput())
+    await user.paste('a'.repeat(50))
     await user.click(screen.getByRole('button', { name: /create email/i }))
 
     await waitFor(() => expect(bodies).toHaveLength(1))
