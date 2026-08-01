@@ -20,6 +20,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setConfigEnv, withConfigEnv } from '@/test/config';
 
 // ---------------------------------------------------------------------------
 // Resend SDK mock
@@ -198,9 +199,12 @@ async function loadRoute() {
 // ---------------------------------------------------------------------------
 
 describe('Webhook Email Processing — Integration', () => {
+  withConfigEnv({
+    WEBHOOK_SECRET,
+    ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true',
+  });
+
   beforeEach(() => {
-    process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true';
     mockWebhooksVerify.mockReturnValue(undefined); // default: passes verification
     enqueueEmailWebhookJobMock.mockResolvedValue(undefined);
     dispatchAutomationsForEmailMock.mockResolvedValue([]);
@@ -213,8 +217,6 @@ describe('Webhook Email Processing — Integration', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-    delete process.env.WEBHOOK_SECRET;
-    delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING;
   });
 
   // -------------------------------------------------------------------------
@@ -527,7 +529,7 @@ describe('Webhook Email Processing — Integration', () => {
 
   describe('Sync mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=false)', () => {
     beforeEach(() => {
-      process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'false';
+      setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' });
     });
 
     it('stores the email synchronously and does not enqueue', async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { setConfigEnv, withConfigEnv } from '@/test/config'
 
 // ---------------------------------------------------------------------------
 // Mock the worker module so tests never create real Redis connections.
@@ -17,10 +18,11 @@ async function loadRoute() {
 }
 
 describe('GET /api/internal/webhook-worker/health', () => {
+  // Most tests want the feature on; the one that does not overrides it below.
+  withConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true' })
+
   beforeEach(() => {
     vi.resetAllMocks()
-    // Ensure env var is set for most tests
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
   })
 
   afterEach(() => {
@@ -28,7 +30,7 @@ describe('GET /api/internal/webhook-worker/health', () => {
   })
 
   it('returns 503 when async webhook processing is disabled', async () => {
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'false'
+    setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' })
 
     const { GET } = await loadRoute()
     const res = await GET()
