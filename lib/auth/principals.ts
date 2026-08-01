@@ -1,6 +1,7 @@
 /**
  * Principal shapes, split out of the old auth-context module so that
- * with-auth.ts does not import resolveAuthContext — which Task 7 deletes.
+ * with-auth.ts did not import the resolveAuthContext that used to live
+ * alongside them. That module is now deleted.
  */
 export type UserPrincipal = {
   kind: 'user'

@@ -78,6 +78,63 @@ export const spec = {
         },
       },
     },
+    '/api/v1/emailInbox/{id}': {
+      get: {
+        summary: 'Get an email inbox',
+        description:
+          'Returns a single email inbox by id, scoped to the organization the API key is bound to. Requires API key with `inboxes:read` scope.',
+        operationId: 'getEmailInbox',
+        tags: ['Email Inboxes'],
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Email inbox ID',
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          200: {
+            description: 'The email inbox',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { $ref: '#/components/schemas/EmailInbox' } },
+                },
+              },
+            },
+          },
+          401: {
+            description: 'Missing, malformed or revoked API key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          403: {
+            description: 'API key lacks the inboxes:read scope',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          404: {
+            description:
+              'No such inbox in the organization the key is bound to. Deliberately indistinguishable from an inbox that does not exist.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
     '/api/v1/emailInbox/{id}/messages': {
       get: {
         summary: 'Get messages from an email inbox',
@@ -279,39 +336,68 @@ export const spec = {
       EmailInbox: {
         type: 'object',
         description: 'An email inbox',
+        // Mirrors serializePublicInbox in lib/serializers/public/email-inbox.ts.
+        // userId is deliberately absent — it identifies another member of the
+        // organization and the external contract does not expose it.
         properties: {
           id: { type: 'string', example: 'inbox-1' },
           organizationId: { type: 'string', example: 'org-1' },
-          userId: { type: 'string', example: 'user-1' },
           email: { type: 'string', format: 'email', example: 'support@example.com' },
           name: { type: 'string', nullable: true, example: 'Support Inbox' },
           createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
         },
-        required: ['id', 'organizationId', 'userId', 'email', 'createdAt'],
+        required: ['id', 'organizationId', 'email', 'name', 'createdAt', 'updatedAt'],
       },
       EmailMessage: {
         type: 'object',
         description: 'An email message',
+        // Mirrors serializePublicMessage in lib/serializers/public/email-inbox.ts.
+        // Provider and threading internals (externalId, headers, messageId,
+        // inReplyTo, references) and worker state (categories, metadata,
+        // enrichedAt) are not part of the external contract.
         properties: {
           id: { type: 'string', example: 'msg-1' },
-          inboxEmailAddressId: { type: 'string', example: 'inbox-1' },
-          organizationId: { type: 'string', example: 'org-1' },
-          from: { type: 'string', format: 'email', example: 'customer@example.com' },
-          to: { type: 'string', nullable: true, example: 'support@example.com' },
-          cc: { type: 'string', nullable: true },
-          bcc: { type: 'string', nullable: true },
-          replyTo: { type: 'string', nullable: true },
-          subject: { type: 'string', example: 'Support Request' },
-          body: { type: 'string', nullable: true },
-          bodyPlain: { type: 'string', nullable: true },
           threadId: { type: 'string', example: 'thread-1' },
-          externalId: { type: 'string' },
-          messageId: { type: 'string', nullable: true },
-          inReplyTo: { type: 'string', nullable: true },
-          references: { type: 'string', nullable: true },
+          parentMessageId: { type: 'string', nullable: true, example: 'msg-0' },
+          subject: { type: 'string', example: 'Support Request' },
+          from: { type: 'string', format: 'email', example: 'customer@example.com' },
+          to: { type: 'array', items: { type: 'string', format: 'email' } },
+          cc: { type: 'array', items: { type: 'string', format: 'email' } },
+          bcc: { type: 'array', items: { type: 'string', format: 'email' } },
+          text: { type: 'string', example: 'Hello, I need help with...' },
+          html: { type: 'string', example: '<p>Hello, I need help with...</p>' },
+          isStarred: { type: 'boolean', example: false },
+          tags: { type: 'array', items: { type: 'string' } },
+          extractedOtp: {
+            type: 'string',
+            nullable: true,
+            example: '123456',
+            description:
+              'One-time code parsed from the message body. Derived from text/html, which the same messages:read scope already returns.',
+          },
           createdAt: { type: 'string', format: 'date-time' },
+          threadCount: {
+            type: 'integer',
+            description: 'Number of messages in the thread (present only in grouped mode)',
+          },
         },
-        required: ['id', 'inboxEmailAddressId', 'organizationId', 'from', 'subject', 'threadId', 'createdAt'],
+        required: [
+          'id',
+          'threadId',
+          'parentMessageId',
+          'subject',
+          'from',
+          'to',
+          'cc',
+          'bcc',
+          'text',
+          'html',
+          'isStarred',
+          'tags',
+          'extractedOtp',
+          'createdAt',
+        ],
       },
       ErrorResponse: {
         type: 'object',

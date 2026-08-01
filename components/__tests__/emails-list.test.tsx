@@ -115,4 +115,105 @@ describe('EmailsList', () => {
       }
     }
   })
+
+  it('hides the delete action for inboxes the user does not own', async () => {
+    // Reads are organization-wide but mutations are creator-only, so a member
+    // sees colleagues' inboxes in this list. Rendering delete on those would
+    // offer an action that always 404s.
+    server.use(
+      http.get('http://localhost:4000/api/app/emailInbox', () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: 'inbox_1',
+              email: 'mine@example.com',
+              name: 'Mine',
+              isOwner: true,
+              organizationId: 'org_1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+            {
+              id: 'inbox_2',
+              email: 'theirs@example.com',
+              name: 'Theirs',
+              isOwner: false,
+              organizationId: 'org_1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    )
+
+    render(<EmailsList />)
+
+    await screen.findByText('mine@example.com')
+    // Both inboxes are visible — the widened read is the point.
+    expect(screen.getByText('theirs@example.com')).toBeInTheDocument()
+
+    const deleteButtons = screen.getAllByRole('button', { name: /delete inbox/i })
+    expect(deleteButtons).toHaveLength(1)
+    expect(deleteButtons[0]).toHaveAccessibleName('Delete inbox mine@example.com')
+  })
+
+  it('still offers copy on an inbox the user does not own', async () => {
+    // Copying the address is a read, so it stays available on a colleague's
+    // inbox; only the mutating action is gated.
+    server.use(
+      http.get('http://localhost:4000/api/app/emailInbox', () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: 'inbox_2',
+              email: 'theirs@example.com',
+              name: 'Theirs',
+              isOwner: false,
+              organizationId: 'org_1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    )
+
+    render(<EmailsList />)
+
+    await screen.findByText('theirs@example.com')
+    expect(screen.getByRole('button', { name: /copy address/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /delete inbox/i })).not.toBeInTheDocument()
+  })
+
+  it('links the open-in-new-tab control at the inbox it labels', async () => {
+    // It carries an accessible name, so it has to actually navigate — an
+    // announced control that only swallows the click is worse than no control.
+    server.use(
+      http.get('http://localhost:4000/api/app/emailInbox', () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: 'inbox_1',
+              email: 'mine@example.com',
+              name: 'Mine',
+              isOwner: true,
+              organizationId: 'org_1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    )
+
+    render(<EmailsList />)
+
+    await screen.findByText('mine@example.com')
+
+    const open = screen.getByRole('link', { name: /open inbox mine@example\.com/i })
+    expect(open).toHaveAttribute('href', '/emails/inbox_1')
+    expect(open).toHaveAttribute('target', '_blank')
+    expect(open).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })

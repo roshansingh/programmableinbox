@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -153,6 +154,7 @@ export function EmailsList() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`Copy address ${email.email}`}
                       onClick={(e) => {
                         e.stopPropagation()
                         copyToClipboard(email.email)
@@ -162,24 +164,41 @@ export function EmailsList() {
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
+                      asChild
                       variant="ghost"
                       size="icon"
-                      onClick={(e) => e.stopPropagation()}
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
                     >
-                      <ExternalLink className="h-4 w-4" />
+                      <Link
+                        href={`/emails/${email.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open inbox ${email.email} in a new tab`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDelete(email.id)
-                      }}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {/*
+                      Owner-only. Reads widened to the whole organization but
+                      mutation authority did not, so a colleague's inbox appears
+                      in this list while DELETE on it returns 404. Rendering the
+                      control anyway would offer an action that always fails.
+                    */}
+                    {email.isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete inbox ${email.email}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(email.id)
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
