@@ -173,10 +173,12 @@ MSW intercepts all fetch calls. Every API call in a test must have a handler in 
 
 ## Environment Variables
 
+Every variable is read and validated in one place, `lib/config/`, against a zod schema. `assertConfig()` runs at server boot and reports **all** misconfigured variables at once. A value that is set but malformed is rejected rather than replaced by a default — a typo'd tuning value stops the server instead of being silently ignored. A blank value (`FOO=`) counts as unset. Booleans accept `true/1/yes/on` and `false/0/no/off`, case-insensitively.
+
 Required:
 
-- `DATABASE_URL` — PostgreSQL connection string
-- `JWT_SECRET` — Secret key for JWT signing
+- `DATABASE_URL` — PostgreSQL connection string. Must carry `options=-c%20timezone%3DUTC`; this is enforced
+- `JWT_SECRET` — Secret key for JWT signing. At least 16 characters; generate with `openssl rand -base64 32`
 - `AUTH_RESEND_API_KEY` — Resend API key for email sending/receiving
 - `WEBHOOK_SECRET` — Secret for validating Resend webhook signatures
 - `AUTH_EMAIL_FROM` — Sender email address
@@ -184,13 +186,20 @@ Required:
 
 Optional:
 
-- `NEXT_PUBLIC_API_MODE` — `local` (same-origin) or `external` (override base URL)
-- `ENABLE_ASYNC_WEBHOOK_PROCESSING` — `true` for async, `false` for sync
-- `REDIS_URL` — Redis connection (if async enabled)
-- `WEBHOOK_QUEUE_MAX_RETRIES` — Job retry count
-- `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` — Parallel jobs
+- `NEXT_PUBLIC_API_MODE` — `local` (same-origin) or `external`. Validated but currently informational: the client always builds a same-origin base URL
+- `ENABLE_ASYNC_WEBHOOK_PROCESSING` — `true` for async, `false` for sync (default `false`)
+- `REDIS_URL` — Redis connection, default `redis://localhost:6379`. Required to be valid when async processing is on
+- `WEBHOOK_QUEUE_MAX_RETRIES` — Job retry count (default `3`)
+- `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` — Parallel jobs (default `5`)
+- `LOG_LEVEL` — `trace`…`silent`; unset means `debug` in development, `info` in production
+- `HEALTHZ_SECRET` — Unlocks backup detail on `/api/healthz`
+- `AUTOMATION_SWEEPER_SECRET` — Required by `POST /api/cron/sweep-stuck-runs`
+- `WEBHOOK_EGRESS_ALLOWLIST` — Comma-separated egress allowlist for tenant-controlled webhook URLs
+- `WEBHOOK_ALLOW_PRIVATE_NETWORK` — Dev-only escape hatch; ignored in production
+- `ENABLE_BILLING` — Commercial layer (default `false`)
+- `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL` — Enrichment. Setting a provider requires an API key, except for `ollama`
 
-See `.env.example` for details.
+See `.env.example` for details — a test fails if it drifts from the schema.
 
 ---
 

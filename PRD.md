@@ -129,7 +129,9 @@ All routes use `lib/api-helpers.ts`:
 - Dev/start ports default to `4000`.
 
 ### 6.6 Required environment
-`DATABASE_URL`, `JWT_SECRET`, `AUTH_RESEND_API_KEY`, `WEBHOOK_SECRET`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `NEXT_PUBLIC_API_MODE`.
+`DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`.
+
+All environment variables are read and validated in one place, `lib/config/`, against a zod schema per domain. `assertConfig()` runs at server boot and reports every misconfigured variable at once; a value that is set but malformed is rejected rather than replaced by a default. `.env.example` lists every variable with its format, and `NEXT_PUBLIC_API_MODE` is optional (validated, but nothing branches on it).
 
 ## 7. UX surface (current routes)
 
