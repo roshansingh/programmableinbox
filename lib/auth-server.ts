@@ -1,31 +1,25 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
+import { config } from './config'
 import { prisma } from './db'
-
-const MISSING_SECRET_MESSAGE =
-  'JWT_SECRET is not configured. Set it to a strong random value ' +
-  '(e.g. `openssl rand -base64 32`) — refusing to sign or verify tokens.'
 
 /**
  * Resolve the JWT signing secret, failing closed if it is missing.
  *
- * Read lazily on every call rather than captured at module load: `lib/auth-server`
- * is imported (transitively) by every protected API route, and Next.js evaluates
- * those modules during `next build`, where JWT_SECRET is deliberately absent (see
- * the Dockerfile — the build stage sets no secrets). A module-scope assertion
- * would therefore fail the build instead of the misconfigured deployment. Reading
- * per call keeps the failure at request time, where it is loud, isolated to the
- * request, and also lets a rotated secret take effect without a code reload.
+ * Read through the config layer on every call rather than captured at module
+ * load: `lib/auth-server` is imported (transitively) by every protected API
+ * route, and Next.js evaluates those modules during `next build`, where
+ * JWT_SECRET is deliberately absent (see the Dockerfile — the build stage sets
+ * no secrets). A module-scope assertion would therefore fail the build instead
+ * of the misconfigured deployment.
+ *
+ * `config.auth` is lazy for that same reason, and memoizes after the first
+ * successful parse, so this stays a map lookup rather than a re-validation on
+ * every token operation.
  */
 function getJwtSecret(): string {
-  const secret = process.env.JWT_SECRET
-
-  if (!secret || secret.trim() === '') {
-    throw new Error(MISSING_SECRET_MESSAGE)
-  }
-
-  return secret
+  return config.auth.jwtSecret.reveal()
 }
 
 export async function hashPassword(password: string): Promise<string> {

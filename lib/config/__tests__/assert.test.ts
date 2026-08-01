@@ -4,6 +4,20 @@ import { ConfigError, resetConfigCache } from '../index'
 
 const originalEnv = { ...process.env }
 
+const REQUIRED_VARS = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'WEBHOOK_SECRET',
+  'AUTH_RESEND_API_KEY',
+  'AUTH_EMAIL_FROM',
+  'AUTH_EMAIL_FROM_NAME',
+] as const
+
+/** Strips the valid baseline vitest.config.ts provides to every suite. */
+function clearRequiredEnv() {
+  for (const name of REQUIRED_VARS) delete process.env[name]
+}
+
 /** The minimum environment in which every domain parses cleanly. */
 function setValidEnv() {
   process.env.DATABASE_URL = 'postgresql://u:p@h:5432/db?options=-c%20timezone%3DUTC'
@@ -51,7 +65,10 @@ describe('assertConfig', () => {
   })
 
   it('reports every missing required variable at once', () => {
-    // Nothing set at all — the shape of a brand-new deployment.
+    // The shape of a brand-new deployment: nothing configured yet. The suite
+    // runs against the valid baseline from vitest.config.ts, so strip it first.
+    clearRequiredEnv()
+
     let variables: readonly string[] = []
     try {
       assertConfig()
@@ -109,6 +126,7 @@ describe('assertConfig', () => {
   })
 
   it('points the operator at .env.example', () => {
+    clearRequiredEnv()
     expect(() => assertConfig()).toThrow(/\.env\.example/)
   })
 })
