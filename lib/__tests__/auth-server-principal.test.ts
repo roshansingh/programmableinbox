@@ -27,6 +27,7 @@ vi.mock('jsonwebtoken', () => ({
 const ROW = {
   id: 'user_1',
   email: 'person@example.com',
+  emailVerified: true,
   memberships: [
     { organizationId: 'org_1', role: 'owner' },
     { organizationId: 'org_2', role: 'member' },
@@ -72,11 +73,24 @@ describe('resolveUserPrincipalFromToken', () => {
       kind: 'user',
       userId: 'user_1',
       email: 'person@example.com',
+      emailVerified: true,
       memberships: [
         { organizationId: 'org_1', role: 'owner' },
         { organizationId: 'org_2', role: 'member' },
       ],
     })
+  })
+
+  /**
+   * `withUser` reads this to decide the 403 (issue #102 §7.1), so it must be
+   * carried faithfully — defaulting a missing value to `true` here would open
+   * the gate for every user.
+   */
+  it('carries an unverified address through to the principal', async () => {
+    verifyTokenMock.mockReturnValue({ userId: 'user_1' })
+    userFindUniqueMock.mockResolvedValue({ ...ROW, emailVerified: false })
+
+    expect((await resolve('valid.jwt.here'))?.emailVerified).toBe(false)
   })
 
   it('selects only the columns the principal needs', async () => {
@@ -90,7 +104,14 @@ describe('resolveUserPrincipalFromToken', () => {
 
     const select = userFindUniqueMock.mock.calls[0][0].select
     expect(select).not.toHaveProperty('passwordHash')
-    expect(Object.keys(select).sort()).toEqual(['email', 'id', 'memberships'])
+    // emailVerified rides along in the same query rather than costing a second
+    // round-trip in withUser (issue #102 §7.1).
+    expect(Object.keys(select).sort()).toEqual([
+      'email',
+      'emailVerified',
+      'id',
+      'memberships',
+    ])
   })
 
   it('carries an empty membership list through rather than failing', async () => {

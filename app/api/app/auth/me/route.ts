@@ -4,7 +4,13 @@ import { getAuthenticatedUser, formatUserResponse } from '@/lib/auth-server'
 import { getAppConfig } from '@/lib/config/app-config'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
-export const GET = withUser(async (request: NextRequest) => {
+/**
+ * `allowUnverified` because this route is what the gate screen is built from
+ * (issue #102 §7.1): it carries the address the mail went to and the
+ * `emailVerificationRequired` flag the client branches on. Gating it would
+ * leave an unverified user with a 403 and nothing to render.
+ */
+export const GET = withUser({ allowUnverified: true }, async (request: NextRequest) => {
   // withUser has already verified the credential; this second lookup exists
   // only because formatUserResponse needs the organization relation that the
   // principal resolver deliberately does not load.

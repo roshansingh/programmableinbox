@@ -25,7 +25,15 @@ interface AuthContextValue {
  * fail-closed direction. Defaulting to anything permissive here would
  * reintroduce the bug on the client.
  */
-const EMPTY_CONFIG: AppConfig = { emailInboxDomains: [] }
+const EMPTY_CONFIG: AppConfig = {
+  emailInboxDomains: [],
+  // False is the fail-closed reading for this one: "the deployment does not
+  // have this feature", so the client renders normally and the server's 403 —
+  // which is the actual gate — decides. Defaulting to true would show every
+  // user a verify-your-email wall for the moment before /auth/me resolves,
+  // including on deployments that never enabled it.
+  emailVerificationRequired: false,
+}
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 

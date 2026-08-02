@@ -12,7 +12,10 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth/login', '/auth/register']
+  // Both branches below currently return NextResponse.next(), so this list is
+  // documentation of intent rather than enforcement — see CLAUDE.md. Keep it in
+  // step with AuthGuard's PUBLIC_ROUTES, which is the gate that actually runs.
+  const publicRoutes = ['/auth/login', '/auth/register', '/auth/verify']
   const isPublicRoute = publicRoutes.some(route => 
     pathname === route || pathname.startsWith(route + '/')
   )

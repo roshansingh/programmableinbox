@@ -32,6 +32,21 @@ export type AppConfig = {
    * they appear in every address the product hands out.
    */
   emailInboxDomains: string[]
+
+  /**
+   * Whether this deployment requires a verified email address before the
+   * dashboard opens (issue #102).
+   *
+   * Safe to publish: an unverified user discovers it on their next 403
+   * regardless, and a verified one learns only that the deployment has the
+   * feature switched on.
+   *
+   * `useAuth()` falls back to `false` when the server sends no config, which is
+   * the correct empty reading here — "feature unavailable", so the client shows
+   * the dashboard and lets the server's 403 be the authority. The gate is
+   * server-side; this field only decides which screen to render.
+   */
+  emailVerificationRequired: boolean
 }
 
 /**
@@ -47,5 +62,6 @@ export type AppConfig = {
 export function getAppConfig(): AppConfig {
   return {
     emailInboxDomains: config.emailInbox.domains,
+    emailVerificationRequired: config.emailVerification.enabled,
   }
 }

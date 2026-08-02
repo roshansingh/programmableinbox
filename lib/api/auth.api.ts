@@ -112,6 +112,29 @@ export async function getCurrentUser(): Promise<User> {
 }
 
 /**
+ * Redeem a verification link (issue #102)
+ * POST /app/auth/verification/confirm
+ *
+ * Unauthenticated on purpose — the link is routinely opened on a device that
+ * holds no session. The token is the credential.
+ */
+export async function confirmEmailVerification(token: string): Promise<{ verified: boolean }> {
+  return apiClient.post<{ verified: boolean }>('/app/auth/verification/confirm', { token })
+}
+
+/**
+ * Request another verification email for the signed-in user
+ * POST /app/auth/verification/resend
+ *
+ * Takes no address: the server sends to the principal's own, so this cannot be
+ * aimed at anyone else. Throws an ApiError with status 429 while the cooldown
+ * is in effect.
+ */
+export async function resendVerificationEmail(): Promise<{ sent: boolean }> {
+  return apiClient.post<{ sent: boolean }>('/app/auth/verification/resend')
+}
+
+/**
  * Logout user (client-side only)
  * Removes token from storage
  * Note: No backend endpoint exists for logout in the OpenAPI spec

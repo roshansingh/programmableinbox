@@ -40,17 +40,34 @@ export function verifyToken(token: string): { userId: string } | null {
   // path where it is indistinguishable from a merely invalid token.
   const secret = getJwtSecret()
 
+  let payload: unknown
   try {
-    return jwt.verify(token, secret) as { userId: string }
+    payload = jwt.verify(token, secret)
   } catch {
     return null
   }
+
+  if (typeof payload !== 'object' || payload === null) return null
+
+  // Purpose-scoped tokens are never session credentials (issue #102 §6.1).
+  // Verification links are signed with EMAIL_VERIFICATION_SECRET, so today
+  // this is unreachable — the signature check above already fails. It exists
+  // so that a future refactor unifying the two secrets cannot silently turn an
+  // emailed link into a session token, which is the RFC 8725 §2.8 Cross-JWT
+  // Confusion class this codebase removed once already.
+  if ('purpose' in payload) return null
+
+  const { userId } = payload as Record<string, unknown>
+  if (typeof userId !== 'string' || userId === '') return null
+
+  return { userId }
 }
 
 export async function resolveUserPrincipalFromToken(token: string): Promise<{
   kind: 'user'
   userId: string
   email: string
+  emailVerified: boolean
   memberships: Array<{ organizationId: string; role: string }>
 } | null> {
   const payload = verifyToken(token)
@@ -61,6 +78,11 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
     select: {
       id: true,
       email: true,
+      // Selected here rather than fetched by `withUser` separately: the row is
+      // already being read, so the verification gate costs no extra round-trip.
+      // Populated whether or not ENABLE_EMAIL_VERIFICATION is on — with the
+      // flag off it simply never gates anything.
+      emailVerified: true,
       memberships: {
         select: {
           organizationId: true,
@@ -76,6 +98,7 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
     kind: 'user',
     userId: user.id,
     email: user.email,
+    emailVerified: user.emailVerified,
     memberships: user.memberships.map((membership) => ({
       organizationId: membership.organizationId,
       role: membership.role,

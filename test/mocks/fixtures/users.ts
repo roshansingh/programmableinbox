@@ -7,6 +7,9 @@ import type { User, Organization, AppConfig } from '@/lib/api/auth.api'
  */
 export const mockAppConfig: AppConfig = {
   emailInboxDomains: ['inbox.example.com', 'mail.example.com'],
+  // The default deployment posture — verification off, behaviour unchanged.
+  // The AuthGuard suite overrides `/app/auth/me` to flip this on.
+  emailVerificationRequired: false,
 }
 
 export const mockOrganization: Organization = {

@@ -1,6 +1,7 @@
 import 'server-only'
 import { NextRequest } from 'next/server'
 import { jsonError } from '@/lib/api-helpers'
+import { config } from '@/lib/config'
 import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
 import { tagHandler } from './route-tags'
@@ -42,18 +43,57 @@ function looksLikeApiKey(credential: string): boolean {
  */
 export function withUser<P = Record<string, never>>(
   handler: PrincipalHandler<UserPrincipal, P>,
+): RouteHandler<P>
+/**
+ * Opt a route out of the email-verification gate (issue #102).
+ *
+ * Deliberately an opt-*out*: verification is required by default, so a new
+ * route that forgets to think about it fails closed. The literal `true` is
+ * required so the intent is unmistakable at the call site — and so the guard
+ * in lib/__tests__/route-guards.test.ts, which pins the exact set of opted-out
+ * routes, is checking something a reviewer can also see.
+ */
+export function withUser<P = Record<string, never>>(
+  options: { allowUnverified: true },
+  handler: PrincipalHandler<UserPrincipal, P>,
+): RouteHandler<P>
+export function withUser<P = Record<string, never>>(
+  optionsOrHandler: { allowUnverified: true } | PrincipalHandler<UserPrincipal, P>,
+  maybeHandler?: PrincipalHandler<UserPrincipal, P>,
 ): RouteHandler<P> {
-  return tagHandler(async (request: NextRequest, context: RouteCtx<P>) => {
-    const credential = bearer(request)
-    if (!credential || looksLikeApiKey(credential)) {
-      return jsonError('Unauthorized', 401)
-    }
+  const allowUnverified = typeof optionsOrHandler === 'object'
+  const handler = (allowUnverified ? maybeHandler! : optionsOrHandler) as PrincipalHandler<
+    UserPrincipal,
+    P
+  >
 
-    const principal = await resolveUserPrincipalFromToken(credential)
-    if (!principal) return jsonError('Unauthorized', 401)
+  return tagHandler(
+    async (request: NextRequest, context: RouteCtx<P>) => {
+      const credential = bearer(request)
+      if (!credential || looksLikeApiKey(credential)) {
+        return jsonError('Unauthorized', 401)
+      }
 
-    return handler(request, principal, context)
-  }, 'user')
+      const principal = await resolveUserPrincipalFromToken(credential)
+      if (!principal) return jsonError('Unauthorized', 401)
+
+      // A soft gate: the session is real and stays real, but the dashboard is
+      // closed until the address is proven. 403 rather than 401 on purpose —
+      // 401 makes lib/api-client drop the token and bounce to /auth/login,
+      // which would log the user out of the very screen that offers Resend.
+      if (
+        !allowUnverified &&
+        !principal.emailVerified &&
+        config.emailVerification.enabled
+      ) {
+        return jsonError('Email verification required', 403)
+      }
+
+      return handler(request, principal, context)
+    },
+    'user',
+    { allowUnverified },
+  )
 }
 
 /**
@@ -64,6 +104,13 @@ export function withUser<P = Record<string, never>>(
  * PATCH route that gated a write behind `messages:read`: the scope now lives
  * in the wrapper call, next to the HTTP method, rather than buried in the
  * handler body where it drifted unnoticed.
+ *
+ * There is deliberately **no email-verification check here** (issue #102 §6.4).
+ * A key can only be minted from the dashboard, which is itself behind the gate,
+ * so an unverified user cannot obtain one; and every key that existed before
+ * the feature shipped belongs to a user the backfill migration grandfathered.
+ * Adding a check would cost a `User` lookup on every external API request in
+ * order to enforce a state that is unreachable by construction.
  */
 export function withApiKey<P = Record<string, never>>(
   options: { scopes: readonly ApiKeyScope[] },

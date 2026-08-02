@@ -149,6 +149,38 @@ export function requireRedisUrl(): string {
   return url
 }
 
+/**
+ * Returns the verification secret and link origin, or throws naming whichever
+ * is missing (issue #102).
+ *
+ * Both are `null` on `config.emailVerification` because the feature is off by
+ * default, and the schema only demands them when `ENABLE_EMAIL_VERIFICATION` is
+ * true. `assertConfig()` therefore catches the ordinary misconfiguration at
+ * boot; this is the guard for the path that stays reachable afterwards — a
+ * caller that forgot to check `enabled` first. Same shape as
+ * {@link requireRedisUrl}: one message that names the variables, rather than a
+ * `null` dereference deep inside the mailer.
+ */
+export function requireEmailVerification(): { secret: string; appBaseUrl: string } {
+  const { secret, appBaseUrl } = config.emailVerification
+  const missing: string[] = []
+
+  if (secret === null) missing.push('EMAIL_VERIFICATION_SECRET')
+  if (appBaseUrl === null) missing.push('APP_BASE_URL')
+
+  if (missing.length > 0) {
+    throw new ConfigError(
+      `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required ` +
+        'when ENABLE_EMAIL_VERIFICATION is true. There is no default: a ' +
+        'verification link needs a signing key that is not JWT_SECRET, and an ' +
+        'absolute origin that does not come from the request.',
+      missing,
+    )
+  }
+
+  return { secret: secret!.reveal(), appBaseUrl: appBaseUrl! }
+}
+
 export const config: ConfigShape = Object.freeze(
   Object.defineProperties(
     {} as ConfigShape,

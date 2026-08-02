@@ -4,6 +4,8 @@ import { hashPassword, signToken, formatUserResponse } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import { defaultOrganizationName } from '@/lib/user-display'
+import { config } from '@/lib/config'
+import { sendVerificationEmail } from '@/lib/email/verification-email'
 import logger from '@/lib/logger'
 
 /**
@@ -61,6 +63,26 @@ export const POST = withPublic(async (request: NextRequest) => {
         },
       })
     })
+
+    if (config.emailVerification.enabled) {
+      // A send failure must NOT fail the signup (issue #102 §7.2). The account
+      // and organization are already committed, so a 500 here would leave the
+      // user holding an account they believe does not exist and an email they
+      // cannot re-request. The gate screen's Resend button is the recovery
+      // path; this is logged at error so the operator sees it regardless.
+      try {
+        await sendVerificationEmail({ id: user.id, email: user.email })
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { verificationEmailSentAt: new Date() },
+        })
+      } catch (error) {
+        logger.error(
+          { error, userId: user.id },
+          'Failed to send signup verification email',
+        )
+      }
+    }
 
     const token = signToken({ userId: user.id })
 

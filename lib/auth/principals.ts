@@ -7,6 +7,12 @@ export type UserPrincipal = {
   kind: 'user'
   userId: string
   email: string
+  /**
+   * Whether this user has proven control of `email` (issue #102). Always
+   * populated; only consulted by `withUser` when
+   * `config.emailVerification.enabled` is true.
+   */
+  emailVerified: boolean
   memberships: Array<{ organizationId: string; role: string }>
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { getHandlerTag, type RouteTag } from '@/lib/auth/route-tags'
+import { getHandlerTag, getHandlerTagInfo, type RouteTag } from '@/lib/auth/route-tags'
 
 /**
  * Importing a route module runs its top-level imports, which reach Prisma.
@@ -55,6 +55,30 @@ async function assertTree(dir: string, expected: (file: string, method: string) 
   expect(violations).toEqual([])
 }
 
+/**
+ * The only deliberately unauthenticated handlers under app/api/app.
+ *
+ * `auth/verification/confirm` is here because the verification link is
+ * routinely opened on a device holding no session (issue #102 §7.3) — the
+ * emailed token is the credential, and it authorizes exactly one state change.
+ */
+const PUBLIC_APP_ROUTES = ['auth/login', 'auth/register', 'auth/verification/confirm']
+
+/**
+ * The exact set of `withUser` routes exempt from the email-verification gate
+ * (issue #102 §7.1). A fourth route quietly opting out fails guard 7.
+ *
+ * Paths are relative to the repo root, matching what `findRouteFiles` returns,
+ * so this list is greppable against the tree rather than a substring guess.
+ */
+const VERIFICATION_OPT_OUTS = [
+  // The gate screen cannot render without the user and the config.
+  'app/api/app/auth/me/route.ts',
+  // Only an unverified user ever calls it; gating it would 403 the one call
+  // that clears the gate.
+  'app/api/app/auth/verification/resend/route.ts',
+]
+
 describe('structural route guards', () => {
   it('guard 1: no mutating handler exists anywhere under app/api/v1', async () => {
     const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE']
@@ -74,9 +98,9 @@ describe('structural route guards', () => {
     await assertTree('app/api/v1', () => 'apiKey')
   })
 
-  it('guard 3: every handler under app/api/app is withUser, except auth/login and auth/register', async () => {
+  it('guard 3: every handler under app/api/app is withUser, except auth/login, auth/register and verification/confirm', async () => {
     await assertTree('app/api/app', (file) =>
-      file.includes('auth/login') || file.includes('auth/register') ? 'public' : 'user',
+      PUBLIC_APP_ROUTES.some((route) => file.includes(route)) ? 'public' : 'user',
     )
   })
 
@@ -99,6 +123,26 @@ describe('structural route guards', () => {
     }
 
     expect(untagged).toEqual([])
+  })
+
+  /**
+   * The email-verification opt-out is an escape hatch from a security control,
+   * so its membership is pinned rather than left to review. The flag is read
+   * off the symbol the wrapper attaches — a route cannot claim the opt-out in
+   * a comment, only by actually calling `withUser({ allowUnverified: true })`.
+   */
+  it('guard 7: exactly the allowlisted withUser routes opt out of email verification', async () => {
+    const optedOut: string[] = []
+
+    for (const file of findRouteFiles('app/api/app')) {
+      const mod = (await import(path.join(REPO_ROOT, file))) as Record<string, unknown>
+      for (const method of HTTP_METHODS) {
+        const info = getHandlerTagInfo(mod[method])
+        if (info?.tag === 'user' && info.allowUnverified) optedOut.push(file)
+      }
+    }
+
+    expect([...new Set(optedOut)].sort()).toEqual([...VERIFICATION_OPT_OUTS].sort())
   })
 
   it('guard 6: every documented OpenAPI path is under /api/v1', async () => {
