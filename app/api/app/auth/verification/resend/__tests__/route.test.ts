@@ -153,6 +153,28 @@ describe('POST /api/app/auth/verification/resend', () => {
       expect(userUpdateMock).not.toHaveBeenCalled()
     })
 
+    /**
+     * The mail is already away at this point; only the bookkeeping failed. A
+     * 500 would misreport that to a user whose email is on its way, and invite
+     * exactly the retry that produces the duplicate send the cooldown exists to
+     * prevent.
+     */
+    it('still reports success when the cooldown stamp fails after a successful send', async () => {
+      userFindUniqueMock.mockResolvedValue({
+        id: 'u1',
+        email: 'a@b.com',
+        emailVerified: false,
+        verificationEmailSentAt: null,
+      })
+      sendVerificationEmailMock.mockResolvedValue(undefined)
+      userUpdateMock.mockRejectedValue(new Error('connection lost'))
+
+      const response = await post()
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ data: { sent: true } })
+    })
+
     it('401s without a credential, and never sends', async () => {
       const { POST } = await import('../route')
       const response = await POST(

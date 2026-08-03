@@ -59,10 +59,22 @@ export const POST = withUser({ allowUnverified: true }, async (_request: NextReq
     return jsonError('Could not send the verification email. Please try again.', 502)
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { verificationEmailSentAt: new Date() },
-  })
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verificationEmailSentAt: new Date() },
+    })
+  } catch (error) {
+    // The mail is already away; only the cooldown bookkeeping failed. Letting
+    // this throw would 500 a user whose email is on its way — misreporting the
+    // outcome, and inviting exactly the retry that produces the duplicate send
+    // the cooldown exists to prevent. Report what actually happened and log the
+    // bookkeeping failure for the operator.
+    logger.error(
+      { error, userId: user.id },
+      'Sent the verification email but failed to record its cooldown timestamp',
+    )
+  }
 
   return jsonSuccess({ sent: true })
 })

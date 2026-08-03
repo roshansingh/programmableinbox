@@ -7,12 +7,19 @@ import { verifyVerificationToken } from '@/lib/auth/verification-token'
 import logger from '@/lib/logger'
 
 /**
- * Every rejection that is not an expiry says the same thing (issue #102 §7.3).
+ * Rejection wording (issue #102 §7.3).
  *
- * Invalid signature, wrong purpose, deleted user and "the address on the token
- * is no longer this user's address" are deliberately not distinguishable: a
- * caller able to produce a plausible token shape would otherwise have an
- * account-existence oracle.
+ * Invalid signature, wrong purpose, malformed body and a deleted user all
+ * collapse to INVALID. A caller able to produce a plausible token shape would
+ * otherwise have an account-existence oracle: "invalid link" versus "no such
+ * user" is exactly the distinction that turns this endpoint into one.
+ *
+ * The email-mismatch case is deliberately its own message, as §7.3 specifies.
+ * It is not an oracle, because reaching it requires a token this server signed
+ * for a user that exists — something an attacker cannot mint. So it leaks
+ * nothing to anyone who did not already hold a genuine link, and it tells the
+ * person who does hold one the single fact that explains the failure: the
+ * address it was issued for has since changed.
  */
 const INVALID = 'This verification link is invalid'
 const EXPIRED = 'This verification link has expired'

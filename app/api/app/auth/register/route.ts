@@ -70,17 +70,35 @@ export const POST = withPublic(async (request: NextRequest) => {
       // user holding an account they believe does not exist and an email they
       // cannot re-request. The gate screen's Resend button is the recovery
       // path; this is logged at error so the operator sees it regardless.
+      let sent = false
       try {
         await sendVerificationEmail({ id: user.id, email: user.email })
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { verificationEmailSentAt: new Date() },
-        })
+        sent = true
       } catch (error) {
         logger.error(
           { error, userId: user.id },
           'Failed to send signup verification email',
         )
+      }
+
+      // Stamped under its own try, and reported under its own message. Sharing
+      // one catch with the send meant a failed stamp logged "Failed to send"
+      // for an email that had in fact gone out — misleading on its own, and
+      // doubly so because the missing timestamp also leaves the resend cooldown
+      // wide open. Still non-fatal: the mail is away, and a missing cooldown is
+      // not worth failing a committed signup over.
+      if (sent) {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { verificationEmailSentAt: new Date() },
+          })
+        } catch (error) {
+          logger.error(
+            { error, userId: user.id },
+            'Sent the signup verification email but failed to record its cooldown timestamp',
+          )
+        }
       }
     }
 

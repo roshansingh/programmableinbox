@@ -131,6 +131,27 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       // No cooldown stamped for an email that never went out.
       expect(userUpdateMock).not.toHaveBeenCalled()
     })
+
+    /**
+     * The send and the stamp report separately. Sharing one catch meant a
+     * failed stamp logged "Failed to send" for an email that had gone out,
+     * which sends an operator looking at Resend for a fault in the database.
+     */
+    it('reports a failed cooldown stamp distinctly from a failed send', async () => {
+      sendVerificationEmailMock.mockResolvedValue(undefined)
+      userUpdateMock.mockRejectedValue(new Error('connection lost'))
+
+      const response = await register()
+
+      expect(response.status).toBe(200)
+      expect(sendVerificationEmailMock).toHaveBeenCalled()
+
+      const messages = loggerErrorMock.mock.calls.map((call) => call[1])
+      expect(messages).toContain(
+        'Sent the signup verification email but failed to record its cooldown timestamp',
+      )
+      expect(messages).not.toContain('Failed to send signup verification email')
+    })
   })
 
   describe('with verification disabled', () => {
