@@ -52,7 +52,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>
-            Sign in to your account to access your disposable inbox
+            Sign in to your account to access your Programmable Inbox
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
