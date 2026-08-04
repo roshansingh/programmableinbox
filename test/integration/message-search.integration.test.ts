@@ -445,6 +445,26 @@ describe('message search', () => {
       expect(result.message).toMatch(/grouped/i)
     })
 
+    /**
+     * `grouped` is ignored by listMessages whenever a thread is selected, so
+     * rejecting on the raw flag would 400 a request with no real conflict — the
+     * case a client hits when it keeps grouped=true in its default query
+     * parameters and then drills into a thread.
+     */
+    it('searches within a thread even when the client still sends grouped=true', async () => {
+      const { org, user, token } = await createOrgWithUser()
+      const inbox = await seedInbox(org.id, user.id)
+      const threadId = '00000000-0000-7000-8000-00000000bbbb'
+      await seedMessage(inbox.id, org.id, { subject: 'invoice in thread', threadId, createdAt: at(1) })
+      await seedMessage(inbox.id, org.id, { subject: 'noise in thread', threadId, createdAt: at(2) })
+      await seedMessage(inbox.id, org.id, { subject: 'invoice elsewhere', createdAt: at(3) })
+
+      const result = await search(inbox.id, token, `q=invoice&threadId=${threadId}&grouped=true`)
+
+      expect(result.status).toBe(200)
+      expect(subjects(result.messages)).toEqual(['invoice in thread'])
+    })
+
     it('400s on an over-long query', async () => {
       const { org, user, token } = await createOrgWithUser()
       const inbox = await seedInbox(org.id, user.id)
@@ -519,6 +539,19 @@ describe('message search', () => {
 
       expect(result.status).toBe(400)
       expect(result.message).toMatch(/grouped/i)
+    })
+
+    it('allows a thread search with grouped set, exactly as the app API does', async () => {
+      const { org, user } = await createOrgWithUser()
+      const inbox = await seedInbox(org.id, user.id)
+      const threadId = '00000000-0000-7000-8000-00000000cccc'
+      await seedMessage(inbox.id, org.id, { subject: 'invoice in thread', threadId })
+      const key = await apiKeyFor(org.id, user.id)
+
+      const result = await v1Search(inbox.id, key, `q=invoice&threadId=${threadId}&grouped=true`)
+
+      expect(result.status).toBe(200)
+      expect(subjects(result.messages)).toEqual(['invoice in thread'])
     })
   })
 })

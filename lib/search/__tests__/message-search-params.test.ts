@@ -6,8 +6,11 @@ import {
   parseMessageSearch,
 } from '../message-search-params'
 
-function parse(query: string, opts: { grouped?: boolean } = {}) {
-  return parseMessageSearch(new URLSearchParams(query), { grouped: opts.grouped ?? false })
+function parse(query: string, opts: { grouped?: boolean; threadId?: string | null } = {}) {
+  return parseMessageSearch(new URLSearchParams(query), {
+    grouped: opts.grouped ?? false,
+    threadId: opts.threadId ?? null,
+  })
 }
 
 describe('parseMessageSearch', () => {
@@ -124,6 +127,25 @@ describe('parseMessageSearch', () => {
 
     it('allows grouped when no search parameter is present', () => {
       expect(parse('limit=50', { grouped: true })).toBeNull()
+    })
+
+    /**
+     * `listMessages` ignores `grouped` whenever `threadId` is set — grouping
+     * collapses an inbox to one row per thread, which is meaningless inside a
+     * single thread. Rejecting on the raw flag therefore 400s a request that has
+     * no actual conflict, which bites any client that keeps `grouped=true` in its
+     * default query parameters and then drills into a thread.
+     */
+    it('allows search inside a thread even when grouped is still set', () => {
+      const search = parse('q=invoice', { grouped: true, threadId: 'thread_1' })
+
+      expect(search?.q).toBe('invoice')
+    })
+
+    it('still rejects grouped search when no thread is selected', () => {
+      expect(() => parse('q=invoice', { grouped: true, threadId: null })).toThrow(
+        SearchParamError,
+      )
     })
   })
 })

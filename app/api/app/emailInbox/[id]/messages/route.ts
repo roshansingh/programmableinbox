@@ -33,10 +33,11 @@ export const GET = withUser<{ id: string }>(async (request, principal, { params 
   }
 
   // Search parameters are parsed by the same module the v1 route uses, so the two
-  // surfaces cannot drift apart on what they accept (issue #106).
+  // surfaces cannot drift apart on what they accept (issue #106). It takes
+  // threadId because grouping is only in effect without one.
   let search: MessageSearch | null
   try {
-    search = parseMessageSearch(searchParams, { grouped })
+    search = parseMessageSearch(searchParams, { grouped, threadId })
   } catch (error) {
     if (error instanceof SearchParamError) return jsonError(error.message, 400)
     throw error

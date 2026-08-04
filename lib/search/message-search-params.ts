@@ -54,8 +54,13 @@ export interface MessageSearch {
 }
 
 export interface ParseMessageSearchOptions {
-  /** Whether the request also asked for the grouped thread-list view. */
+  /** The raw `grouped` flag from the request. */
   grouped: boolean
+  /**
+   * The requested thread, if any. Taken because grouping and a thread filter are
+   * not independent — see the conflict check in `parseMessageSearch`.
+   */
+  threadId?: string | null
 }
 
 /**
@@ -87,13 +92,32 @@ export function parseMessageSearch(
   // changes what `threadCount` counts or returns a row that does not contain the
   // search term. Rejecting is honest; picking one silently is not. The dashboard
   // list defaults to grouped, so the client turns it off when a search is active.
-  if (options.grouped) {
+  //
+  // Gated on the *effective* flag, not the raw one: `listMessages` already
+  // ignores `grouped` whenever `threadId` is set, because collapsing to one row
+  // per thread is meaningless inside a single thread. Rejecting on the raw flag
+  // would 400 a request with no actual conflict — which bites any client that
+  // keeps `grouped=true` in its default query parameters and then drills into a
+  // thread. Searching within a thread is well-defined and supported.
+  if (isGroupedInEffect(options)) {
     throw new SearchParamError(
       'Search is not supported in grouped mode. Retry with grouped=false.',
     )
   }
 
   return { q, from, tags, categories }
+}
+
+/**
+ * Whether the grouped thread-list view is actually in effect.
+ *
+ * Mirrors the precedence in `listMessages` (`opts.grouped && !opts.threadId`).
+ * It lives here, in the module both routes share, rather than being computed at
+ * each call site — two routes each deriving the same flag is exactly the drift
+ * this parser exists to prevent.
+ */
+function isGroupedInEffect(options: ParseMessageSearchOptions): boolean {
+  return options.grouped && !options.threadId
 }
 
 /** True when this request filters on anything at all. */

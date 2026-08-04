@@ -31,12 +31,14 @@ export const GET = withApiKey<{ id: string }>(
     }
 
     const grouped = searchParams.get('grouped') === 'true'
+    const threadId = searchParams.get('threadId')
 
     // Same parser as the app route, so the published contract and the dashboard
-    // cannot diverge on what a search parameter means (issue #106).
+    // cannot diverge on what a search parameter means (issue #106). It takes
+    // threadId because grouping is only in effect without one.
     let search: MessageSearch | null
     try {
-      search = parseMessageSearch(searchParams, { grouped })
+      search = parseMessageSearch(searchParams, { grouped, threadId })
     } catch (error) {
       if (error instanceof SearchParamError) return jsonError(error.message, 400)
       throw error
@@ -45,7 +47,7 @@ export const GET = withApiKey<{ id: string }>(
     const result = await listMessages(scope, id, {
       limit: clampLimit(searchParams.get('limit')),
       cursor,
-      threadId: searchParams.get('threadId'),
+      threadId,
       grouped,
       search,
     })

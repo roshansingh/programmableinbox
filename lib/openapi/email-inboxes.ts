@@ -208,23 +208,31 @@ export const spec = {
             name: 'tags',
             in: 'query',
             description:
-              'Return messages carrying any of these tags (exact match). Repeat the '
-              + 'parameter or pass a comma-separated list. Max 20 values.',
+              'Return messages carrying any of these tags (exact match, OR-combined). '
+              + 'Repeat the parameter: tags=a&tags=b. A comma-separated single value '
+              + '(tags=a,b) is also accepted, but cannot express a tag that itself '
+              + 'contains a comma. Max 20 values.',
             required: false,
             schema: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+            // explode:true — the repeated form is the documented contract because it
+            // round-trips any value. The server also accepts the comma-separated form,
+            // which is a deliberate superset, not what this describes.
             style: 'form',
-            explode: false,
+            explode: true,
           },
           {
             name: 'categories',
             in: 'query',
             description:
-              'Return messages carrying any of these categories (exact match). Repeat '
-              + 'the parameter or pass a comma-separated list. Max 20 values.',
+              'Return messages carrying any of these categories (exact match, '
+              + 'OR-combined). Repeat the parameter: categories=a&categories=b. A '
+              + 'comma-separated single value is also accepted, but cannot express a '
+              + 'category that itself contains a comma. Max 20 values.',
             required: false,
             schema: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+            // See the note on `tags` above.
             style: 'form',
-            explode: false,
+            explode: true,
           },
         ],
         responses: {
