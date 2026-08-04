@@ -91,11 +91,13 @@ Four properties are load-bearing:
 
 **Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `EMAIL_INBOX_DOMAINS`.
 
-**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
+**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (30), `PASSWORD_RESET_TOKEN_TTL_MINUTES` (30), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
 
 **Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` **or** `AUTH_RATE_LIMIT_ENABLED` is on (it defaults to on) — `assertConfig()` refuses to start without it, naming both reasons. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
 
 `EMAIL_LINK_SECRET` and `APP_BASE_URL` follow the same pattern: both `null` by default, both required whenever `ENABLE_EMAIL_VERIFICATION=true`, both asserted at boot, and both reached through `requireEmailVerification()`. `APP_BASE_URL` is operator configuration rather than the request's `Host` header on purpose — deriving the link origin from the request hands anyone who controls `Host` (or `X-Forwarded-Host`, behind a proxy that forwards it unvalidated) the domain that appears in the victim's email.
+
+`EMAIL_LINK_SECRET` was renamed from `EMAIL_VERIFICATION_SECRET` and signs **every** emailed link — verification and password reset both — not just verification. The rename is breaking and has no fallback: a deployment still setting `EMAIL_VERIFICATION_SECRET` fails `assertConfig()` at boot naming `EMAIL_LINK_SECRET`, rather than silently starting with signing disabled. `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` and `PASSWORD_RESET_TOKEN_TTL_MINUTES` are both whole minutes, default 30, validated by `assertConfig()` — a duration string like `30m` fails at boot rather than being coerced. The verification TTL was previously a hardcoded 24-hour constant with no env var at all, so on an upgraded deployment that leaves it unset, the window is now 30 minutes, not 24 hours — a real behavior change, not just a config rename.
 
 `.env.example` documents all of them with their formats, and a test fails if the schema and that file drift apart.
 
@@ -183,7 +185,7 @@ Reads widened to organization-wide; mutation authority did not. A user therefore
 | Tree | Wrapper | Contents |
 |---|---|---|
 | `app/api/v1/**` | `withApiKey` | The published external API. **Read-only** — GET handlers only. |
-| `app/api/app/**` | `withUser` (`withPublic` for `auth/login`, `auth/register`, `auth/verification/confirm`) | Everything the dashboard calls. |
+| `app/api/app/**` | `withUser` (`withPublic` for `auth/login`, `auth/register`, `auth/verification/confirm`, `auth/password-reset/*`) | Everything the dashboard calls. |
 | `app/api/webhooks/**` | `withPublic` | Provider ingest, which authenticates the *request* by HMAC rather than the caller. |
 
 `lib/__tests__/route-guards.test.ts` enforces this structurally, by importing every route module and reading a non-enumerable symbol the wrappers attach. Source-text matching cannot answer "was this wrapped?" honestly; a symbol can only be present if the wrapper actually ran. The guards assert no mutating handler exists under `/api/v1`, each tree carries its expected wrapper, no handler is untagged, and every documented OpenAPI path sits under `/api/v1`.
@@ -213,6 +215,39 @@ Off unless `ENABLE_EMAIL_VERIFICATION=true`, in which case signup still returns 
 - **Client**: `emailVerificationRequired` on `AppConfig` drives `AuthGuard`, which renders `<VerifyEmailNotice />` in place of children. `/auth/verify` is in `AuthGuard`'s `PUBLIC_ROUTES` but deliberately **not** in `AuthProvider`'s, so a session is still resolved there and the page can refresh the user in place instead of demanding a second login. The page scrubs the token from the URL with `history.replaceState` before anything can observe it, and always calls `refreshUser()` after redeeming — `isAuthenticated` inside that mount effect is the pre-`/auth/me` value, so branching on it would skip the refresh every time and leave a stale `emailVerified: false` that re-engages the gate on the next page.
 
 Rollback is setting the flag back to `false`; no schema reversal, and users verified meanwhile stay verified. Deferred: re-verification on email change (no email-change flow exists yet — when one lands it must set `emailVerified = false`), password reset reusing the token module with a second `purpose`, and bounce handling.
+
+### Password reset (signed JWT)
+
+Shares both the `ENABLE_EMAIL_VERIFICATION` flag and its signing key: reset
+links and verification links are both signed with `EMAIL_LINK_SECRET`. **The
+`purpose` claim is therefore the only thing separating the two token types** —
+the signature check cannot tell them apart. Each verifier tests `purpose` for
+strict equality before reading any other claim, and
+`lib/auth/__tests__/password-reset-token.test.ts` asserts cross-redemption
+fails in both directions. Those tests are the barrier, not a formality.
+
+Forging across purposes is not possible without the key, since `purpose` is
+inside the signed payload — the risk being defended against is a verifier
+defect, not an attacker with a token. Separately, `verifyToken` rejects any
+payload carrying a `purpose` claim at all, so neither emailed token can ever be
+presented as a session credential.
+
+The token carries `pwh`, a fingerprint of the password hash it was issued
+against, which is what makes a stateless token single-use: completing a reset
+changes the hash, so every outstanding link dies at once with no token table to
+sweep. Confirm also stamps `passwordChangedAt`, and
+`resolveUserPrincipalFromToken` rejects any session JWT issued before it — so a
+reset evicts an attacker's existing session rather than leaving it live for the
+rest of its 7 days.
+
+`POST /api/app/auth/password-reset/request` returns an identical
+`{ requested: true }` for every outcome — unknown address, cooldown hit, Resend
+failure — because it accepts a third-party address and any outcome-dependent
+response makes it an account-existence oracle. The response body is uniform;
+response *timing* is not, which is a known and accepted gap.
+
+Confirm issues no session. The user signs in afterwards, which proves the reset
+worked and keeps an emailed link from being convertible into a session.
 
 ### Inbox creation policy (issue #98)
 
