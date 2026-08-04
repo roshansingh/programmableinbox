@@ -35,6 +35,16 @@ const configEnv = {
   // ioredis still need a configured URL to build connection options from, and
   // the tests that exercise the unset case delete it explicitly.
   REDIS_URL: 'redis://localhost:6379',
+  // Off by default, unlike production. Every suite that exercises the limiter
+  // turns it on with `withConfigEnv` *and* injects a `FakeRedis`; leaving the
+  // production default in place only affected the suites that do neither —
+  // a login or register route test would reach for the URL above and find
+  // whatever Redis the developer happens to be running. That is a test reading
+  // and writing shared mutable state outside the repository: counters survive
+  // between runs, so `npm test` three times in an hour trips the 5-per-hour
+  // register limit and fails tests that have nothing to do with rate limiting,
+  // while the same suite passes on CI where nothing is listening on 6379.
+  AUTH_RATE_LIMIT_ENABLED: 'false',
 }
 
 export default defineConfig({

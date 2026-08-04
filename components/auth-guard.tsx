@@ -4,30 +4,20 @@ import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 import { VerifyEmailNotice } from '@/components/verify-email-notice'
+import { isPublicPath } from '@/lib/auth/public-routes'
 
 interface AuthGuardProps {
   children: React.ReactNode
 }
-
-/**
- * `/auth/verify` is public because the link is routinely opened on a device
- * holding no session (issue #102 §8.5). Note it is deliberately NOT added to
- * `AuthProvider`'s own public list: that one controls whether `/auth/me` is
- * fetched, and the verify page needs to know whether a session exists so it
- * can refresh the user and continue instead of asking them to log in. The
- * resulting 401 for a signed-out visitor is harmless — `lib/api-client` skips
- * its redirect for any path under `/auth/`.
- */
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/auth/verify', '/api-docs']
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { isLoading, isAuthenticated, user, config } = useAuth()
 
-  const isPublicRoute = PUBLIC_ROUTES.some(route =>
-    pathname === route || pathname.startsWith(route + '/')
-  )
+  // The gate that actually runs. `AuthProvider` matches against a narrower
+  // list — see SESSION_FETCH_SKIPPED_ROUTES for the one route that differs.
+  const isPublicRoute = isPublicPath(pathname)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicRoute) {

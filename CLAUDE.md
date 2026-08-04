@@ -131,7 +131,7 @@ Browser → `lib/api-client.ts` → `/api/app/...` Next.js route handler → `wi
 - `getAuthenticatedUser` survives for `/api/app/auth/me` only, inside `withUser`, because `formatUserResponse` needs the organization relation the principal resolver deliberately does not load.
 - `proxy.ts` (Next.js 16 convention, replaces old `middleware.ts`) excludes `/api` from its matcher and only does pass-through for public pages — **all real auth enforcement is per-route via the wrappers**, not at the proxy level.
 - `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate that redirects unauthenticated users to `/auth/login`. `<AuthProvider>` calls `/api/app/auth/me` once on mount and shares the user via `useAuth()` — don't fetch the user yourself, use the context.
-- **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/app/auth/{login,register}` are accessible without authentication.
+- **Public routes**: `/auth/*`, `/api-docs` (Swagger docs), and `/api/app/auth/{login,register}` are accessible without authentication. The page list is `PUBLIC_ROUTES` in `lib/auth/public-routes.ts` — one array, read by `AuthGuard` (the gate), `AuthProvider` and `proxy.ts`. It was three hand-maintained copies, and they had already drifted: both password-reset pages shipped in none of them, so the one page a user who cannot log in would visit redirected them to the login page. `AuthProvider` matches the derived `SESSION_FETCH_SKIPPED_ROUTES` instead — the same list minus `/auth/verify`, which needs its session resolved. A test asserts every directory under `app/auth/` is covered, since consolidating stops the copies drifting but not a new page being added to none of them.
 
 ### Auth rate limiting and lockout (issue #42)
 
@@ -299,6 +299,7 @@ The allowlist reaches the browser as `config.emailInboxDomains` on `GET /api/app
 - `test/setup.ts` starts MSW with `onUnhandledRequest: 'error'` — every fetch in a test must have a handler in `test/mocks/handlers.ts` or be overridden per-test.
 - `next/navigation`, `next/link`, and `next-themes` are mocked globally in setup. `localStorage` is cleared between tests; `window.confirm` returns true; `navigator.clipboard` is stubbed.
 - `vitest.config.ts` sets `NEXT_PUBLIC_API_MODE=local` and aliases `@` to repo root (matches `tsconfig.json` paths).
+- **`AUTH_RATE_LIMIT_ENABLED=false` in the test baseline**, unlike production. Suites that exercise the limiter turn it on with `withConfigEnv` *and* inject a `FakeRedis`; the default only ever affected suites doing neither, which reached the `REDIS_URL` fixture and talked to whatever Redis the developer had running. Counters then survive between runs, so `npm test` a few times within the hour trips the 5-per-hour register limit and fails tests that have nothing to do with rate limiting — while CI, with nothing on 6379, stays green.
 - Component tests live in `components/__tests__/` and `app/api-keys/__tests__/`.
 
 ### Integration tests (real Postgres)

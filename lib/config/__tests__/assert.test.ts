@@ -138,6 +138,10 @@ describe('assertConfig', () => {
 
   it('names the opt-out in the rate-limit failure so the fix is discoverable', () => {
     setValidEnv()
+    // Deleted rather than left ambient: the test suite runs with the limiter
+    // switched off (see `configEnv` in vitest.config.ts), and this test is
+    // about the *production* default, where it is on.
+    delete process.env.AUTH_RATE_LIMIT_ENABLED
     delete process.env.REDIS_URL
 
     expect(() => assertConfig()).toThrow(/AUTH_RATE_LIMIT_ENABLED=false/)

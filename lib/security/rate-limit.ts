@@ -133,6 +133,42 @@ export function setRateLimitRedisClient(client: RateLimitRedis | null): void {
 }
 
 /**
+ * Resolves once the connection can carry commands, or when the budget elapses.
+ *
+ * `enableOfflineQueue: false` is what turns an outage into an immediate
+ * rejection rather than a hang, but it applies just as ruthlessly to a socket
+ * that is merely still opening: `new Redis()` returns in state `connecting`,
+ * and any command issued before `ready` rejects with *"Stream isn't writeable
+ * and enableOfflineQueue options is false"*. Without this wait the first
+ * request of every process — the first login after each deploy — skips the
+ * limiter and logs an outage, against a perfectly healthy Redis.
+ *
+ * It never rejects and never waits longer than the limiter's own per-request
+ * budget, and a first connection that fails outright resolves it early rather
+ * than burning the budget: an unreachable Redis costs no more latency than it
+ * does today. A connection that is not ready in time is still returned —
+ * ioredis keeps retrying underneath, so the command fails fast, the fail mode
+ * decides, and the next request finds a ready client instead of waiting again.
+ */
+function waitForReady(client: Redis, timeoutMs: number): Promise<void> {
+  if (client.status === 'ready') return Promise.resolve()
+
+  return new Promise<void>((resolve) => {
+    const settle = () => {
+      clearTimeout(timer)
+      client.removeListener('ready', settle)
+      client.removeListener('error', settle)
+      resolve()
+    }
+    const timer = setTimeout(settle, timeoutMs)
+    // A pending connect must not be the reason a short-lived process lingers.
+    timer.unref?.()
+    client.once('ready', settle)
+    client.once('error', settle)
+  })
+}
+
+/**
  * Lazily creates a Redis connection dedicated to rate limiting.
  *
  * A *separate* connection from `lib/webhooks/queue.ts` is intentional: the
@@ -143,6 +179,9 @@ export function setRateLimitRedisClient(client: RateLimitRedis | null): void {
  *
  * `ioredis` is imported dynamically so that importing this module (e.g. from a
  * jsdom route test) does not pull a TCP client into the module graph.
+ *
+ * The connection is awaited to `ready` before it is cached and returned — see
+ * `waitForReady` for why that is not something ioredis does for us here.
  */
 async function getClient(): Promise<RateLimitRedis | null> {
   if (_client) return _client
@@ -167,6 +206,7 @@ async function getClient(): Promise<RateLimitRedis | null> {
       client.on('error', (error: Error) => {
         logger.debug({ error }, 'Rate limit Redis connection error')
       })
+      await waitForReady(client, timeoutMs)
       _client = client as unknown as RateLimitRedis
       _ownsClient = true
       return _client
