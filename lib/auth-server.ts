@@ -34,7 +34,7 @@ export function signToken(payload: { userId: string }): string {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
 }
 
-export function verifyToken(token: string): { userId: string } | null {
+export function verifyToken(token: string): { userId: string; issuedAt: number } | null {
   // Resolved outside the try block on purpose: a misconfigured secret must
   // surface as a thrown error (500 + logs), never be swallowed into the `null`
   // path where it is indistinguishable from a merely invalid token.
@@ -57,10 +57,15 @@ export function verifyToken(token: string): { userId: string } | null {
   // Confusion class this codebase removed once already.
   if ('purpose' in payload) return null
 
-  const { userId } = payload as Record<string, unknown>
+  const { userId, iat } = payload as Record<string, unknown>
   if (typeof userId !== 'string' || userId === '') return null
 
-  return { userId }
+  // `jwt.sign` always stamps `iat`, so a token without one was not minted by
+  // signToken. Rejecting rather than defaulting keeps the eviction check below
+  // from being bypassable by omitting the claim.
+  if (typeof iat !== 'number') return null
+
+  return { userId, issuedAt: iat }
 }
 
 export async function resolveUserPrincipalFromToken(token: string): Promise<{
@@ -83,6 +88,7 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
       // Populated whether or not ENABLE_EMAIL_VERIFICATION is on — with the
       // flag off it simply never gates anything.
       emailVerified: true,
+      passwordChangedAt: true,
       memberships: {
         select: {
           organizationId: true,
@@ -93,6 +99,18 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
   })
 
   if (!user) return null
+
+  // A completed reset evicts every session that predates it. Someone resetting
+  // because their account was compromised expects exactly that; without it the
+  // attacker's 7-day JWT outlives the reset meant to stop them.
+  //
+  // Fails closed at the boundary: `iat` has one-second resolution, so a token
+  // minted in the same second as the reset is rejected. That is harmless
+  // because the confirm route deliberately issues no session — the user signs
+  // in afterwards, which is at minimum a page load away.
+  if (user.passwordChangedAt && payload.issuedAt * 1000 < user.passwordChangedAt.getTime()) {
+    return null
+  }
 
   return {
     kind: 'user',
