@@ -145,13 +145,13 @@ describe('POST /api/app/auth/password-reset/request', () => {
     expect(findUniqueMock).not.toHaveBeenCalled()
   })
 
-  it('looks the address up case-insensitively by normalising it', async () => {
+  it('trims surrounding whitespace but preserves case', async () => {
     findUniqueMock.mockResolvedValue(USER)
 
-    await post({ email: '  USER@Example.com  ' })
+    await post({ email: '  User@Example.com  ' })
 
     expect(findUniqueMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { email: 'user@example.com' } }),
+      expect.objectContaining({ where: { email: 'User@Example.com' } }),
     )
   })
 })

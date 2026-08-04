@@ -43,9 +43,16 @@ export const POST = withPublic(async (request: NextRequest) => {
     return jsonSuccess({ requested: true })
   }
 
-  // Addresses are stored lowercased; a user typing their address with different
-  // capitalisation than they signed up with must still get a link.
-  const normalized = email.trim().toLowerCase()
+  // Trimmed, but deliberately NOT lowercased. Registration stores the address
+  // exactly as typed and login matches it exactly, and Postgres `@unique` is
+  // case-sensitive — so `User@Example.com` is a distinct row someone can log
+  // in as. Lowercasing here would leave that account permanently unable to
+  // reset its password, and the uniform response above would hide why.
+  //
+  // The codebase treating email as case-sensitive throughout is arguably wrong,
+  // but fixing it means normalising at registration and login too, which is a
+  // change to the credential path and out of scope here.
+  const normalized = email.trim()
 
   const user = await prisma.user.findUnique({
     where: { email: normalized },
