@@ -99,8 +99,7 @@ export function VerifyEmailNotice() {
 
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            The link is valid for 24 hours. If it has expired, or never arrived, send
-            yourself another one.
+            If the link has expired, or never arrived, send yourself another one.
           </p>
 
           {status && (
