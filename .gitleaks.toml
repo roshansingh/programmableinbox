@@ -58,6 +58,11 @@ tags = ["api-key", "resend"]
 # Consequence, by design: adding a new fake credential to the suite requires
 # adding it here. That is the intended friction — each entry is a human deciding
 # a specific string is not a secret.
+#
+# EVERY entry below is anchored with ^...$ and must match the whole extracted
+# secret. Gitleaks allowlist regexes match as substrings, so an unanchored
+# placeholder would also suppress any longer real secret that merely contains it.
+# Anchor anything added here.
 # ---------------------------------------------------------------------------
 
 [[allowlists]]
@@ -73,18 +78,22 @@ regexes = [
   # and silently suppress it.
   '''^sk_(live|test)_[0-9a-zA-Z]{1,44}$''',
   # lib/auth, lib/config, and email-verification suites
-  '''verification-secret-at-least-16(-chars)?''',
-  '''integration-verification-secret-16''',
-  '''rotated-secret-12345''',
-  '''re_test_key_[0-9]+''',
-  '''sk-ant-test''',
+  '''^verification-secret-at-least-16(-chars)?$''',
+  '''^integration-verification-secret-16$''',
+  '''^rotated-secret-12345$''',
+  '''^re_test_key_[0-9]+$''',
+  '''^sk-ant-test$''',
   # v0.app scaffold demo data, removed from app/api-keys/page.tsx but still
   # reachable by a full-history scan.
-  '''pk_(live|test)_51[A-Za-z0-9]+''',
-  # DSN placeholders in config schema tests and deployment design docs.
-  '''postgresql://u:p@h:5432''',
-  '''postgresql://app:\.\.\.@postgres:5432''',
-  '''(mypassword|pw)@redis\.example\.com''',
+  #
+  # Note this one stays deliberately broad: `[A-Za-z0-9]+` is unbounded, so the
+  # anchors do not stop it matching a real key of this shape. That is acceptable
+  # only because `pk_` is Stripe's *publishable* prefix — those keys are designed
+  # to ship in client-side bundles and are not credentials. The secret-key
+  # equivalent (`sk_`) is handled by the bounded pattern above, and narrowing
+  # this to the three scaffold literals would add precision without reducing any
+  # real risk.
+  '''^pk_(live|test)_51[A-Za-z0-9]+$''',
 ]
 
 # Paths excluded here are non-source only: build output, dependencies, and
