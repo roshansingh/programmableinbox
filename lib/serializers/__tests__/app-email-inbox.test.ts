@@ -37,6 +37,7 @@ const MESSAGE_ROW = {
   bcc: [],
   text: 'body',
   html: '<p>body</p>',
+  bodyText: 'body',
   isStarred: false,
   tags: [],
   categories: ['billing'],

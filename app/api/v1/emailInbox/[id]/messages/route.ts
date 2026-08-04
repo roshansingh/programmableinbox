@@ -4,6 +4,11 @@ import { listMessages } from '@/lib/services/email-inbox'
 import { serializePublicMessage } from '@/lib/serializers/public/email-inbox'
 import { decodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { clampLimit } from '@/lib/pagination/params'
+import {
+  parseMessageSearch,
+  SearchParamError,
+  type MessageSearch,
+} from '@/lib/search/message-search-params'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
 export const GET = withApiKey<{ id: string }>(
@@ -25,11 +30,24 @@ export const GET = withApiKey<{ id: string }>(
       }
     }
 
+    const grouped = searchParams.get('grouped') === 'true'
+
+    // Same parser as the app route, so the published contract and the dashboard
+    // cannot diverge on what a search parameter means (issue #106).
+    let search: MessageSearch | null
+    try {
+      search = parseMessageSearch(searchParams, { grouped })
+    } catch (error) {
+      if (error instanceof SearchParamError) return jsonError(error.message, 400)
+      throw error
+    }
+
     const result = await listMessages(scope, id, {
       limit: clampLimit(searchParams.get('limit')),
       cursor,
       threadId: searchParams.get('threadId'),
-      grouped: searchParams.get('grouped') === 'true',
+      grouped,
+      search,
     })
 
     if (!result) return jsonError('Not found', 404)

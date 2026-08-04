@@ -4,6 +4,8 @@ import { Prisma } from '@/lib/generated/prisma/client'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 import { encodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { fetchGroupedThreadHeads, type GroupedThreadHead } from './grouped-query'
+import { fetchSearchedMessages } from './message-search'
+import type { MessageSearch } from '@/lib/search/message-search-params'
 import type { OrgScope, OwnerScope } from './scope'
 
 export type ListMessagesOptions = {
@@ -11,6 +13,15 @@ export type ListMessagesOptions = {
   cursor: DecodedCursor | null
   threadId?: string | null
   grouped?: boolean
+  /**
+   * Search filters, or null when the request is a plain listing (issue #106).
+   *
+   * Null rather than an all-empty object so the non-searching path — every
+   * request the dashboard makes today — keeps its existing Prisma query and
+   * query plan untouched, instead of routing through raw SQL to apply no
+   * filters. `parseMessageSearch` produces exactly this shape.
+   */
+  search?: MessageSearch | null
 }
 
 type EmailMessageRow = Awaited<ReturnType<typeof prisma.emailMessage.findMany>>[number]
@@ -57,6 +68,19 @@ export async function listMessages(
   if (!inbox) return null
 
   const take = opts.limit + 1
+
+  // Search: an additional WHERE over the same ordering and cursor, served by raw
+  // SQL because the tsvector column is Unsupported in the Prisma schema. Checked
+  // before the grouped branch because the two are mutually exclusive — the route
+  // has already rejected grouped+search with a 400 (see parseMessageSearch).
+  if (opts.search) {
+    const rows = await fetchSearchedMessages(inboxId, opts.search, {
+      threadId: opts.threadId,
+      cursor: opts.cursor,
+      take,
+    })
+    return page(rows, opts.limit)
+  }
 
   // Grouped thread-list view: one row (latest message) per thread.
   if (opts.grouped && !opts.threadId) {

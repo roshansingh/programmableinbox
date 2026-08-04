@@ -5,6 +5,11 @@ import { serializeAppMessage } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { decodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { clampLimit } from '@/lib/pagination/params'
+import {
+  parseMessageSearch,
+  SearchParamError,
+  type MessageSearch,
+} from '@/lib/search/message-search-params'
 
 export const GET = withUser<{ id: string }>(async (request, principal, { params }) => {
   const { id } = await params
@@ -27,9 +32,19 @@ export const GET = withUser<{ id: string }>(async (request, principal, { params 
     }
   }
 
+  // Search parameters are parsed by the same module the v1 route uses, so the two
+  // surfaces cannot drift apart on what they accept (issue #106).
+  let search: MessageSearch | null
+  try {
+    search = parseMessageSearch(searchParams, { grouped })
+  } catch (error) {
+    if (error instanceof SearchParamError) return jsonError(error.message, 400)
+    throw error
+  }
+
   // listMessages resolves the inbox through the same scope, so an inbox outside
   // it is indistinguishable from one that does not exist.
-  const result = await listMessages(scope, id, { limit, cursor, threadId, grouped })
+  const result = await listMessages(scope, id, { limit, cursor, threadId, grouped, search })
   if (!result) return jsonError('Not found', 404)
 
   return jsonSuccess({

@@ -27,8 +27,10 @@ type MessageRow = {
   bcc: string[]
   text: string
   html: string
+  bodyText: string | null
   isStarred: boolean
   tags: string[]
+  categories: string[]
   extractedOtp: string | null
   createdAt: Date
   /**
@@ -63,8 +65,16 @@ export function serializePublicMessage(message: MessageRow) {
     bcc: message.bcc,
     text: message.text,
     html: message.html,
+    // The searchable plain text of the body (issue #106). Published because
+    // callers filtering on `q` need to see what matched, and it is derived from
+    // `text`/`html`, which this scope already returns in full.
+    bodyText: message.bodyText,
     isStarred: message.isStarred,
     tags: message.tags,
+    // Published alongside the `categories` filter (issue #106). Previously
+    // omitted as worker-internal state, but shipping a filter for a field the
+    // caller cannot read back is a worse contract than either extreme.
+    categories: message.categories,
     // Included on purpose — see the field allowlist note above. Derived from
     // the body, which this scope already returns.
     extractedOtp: message.extractedOtp,

@@ -5,6 +5,7 @@ import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
+import { deriveBodyText } from '@/lib/email/extract-body-text'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import { config } from '@/lib/config'
@@ -192,6 +193,13 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           subject: resendEmail.subject,
           text: resendEmail.text || '',
           html: resendEmail.html || '',
+          // Derived here rather than during enrichment (issue #106): enrichment is
+          // LLM-gated and optional, so deriving it there would mean a message is
+          // unsearchable until an optional step happens to run.
+          bodyText: deriveBodyText({
+            text: resendEmail.text || '',
+            html: resendEmail.html || '',
+          }),
           headers: resendEmail.headers || {},
           externalId: resendEmail.id,
           inboxEmailAddressId: inbox.id,

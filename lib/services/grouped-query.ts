@@ -1,11 +1,13 @@
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
+import { MESSAGE_COLUMNS } from './message-columns'
 import type { DecodedCursor } from '@/lib/pagination/cursor'
 
 /**
  * A thread "head" — the latest message in a thread, plus a count of all
- * messages in that thread. Carries every EmailMessage column (SELECT *) so the
- * route can return it with the same shape as a normal message row.
+ * messages in that thread. Carries every EmailMessage column the serializers can
+ * read (see MESSAGE_COLUMNS — everything but `searchVector`) so the route can
+ * return it with the same shape as a normal message row.
  */
 export interface GroupedThreadHead {
   id: string
@@ -45,7 +47,7 @@ export async function fetchGroupedThreadHeads(
 
   return prisma.$queryRaw<GroupedThreadHead[]>`
     WITH heads AS (
-      SELECT DISTINCT ON ("threadId") *,
+      SELECT DISTINCT ON ("threadId") ${MESSAGE_COLUMNS},
              count(*) OVER (PARTITION BY "threadId")::int AS "threadCount"
       FROM email_messages
       WHERE "inboxEmailAddressId" = ${inboxId}::uuid

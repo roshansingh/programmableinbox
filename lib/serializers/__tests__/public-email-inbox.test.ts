@@ -30,6 +30,7 @@ const MESSAGE_ROW = {
   bcc: [],
   text: 'body',
   html: '<p>body</p>',
+  bodyText: 'body',
   isStarred: false,
   tags: [],
   categories: [],
@@ -75,6 +76,8 @@ describe('serializePublicMessage', () => {
     expect(serializePublicMessage(MESSAGE_ROW)).toMatchInlineSnapshot(`
       {
         "bcc": [],
+        "bodyText": "body",
+        "categories": [],
         "cc": [],
         "createdAt": "2026-01-03T00:00:00.000Z",
         "extractedOtp": "123456",
@@ -92,6 +95,24 @@ describe('serializePublicMessage', () => {
         ],
       }
     `)
+  })
+
+  it('exposes the searchable body text', () => {
+    // Published alongside the `q` filter (issue #106): a caller that searches
+    // needs to see what matched, and it is derived from `text`/`html`, which the
+    // same messages:read scope already returns in full.
+    expect(serializePublicMessage(MESSAGE_ROW).bodyText).toBe('body')
+  })
+
+  it('returns null body text for a message that predates extraction', () => {
+    expect(serializePublicMessage({ ...MESSAGE_ROW, bodyText: null }).bodyText).toBeNull()
+  })
+
+  it('exposes categories, which the categories filter matches on', () => {
+    // Previously withheld as worker-internal state. Shipping a filter for a field
+    // the caller cannot read back is a worse contract than either extreme.
+    const row = { ...MESSAGE_ROW, categories: ['receipt', 'otp'] }
+    expect(serializePublicMessage(row).categories).toEqual(['receipt', 'otp'])
   })
 
   it('never exposes the provider identifier', () => {

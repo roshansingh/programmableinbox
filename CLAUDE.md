@@ -242,6 +242,34 @@ The allowlist reaches the browser as `config.emailInboxDomains` on `GET /api/app
 - Resend's outgoing `Message-ID` doesn't always match what the recipient sees, hence the subject fallback — don't remove it.
 - Duplicates are silently skipped via Prisma error code `P2002` on the `(externalId, inboxEmailAddressId)` unique constraint.
 
+### Message search (issue #106)
+
+Four query parameters on **both** `GET /api/app/emailInbox/[id]/messages` and `GET /api/v1/emailInbox/{id}/messages`: `q` (full-text over subject and body), `from` (case-insensitive substring), `tags` and `categories` (exact, OR within a parameter, AND across them). Both routes call the same parser, `lib/search/message-search-params.ts`, so the published contract and the dashboard cannot drift apart on what a parameter means.
+
+**Search filters; it does not rank.** Results stay `createdAt DESC, id DESC` and the existing `(createdAt, id)` keyset cursor keeps working verbatim, so a client can add `?q=` to a request without a second pagination contract. `ts_rank` ordering would need a float in the cursor and is deliberately deferred.
+
+**`grouped=true` + any search parameter is a 400.** Grouped mode collapses to one row per thread via `DISTINCT ON`, and every available answer for "what does it mean for a *thread* to match" either changes what `threadCount` counts or returns a row that does not contain the search term. The dashboard list defaults to grouped, so a search UI must send `grouped=false`.
+
+**`EmailMessage.bodyText`** holds the searchable plain text: the sender's `text` part when there is one, otherwise text extracted from `html` by `lib/email/extract-body-text.ts` (the `html-to-text` package). It is derived at write time on both paths that create messages — the webhook ingest and the send route — and deliberately *not* during enrichment, which is LLM-gated and optional; "searchable only once enriched" would be an invisible gap. Extraction uses a real parser rather than a tag-stripping regex because templated marketing mail carries multi-kilobyte `<style>` blocks, and indexing those fills the vector with CSS selectors.
+
+**`EmailMessage.searchVector` is a STORED generated column**, not a trigger and not an application write, so the index cannot drift from the row. Three things about it are load-bearing:
+
+- **`to_tsvector` is called with an explicit `'english'::regconfig`.** The one-argument form resolves `default_text_search_config` at call time and is therefore STABLE, not IMMUTABLE; Postgres rejects it in a generated column with *"generation expression is not immutable"*.
+- **The `left(...)` caps are a correctness bound.** `to_tsvector` raises once the vector exceeds 1 MB and a generated column is computed during `INSERT`, so without them an oversized email would not merely be unsearchable — it would **fail ingestion**. Verified: 300k distinct words needs 3.4 MB and aborts; capped at 100k characters it is ~220 KB. The cap is duplicated in `MAX_BODY_TEXT_LENGTH`, but the SQL one is what makes the failure unreachable.
+- **The `@default(dbgenerated(...))` on the field is not a default** — the column has none. It is the only way to tell Prisma's differ the value comes from an expression, and it must match `information_schema` byte for byte. Without it `prisma migrate diff` reports permanent drift and the next `prisma migrate dev` offers to "fix" it by dropping the generation expression, silently turning the search index into a column nothing writes.
+
+**Existing rows were not backfilled.** The `ALTER TABLE` rewrite computes the vector for every row, so subject search covers all mail immediately and body search covers everything that arrived with a text part — the expression is `coalesce("bodyText", text, '')`. Only the bodies of pre-existing HTML-only mail are missing. A batched re-derive is the escape hatch if that gap matters; writing `bodyText` updates the generated column automatically.
+
+**Querying is raw SQL** (`lib/services/message-search.ts`), because Prisma's `search` operator needs a preview flag, emits `to_tsquery` — which *raises* on input like a stray `&`, turning a search box into a 500 — and cannot reference an `Unsupported` column at all. `websearch_to_tsquery` is total and gives callers `"quoted phrases"`, `or` and `-negation` for free. Consequences that must not be "simplified" away:
+
+- **`deletedAt IS NULL` is written by hand.** Raw SQL bypasses the soft-delete extension in `lib/db.ts`; without it search is a read path that serves deleted mail.
+- **`from` is LIKE-escaped** (`\`, `%`, `_`). Unescaped, `from=%` is a filter that silently matches everything.
+- **`MESSAGE_COLUMNS` (`lib/services/message-columns.ts`) exists to keep `searchVector` out of the projection.** A tsvector over a 100k-character body is ~220 KB, so a `SELECT *` on a 50-row page would drag ~11 MB out of Postgres for a column no serializer reads. `grouped-query.ts` was switched off `SELECT *` for the same reason — Postgres has no `SELECT * EXCEPT`. Add new columns to that list.
+
+Stop words follow from the `english` configuration: a query of only common words (`the is`) matches nothing rather than everything. Non-English mail degrades to roughly `simple` behaviour; per-message language detection is out of scope.
+
+`bodyText` and `categories` are now in **both** serializers. `categories` was previously withheld from the public contract as worker-internal state; shipping a `categories` filter while hiding the field would mean callers filter on something they cannot read back.
+
 ### Prisma 7 (non-default setup)
 
 - Generator is `prisma-client` (NOT `prisma-client-js`), output to `lib/generated/prisma` (gitignored).
