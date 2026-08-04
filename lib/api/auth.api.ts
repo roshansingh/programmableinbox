@@ -135,6 +135,25 @@ export async function resendVerificationEmail(): Promise<{ sent: boolean }> {
 }
 
 /**
+ * Starts a password reset. Resolves the same way whether or not the address
+ * has an account — see the route for why.
+ */
+export async function requestPasswordReset(email: string): Promise<{ requested: boolean }> {
+  return apiClient.post<{ requested: boolean }>('/app/auth/password-reset/request', { email })
+}
+
+/** Completes a password reset. Returns no session — the user signs in after. */
+export async function confirmPasswordReset(
+  token: string,
+  password: string,
+): Promise<{ reset: boolean }> {
+  return apiClient.post<{ reset: boolean }>('/app/auth/password-reset/confirm', {
+    token,
+    password,
+  })
+}
+
+/**
  * Logout user (client-side only)
  * Removes token from storage
  * Note: No backend endpoint exists for logout in the OpenAPI spec
