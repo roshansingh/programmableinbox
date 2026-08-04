@@ -15,20 +15,20 @@ import { jsonRequest } from './helpers/request'
 
 const ORIGINAL = {
   ENABLE_EMAIL_VERIFICATION: process.env.ENABLE_EMAIL_VERIFICATION,
-  EMAIL_VERIFICATION_SECRET: process.env.EMAIL_VERIFICATION_SECRET,
+  EMAIL_LINK_SECRET: process.env.EMAIL_LINK_SECRET,
   APP_BASE_URL: process.env.APP_BASE_URL,
 }
 
 function enableVerification() {
   process.env.ENABLE_EMAIL_VERIFICATION = 'true'
-  process.env.EMAIL_VERIFICATION_SECRET = 'integration-verification-secret-16'
+  process.env.EMAIL_LINK_SECRET = 'integration-verification-secret-16'
   process.env.APP_BASE_URL = 'https://app.test.dev'
   resetConfigCache()
 }
 
 function disableVerification() {
   delete process.env.ENABLE_EMAIL_VERIFICATION
-  delete process.env.EMAIL_VERIFICATION_SECRET
+  delete process.env.EMAIL_LINK_SECRET
   delete process.env.APP_BASE_URL
   resetConfigCache()
 }

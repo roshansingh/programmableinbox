@@ -2,7 +2,7 @@
  * The only module that signs or verifies email-verification tokens (issue
  * #102).
  *
- * `server-only` because it reads `EMAIL_VERIFICATION_SECRET` through
+ * `server-only` because it reads `EMAIL_LINK_SECRET` through
  * `lib/config`. A client component importing this must fail the build rather
  * than shipping a signing key to the browser.
  */

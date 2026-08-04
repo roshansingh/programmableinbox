@@ -86,7 +86,7 @@ describe('withUser email-verification gate', () => {
   describe('when the deployment requires verification', () => {
     withConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: 'verification-secret-at-least-16',
+      EMAIL_LINK_SECRET: 'verification-secret-at-least-16',
       APP_BASE_URL: 'https://app.example.com',
     })
 

@@ -10,7 +10,7 @@ const CLAIMS = { userId: 'user_1', email: 'user@example.com' }
 describe('verification tokens', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: 'true',
-    EMAIL_VERIFICATION_SECRET: SECRET,
+    EMAIL_LINK_SECRET: SECRET,
     APP_BASE_URL: 'https://app.example.com',
     JWT_SECRET: SESSION_SECRET,
   })
@@ -112,7 +112,7 @@ describe('verification tokens', () => {
 describe('cross-purpose token separation', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: 'true',
-    EMAIL_VERIFICATION_SECRET: SECRET,
+    EMAIL_LINK_SECRET: SECRET,
     APP_BASE_URL: 'https://app.example.com',
     JWT_SECRET: SESSION_SECRET,
   })

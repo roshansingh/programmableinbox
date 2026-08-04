@@ -50,7 +50,7 @@ export function verifyToken(token: string): { userId: string } | null {
   if (typeof payload !== 'object' || payload === null) return null
 
   // Purpose-scoped tokens are never session credentials (issue #102 §6.1).
-  // Verification links are signed with EMAIL_VERIFICATION_SECRET, so today
+  // Verification links are signed with EMAIL_LINK_SECRET, so today
   // this is unreachable — the signature check above already fails. It exists
   // so that a future refactor unifying the two secrets cannot silently turn an
   // emailed link into a session token, which is the RFC 8725 §2.8 Cross-JWT

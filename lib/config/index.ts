@@ -165,15 +165,16 @@ export function requireEmailVerification(): { secret: string; appBaseUrl: string
   const { secret, appBaseUrl } = config.emailVerification
   const missing: string[] = []
 
-  if (secret === null) missing.push('EMAIL_VERIFICATION_SECRET')
+  if (secret === null) missing.push('EMAIL_LINK_SECRET')
   if (appBaseUrl === null) missing.push('APP_BASE_URL')
 
   if (missing.length > 0) {
     throw new ConfigError(
       `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required ` +
-        'when ENABLE_EMAIL_VERIFICATION is true. There is no default: a ' +
-        'verification link needs a signing key that is not JWT_SECRET, and an ' +
-        'absolute origin that does not come from the request.',
+        'when ENABLE_EMAIL_VERIFICATION is true. There is no default: every ' +
+        'emailed link — verification today, password reset next — needs a ' +
+        'signing key that is not JWT_SECRET, and an absolute origin that ' +
+        'does not come from the request.',
       missing,
     )
   }

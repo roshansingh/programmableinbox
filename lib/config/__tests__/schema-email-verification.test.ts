@@ -15,7 +15,7 @@ const SECRET = 'verification-secret-at-least-16'
 describe('emailVerification config', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_VERIFICATION_SECRET: undefined,
+    EMAIL_LINK_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
@@ -30,7 +30,7 @@ describe('emailVerification config', () => {
   it('parses when fully configured', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: SECRET,
+      EMAIL_LINK_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -40,19 +40,19 @@ describe('emailVerification config', () => {
     expect(parsed.secret?.reveal()).toBe(SECRET)
   })
 
-  it('throws naming EMAIL_VERIFICATION_SECRET when the flag is on without it', () => {
+  it('throws naming EMAIL_LINK_SECRET when the flag is on without it', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
       APP_BASE_URL: 'https://app.example.com',
     })
 
-    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_VERIFICATION_SECRET/)
+    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SECRET/)
   })
 
   it('throws naming APP_BASE_URL when the flag is on without it', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: SECRET,
+      EMAIL_LINK_SECRET: SECRET,
     })
 
     expect(() => parseDomain('emailVerification')).toThrow(/APP_BASE_URL/)
@@ -61,17 +61,17 @@ describe('emailVerification config', () => {
   it('rejects a secret that is too short rather than accepting a placeholder', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: 'short',
+      EMAIL_LINK_SECRET: 'short',
       APP_BASE_URL: 'https://app.example.com',
     })
 
-    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_VERIFICATION_SECRET/)
+    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SECRET/)
   })
 
   it('rejects a relative or non-http APP_BASE_URL', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: SECRET,
+      EMAIL_LINK_SECRET: SECRET,
       APP_BASE_URL: '/app',
     })
     expect(() => parseDomain('emailVerification')).toThrow(/APP_BASE_URL/)
@@ -94,10 +94,10 @@ describe('emailVerification config', () => {
       expect.unreachable('assertConfig should have thrown')
     } catch (error) {
       const message = (error as Error).message
-      expect(message).toContain('EMAIL_VERIFICATION_SECRET')
+      expect(message).toContain('EMAIL_LINK_SECRET')
       expect(message).toContain('APP_BASE_URL')
       expect((error as { variables: string[] }).variables).toEqual(
-        expect.arrayContaining(['EMAIL_VERIFICATION_SECRET', 'APP_BASE_URL']),
+        expect.arrayContaining(['EMAIL_LINK_SECRET', 'APP_BASE_URL']),
       )
     }
   })
@@ -105,7 +105,7 @@ describe('emailVerification config', () => {
   it('never prints the secret in a validation error', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: 'short',
+      EMAIL_LINK_SECRET: 'short',
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -115,7 +115,7 @@ describe('emailVerification config', () => {
   it('boxes the secret so it cannot be logged by accident', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: SECRET,
+      EMAIL_LINK_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -127,14 +127,14 @@ describe('emailVerification config', () => {
 describe('requireEmailVerification', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_VERIFICATION_SECRET: undefined,
+    EMAIL_LINK_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
   it('returns the revealed secret and origin when configured', () => {
     setConfigEnv({
       ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_VERIFICATION_SECRET: SECRET,
+      EMAIL_LINK_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -150,7 +150,7 @@ describe('requireEmailVerification', () => {
    * rather than dereference null somewhere inside the mailer.
    */
   it('throws naming both variables when the feature was never configured', () => {
-    expect(() => requireEmailVerification()).toThrow(/EMAIL_VERIFICATION_SECRET/)
+    expect(() => requireEmailVerification()).toThrow(/EMAIL_LINK_SECRET/)
     expect(() => requireEmailVerification()).toThrow(/APP_BASE_URL/)
   })
 })

@@ -9,7 +9,7 @@ vi.mock('@/lib/resend', () => ({
 
 const ENABLED = {
   ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_VERIFICATION_SECRET: 'verification-secret-at-least-16',
+  EMAIL_LINK_SECRET: 'verification-secret-at-least-16',
   APP_BASE_URL: 'https://app.example.com',
 }
 
@@ -103,7 +103,7 @@ describe('sendVerificationEmail', () => {
 describe('sendVerificationEmail when the feature is not configured', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_VERIFICATION_SECRET: undefined,
+    EMAIL_LINK_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
@@ -117,7 +117,7 @@ describe('sendVerificationEmail when the feature is not configured', () => {
 
     await expect(
       sendVerificationEmail({ id: 'u1', email: 'person@example.com' }),
-    ).rejects.toThrow(/EMAIL_VERIFICATION_SECRET/)
+    ).rejects.toThrow(/EMAIL_LINK_SECRET/)
     expect(sendMock).not.toHaveBeenCalled()
   })
 })
