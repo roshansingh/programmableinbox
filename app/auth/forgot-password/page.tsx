@@ -29,6 +29,7 @@ export default function ForgotPasswordPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
 
     try {
@@ -51,7 +52,7 @@ export default function ForgotPasswordPage() {
             </div>
           )}
           <CardTitle>{sent ? "Check your email" : "Reset your password"}</CardTitle>
-          <CardDescription>
+          <CardDescription role="status">
             {sent
               ? "If an account exists for that address, we've sent a link to reset your password."
               : "Enter your email address and we'll send you a link to choose a new password."}
