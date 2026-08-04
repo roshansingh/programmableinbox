@@ -11,11 +11,30 @@
  */
 export type RouteTag = 'user' | 'apiKey' | 'public'
 
+/**
+ * What the wrapper recorded about a handler.
+ *
+ * `allowUnverified` rides along with the tag rather than living in a separate
+ * symbol for the same reason the tag exists at all: the guard in
+ * lib/__tests__/route-guards.test.ts asserts the exact set of routes that opt
+ * out of the email-verification gate (issue #102), and a flag that only the
+ * wrapper can set is the only kind that cannot be faked by source text.
+ */
+export type RouteTagInfo = {
+  tag: RouteTag
+  /** True only for `withUser({ allowUnverified: true })`. */
+  allowUnverified: boolean
+}
+
 const ROUTE_TAG = Symbol.for('inboxui.routeTag')
 
-export function tagHandler<T>(handler: T, tag: RouteTag): T {
+export function tagHandler<T>(
+  handler: T,
+  tag: RouteTag,
+  options: { allowUnverified?: boolean } = {},
+): T {
   Object.defineProperty(handler as object, ROUTE_TAG, {
-    value: tag,
+    value: Object.freeze({ tag, allowUnverified: options.allowUnverified ?? false }),
     enumerable: false,
     writable: false,
     configurable: false,
@@ -23,8 +42,18 @@ export function tagHandler<T>(handler: T, tag: RouteTag): T {
   return handler
 }
 
-export function getHandlerTag(handler: unknown): RouteTag | null {
+export function getHandlerTagInfo(handler: unknown): RouteTagInfo | null {
   if (typeof handler !== 'function') return null
-  const tag = (handler as unknown as Record<symbol, unknown>)[ROUTE_TAG]
-  return tag === 'user' || tag === 'apiKey' || tag === 'public' ? tag : null
+
+  const info = (handler as unknown as Record<symbol, unknown>)[ROUTE_TAG]
+  if (typeof info !== 'object' || info === null) return null
+
+  const { tag, allowUnverified } = info as Record<string, unknown>
+  if (tag !== 'user' && tag !== 'apiKey' && tag !== 'public') return null
+
+  return { tag, allowUnverified: allowUnverified === true }
+}
+
+export function getHandlerTag(handler: unknown): RouteTag | null {
+  return getHandlerTagInfo(handler)?.tag ?? null
 }

@@ -4,6 +4,8 @@ import { hashPassword, signToken, formatUserResponse } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import { defaultOrganizationName } from '@/lib/user-display'
+import { config } from '@/lib/config'
+import { sendVerificationEmail } from '@/lib/email/verification-email'
 import {
   accountBucket,
   consumeClientIpRateLimit,
@@ -45,12 +47,20 @@ export const POST = withPublic(async (request: NextRequest) => {
       return jsonError('firstName and lastName must be strings', 400)
     }
 
-    const config = getRateLimitConfig()
+    // Named `rateLimitConfig`, unlike login's bare `config`, because this route
+    // also reads the app config singleton (`config.emailVerification`) below. A
+    // local named `config` would shadow the import and silently resolve to the
+    // rate-limit shape.
+    const rateLimitConfig = getRateLimitConfig()
     const client = getClientIp(request)
 
     // Unthrottled registration lets a script mint accounts (and the
     // organization + membership rows each one creates) without bound.
-    const ipDecision = await consumeClientIpRateLimit('register:ip', client, config.register.ip)
+    const ipDecision = await consumeClientIpRateLimit(
+      'register:ip',
+      client,
+      rateLimitConfig.register.ip,
+    )
     if (ipDecision && !ipDecision.allowed) {
       logger.warn(
         { ip: client.ip, scope: ipDecision.scope, degraded: ipDecision.degraded },
@@ -64,7 +74,7 @@ export const POST = withPublic(async (request: NextRequest) => {
     const accountDecision = await consumeRateLimit(
       'register:account',
       accountBucket(email),
-      config.register.account,
+      rateLimitConfig.register.account,
     )
     if (!accountDecision.allowed) {
       logger.warn(
@@ -116,6 +126,44 @@ export const POST = withPublic(async (request: NextRequest) => {
         },
       })
     })
+
+    if (config.emailVerification.enabled) {
+      // A send failure must NOT fail the signup (issue #102 §7.2). The account
+      // and organization are already committed, so a 500 here would leave the
+      // user holding an account they believe does not exist and an email they
+      // cannot re-request. The gate screen's Resend button is the recovery
+      // path; this is logged at error so the operator sees it regardless.
+      let sent = false
+      try {
+        await sendVerificationEmail({ id: user.id, email: user.email })
+        sent = true
+      } catch (error) {
+        logger.error(
+          { error, userId: user.id },
+          'Failed to send signup verification email',
+        )
+      }
+
+      // Stamped under its own try, and reported under its own message. Sharing
+      // one catch with the send meant a failed stamp logged "Failed to send"
+      // for an email that had in fact gone out — misleading on its own, and
+      // doubly so because the missing timestamp also leaves the resend cooldown
+      // wide open. Still non-fatal: the mail is away, and a missing cooldown is
+      // not worth failing a committed signup over.
+      if (sent) {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { verificationEmailSentAt: new Date() },
+          })
+        } catch (error) {
+          logger.error(
+            { error, userId: user.id },
+            'Sent the signup verification email but failed to record its cooldown timestamp',
+          )
+        }
+      }
+    }
 
     const token = signToken({ userId: user.id })
 

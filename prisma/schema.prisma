@@ -13,7 +13,17 @@ model User {
   passwordHash  String
   firstName     String?
   lastName      String?
+  /// Written by POST /api/app/auth/verification/confirm (issue #102). Gated on
+  /// ENABLE_EMAIL_VERIFICATION: with the flag off nothing reads it but the
+  /// serializer, which is why the grandfathering backfill is safe to run
+  /// unconditionally.
   emailVerified Boolean  @default(false)
+  /// Last time a verification email was sent, for the resend cooldown. A
+  /// column rather than an in-process map because the app runs as more than
+  /// one container: an in-memory throttle is defeated by round-robin across
+  /// instances and resets on every deploy. Redis would also work but is
+  /// optional in this deployment; one nullable timestamp is not.
+  verificationEmailSentAt DateTime? @db.Timestamptz(3)
   createdAt     DateTime @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 

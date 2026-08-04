@@ -20,6 +20,12 @@ afterEach(() => {
   } else {
     process.env.EMAIL_INBOX_DOMAINS = ORIGINAL
   }
+  // The verification vars are unset in the ambient test environment, so
+  // deleting is the correct restore. Leaving them set would make the
+  // "not required" cases order-dependent.
+  delete process.env.ENABLE_EMAIL_VERIFICATION
+  delete process.env.EMAIL_VERIFICATION_SECRET
+  delete process.env.APP_BASE_URL
   resetConfigCache()
 })
 
@@ -28,7 +34,23 @@ describe('getAppConfig', () => {
     configure('inbox.pibx.dev,mail.example.com')
     expect(getAppConfig()).toEqual({
       emailInboxDomains: ['inbox.pibx.dev', 'mail.example.com'],
+      emailVerificationRequired: false,
     })
+  })
+
+  it('reports email verification as not required when the flag is unset', () => {
+    configure('inbox.pibx.dev')
+    expect(getAppConfig().emailVerificationRequired).toBe(false)
+  })
+
+  it('reports email verification as required when the flag is on', () => {
+    configure('inbox.pibx.dev')
+    process.env.ENABLE_EMAIL_VERIFICATION = 'true'
+    process.env.EMAIL_VERIFICATION_SECRET = 'verification-secret-at-least-16'
+    process.env.APP_BASE_URL = 'https://app.pibx.dev'
+    resetConfigCache()
+
+    expect(getAppConfig().emailVerificationRequired).toBe(true)
   })
 
   /**
@@ -62,7 +84,10 @@ describe('getAppConfig', () => {
    */
   it('contains exactly the allowlisted keys and no others', () => {
     configure('inbox.pibx.dev')
-    expect(Object.keys(getAppConfig()).sort()).toEqual(['emailInboxDomains'])
+    expect(Object.keys(getAppConfig()).sort()).toEqual([
+      'emailInboxDomains',
+      'emailVerificationRequired',
+    ])
   })
 
   it('leaks no secret from the environment', () => {

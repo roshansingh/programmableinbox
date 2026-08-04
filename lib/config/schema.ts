@@ -275,6 +275,61 @@ const BillingSchema = z
   .transform((v) => ({ enabled: v.ENABLE_BILLING ?? false }))
 
 /**
+ * Email verification at signup (issue #102).
+ *
+ * Off by default, which preserves the behaviour every existing deployment
+ * already has. Turning it on must be a decision an operator takes, not a side
+ * effect of upgrading — a single-user self-hosted instance behind a VPN should
+ * not be forced through a mail round-trip it does not need.
+ *
+ * The two supporting variables are conditionally required, on the `REDIS_URL` /
+ * `ENABLE_ASYNC_WEBHOOK_PROCESSING` precedent: null when absent, and consumers
+ * reach them through `requireEmailVerification()`, which throws naming them.
+ * `assertConfig()` turns "flag on, secret missing" into one loud startup
+ * failure rather than a signup that succeeds and mails nobody.
+ *
+ * `APP_BASE_URL` is deliberately operator configuration rather than the
+ * request's `Host` header. Deriving the link origin from the incoming request
+ * hands anyone who can set `Host` (or `X-Forwarded-Host`, behind a proxy that
+ * forwards it unvalidated) control of the domain in the victim's email — a
+ * phishing primitive signed by our own mail domain.
+ */
+const EmailVerificationSchema = z
+  .object({
+    ENABLE_EMAIL_VERIFICATION: zBool.optional(),
+    // A distinct secret from JWT_SECRET, never the same one. See
+    // lib/auth/verification-token.ts — a verification token presented as a
+    // session credential must fail signature verification outright.
+    EMAIL_VERIFICATION_SECRET: zSecret({ min: 16 }).optional(),
+    APP_BASE_URL: zUrl(['http:', 'https:']).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.ENABLE_EMAIL_VERIFICATION) return
+
+    if (!v.EMAIL_VERIFICATION_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMAIL_VERIFICATION_SECRET'],
+        message: 'is required when ENABLE_EMAIL_VERIFICATION is true',
+      })
+    }
+
+    if (!v.APP_BASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['APP_BASE_URL'],
+        message:
+          'is required when ENABLE_EMAIL_VERIFICATION is true — verification links need an absolute origin',
+      })
+    }
+  })
+  .transform((v) => ({
+    enabled: v.ENABLE_EMAIL_VERIFICATION ?? false,
+    secret: v.EMAIL_VERIFICATION_SECRET ?? null,
+    appBaseUrl: v.APP_BASE_URL ?? null,
+  }))
+
+/**
  * Authentication rate limiting, account lockout, and the proxy trust model
  * (issue #42). Consumed by `lib/security/rate-limit.ts`.
  *
@@ -403,6 +458,10 @@ export const DOMAIN_SCHEMAS = {
   },
   billing: { schema: BillingSchema, vars: ['ENABLE_BILLING'] },
   emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
+  emailVerification: {
+    schema: EmailVerificationSchema,
+    vars: ['ENABLE_EMAIL_VERIFICATION', 'EMAIL_VERIFICATION_SECRET', 'APP_BASE_URL'],
+  },
   rateLimit: {
     schema: RateLimitSchema,
     vars: [

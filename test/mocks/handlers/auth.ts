@@ -27,4 +27,16 @@ export const authHandlers = [
       data: { token: 'mock-jwt-token', user: mockUser },
     })
   }),
+
+  // Issue #102. Defaults are the happy paths; suites exercising expiry, an
+  // invalid link or the 429 cooldown override these per test. MSW runs with
+  // onUnhandledRequest: 'error', so an endpoint absent here is a hard failure
+  // rather than a silent network error.
+  http.post(`${BASE}/app/auth/verification/confirm`, async () => {
+    return HttpResponse.json({ data: { verified: true } })
+  }),
+
+  http.post(`${BASE}/app/auth/verification/resend`, async () => {
+    return HttpResponse.json({ data: { sent: true } })
+  }),
 ]
