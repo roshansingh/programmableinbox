@@ -2,13 +2,13 @@
  * The only module that signs or verifies email-verification tokens (issue
  * #102).
  *
- * `server-only` because it reads `EMAIL_VERIFICATION_SECRET` through
+ * `server-only` because it reads `EMAIL_LINK_SECRET` through
  * `lib/config`. A client component importing this must fail the build rather
  * than shipping a signing key to the browser.
  */
 import 'server-only'
 import jwt from 'jsonwebtoken'
-import { requireEmailVerification } from '@/lib/config'
+import { config, requireEmailVerification } from '@/lib/config'
 
 /**
  * Stateless by design: no token table, no cleanup job.
@@ -27,14 +27,20 @@ import { requireEmailVerification } from '@/lib/config'
 const VERIFICATION_PURPOSE = 'email_verify'
 
 /**
- * Long enough that a link found the next morning still works, short enough
- * that a token sitting in an archived mailbox is not indefinitely live.
+ * The TTL now comes from `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (default 30).
  *
- * A constant rather than an env var: this is a product decision, not a
- * per-deployment one, and every additional variable is another thing
- * `assertConfig()` has to explain.
+ * Read per call rather than captured at module load, for the same reason
+ * `getJwtSecret()` is: `next build` evaluates this module with no environment
+ * present, so a module-scope read would break the build rather than the
+ * misconfigured deployment.
+ *
+ * Converted to seconds here rather than handing `jwt.sign` an `ms`-format
+ * string: an unrecognised duration string throws from inside `sign`, at signup
+ * time, whereas an integer is validated at boot by `assertConfig()`.
  */
-export const VERIFICATION_TOKEN_TTL = '24h'
+function ttlSeconds(): number {
+  return config.emailVerification.tokenTtlMinutes * 60
+}
 
 /** Minimum gap between verification sends for one user. See §7.4. */
 export const RESEND_COOLDOWN_SECONDS = 60
@@ -64,7 +70,7 @@ export function signVerificationToken(claims: { userId: string; email: string })
   return jwt.sign(
     { purpose: VERIFICATION_PURPOSE, userId: claims.userId, email: claims.email },
     secret,
-    { expiresIn: VERIFICATION_TOKEN_TTL },
+    { expiresIn: ttlSeconds() },
   )
 }
 
@@ -91,11 +97,13 @@ export function verifyVerificationToken(token: string): VerificationResult {
 
   const { purpose, userId, email } = payload as Record<string, unknown>
 
-  // The second of the three barriers in §6.1. The differing secret already
-  // closes the confusion attack; this exists so that a future refactor which
-  // "simplifies" the secrets does not silently reopen it, and so that a second
-  // purpose (password reset) added to this module cannot redeem a verification
-  // link.
+  // Load-bearing, not a backstop. lib/auth/password-reset-token.ts is the
+  // second purpose, and it is signed with the SAME key — EMAIL_LINK_SECRET —
+  // so the signature check cannot tell the two token types apart. This
+  // equality test is the only thing that can. A reset token presented here
+  // would otherwise verify, and vice versa.
+  //
+  // Do not relax it, and do not read any other claim before it.
   if (purpose !== VERIFICATION_PURPOSE) return { ok: false, reason: 'invalid' }
   if (typeof userId !== 'string' || userId === '') return { ok: false, reason: 'invalid' }
   if (typeof email !== 'string' || email === '') return { ok: false, reason: 'invalid' }

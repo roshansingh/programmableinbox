@@ -34,7 +34,7 @@ export function signToken(payload: { userId: string }): string {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' })
 }
 
-export function verifyToken(token: string): { userId: string } | null {
+export function verifyToken(token: string): { userId: string; issuedAt: number } | null {
   // Resolved outside the try block on purpose: a misconfigured secret must
   // surface as a thrown error (500 + logs), never be swallowed into the `null`
   // path where it is indistinguishable from a merely invalid token.
@@ -50,17 +50,22 @@ export function verifyToken(token: string): { userId: string } | null {
   if (typeof payload !== 'object' || payload === null) return null
 
   // Purpose-scoped tokens are never session credentials (issue #102 §6.1).
-  // Verification links are signed with EMAIL_VERIFICATION_SECRET, so today
+  // Verification links are signed with EMAIL_LINK_SECRET, so today
   // this is unreachable — the signature check above already fails. It exists
   // so that a future refactor unifying the two secrets cannot silently turn an
   // emailed link into a session token, which is the RFC 8725 §2.8 Cross-JWT
   // Confusion class this codebase removed once already.
   if ('purpose' in payload) return null
 
-  const { userId } = payload as Record<string, unknown>
+  const { userId, iat } = payload as Record<string, unknown>
   if (typeof userId !== 'string' || userId === '') return null
 
-  return { userId }
+  // `jwt.sign` always stamps `iat`, so a token without one was not minted by
+  // signToken. Rejecting rather than defaulting keeps the eviction check below
+  // from being bypassable by omitting the claim.
+  if (typeof iat !== 'number') return null
+
+  return { userId, issuedAt: iat }
 }
 
 export async function resolveUserPrincipalFromToken(token: string): Promise<{
@@ -83,6 +88,7 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
       // Populated whether or not ENABLE_EMAIL_VERIFICATION is on — with the
       // flag off it simply never gates anything.
       emailVerified: true,
+      passwordChangedAt: true,
       memberships: {
         select: {
           organizationId: true,
@@ -93,6 +99,34 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
   })
 
   if (!user) return null
+
+  // A completed reset evicts every session that predates it. Someone resetting
+  // because their account was compromised expects exactly that; without it the
+  // attacker's 7-day JWT outlives the reset meant to stop them.
+  //
+  // `<`, not `<=`, and the distinction is load-bearing.
+  //
+  // `iat` has one-second resolution, so a token stamped `iat = N` was actually
+  // minted somewhere in [N*1000, N*1000+999]ms. The comparison therefore reads
+  // as: accept only when the *earliest* instant the token could have been
+  // minted is already at or after the reset. That set is exactly the tokens
+  // provably issued at-or-after the change, so no pre-reset session survives.
+  //
+  // Where that window straddles the reset, the token is rejected even though it
+  // may in fact have been minted after — deliberate, and harmless because the
+  // confirm route issues no session, so signing in is at minimum a page load
+  // away.
+  //
+  // `<=` would be strictly worse, not stricter: when `passwordChangedAt` lands
+  // exactly on a second boundary (a 1-in-1000 `new Date()`), it rejects a token
+  // whose entire window sits at or after the reset — logging the user out of the
+  // session they just created with their new password. It buys no security,
+  // because `iat * 1000 >= passwordChangedAt` already implies the token was
+  // minted at or after the reset. Both directions are pinned by tests in
+  // lib/auth/__tests__/session-eviction.test.ts.
+  if (user.passwordChangedAt && payload.issuedAt * 1000 < user.passwordChangedAt.getTime()) {
+    return null
+  }
 
   return {
     kind: 'user',
@@ -106,6 +140,21 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
   }
 }
 
+/**
+ * Deliberately does NOT apply the `passwordChangedAt` eviction check that
+ * `resolveUserPrincipalFromToken` applies above. That is safe only because
+ * this function's sole caller (`/api/app/auth/me`) sits inside `withUser`,
+ * which has already run `resolveUserPrincipalFromToken` and rejected an
+ * evicted token before the handler — and therefore before this function —
+ * ever runs. Adding the check here would be a second, redundant query for a
+ * request that already passed it once.
+ *
+ * This is NOT safe to call directly from anywhere that has not already gone
+ * through `withUser`: a route (or a future refactor) that calls this
+ * function on its own would authenticate a session a password reset was
+ * meant to evict, defeating the protection `resolveUserPrincipalFromToken`
+ * exists to provide.
+ */
 export async function getAuthenticatedUser(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return null

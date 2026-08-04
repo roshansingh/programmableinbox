@@ -2,6 +2,7 @@ import 'server-only'
 import { config, requireEmailVerification } from '@/lib/config'
 import { getResend } from '@/lib/resend'
 import { signVerificationToken } from '@/lib/auth/verification-token'
+import { formatDuration } from '@/lib/format-duration'
 
 /**
  * Builds the absolute link a verification email carries (issue #102 §7.5).
@@ -32,7 +33,7 @@ function escapeHtml(value: string): string {
  * `config.email` sender the rest of the product sends from.
  *
  * No tracking pixel and no redirect parameter. The product is named in the
- * body and the 24-hour expiry is stated, so the mail does not read as
+ * body and the real expiry is stated, so the mail does not read as
  * phishing — which matters more than usual for a message whose entire purpose
  * is to get someone to click a link.
  *
@@ -46,6 +47,7 @@ export async function sendVerificationEmail(user: {
   const token = signVerificationToken({ userId: user.id, email: user.email })
   const url = buildVerificationUrl(token)
   const product = config.email.fromName
+  const validFor = formatDuration(config.emailVerification.tokenTtlMinutes)
 
   const { error } = await getResend().emails.send({
     from: `${product} <${config.email.from}>`,
@@ -59,7 +61,7 @@ export async function sendVerificationEmail(user: {
       '',
       url,
       '',
-      'The link is valid for 24 hours. If it expires, request a new one from',
+      `The link is valid for ${validFor}. If it expires, request a new one from`,
       'the app.',
       '',
       "If you did not sign up, you can ignore this email — the account stays",
@@ -71,7 +73,7 @@ export async function sendVerificationEmail(user: {
       `<p style="margin:0 0 16px">You (or someone using this address) created a ${escapeHtml(product)} account with <strong>${escapeHtml(user.email)}</strong>. Confirm the address to finish setting up:</p>`,
       `<p style="margin:0 0 16px"><a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:6px;text-decoration:none">Verify email address</a></p>`,
       `<p style="margin:0 0 16px;color:#555">Or paste this into your browser:<br><span style="word-break:break-all">${escapeHtml(url)}</span></p>`,
-      '<p style="margin:0 0 16px;color:#555">The link is valid for <strong>24 hours</strong>. If it expires, request a new one from the app.</p>',
+      `<p style="margin:0 0 16px;color:#555">The link is valid for <strong>${validFor}</strong>. If it expires, request a new one from the app.</p>`,
       '<p style="margin:0;color:#555">If you did not sign up, you can ignore this email — the account stays unverified and unusable.</p>',
       '</div>',
     ].join(''),

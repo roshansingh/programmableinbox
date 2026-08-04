@@ -6,6 +6,7 @@ import { withPublic } from '@/lib/auth/with-auth'
 import { defaultOrganizationName } from '@/lib/user-display'
 import { config } from '@/lib/config'
 import { sendVerificationEmail } from '@/lib/email/verification-email'
+import { validatePassword } from '@/lib/validation/password'
 import {
   accountBucket,
   consumeClientIpRateLimit,
@@ -39,6 +40,14 @@ export const POST = withPublic(async (request: NextRequest) => {
     // which Prisma would otherwise reject at insert time with the same outcome.
     if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
       return jsonError('Email and password are required', 400)
+    }
+
+    // Newly enforced. Registration previously accepted a one-character
+    // password, which meant the reset endpoint could refuse a password the
+    // same account had signed up with.
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      return jsonError(passwordError, 400)
     }
     if (
       (firstName !== undefined && firstName !== null && typeof firstName !== 'string') ||

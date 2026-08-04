@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { withConfigEnv } from '@/test/config'
+import { setConfigEnv, withConfigEnv } from '@/test/config'
 
 const sendMock = vi.fn()
 
@@ -9,7 +9,7 @@ vi.mock('@/lib/resend', () => ({
 
 const ENABLED = {
   ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_VERIFICATION_SECRET: 'verification-secret-at-least-16',
+  EMAIL_LINK_SECRET: 'verification-secret-at-least-16',
   APP_BASE_URL: 'https://app.example.com',
 }
 
@@ -71,9 +71,22 @@ describe('sendVerificationEmail', () => {
 
     await sendVerificationEmail({ id: 'u1', email: 'person@example.com' })
 
+    // ENABLED does not set EMAIL_VERIFICATION_TOKEN_TTL_MINUTES, so this is
+    // the schema default (30) rendered through formatDuration.
     const { html, text } = sendMock.mock.calls[0][0]
-    expect(text).toContain('24 hours')
-    expect(html).toContain('24 hours')
+    expect(text).toContain('30 minutes')
+    expect(html).toContain('30 minutes')
+  })
+
+  it('renders a configured TTL in hours when it divides evenly', async () => {
+    setConfigEnv({ EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: '120' })
+    const { sendVerificationEmail } = await import('../verification-email')
+
+    await sendVerificationEmail({ id: 'u1', email: 'person@example.com' })
+
+    const { html, text } = sendMock.mock.calls[0][0]
+    expect(text).toContain('2 hours')
+    expect(html).toContain('2 hours')
   })
 
   /**
@@ -103,7 +116,7 @@ describe('sendVerificationEmail', () => {
 describe('sendVerificationEmail when the feature is not configured', () => {
   withConfigEnv({
     ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_VERIFICATION_SECRET: undefined,
+    EMAIL_LINK_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
@@ -117,7 +130,7 @@ describe('sendVerificationEmail when the feature is not configured', () => {
 
     await expect(
       sendVerificationEmail({ id: 'u1', email: 'person@example.com' }),
-    ).rejects.toThrow(/EMAIL_VERIFICATION_SECRET/)
+    ).rejects.toThrow(/EMAIL_LINK_SECRET/)
     expect(sendMock).not.toHaveBeenCalled()
   })
 })

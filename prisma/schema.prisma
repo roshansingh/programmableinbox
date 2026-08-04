@@ -24,6 +24,16 @@ model User {
   /// instances and resets on every deploy. Redis would also work but is
   /// optional in this deployment; one nullable timestamp is not.
   verificationEmailSentAt DateTime? @db.Timestamptz(3)
+  /// Set by POST /api/app/auth/password-reset/confirm. A session JWT issued
+  /// before this instant is rejected, so completing a reset evicts sessions an
+  /// attacker may already hold — which is the point of resetting a password
+  /// you believe was compromised. Null means "never reset" and gates nothing,
+  /// so existing rows need no backfill.
+  passwordChangedAt DateTime? @db.Timestamptz(3)
+  /// Last time a password reset email was sent, for the request cooldown.
+  /// A column rather than an in-process map for the same reason
+  /// verificationEmailSentAt is one: the app runs as more than one container.
+  passwordResetEmailSentAt DateTime? @db.Timestamptz(3)
   createdAt     DateTime @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 

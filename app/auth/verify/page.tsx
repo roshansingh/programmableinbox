@@ -100,7 +100,7 @@ function VerifyEmailContent() {
       <Shell
         icon="warning"
         title="This link has expired"
-        description="Verification links are valid for 24 hours. Sign in and send yourself a new one."
+        description="This link is no longer valid. Sign in and send yourself a new one."
       >
         <Button className="w-full" asChild>
           <Link href="/auth/login">Go to sign in</Link>

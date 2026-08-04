@@ -61,8 +61,22 @@ async function assertTree(dir: string, expected: (file: string, method: string) 
  * `auth/verification/confirm` is here because the verification link is
  * routinely opened on a device holding no session (issue #102 §7.3) — the
  * emailed token is the credential, and it authorizes exactly one state change.
+ *
+ * `auth/password-reset/request` and `auth/password-reset/confirm` are here
+ * for the same reason: their caller cannot be authenticated — that is the
+ * entire premise of a password reset — so a session-based wrapper would be a
+ * contradiction. `confirm` is authenticated by the purpose-scoped token in its
+ * body; `request` is genuinely unauthenticated, and is safe because the link
+ * it sends goes only to the address's own mailbox and its response is
+ * identical for every outcome.
  */
-const PUBLIC_APP_ROUTES = ['auth/login', 'auth/register', 'auth/verification/confirm']
+const PUBLIC_APP_ROUTES = [
+  'auth/login',
+  'auth/register',
+  'auth/verification/confirm',
+  'auth/password-reset/request',
+  'auth/password-reset/confirm',
+]
 
 /**
  * The exact set of `withUser` routes exempt from the email-verification gate

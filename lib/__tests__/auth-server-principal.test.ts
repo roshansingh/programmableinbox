@@ -28,11 +28,19 @@ const ROW = {
   id: 'user_1',
   email: 'person@example.com',
   emailVerified: true,
+  passwordChangedAt: null,
   memberships: [
     { organizationId: 'org_1', role: 'owner' },
     { organizationId: 'org_2', role: 'member' },
   ],
 }
+
+// jsonwebtoken is mocked at the module level, so `verify`'s return value never
+// goes through the real jwt.verify — these calls stand in for what it hands
+// back. `verifyToken` now rejects a payload with no `iat`, so every fixture
+// here needs one or it fails before resolveUserPrincipalFromToken's own logic
+// runs.
+const ISSUED_AT = Math.floor(Date.now() / 1000)
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -59,14 +67,14 @@ describe('resolveUserPrincipalFromToken', () => {
   it('returns null when the token is valid but the user no longer exists', async () => {
     // A session outliving its user must not authenticate. The token verifies,
     // so only this lookup stands between a deleted account and a live session.
-    verifyTokenMock.mockReturnValue({ userId: 'ghost_user' })
+    verifyTokenMock.mockReturnValue({ userId: 'ghost_user', iat: ISSUED_AT })
     userFindUniqueMock.mockResolvedValue(null)
 
     expect(await resolve('valid.jwt.here')).toBeNull()
   })
 
   it('normalizes a verified token into a user principal', async () => {
-    verifyTokenMock.mockReturnValue({ userId: 'user_1' })
+    verifyTokenMock.mockReturnValue({ userId: 'user_1', iat: ISSUED_AT })
     userFindUniqueMock.mockResolvedValue(ROW)
 
     expect(await resolve('valid.jwt.here')).toEqual({
@@ -87,7 +95,7 @@ describe('resolveUserPrincipalFromToken', () => {
    * the gate for every user.
    */
   it('carries an unverified address through to the principal', async () => {
-    verifyTokenMock.mockReturnValue({ userId: 'user_1' })
+    verifyTokenMock.mockReturnValue({ userId: 'user_1', iat: ISSUED_AT })
     userFindUniqueMock.mockResolvedValue({ ...ROW, emailVerified: false })
 
     expect((await resolve('valid.jwt.here'))?.emailVerified).toBe(false)
@@ -97,7 +105,7 @@ describe('resolveUserPrincipalFromToken', () => {
     // The principal deliberately does not carry passwordHash or the
     // organization relation; widening this select would leak both into every
     // authenticated request's memory.
-    verifyTokenMock.mockReturnValue({ userId: 'user_1' })
+    verifyTokenMock.mockReturnValue({ userId: 'user_1', iat: ISSUED_AT })
     userFindUniqueMock.mockResolvedValue(ROW)
 
     await resolve('valid.jwt.here')
@@ -111,13 +119,14 @@ describe('resolveUserPrincipalFromToken', () => {
       'emailVerified',
       'id',
       'memberships',
+      'passwordChangedAt',
     ])
   })
 
   it('carries an empty membership list through rather than failing', async () => {
     // toOrgScope is what turns "no memberships" into a 403; this function's
     // job is only to say who the caller is.
-    verifyTokenMock.mockReturnValue({ userId: 'user_1' })
+    verifyTokenMock.mockReturnValue({ userId: 'user_1', iat: ISSUED_AT })
     userFindUniqueMock.mockResolvedValue({ ...ROW, memberships: [] })
 
     const principal = await resolve('valid.jwt.here')

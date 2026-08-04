@@ -24,7 +24,7 @@ afterEach(() => {
   // deleting is the correct restore. Leaving them set would make the
   // "not required" cases order-dependent.
   delete process.env.ENABLE_EMAIL_VERIFICATION
-  delete process.env.EMAIL_VERIFICATION_SECRET
+  delete process.env.EMAIL_LINK_SECRET
   delete process.env.APP_BASE_URL
   resetConfigCache()
 })
@@ -46,7 +46,7 @@ describe('getAppConfig', () => {
   it('reports email verification as required when the flag is on', () => {
     configure('inbox.pibx.dev')
     process.env.ENABLE_EMAIL_VERIFICATION = 'true'
-    process.env.EMAIL_VERIFICATION_SECRET = 'verification-secret-at-least-16'
+    process.env.EMAIL_LINK_SECRET = 'verification-secret-at-least-16'
     process.env.APP_BASE_URL = 'https://app.pibx.dev'
     resetConfigCache()
 

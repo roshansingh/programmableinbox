@@ -72,7 +72,7 @@ export default function RegisterPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>
-            Get started with your disposable inbox today
+            Get started with your Programmable Inbox today
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
