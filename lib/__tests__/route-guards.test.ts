@@ -71,6 +71,7 @@ const PUBLIC_APP_ROUTES = [
   'auth/register',
   'auth/verification/confirm',
   'auth/password-reset/request',
+  'auth/password-reset/confirm',
 ]
 
 /**
