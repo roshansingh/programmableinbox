@@ -1,4 +1,4 @@
-# Async Webhook Processing with BullMQ — InboxUI Design Spec
+# Async Webhook Processing with BullMQ — ProgrammableInbox Design Spec
 
 **Date**: 2026-05-17  
 **Status**: APPROVED  

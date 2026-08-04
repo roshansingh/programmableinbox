@@ -6,7 +6,7 @@
 
 ## Overview
 
-InboxUI will be released as an open-source, self-hostable application. This design implements three clean abstractions—**Policy**, **Entitlements**, and **Metering**—that define the commercial boundary between the OSS core and future SaaS billing.
+ProgrammableInbox will be released as an open-source, self-hostable application. This design implements three clean abstractions—**Policy**, **Entitlements**, and **Metering**—that define the commercial boundary between the OSS core and future SaaS billing.
 
 The OSS core provides permissive implementations that allow everything. When the separate **billing app** is built later, it will provide SaaS implementations of these interfaces with actual enforcement. The OSS core never needs to know whether billing exists.
 
@@ -398,7 +398,7 @@ return jsonSuccess(automations)
 
 **How the separate billing app injects its implementations:**
 
-When the SaaS billing app starts (before or alongside InboxUI), it:
+When the SaaS billing app starts (before or alongside ProgrammableInbox), it:
 
 1. Initializes Stripe client and loads plans from database
 2. Creates SaaS implementations of the three interfaces
@@ -630,14 +630,14 @@ Request: POST /api/v1/webhooks/email
 
 ### Data Isolation
 
-**InboxUI Database** (shared between OSS and SaaS):
+**ProgrammableInbox Database** (shared between OSS and SaaS):
 - Users, Organizations, Memberships
 - EmailInbox, PhoneInbox, EmailMessage, SMSMessage
 - Automation, AutomationTrigger, AutomationAction
 - ApiKey, Webhook
 - (unchanged in SaaS — all app data lives here)
 
-**InboxUI-Billing Database** (SaaS only):
+**ProgrammableInbox-Billing Database** (SaaS only):
 - Plan (pricing tiers, limits, features)
 - Subscription (active subscriptions, billing cycles)
 - MeteringRecord (usage metrics for analytics)
@@ -653,7 +653,7 @@ model Organization {
 }
 ```
 
-The `externalBillingId` is opaque to InboxUI core — only the billing app knows its meaning.
+The `externalBillingId` is opaque to ProgrammableInbox core — only the billing app knows its meaning.
 
 ### Key Benefits
 
@@ -666,7 +666,7 @@ The `externalBillingId` is opaque to InboxUI core — only the billing app knows
    - Separate repository (inboxui-billing)
    - Separate database (optional, can be same Postgres instance)
    - Can be upgraded/deployed independently
-   - Can be rewritten/replaced without touching InboxUI
+   - Can be rewritten/replaced without touching ProgrammableInbox
    
 ✅ **Clean interfaces make it testable**
    - Mock IPolicy, IEntitlements, IMetering in tests
@@ -892,7 +892,7 @@ it('GET /api/v1/automations rejects free tier (SaaS)', async () => {
 - `app/api/v1/webhooks/email/__tests__/integration.test.ts` — Mock policy/metering to verify calls
 - `app/api/v1/automations/__tests__/route.test.ts` — Mock entitlements to test feature gates
 
-### Modified Files (InboxUI Route Handlers)
+### Modified Files (ProgrammableInbox Route Handlers)
 
 **Add policy checks (before resource creation)**:
 - `app/api/v1/apiKeys/route.ts` (POST) — Add policy.check() for 'apiKey.create'

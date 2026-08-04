@@ -2,7 +2,7 @@
 
 ## Overview
 
-The InboxUI webhook system processes incoming Resend emails asynchronously using BullMQ (Redis-backed job queue). This guide covers deployment, configuration, monitoring, and troubleshooting.
+The ProgrammableInbox webhook system processes incoming Resend emails asynchronously using BullMQ (Redis-backed job queue). This guide covers deployment, configuration, monitoring, and troubleshooting.
 
 **Key benefits:**
 - Fast webhook responses (50-100ms) prevent Resend retries

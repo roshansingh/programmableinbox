@@ -1,7 +1,7 @@
 export const spec = {
   openapi: '3.0.0',
   info: {
-    title: 'InboxUI Email Inboxes API',
+    title: 'ProgrammableInbox Email Inboxes API',
     description: 'Email inbox management endpoints with API key support',
     version: '1.0.0',
   },
