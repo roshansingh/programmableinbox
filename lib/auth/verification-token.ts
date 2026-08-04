@@ -8,7 +8,7 @@
  */
 import 'server-only'
 import jwt from 'jsonwebtoken'
-import { requireEmailVerification } from '@/lib/config'
+import { config, requireEmailVerification } from '@/lib/config'
 
 /**
  * Stateless by design: no token table, no cleanup job.
@@ -27,14 +27,20 @@ import { requireEmailVerification } from '@/lib/config'
 const VERIFICATION_PURPOSE = 'email_verify'
 
 /**
- * Long enough that a link found the next morning still works, short enough
- * that a token sitting in an archived mailbox is not indefinitely live.
+ * The TTL now comes from `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (default 30).
  *
- * A constant rather than an env var: this is a product decision, not a
- * per-deployment one, and every additional variable is another thing
- * `assertConfig()` has to explain.
+ * Read per call rather than captured at module load, for the same reason
+ * `getJwtSecret()` is: `next build` evaluates this module with no environment
+ * present, so a module-scope read would break the build rather than the
+ * misconfigured deployment.
+ *
+ * Converted to seconds here rather than handing `jwt.sign` an `ms`-format
+ * string: an unrecognised duration string throws from inside `sign`, at signup
+ * time, whereas an integer is validated at boot by `assertConfig()`.
  */
-export const VERIFICATION_TOKEN_TTL = '24h'
+function ttlSeconds(): number {
+  return config.emailVerification.tokenTtlMinutes * 60
+}
 
 /** Minimum gap between verification sends for one user. See §7.4. */
 export const RESEND_COOLDOWN_SECONDS = 60
@@ -64,7 +70,7 @@ export function signVerificationToken(claims: { userId: string; email: string })
   return jwt.sign(
     { purpose: VERIFICATION_PURPOSE, userId: claims.userId, email: claims.email },
     secret,
-    { expiresIn: VERIFICATION_TOKEN_TTL },
+    { expiresIn: ttlSeconds() },
   )
 }
 
