@@ -110,9 +110,6 @@ describe('password reset tokens', () => {
     expect(passwordFingerprint(hash)).not.toContain(hash.slice(7))
   })
 
-  // The two barriers between the token types: distinct keys, and a strict
-  // purpose check. Either alone would pass these; both are asserted so that
-  // removing one shows up as a red test rather than as a quiet weakening.
   // ---------------------------------------------------------------------
   // Cross-purpose confusion.
   //

@@ -14,9 +14,11 @@ import { config, requireEmailVerification } from '@/lib/config'
  * Distinct from the verification module's `email_verify`, and checked strictly
  * before any other claim is read.
  *
- * This is the second of two barriers between the token types — the first being
- * that they are signed with different keys, which `lib/config/schema.ts`
- * refuses to let a deployment collapse by setting both to the same value.
+ * This is the ONLY barrier between the two token types. Both are signed with
+ * EMAIL_LINK_SECRET, so the signature check cannot tell a verification link
+ * from a reset link — one grants a boolean flip, the other grants the account.
+ * If this equality test is relaxed, or any claim is read ahead of it, that
+ * distinction disappears.
  */
 const RESET_PURPOSE = 'password_reset'
 
