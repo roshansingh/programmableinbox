@@ -65,8 +65,10 @@ async function assertTree(dir: string, expected: (file: string, method: string) 
  * `auth/password-reset/request` and `auth/password-reset/confirm` are here
  * for the same reason: their caller cannot be authenticated — that is the
  * entire premise of a password reset — so a session-based wrapper would be a
- * contradiction. Each request is instead authenticated by a purpose-scoped
- * token carried in the request body, not a session.
+ * contradiction. `confirm` is authenticated by the purpose-scoped token in its
+ * body; `request` is genuinely unauthenticated, and is safe because the link
+ * it sends goes only to the address's own mailbox and its response is
+ * identical for every outcome.
  */
 const PUBLIC_APP_ROUTES = [
   'auth/login',
