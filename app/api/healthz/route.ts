@@ -1,6 +1,7 @@
 import { jsonSuccess } from '@/lib/api-helpers'
 import { config } from '@/lib/config'
 import { prisma } from '@/lib/db'
+import { rateLimitBackendStatus } from '@/lib/security/rate-limit'
 
 const TOLERANCES_SECONDS: Record<string, number> = {
   'walg-wal': 10 * 60,
@@ -58,6 +59,12 @@ export async function GET(request?: Request) {
     )
   }
 
+  // Auth rate limiting is reported but deliberately does not affect `healthy`.
+  // It fails open, so a limiter outage still serves logins; a 503 here would
+  // pull a working instance out of the load balancer over a degraded but
+  // non-fatal dependency. It is detail for an operator, not a liveness signal.
+  const rateLimit = rateLimitBackendStatus()
+
   return jsonSuccess(
     {
       status: healthy ? 'ok' : 'degraded',
@@ -65,6 +72,11 @@ export async function GET(request?: Request) {
       backups,
       freshness_breach: freshnessBreach,
       stale_jobs: staleJobs,
+      rate_limit: {
+        state: rateLimit.state,
+        fail_mode: rateLimit.failMode,
+        last_outage_ago_ms: rateLimit.lastOutageAgoMs,
+      },
     },
     healthy ? 200 : 503,
   )

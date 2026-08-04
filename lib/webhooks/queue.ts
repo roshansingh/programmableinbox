@@ -8,8 +8,16 @@
  */
 
 import { Queue } from "bullmq";
-import { Redis, type RedisOptions } from "ioredis";
-import { config, requireRedisUrl } from "@/lib/config";
+import { Redis } from "ioredis";
+import { config } from "@/lib/config";
+import { buildRedisOptions } from "@/lib/redis/connection";
+
+/**
+ * Re-exported for backwards compatibility — the implementation now lives in
+ * `lib/redis/connection.ts` so non-BullMQ consumers (the auth rate limiter)
+ * can share the `REDIS_URL` parsing without importing BullMQ.
+ */
+export { buildRedisOptions };
 
 // ---------------------------------------------------------------------------
 // Job type
@@ -62,36 +70,6 @@ export const WEBHOOK_QUEUE_CONFIG = {
 // ---------------------------------------------------------------------------
 // Redis connection singleton
 // ---------------------------------------------------------------------------
-
-export function buildRedisOptions(): RedisOptions {
-  // Parse the URL manually so we can inject ioredis-specific options that
-  // BullMQ requires (maxRetriesPerRequest: null) while still accepting a URL.
-  //
-  // The URL is already known to parse and to carry a host, so the old
-  // `parsed.hostname || "127.0.0.1"` fallback is gone: a hostless URL is
-  // rejected at config read rather than silently rewritten to loopback. An
-  // unset REDIS_URL throws here too — reaching this function means the queue is
-  // about to connect, so there is nothing sensible to fall back to.
-  const parsed = new URL(requireRedisUrl());
-  return {
-    host: parsed.hostname,
-    port: parsed.port ? parseInt(parsed.port, 10) : 6379,
-    // BullMQ blocking commands require this to be null; ioredis default is 20.
-    maxRetriesPerRequest: null,
-    // Skip the initial PING round-trip to improve startup latency.
-    enableReadyCheck: false,
-    // Reconnect with bounded exponential backoff (max 30s).
-    retryStrategy: (times: number) =>
-      Math.min(Math.exp(times) * 1000, 30_000),
-    // Enable TLS for rediss:// URLs (managed Redis services like AWS ElastiCache)
-    ...(parsed.protocol === 'rediss:' ? { tls: {} } : {}),
-    ...(parsed.username ? { username: parsed.username } : {}),
-    ...(parsed.password ? { password: parsed.password } : {}),
-    ...(parsed.pathname && parsed.pathname !== "/"
-      ? { db: parseInt(parsed.pathname.slice(1), 10) }
-      : {}),
-  };
-}
 
 /**
  * Shared ioredis client used by the Queue singleton.

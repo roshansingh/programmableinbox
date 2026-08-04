@@ -50,6 +50,8 @@ import {
   NAME_NOT_A_STRING,
   NAME_TOO_LONG,
   MAX_NAME_LENGTH,
+  LOCAL_PART_TOO_LONG,
+  MAX_LOCAL_PART_LENGTH,
   INVALID_ADDRESS,
   domainNotAllowed,
 } from './inbox-policy-messages'
@@ -90,6 +92,14 @@ export function validateInboxAddress(address: string): PolicyViolation | null {
     // Safe to echo: the same list is already published to every authenticated
     // client through `GET /app/auth/me`.
     return { message: domainNotAllowed(domains), status: 400 }
+  }
+
+  // Measured on the split of the *normalized* address, so case and surrounding
+  // whitespace cannot change the verdict. Deliberately tighter than the
+  // 254-character address cap in `lib/email-address.ts`: that one is what SMTP
+  // can route, this one is what we are willing to provision.
+  if (parts.localPart.length > MAX_LOCAL_PART_LENGTH) {
+    return { message: LOCAL_PART_TOO_LONG, status: 400 }
   }
 
   if (isBlockedTerm(parts.localPart)) {

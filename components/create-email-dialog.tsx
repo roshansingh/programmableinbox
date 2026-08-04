@@ -35,6 +35,8 @@ import {
   NOT_CONFIGURED_HINT,
   LOCAL_PART_REQUIRED,
   LOCAL_PART_INVALID,
+  LOCAL_PART_TOO_LONG,
+  MAX_LOCAL_PART_LENGTH,
 } from "@/lib/validation/inbox-policy-messages"
 import { toast } from "sonner"
 
@@ -96,6 +98,9 @@ export function CreateEmailDialog({ open, onOpenChange, organizationId, onSucces
     // Validates the *composed* address, so an `@` typed into the local part is
     // caught here rather than producing `qa@gmail.com@inbox.example.com`.
     if (!isValidInboxAddress(`${value}@${domain}`)) return LOCAL_PART_INVALID
+    // Same order as validateInboxAddress: charset first, then length, then the
+    // term list.
+    if (value.length > MAX_LOCAL_PART_LENGTH) return LOCAL_PART_TOO_LONG
     if (isBlockedTerm(value)) return BLOCKED_ADDRESS
     return null
   }, [localPart, domain])
