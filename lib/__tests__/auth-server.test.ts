@@ -89,6 +89,18 @@ describe('auth-server JWT secret handling', () => {
       expect(verifyToken('not-a-jwt')).toBeNull()
     })
 
+    it('rejects a validly-signed token that omits iat — the eviction check has nothing to compare otherwise', () => {
+      // jwt.sign stamps iat automatically; noTimestamp: true is the only way
+      // to produce a token that skips it while still being signed with the
+      // real secret, which is exactly the omission verifyToken's comment
+      // says would bypass the passwordChangedAt eviction check.
+      const noIatToken = jwt.sign({ userId: 'user_42' }, 'a-real-secret-for-tests', {
+        noTimestamp: true,
+      })
+      expect(jwt.decode(noIatToken)).not.toHaveProperty('iat')
+      expect(verifyToken(noIatToken)).toBeNull()
+    })
+
     it('is not captured at module load — a first read after import still sees the env', () => {
       // This is the property that keeps `next build` working: auth-server is
       // imported transitively by every protected route, and the build evaluates

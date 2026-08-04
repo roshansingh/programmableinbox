@@ -34,7 +34,12 @@ export function validatePassword(value: unknown): string | null {
     return PASSWORD_TOO_SHORT
   }
 
-  if (Buffer.byteLength(value, 'utf8') > PASSWORD_MAX_LENGTH) {
+  // TextEncoder rather than Buffer.byteLength: this module's doc comment
+  // promises no dependencies so a client component can import it directly
+  // (app/auth/reset-password/page.tsx does), and Buffer is a Node global that
+  // only works in the browser via Next's polyfill — which jsdom would hide a
+  // regression in, since jsdom itself provides a real Buffer too.
+  if (new TextEncoder().encode(value).length > PASSWORD_MAX_LENGTH) {
     return PASSWORD_TOO_LONG
   }
 

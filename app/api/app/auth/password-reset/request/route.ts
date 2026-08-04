@@ -65,7 +65,12 @@ export const POST = withPublic(async (request: NextRequest) => {
   })
 
   if (!user) {
-    logger.info({ email: normalized }, 'Password reset requested for an unknown address')
+    // Deliberately not logging the address: this route is unauthenticated and
+    // takes an arbitrary caller-supplied string, so the raw value is
+    // unvalidated, unbounded, third-party input reaching production logs on
+    // demand. The line itself stays — an operator watching volume still needs
+    // the signal that this happened.
+    logger.info('Password reset requested for an unknown address')
     return jsonSuccess({ requested: true })
   }
 

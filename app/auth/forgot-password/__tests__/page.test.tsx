@@ -36,6 +36,28 @@ describe('ForgotPasswordPage', () => {
     expect(await screen.findByText(/if an account exists/i)).toBeInTheDocument()
   })
 
+  it('shows the same confirmation for a 500, not the unavailable state', async () => {
+    requestMock.mockRejectedValue({ status: 500, message: 'Internal Server Error' })
+    render(<ForgotPasswordPage />)
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText(/if an account exists/i)).toBeInTheDocument()
+    expect(screen.queryByText(/isn't available/i)).not.toBeInTheDocument()
+  })
+
+  it('renders an honest unavailable state on a 404, not the enumeration-safe confirmation', async () => {
+    requestMock.mockRejectedValue({ status: 404, message: 'Not found' })
+    render(<ForgotPasswordPage />)
+
+    await userEvent.type(screen.getByLabelText(/email/i), 'user@example.com')
+    await userEvent.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(await screen.findByText(/isn't available/i)).toBeInTheDocument()
+    expect(screen.queryByText(/if an account exists/i)).not.toBeInTheDocument()
+  })
+
   it('links back to sign in', () => {
     render(<ForgotPasswordPage />)
 

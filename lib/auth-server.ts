@@ -124,6 +124,21 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
   }
 }
 
+/**
+ * Deliberately does NOT apply the `passwordChangedAt` eviction check that
+ * `resolveUserPrincipalFromToken` applies above. That is safe only because
+ * this function's sole caller (`/api/app/auth/me`) sits inside `withUser`,
+ * which has already run `resolveUserPrincipalFromToken` and rejected an
+ * evicted token before the handler — and therefore before this function —
+ * ever runs. Adding the check here would be a second, redundant query for a
+ * request that already passed it once.
+ *
+ * This is NOT safe to call directly from anywhere that has not already gone
+ * through `withUser`: a route (or a future refactor) that calls this
+ * function on its own would authenticate a session a password reset was
+ * meant to evict, defeating the protection `resolveUserPrincipalFromToken`
+ * exists to provide.
+ */
 export async function getAuthenticatedUser(request: NextRequest) {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return null

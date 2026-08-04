@@ -119,6 +119,27 @@ describe('POST /api/app/auth/password-reset/confirm', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
+  it('rejects the same token replayed against the hash the route actually wrote', async () => {
+    // The test above asserts single-use by hand-substituting a different
+    // hash — it never exercises the real chain: hashPassword bcrypt-salts
+    // per call, so the fingerprint the route computed against the NEW hash
+    // differs from `pwh` on the still-valid-looking token. Round-trip the
+    // actual write here instead of a stand-in.
+    const token = await tokenFor()
+
+    const first = await post({ token, password: 'new-password-1' })
+    expect(first.status).toBe(200)
+    expect(updateMock).toHaveBeenCalledTimes(1)
+
+    const writtenHash = updateMock.mock.calls[0][0].data.passwordHash
+    findUniqueMock.mockResolvedValue({ ...USER, passwordHash: writtenHash })
+
+    const replay = await post({ token, password: 'new-password-1' })
+
+    expect(replay.status).toBe(400)
+    expect(updateMock).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects a token whose email no longer matches the row', async () => {
     findUniqueMock.mockResolvedValue({ ...USER, email: 'moved@example.com' })
 
