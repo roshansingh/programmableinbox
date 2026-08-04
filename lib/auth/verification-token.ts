@@ -97,11 +97,13 @@ export function verifyVerificationToken(token: string): VerificationResult {
 
   const { purpose, userId, email } = payload as Record<string, unknown>
 
-  // The second of the three barriers in §6.1. The differing secret already
-  // closes the confusion attack; this exists so that a future refactor which
-  // "simplifies" the secrets does not silently reopen it, and so that a second
-  // purpose (password reset) added to this module cannot redeem a verification
-  // link.
+  // Load-bearing, not a backstop. lib/auth/password-reset-token.ts is the
+  // second purpose, and it is signed with the SAME key — EMAIL_LINK_SECRET —
+  // so the signature check cannot tell the two token types apart. This
+  // equality test is the only thing that can. A reset token presented here
+  // would otherwise verify, and vice versa.
+  //
+  // Do not relax it, and do not read any other claim before it.
   if (purpose !== VERIFICATION_PURPOSE) return { ok: false, reason: 'invalid' }
   if (typeof userId !== 'string' || userId === '') return { ok: false, reason: 'invalid' }
   if (typeof email !== 'string' || email === '') return { ok: false, reason: 'invalid' }
