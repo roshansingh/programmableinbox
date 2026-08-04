@@ -1,0 +1,102 @@
+title = "Programmable Inbox — secret scanning"
+
+# Start from gitleaks' full upstream ruleset, then layer this repo's specifics on
+# top. Never set `useDefault = false`: that would silently drop ~170 upstream
+# detectors and leave only what is written below.
+[extend]
+useDefault = true
+
+# `sk_live_` is THIS application's API key prefix (lib/api-key-scopes.ts), not
+# Stripe's. Stripe is not a dependency (no package, no import, and `ENABLE_BILLING`
+# is an unwired flag), so every one of this rule's ~41 hits is a test fixture, and
+# the rule can never produce a true positive here. It is replaced below by
+# `programmable-inbox-api-key`, which matches the key format this app actually
+# mints. Re-enable this rule if Stripe is ever adopted.
+disabledRules = ["stripe-access-token"]
+
+# ---------------------------------------------------------------------------
+# Repo-specific rules
+#
+# These are high-precision: they match the exact shape of a credential this
+# system issues, so they carry NO path exclusions and fire everywhere —
+# including inside __tests__/, where a real key pasted in while debugging is a
+# realistic way to leak one.
+# ---------------------------------------------------------------------------
+
+# Minted as `sk_live_${crypto.randomBytes(24).toString('hex')}`
+# (app/api/app/apiKeys/route.ts) => exactly 48 lowercase hex characters.
+# Every placeholder in the suite is either shorter or contains letters outside
+# [a-f] (`sk_live_newkeygenerated123456`, `sk_live_abcd1234efgh5678ijkl9012…`),
+# so none of them can match this.
+[[rules]]
+id = "programmable-inbox-api-key"
+description = "Programmable Inbox live API key (sk_live_ + 48 hex)"
+regex = '''sk_live_[0-9a-f]{48}'''
+keywords = ["sk_live_"]
+tags = ["api-key", "programmable-inbox"]
+
+# Resend keys as actually issued: `re_<id>_<secret>`. Gitleaks runs on Go's RE2,
+# which has no lookahead, so the exclusion is expressed through shape instead —
+# and none is needed: the suite's `re_test_key_123456` has only 4 characters
+# before its underscore, and `.env.example`'s `re_xxxxxxxx` has no second
+# segment, so neither reaches the {8,} + `_` + {16,} form below.
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key (AUTH_RESEND_API_KEY)"
+regex = '''re_[A-Za-z0-9]{8,}_[A-Za-z0-9]{16,}'''
+keywords = ["re_"]
+tags = ["api-key", "resend"]
+
+# ---------------------------------------------------------------------------
+# Allowlists
+#
+# Deliberately keyed on the SECRET VALUE, not on the file path. A path allowlist
+# for `__tests__/` would suppress every rule inside it, including the two above,
+# so a genuinely leaked key dropped into a test file would pass CI silently.
+# Matching known placeholder literals instead keeps every file fully scanned.
+#
+# Consequence, by design: adding a new fake credential to the suite requires
+# adding it here. That is the intended friction — each entry is a human deciding
+# a specific string is not a secret.
+# ---------------------------------------------------------------------------
+
+[[allowlists]]
+description = "Known placeholder credentials used by the test suite and docs"
+targets = ["secret"]
+regexes = [
+  # Fake `sk_live_`/`sk_test_` keys, matched by SHAPE rather than enumerated.
+  # Anchored at both ends and capped at 44 characters after the prefix, while a
+  # real key is always exactly 48 hex characters — so no real key can satisfy
+  # this, however many new fixtures get added. Anchoring is load-bearing:
+  # gitleaks allowlist regexes match as substrings, so an unanchored
+  # `sk_live_[0-9a-f]{1,44}` would match the first 44 characters OF a real key
+  # and silently suppress it.
+  '''^sk_(live|test)_[0-9a-zA-Z]{1,44}$''',
+  # lib/auth, lib/config, and email-verification suites
+  '''verification-secret-at-least-16(-chars)?''',
+  '''integration-verification-secret-16''',
+  '''rotated-secret-12345''',
+  '''re_test_key_[0-9]+''',
+  '''sk-ant-test''',
+  # v0.app scaffold demo data, removed from app/api-keys/page.tsx but still
+  # reachable by a full-history scan.
+  '''pk_(live|test)_51[A-Za-z0-9]+''',
+  # DSN placeholders in config schema tests and deployment design docs.
+  '''postgresql://u:p@h:5432''',
+  '''postgresql://app:\.\.\.@postgres:5432''',
+  '''(mypassword|pw)@redis\.example\.com''',
+]
+
+# Paths excluded here are non-source only: build output, dependencies, and
+# generated code. No application or test source is path-excluded.
+[[allowlists]]
+description = "Lockfiles, generated code, dependencies, and build output"
+targets = ["match"]
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)node_modules/''',
+  '''^lib/generated/''',
+  '''^\.next/''',
+  '''(^|/)\.claude/worktrees/''',
+]

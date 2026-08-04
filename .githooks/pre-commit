@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# Blocks a commit whose staged changes contain a secret.
+#
+# Wired up by `npm run prepare` (package.json), which points core.hooksPath at
+# this directory. Run it manually if hooks were never installed:
+#
+#   git config core.hooksPath .githooks
+#
+# This is the fast local gate. The authoritative one is .github/workflows/
+# secret-scan.yml, which scans the full history on every PR — a hook can be
+# skipped with `--no-verify` and cannot be relied on for enforcement.
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  # Deliberately non-blocking. A missing scanner is a workstation setup gap, not
+  # evidence of a secret, and failing the commit here would push people toward
+  # `--no-verify` as a habit — which would also disable the check on the commit
+  # that does leak something. CI still enforces.
+  echo "warning: gitleaks not installed — skipping local secret scan." >&2
+  echo "         install it with:  brew install gitleaks" >&2
+  echo "         (CI still scans every PR; this is only the local pre-check)" >&2
+  exit 0
+fi
+
+if ! gitleaks git --staged --no-banner --redact --config .gitleaks.toml . ; then
+  cat >&2 <<'MSG'
+
+✖ Commit blocked: a secret was detected in the staged changes.
+
+  If it is a real credential:
+    1. Remove it from the staged files and stage the fix.
+    2. Rotate it. Assume it is compromised the moment it is written to disk —
+       staging it means it very nearly reached the history.
+
+  If it is a test fixture or placeholder:
+    Add its value to the allowlist in .gitleaks.toml. Allowlist by VALUE, not
+    by file path — a path exclusion would blind the scanner to every future
+    secret in that file, including a real one.
+
+  To bypass in an emergency:  git commit --no-verify
+  (CI will still fail the pull request.)
+
+MSG
+  exit 1
+fi
