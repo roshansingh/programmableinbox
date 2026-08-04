@@ -13,9 +13,9 @@ This ticket also keeps a hard prerequisite explicit: there is no outbound webhoo
 
 ## 1. Why
 
-InboxUI gives developers a programmable inbound email address but still lacks a first-class way to react to mail. Today the user experience is "receive, store, poll." That is below the baseline set by Gmail filters, Mailgun routes, Front rules, Help Scout workflows, Zapier email triggers, and n8n.
+ProgrammableInbox gives developers a programmable inbound email address but still lacks a first-class way to react to mail. Today the user experience is "receive, store, poll." That is below the baseline set by Gmail filters, Mailgun routes, Front rules, Help Scout workflows, Zapier email triggers, and n8n.
 
-The important architectural constraint for InboxUI is that the system cannot be "React Flow JSON all the way down." Visual wiring libraries are editor tools, not stable business contracts. The source of truth must be:
+The important architectural constraint for ProgrammableInbox is that the system cannot be "React Flow JSON all the way down." Visual wiring libraries are editor tools, not stable business contracts. The source of truth must be:
 
 - Typed enough to validate on the server.
 - Versioned enough to migrate safely over time.
@@ -106,7 +106,7 @@ Instead:
 - The executor consumes validated config from that revision.
 - React Flow renders a derived graph from config plus layout metadata.
 
-This is the best implementation for InboxUI because v1 semantics are intentionally constrained. We know the allowed triggers, the condition surface is form-driven, and the action catalog is finite. A typed DSL is easier to validate, migrate, diff, test, and replay than either raw React Flow JSON or a generic expression language exposed directly as storage.
+This is the best implementation for ProgrammableInbox because v1 semantics are intentionally constrained. We know the allowed triggers, the condition surface is form-driven, and the action catalog is finite. A typed DSL is easier to validate, migrate, diff, test, and replay than either raw React Flow JSON or a generic expression language exposed directly as storage.
 
 ## 5. Data model
 
@@ -714,4 +714,4 @@ Best implementation for this ticket:
 - Render React Flow from config rather than treating it as the source of truth.
 - Tie every run to `automationRevisionId`.
 
-That gives InboxUI a stable automation DSL, safe migrations, deterministic execution, and a clean React Flow editor without coupling runtime behavior to canvas internals.
+That gives ProgrammableInbox a stable automation DSL, safe migrations, deterministic execution, and a clean React Flow editor without coupling runtime behavior to canvas internals.

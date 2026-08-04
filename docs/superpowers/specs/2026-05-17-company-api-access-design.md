@@ -1,4 +1,4 @@
-# Company-Scoped External API Access — InboxUI Design Spec
+# Company-Scoped External API Access — ProgrammableInbox Design Spec
 
 **Date**: 2026-05-17  
 **Status**: APPROVED  
@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-InboxUI already exposes application routes under `/api/v1`, but those routes are currently designed around authenticated users rather than external organization consumers.
+ProgrammableInbox already exposes application routes under `/api/v1`, but those routes are currently designed around authenticated users rather than external organization consumers.
 
 Current repo evidence:
 - `lib/auth-server.ts` only resolves `Authorization: Bearer ...` as a JWT-backed user and returns memberships.

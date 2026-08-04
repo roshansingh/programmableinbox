@@ -1,4 +1,4 @@
-# Internal/External API Split — InboxUI Design Spec
+# Internal/External API Split — ProgrammableInbox Design Spec
 
 **Date**: 2026-07-30
 **Revision**: 4 (see §12)

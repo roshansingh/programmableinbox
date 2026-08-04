@@ -1,10 +1,10 @@
-# InboxUI — Product Requirements Document
+# ProgrammableInbox — Product Requirements Document
 
 **Status:** Reverse-engineered from the current codebase (2026-05-04). Reflects what is built; gaps and "should" statements are clearly marked.
 
 ## 1. Summary
 
-InboxUI is a multi-tenant web app for receiving, threading, and replying to emails (and, in scaffold form, SMS) at developer-provisioned inbox addresses. It is also an API platform: every UI action is backed by a public, key-authenticated REST surface (`/api/v1/*`) and a webhook system that fans out events to customer endpoints.
+ProgrammableInbox is a multi-tenant web app for receiving, threading, and replying to emails (and, in scaffold form, SMS) at developer-provisioned inbox addresses. It is also an API platform: every UI action is backed by a public, key-authenticated REST surface (`/api/v1/*`) and a webhook system that fans out events to customer endpoints.
 
 The product collapses two roles into one app:
 - **End-user UI** — humans triage messages in a Gmail-like inbox view.

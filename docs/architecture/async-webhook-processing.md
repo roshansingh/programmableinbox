@@ -2,7 +2,7 @@
 
 ## Overview
 
-InboxUI supports **asynchronous email ingestion** to decouple Resend webhook reception from database storage and automation dispatch. This document covers the system design, components, and data flow.
+ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend webhook reception from database storage and automation dispatch. This document covers the system design, components, and data flow.
 
 **Design goal**: Return webhook response in 50-100ms without blocking on database or external service latency.
 

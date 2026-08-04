@@ -1,4 +1,4 @@
-# InboxUI
+# ProgrammableInbox
 
 A Next.js 16 full-stack application for email ingestion, message threading, and automation execution. Ships as open-source with an optional SaaS billing plugin.
 
@@ -37,7 +37,7 @@ npm run dev
 
 ## Async Webhook Processing
 
-InboxUI supports **asynchronous email ingestion** via a BullMQ-backed job queue. This allows webhook responses to return in 50-100ms without blocking on email storage or automation dispatch.
+ProgrammableInbox supports **asynchronous email ingestion** via a BullMQ-backed job queue. This allows webhook responses to return in 50-100ms without blocking on email storage or automation dispatch.
 
 ### Default Behavior (Sync Mode)
 
