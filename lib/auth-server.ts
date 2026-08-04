@@ -104,10 +104,26 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
   // because their account was compromised expects exactly that; without it the
   // attacker's 7-day JWT outlives the reset meant to stop them.
   //
-  // Fails closed at the boundary: `iat` has one-second resolution, so a token
-  // minted in the same second as the reset is rejected. That is harmless
-  // because the confirm route deliberately issues no session — the user signs
-  // in afterwards, which is at minimum a page load away.
+  // `<`, not `<=`, and the distinction is load-bearing.
+  //
+  // `iat` has one-second resolution, so a token stamped `iat = N` was actually
+  // minted somewhere in [N*1000, N*1000+999]ms. The comparison therefore reads
+  // as: accept only when the *earliest* instant the token could have been
+  // minted is already at or after the reset. That set is exactly the tokens
+  // provably issued at-or-after the change, so no pre-reset session survives.
+  //
+  // Where that window straddles the reset, the token is rejected even though it
+  // may in fact have been minted after — deliberate, and harmless because the
+  // confirm route issues no session, so signing in is at minimum a page load
+  // away.
+  //
+  // `<=` would be strictly worse, not stricter: when `passwordChangedAt` lands
+  // exactly on a second boundary (a 1-in-1000 `new Date()`), it rejects a token
+  // whose entire window sits at or after the reset — logging the user out of the
+  // session they just created with their new password. It buys no security,
+  // because `iat * 1000 >= passwordChangedAt` already implies the token was
+  // minted at or after the reset. Both directions are pinned by tests in
+  // lib/auth/__tests__/session-eviction.test.ts.
   if (user.passwordChangedAt && payload.issuedAt * 1000 < user.passwordChangedAt.getTime()) {
     return null
   }
