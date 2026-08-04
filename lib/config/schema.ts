@@ -302,6 +302,8 @@ const EmailVerificationSchema = z
     // session credential must fail signature verification outright.
     EMAIL_LINK_SECRET: zSecret({ min: 16 }).optional(),
     APP_BASE_URL: zUrl(['http:', 'https:']).optional(),
+    EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: zBoundedInt(1, 10080).optional(),
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: zBoundedInt(1, 10080).optional(),
   })
   .superRefine((v, ctx) => {
     if (!v.ENABLE_EMAIL_VERIFICATION) return
@@ -327,6 +329,8 @@ const EmailVerificationSchema = z
     enabled: v.ENABLE_EMAIL_VERIFICATION ?? false,
     secret: v.EMAIL_LINK_SECRET ?? null,
     appBaseUrl: v.APP_BASE_URL ?? null,
+    tokenTtlMinutes: v.EMAIL_VERIFICATION_TOKEN_TTL_MINUTES ?? 30,
+    passwordResetTtlMinutes: v.PASSWORD_RESET_TOKEN_TTL_MINUTES ?? 30,
   }))
 
 /**
@@ -460,7 +464,13 @@ export const DOMAIN_SCHEMAS = {
   emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
   emailVerification: {
     schema: EmailVerificationSchema,
-    vars: ['ENABLE_EMAIL_VERIFICATION', 'EMAIL_LINK_SECRET', 'APP_BASE_URL'],
+    vars: [
+      'ENABLE_EMAIL_VERIFICATION',
+      'EMAIL_LINK_SECRET',
+      'APP_BASE_URL',
+      'EMAIL_VERIFICATION_TOKEN_TTL_MINUTES',
+      'PASSWORD_RESET_TOKEN_TTL_MINUTES',
+    ],
   },
   rateLimit: {
     schema: RateLimitSchema,

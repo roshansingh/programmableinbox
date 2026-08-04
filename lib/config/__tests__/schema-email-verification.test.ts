@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { config, parseDomain, requireEmailVerification } from '@/lib/config'
 import { assertConfig } from '@/lib/config/assert'
-import { withConfigEnv, setConfigEnv } from '@/test/config'
+import { setConfigEnv, withConfigEnv } from '@/test/config'
 
 const SECRET = 'verification-secret-at-least-16'
 
@@ -24,6 +24,8 @@ describe('emailVerification config', () => {
       enabled: false,
       secret: null,
       appBaseUrl: null,
+      tokenTtlMinutes: 30,
+      passwordResetTtlMinutes: 30,
     })
   })
 
@@ -152,5 +154,51 @@ describe('requireEmailVerification', () => {
   it('throws naming both variables when the feature was never configured', () => {
     expect(() => requireEmailVerification()).toThrow(/EMAIL_LINK_SECRET/)
     expect(() => requireEmailVerification()).toThrow(/APP_BASE_URL/)
+  })
+})
+
+describe('emailed link TTLs', () => {
+  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: 'false' })
+
+  it('defaults both TTLs to 30 minutes', async () => {
+    const { config } = await import('@/lib/config')
+
+    expect(config.emailVerification.tokenTtlMinutes).toBe(30)
+    expect(config.emailVerification.passwordResetTtlMinutes).toBe(30)
+  })
+
+  it('rejects a non-integer TTL rather than falling back to the default', async () => {
+    setConfigEnv({ EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: '30m' })
+    const { config } = await import('@/lib/config')
+
+    expect(() => config.emailVerification.tokenTtlMinutes).toThrow(/must be an integer/)
+  })
+
+  it('rejects a TTL below the lower bound', async () => {
+    setConfigEnv({ PASSWORD_RESET_TOKEN_TTL_MINUTES: '0' })
+    const { config } = await import('@/lib/config')
+
+    expect(() => config.emailVerification.passwordResetTtlMinutes).toThrow()
+  })
+
+  it('rejects a TTL above the upper bound', async () => {
+    setConfigEnv({ PASSWORD_RESET_TOKEN_TTL_MINUTES: '10081' })
+    const { config } = await import('@/lib/config')
+
+    expect(() => config.emailVerification.passwordResetTtlMinutes).toThrow()
+  })
+
+  it('does not honour the old EMAIL_VERIFICATION_SECRET name as a fallback', async () => {
+    setConfigEnv({
+      ENABLE_EMAIL_VERIFICATION: 'true',
+      EMAIL_LINK_SECRET: undefined,
+      EMAIL_VERIFICATION_SECRET: 'old-name-secret-at-least-16-chars',
+      APP_BASE_URL: 'https://app.example.com',
+    })
+    const { config } = await import('@/lib/config')
+
+    // A deployment that updated only half its config must fail loudly rather
+    // than quietly signing with a value the schema no longer reads.
+    expect(() => config.emailVerification.enabled).toThrow(/EMAIL_LINK_SECRET/)
   })
 })
