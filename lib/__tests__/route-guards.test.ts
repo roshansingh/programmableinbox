@@ -62,9 +62,11 @@ async function assertTree(dir: string, expected: (file: string, method: string) 
  * routinely opened on a device holding no session (issue #102 §7.3) — the
  * emailed token is the credential, and it authorizes exactly one state change.
  *
- * `auth/password-reset/request` is here because its caller cannot log in —
- * that is the entire premise of the endpoint — so a session-based wrapper
- * would be a contradiction.
+ * `auth/password-reset/request` and `auth/password-reset/confirm` are here
+ * for the same reason: their caller cannot be authenticated — that is the
+ * entire premise of a password reset — so a session-based wrapper would be a
+ * contradiction. Each request is instead authenticated by a purpose-scoped
+ * token carried in the request body, not a session.
  */
 const PUBLIC_APP_ROUTES = [
   'auth/login',

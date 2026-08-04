@@ -214,7 +214,7 @@ Off unless `ENABLE_EMAIL_VERIFICATION=true`, in which case signup still returns 
 - **A send failure never fails the signup.** The account is already committed, so a 500 would leave the user with an account they believe does not exist. It logs at `error`, leaves `verificationEmailSentAt` unset, and the gate screen's Resend button is the recovery path. Resend is throttled by `RESEND_COOLDOWN_SECONDS` against the `verificationEmailSentAt` column rather than an in-process map — the app runs as more than one container, and an in-memory throttle is defeated by round-robin and resets on every deploy.
 - **Client**: `emailVerificationRequired` on `AppConfig` drives `AuthGuard`, which renders `<VerifyEmailNotice />` in place of children. `/auth/verify` is in `AuthGuard`'s `PUBLIC_ROUTES` but deliberately **not** in `AuthProvider`'s, so a session is still resolved there and the page can refresh the user in place instead of demanding a second login. The page scrubs the token from the URL with `history.replaceState` before anything can observe it, and always calls `refreshUser()` after redeeming — `isAuthenticated` inside that mount effect is the pre-`/auth/me` value, so branching on it would skip the refresh every time and leave a stale `emailVerified: false` that re-engages the gate on the next page.
 
-Rollback is setting the flag back to `false`; no schema reversal, and users verified meanwhile stay verified. Deferred: re-verification on email change (no email-change flow exists yet — when one lands it must set `emailVerified = false`), password reset reusing the token module with a second `purpose`, and bounce handling.
+Rollback is setting the flag back to `false`; no schema reversal, and users verified meanwhile stay verified. Deferred: re-verification on email change (no email-change flow exists yet — when one lands it must set `emailVerified = false`), and bounce handling.
 
 ### Password reset (signed JWT)
 
@@ -241,10 +241,15 @@ reset evicts an attacker's existing session rather than leaving it live for the
 rest of its 7 days.
 
 `POST /api/app/auth/password-reset/request` returns an identical
-`{ requested: true }` for every outcome — unknown address, cooldown hit, Resend
-failure — because it accepts a third-party address and any outcome-dependent
-response makes it an account-existence oracle. The response body is uniform;
-response *timing* is not, which is a known and accepted gap.
+`{ requested: true }` for every outcome once the feature is enabled — unknown
+address, cooldown hit, Resend failure — because it accepts a third-party
+address and any outcome-dependent response makes it an account-existence
+oracle. The response body is uniform; response *timing* is not, which is a
+known and accepted gap. The address lookup is case-sensitive — trimmed but not
+lowercased, matching registration and login — because Postgres `@unique` is
+case-sensitive and `User@Example.com` is a distinct, loginable row;
+lowercasing here would leave such an account permanently unable to reset, and
+the uniform response would hide why.
 
 Confirm issues no session. The user signs in afterwards, which proves the reset
 worked and keeps an emailed link from being convertible into a session.

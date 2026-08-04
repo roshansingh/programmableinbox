@@ -31,8 +31,8 @@ const SUPERSEDED = 'This link is no longer valid'
 /**
  * `withPublic`, and necessarily so: the whole point is that the caller cannot
  * log in. The token is the credential. It is signed with a key no session token
- * and no verification link uses, and it authorizes exactly one change to one
- * account.
+ * uses, and the `purpose` claim is what separates it from a verification link.
+ * It authorizes exactly one change to one account.
  *
  * Deliberately issues **no session**. The user signs in with the new password
  * afterwards, which proves the reset worked and keeps this endpoint from being
