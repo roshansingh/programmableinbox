@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { setConfigEnv, withConfigEnv } from '@/test/config'
+import packageJson from '@/package.json'
 
 const resolveApiKeyPrincipalMock = vi.fn()
 const listInboxesMock = vi.fn()
@@ -273,6 +274,9 @@ describe('POST /api/mcp', () => {
 
       const body = await rpcBody(response)
       expect(body.result.serverInfo.name).toBe('programmableinbox')
+      // The version a client actually receives tracks package.json, rather than
+      // a literal that is correct exactly once.
+      expect(body.result.serverInfo.version).toBe(packageJson.version)
       expect(response.headers.get('mcp-session-id')).toBeNull()
     })
 

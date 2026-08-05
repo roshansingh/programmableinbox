@@ -3,6 +3,7 @@ import { withApiKey } from '@/lib/auth/with-auth'
 import { jsonError } from '@/lib/api-helpers'
 import { config } from '@/lib/config'
 import { checkOrigin } from '@/lib/mcp/origin'
+import { SERVER_INFO } from '@/lib/mcp/server-info'
 import { registerEmailTools } from '@/lib/mcp/tools'
 import { consumeRateLimit, rateLimitHeaders } from '@/lib/security/rate-limit'
 import logger from '@/lib/logger'
@@ -22,8 +23,6 @@ import logger from '@/lib/logger'
  * other API-key route — the RFC 8725 §2.8 cross-JWT confusion class this repo
  * already removed once.
  */
-
-const SERVER_INFO = { name: 'programmableinbox', version: '1.0.0' } as const
 
 export const POST = withApiKey({ scopes: [] }, async (request, principal) => {
   // Checked after authentication rather than before: an unauthenticated probe
