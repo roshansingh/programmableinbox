@@ -338,6 +338,26 @@ dedicated DB whose name contains "test" (a safety guard refuses anything else).
 The DB is created, migrated, and dropped per run (`KEEP_TEST_DB=1` to keep it).
 These are excluded from `npm test`.
 
+**`TEST_DATABASE_URL` is the only variable an operator sets.** `vitest.integration.config.ts`
+loads `.env.test` itself, so nothing has to be exported by hand — previously nothing
+loaded it at all and the suite died on an unset `TEST_DATABASE_URL` with the file
+sitting right there. It loads `.env.test` and deliberately **not** `.env`: Vite's
+`loadEnv()` would pull in the development `DATABASE_URL`, and this suite `TRUNCATE`s
+every table it can reach. `override: false`, so a genuinely exported variable still
+wins and CI can inject the URL directly.
+
+Every other variable the app needs in order to boot — `JWT_SECRET`, `WEBHOOK_SECRET`,
+`HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `AUTH_*`, `EMAIL_INBOX_DOMAINS` — is
+assigned by `test/integration/setup/setup.ts`, unconditionally, and cannot be
+configured from `.env.test`. They are fixtures rather than deployment config: no test
+asserts anything about their values, so a run whose outcome depends on what an operator
+typed is not reproducible. This is not hypothetical — a local `.env.test` carrying
+`JWT_SECRET=test-jwt-secret` sat one character under the 16-char floor `lib/config`
+enforces, and failed all 233 tests with a `ConfigError` raised at the first `signToken`,
+nowhere near the file at fault. Assignment is unconditional rather than
+default-if-unset for that exact reason: deferring to a value an operator already got
+wrong would leave the trap armed.
+
 ## Known issues & vulnerabilities
 
 **TypeScript errors (pre-existing)**:

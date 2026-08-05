@@ -31,6 +31,31 @@ process.env.DATABASE_URL = appUrl
 // override this per-test and restore it afterwards.
 process.env.EMAIL_INBOX_DOMAINS = 'test.dev,corp.com,example.com,case.dev'
 
+// Same reasoning, applied to every credential the suite needs only in order to
+// boot. None of these carries meaning for any assertion — the suite needs *a*
+// valid signing key, not a particular one — so leaving them to .env.test made
+// the whole run hostage to a value no test names. It duly broke: a local
+// .env.test that had truncated JWT_SECRET to "test-jwt-secret" (15 chars) put
+// it one character under the 16-char floor lib/config enforces, and every
+// integration test failed with a ConfigError from the first signToken call,
+// nowhere near the misconfigured file.
+//
+// Assigned unconditionally, not defaulted-if-unset: a wrong value in an
+// operator's environment is precisely the failure being designed out, so
+// deferring to it would keep the trap open. TEST_DATABASE_URL above is the
+// deliberate exception — it names a machine-specific database, so it is the
+// one variable that genuinely belongs to the operator.
+process.env.JWT_SECRET = 'integration-test-jwt-secret-at-least-16-chars'
+process.env.WEBHOOK_SECRET = 'integration-test-webhook-secret'
+// Read back out of the environment by system.integration.test.ts and sent as
+// request headers, so the value only has to agree with itself.
+process.env.AUTOMATION_SWEEPER_SECRET = 'integration-test-sweeper-secret'
+process.env.HEALTHZ_SECRET = 'integration-test-healthz-secret'
+// A placeholder on purpose: the suite must never reach the real Resend API.
+process.env.AUTH_RESEND_API_KEY = 're_integration_test_placeholder'
+process.env.AUTH_EMAIL_FROM = 'test@example.com'
+process.env.AUTH_EMAIL_FROM_NAME = 'Integration Test'
+
 // Imported AFTER DATABASE_URL is set so the singleton binds to the test DB.
 const { prisma } = await import('@/lib/db')
 
