@@ -80,6 +80,13 @@ regexes = [
   # lib/auth, lib/config, and email-verification suites
   '''^verification-secret-at-least-16(-chars)?$''',
   '''^integration-verification-secret-16$''',
+  # test/integration/setup/setup.ts assigns the integration harness its own
+  # signing key so the suite cannot be broken by an operator's .env.test. It is
+  # a literal in tracked source and never signs anything outside the test DB.
+  # Listed alone rather than as an `^integration-test-.*$` shape: the sibling
+  # fixtures beside it trip no rule, and a family-wide pattern would pre-approve
+  # strings nobody has looked at, which is the friction this section wants.
+  '''^integration-test-jwt-secret-at-least-16-chars$''',
   '''^rotated-secret-12345$''',
   '''^re_test_key_[0-9]+$''',
   '''^sk-ant-test$''',
