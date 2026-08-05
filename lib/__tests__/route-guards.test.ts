@@ -122,11 +122,28 @@ describe('structural route guards', () => {
     await assertTree('app/api/webhooks', () => 'public')
   })
 
-  it('guard 5: no handler in app/api/v1, app/api/app or app/api/webhooks is untagged', async () => {
+  /**
+   * The MCP tree (issue #104) is the fourth, and it is `withApiKey` for the
+   * same reason `/api/v1` is: the credential is an `sk_live_` key, so no API
+   * key can reach a mutating service — `toOwnerScope` takes only a
+   * `UserPrincipal`. That property is what makes it defensible to let a
+   * prompt-injected model choose the calls, so it is worth a guard of its own
+   * rather than only being covered by the untagged check below.
+   *
+   * The route declares `withApiKey({ scopes: [] })` and enforces scopes per
+   * tool, which the tag cannot see — `lib/mcp/__tests__/tools.test.ts` covers
+   * that half.
+   */
+  it('guard 8: every handler under app/api/mcp is wrapped with withApiKey', async () => {
+    await assertTree('app/api/mcp', () => 'apiKey')
+  })
+
+  it('guard 5: no handler in app/api/v1, app/api/app, app/api/webhooks or app/api/mcp is untagged', async () => {
     const files = [
       ...findRouteFiles('app/api/v1'),
       ...findRouteFiles('app/api/app'),
       ...findRouteFiles('app/api/webhooks'),
+      ...findRouteFiles('app/api/mcp'),
     ]
 
     const untagged: string[] = []

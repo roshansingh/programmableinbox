@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Secret, zSecret } from './secret'
-import { zBool, zBoundedInt, zNonEmpty, zUrl } from './primitives'
+import { normalizeOrigin, zBool, zBoundedInt, zNonEmpty, zUrl } from './primitives'
 
 // ---------------------------------------------------------------------------
 // Closed value sets
@@ -275,6 +275,79 @@ const BillingSchema = z
   .transform((v) => ({ enabled: v.ENABLE_BILLING ?? false }))
 
 /**
+ * The MCP server at `POST /api/mcp` (issue #104).
+ *
+ * Off by default, on the `ENABLE_BILLING` precedent: exposing a new transport
+ * over the same data must be a decision an operator takes, not something an
+ * upgrade turns on. While off the route 404s, so a deployment that never wanted
+ * it does not advertise a surface it is not watching.
+ *
+ * `MCP_ALLOWED_ORIGINS` is the DNS-rebinding defense the transport spec
+ * requires. It is deliberately an *allowlist of browser origins*, empty by
+ * default, rather than something derived from the request: every supported
+ * client (Claude Code, Cursor, VS Code, claude.ai's connector fetcher) is a
+ * server-side or native HTTP caller that sends no `Origin` header at all, so
+ * the default of "reject every request that carries one" costs nothing real
+ * and closes the hole completely. Deriving the expected origin from
+ * `X-Forwarded-Host` — which is what "just compare against our own host" would
+ * mean behind Caddy — would let the attacker supply both sides of the
+ * comparison. Same call already made for `APP_BASE_URL`.
+ */
+const McpSchema = z
+  .object({
+    ENABLE_MCP: zBool.optional(),
+    MCP_ALLOWED_ORIGINS: z.string().optional(),
+    // Per API key rather than per IP: the caller is identified by a credential
+    // we issued, which is a stabler bucket than an address behind a shared NAT.
+    MCP_RATE_LIMIT_MAX: zBoundedInt(1, 100_000).optional(),
+    MCP_RATE_LIMIT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+  })
+  .transform((v, ctx) => {
+    // Malformed entries throw rather than being dropped, on the
+    // EMAIL_INBOX_DOMAINS precedent and the "set but malformed → throw" rule.
+    // Dropping is the worst option available here: `MCP_ALLOWED_ORIGINS=app.example.com`
+    // would parse, contribute nothing, and every browser request from that
+    // origin would 403 with no error anywhere naming the variable. The operator
+    // sees "MCP does not work from my app" and has nothing to grep for.
+    const seen = new Set<string>()
+    const allowedOrigins: string[] = []
+    const malformed: string[] = []
+
+    for (const entry of (v.MCP_ALLOWED_ORIGINS ?? '').split(',')) {
+      const raw = entry.trim()
+      if (raw === '') continue
+
+      const origin = normalizeOrigin(raw)
+      if (origin === null) {
+        malformed.push(raw)
+        continue
+      }
+
+      // Stored canonicalised, so the comparison at request time is against the
+      // same form a browser sends rather than whatever the operator typed.
+      if (seen.has(origin)) continue
+      seen.add(origin)
+      allowedOrigins.push(origin)
+    }
+
+    if (malformed.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['MCP_ALLOWED_ORIGINS'],
+        message: `contains entries that are not web origins (${malformed.join(', ')}) — each must include a scheme and host, e.g. https://app.example.com`,
+      })
+      return z.NEVER
+    }
+
+    return {
+      enabled: v.ENABLE_MCP ?? false,
+      allowedOrigins,
+      rateLimitMax: v.MCP_RATE_LIMIT_MAX ?? 120,
+      rateLimitWindowS: v.MCP_RATE_LIMIT_WINDOW_S ?? 60,
+    }
+  })
+
+/**
  * Email verification at signup (issue #102).
  *
  * Off by default, which preserves the behaviour every existing deployment
@@ -461,6 +534,15 @@ export const DOMAIN_SCHEMAS = {
     ],
   },
   billing: { schema: BillingSchema, vars: ['ENABLE_BILLING'] },
+  mcp: {
+    schema: McpSchema,
+    vars: [
+      'ENABLE_MCP',
+      'MCP_ALLOWED_ORIGINS',
+      'MCP_RATE_LIMIT_MAX',
+      'MCP_RATE_LIMIT_WINDOW_S',
+    ],
+  },
   emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
   emailVerification: {
     schema: EmailVerificationSchema,

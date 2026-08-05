@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "programmableinbox",
   "version": "0.2.0",
   "private": true,
   "engines": {
@@ -22,6 +22,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "@hookform/resolvers": "^3.10.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@prisma/adapter-pg": "^7.4.1",
     "@prisma/client": "^7.4.1",
     "@radix-ui/react-accordion": "1.2.2",
@@ -65,6 +66,7 @@
     "ioredis": "^5.0.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.454.0",
+    "mcp-handler": "^2.1.0",
     "next": "16.0.3",
     "next-themes": "^0.4.6",
     "openai": "^6.42.0",

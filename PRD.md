@@ -155,7 +155,7 @@ These are not features that "should" be hidden — they are real holes a future 
 5. **Observability.** Logs / metrics / a "deliveries" dashboard.
 6. **Spam & abuse.** No filtering on inbound mail.
 7. **Outbound auth records.** Per-org domain provisioning (SPF/DKIM/DMARC) is out of scope today; product depends on Resend's shared sending domain.
-8. **`package.json#name`** is still `my-v0-project` from the v0.app scaffold — cosmetic but should be renamed before any public artifact.
+8. ~~**`package.json#name`** is still `my-v0-project` from the v0.app scaffold.~~ Renamed to `programmableinbox`; the MCP server reports it to clients as its `serverInfo.name`.
 
 ## 9. Success metrics (proposed, not yet instrumented)
 
