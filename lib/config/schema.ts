@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Secret, zSecret } from './secret'
-import { zBool, zBoundedInt, zNonEmpty, zUrl } from './primitives'
+import { normalizeOrigin, zBool, zBoundedInt, zNonEmpty, zUrl } from './primitives'
 
 // ---------------------------------------------------------------------------
 // Closed value sets
@@ -302,15 +302,50 @@ const McpSchema = z
     MCP_RATE_LIMIT_MAX: zBoundedInt(1, 100_000).optional(),
     MCP_RATE_LIMIT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
   })
-  .transform((v) => ({
-    enabled: v.ENABLE_MCP ?? false,
-    allowedOrigins: (v.MCP_ALLOWED_ORIGINS ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter((origin) => origin !== ''),
-    rateLimitMax: v.MCP_RATE_LIMIT_MAX ?? 120,
-    rateLimitWindowS: v.MCP_RATE_LIMIT_WINDOW_S ?? 60,
-  }))
+  .transform((v, ctx) => {
+    // Malformed entries throw rather than being dropped, on the
+    // EMAIL_INBOX_DOMAINS precedent and the "set but malformed → throw" rule.
+    // Dropping is the worst option available here: `MCP_ALLOWED_ORIGINS=app.example.com`
+    // would parse, contribute nothing, and every browser request from that
+    // origin would 403 with no error anywhere naming the variable. The operator
+    // sees "MCP does not work from my app" and has nothing to grep for.
+    const seen = new Set<string>()
+    const allowedOrigins: string[] = []
+    const malformed: string[] = []
+
+    for (const entry of (v.MCP_ALLOWED_ORIGINS ?? '').split(',')) {
+      const raw = entry.trim()
+      if (raw === '') continue
+
+      const origin = normalizeOrigin(raw)
+      if (origin === null) {
+        malformed.push(raw)
+        continue
+      }
+
+      // Stored canonicalised, so the comparison at request time is against the
+      // same form a browser sends rather than whatever the operator typed.
+      if (seen.has(origin)) continue
+      seen.add(origin)
+      allowedOrigins.push(origin)
+    }
+
+    if (malformed.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['MCP_ALLOWED_ORIGINS'],
+        message: `contains entries that are not web origins (${malformed.join(', ')}) — each must include a scheme and host, e.g. https://app.example.com`,
+      })
+      return z.NEVER
+    }
+
+    return {
+      enabled: v.ENABLE_MCP ?? false,
+      allowedOrigins,
+      rateLimitMax: v.MCP_RATE_LIMIT_MAX ?? 120,
+      rateLimitWindowS: v.MCP_RATE_LIMIT_WINDOW_S ?? 60,
+    }
+  })
 
 /**
  * Email verification at signup (issue #102).

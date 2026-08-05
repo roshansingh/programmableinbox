@@ -65,6 +65,15 @@ describe('checkOrigin', () => {
     expect(checkOrigin('null', ['null']).allowed).toBe(false)
   })
 
+  /**
+   * Defence in depth, not a supported configuration.
+   *
+   * `config.mcp.allowedOrigins` is canonicalised and boot-validated, so a
+   * malformed entry cannot reach here from configuration — `MCP_ALLOWED_ORIGINS`
+   * refuses to start on one (see lib/config/__tests__/schema-mcp.test.ts). This
+   * pins the behaviour for any other caller: an entry that is not a comparable
+   * origin matches nothing, rather than matching everything.
+   */
   it('ignores a malformed allowlist entry instead of matching everything', () => {
     expect(checkOrigin('https://app.example.com', ['not-a-url']).allowed).toBe(false)
     // A good entry alongside a bad one still works.

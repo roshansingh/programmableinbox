@@ -27,33 +27,21 @@
  * operator-set rather than request-derived.
  */
 
+import { normalizeOrigin } from '@/lib/config/primitives'
+
 /** Why a request was refused, for the log line. Never returned to the caller. */
 export type OriginRejection = { allowed: false; origin: string }
 export type OriginCheck = { allowed: true } | OriginRejection
 
 /**
- * Normalises an origin for comparison.
- *
- * Compared as parsed `URL.origin` rather than as raw strings, so a trailing
- * slash or an explicit default port in the allowlist (`https://app.example.com:443`)
- * does not silently fail to match the browser's `https://app.example.com`.
- * An unparseable entry never matches anything, which is the safe direction: a
- * typo in `MCP_ALLOWED_ORIGINS` closes the endpoint to that origin rather than
- * opening it to everything.
- */
-function normalizeOrigin(value: string): string | null {
-  try {
-    const parsed = new URL(value)
-    // `new URL('null')` throws, but the literal "null" origin (a sandboxed
-    // iframe, a data: document) must never be treated as a real one anyway.
-    return parsed.origin === 'null' ? null : parsed.origin
-  } catch {
-    return null
-  }
-}
-
-/**
  * Decides whether a request may proceed based on its `Origin` header.
+ *
+ * Allowlist entries are normalised again here rather than assumed valid. That
+ * is defence in depth, not distrust of the caller: `config.mcp.allowedOrigins`
+ * is already canonicalised and boot-validated, so in production the filter
+ * below removes nothing. It matters because this is a pure function with its
+ * own tests and no way to enforce where its input came from — a future caller
+ * passing a hand-built array must not be able to turn a typo into a match.
  *
  * @param origin the raw header value, or null when absent
  * @param allowedOrigins `config.mcp.allowedOrigins` — empty by default
