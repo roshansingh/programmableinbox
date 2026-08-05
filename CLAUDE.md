@@ -198,8 +198,8 @@ Serializers are hand-written allowlists (`lib/serializers/public/` for the exter
 API keys use **SHA-256 hashing** with scopes for fine-grained access control:
 
 - **Storage**: `apiKey` field stores `null` (never store raw key); `keyHash` stores SHA-256 hash; `prefix` stores first 12 chars of raw key for display
-- **Creation** (`POST /api/v1/apiKeys`): Returns full `sk_live_*` prefixed key exactly once — user must copy/save it immediately
-- **Listing** (`GET /api/v1/apiKeys`): Returns serialized response via `serializeApiKey()` which exposes only `prefix` (12-char identifier) and `scopes`, never the raw key or hash
+- **Creation** (`POST /api/app/apiKeys`): Returns full `sk_live_*` prefixed key exactly once — user must copy/save it immediately. Under `app/`, not `v1/`: minting a key is a mutation, and guard 1 forbids any mutating handler under `/api/v1`. There is no `apiKeys` route in the v1 tree at all, so a key can only be minted from the dashboard session
+- **Listing** (`GET /api/app/apiKeys`): Returns serialized response via `serializeApiKey()` which exposes only `prefix` (12-char identifier) and `scopes`, never the raw key or hash
 - **Scopes**: exactly `inboxes:read` and `messages:read` — validated against `API_KEY_SCOPE_SET` on creation. There are no write scopes; the external surface is read-only. `messages:delete` was retired and migrated away in `prisma/migrations/*_retire_messages_delete_scope`. `DEFAULT_API_KEY_SCOPES` is enumerated explicitly rather than spread from the list, so a future write scope cannot become a default grant by accident.
 - **Validation**: scope enforcement lives in the `withApiKey` wrapper, declared per route beside the HTTP method rather than inside the handler body
 

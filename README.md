@@ -112,6 +112,129 @@ For production deployment details, see `docs/async-webhook-processing-operator-g
 
 ---
 
+## MCP Server (agent access)
+
+`POST /api/mcp` exposes the read-only email surface over the [Model Context Protocol](https://modelcontextprotocol.io), so an agent client — Claude Code, Claude Desktop, Cursor, VS Code — can read inboxes and messages with an API key you already have.
+
+It is **read-only by construction**, not by policy: mutating services require an owner scope that an API key cannot produce, so no prompt-injected model can send mail, rename an inbox, or delete anything through it.
+
+### 1. Enable it on the server
+
+Off by default. While off the endpoint returns `404`, so an instance that does not want it does not advertise it.
+
+```bash
+# .env
+ENABLE_MCP=true
+```
+
+Restart the server — config is parsed once per process, so a running instance will not pick this up.
+
+### 2. Create an API key
+
+In the dashboard, go to **API Keys → Create**, and grant:
+
+| Scope | Needed for |
+|---|---|
+| `inboxes:read` | listing inboxes |
+| `messages:read` | everything else — listing, searching, reading, OTP |
+
+The full `sk_live_…` key is shown **once, at creation**. Copy it then; only its 12-character prefix is retrievable afterwards.
+
+### 3. Connect a client
+
+The endpoint is `https://<your-host>/api/mcp` (locally, `http://localhost:4000/api/mcp`). Authentication is a standard bearer header.
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http programmableinbox https://<your-host>/api/mcp \
+  --header "Authorization: Bearer sk_live_..."
+```
+
+Add `--scope user` to make it available in every project rather than just the current one. Verify with `claude mcp list`, and use `/mcp` inside a session to see the tools.
+
+**Cursor** — `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
+
+```json
+{
+  "mcpServers": {
+    "programmableinbox": {
+      "url": "https://<your-host>/api/mcp",
+      "headers": { "Authorization": "Bearer ${env:PIBX_API_KEY}" }
+    }
+  }
+}
+```
+
+**VS Code** — `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "programmableinbox": {
+      "type": "http",
+      "url": "https://<your-host>/api/mcp",
+      "headers": { "Authorization": "Bearer ${env:PIBX_API_KEY}" }
+    }
+  }
+}
+```
+
+**Claude Desktop / claude.ai** — add it as a custom connector pointing at the same URL. Sending a static `Authorization` header is a gated feature there and the credential is shared with everyone in the workspace, so prefer a key minted for that purpose. Client config formats change; check your client's current MCP docs if a key here stops being honored.
+
+Keep the key in an environment variable rather than inline where the client supports it (`${env:PIBX_API_KEY}` above) — these config files are easy to commit by accident.
+
+### Tools
+
+All six are prefixed `pibx_email_` and annotated read-only.
+
+| Tool | Scope | What it does |
+|---|---|---|
+| `pibx_email_list_inboxes` | `inboxes:read` | Lists inboxes the key can read. Start here — every other tool takes an `inboxId` |
+| `pibx_email_list_messages` | `messages:read` | Messages newest first, snippet per message. Supports `threadId`, `grouped`, `cursor` |
+| `pibx_email_search_messages` | `messages:read` | Filters by `q` (subject + body), `from`, `tags`, `categories` |
+| `pibx_email_get_message` | `messages:read` | One message with its full plain-text body |
+| `pibx_email_get_thread` | `messages:read` | A whole conversation, oldest first, in one call |
+| `pibx_email_get_latest_otp` | `messages:read` | The most recent one-time code, with the message it came from |
+
+Things worth knowing when a search comes back empty:
+
+- **Search filters, it does not rank.** There is no relevance ordering to ask for, and results use the same cursor as listing.
+- `q` searches the subject and body, **not** the sender — that is what `from` is for.
+- `tags` and `categories` are **exact** matches, so a near-miss value returns nothing rather than something close.
+- Common English stop words match nothing on their own; a query of only words like `the is` returns no rows.
+- Messages that arrived HTML-only before body indexing shipped are findable by subject but not by body.
+- `pibx_email_get_latest_otp` only returns codes from the **last 15 minutes** by default, because a stale code looks identical to a fresh one and fails wherever it is pasted. Widen it with `withinMinutes`.
+
+Responses default to snippets, not full bodies, and HTML is never returned at any verbosity — a handful of HTML emails would otherwise exhaust a client's tool-result budget in one call. Ask for a full body with `pibx_email_get_message`, or `response_format: "detailed"`.
+
+### Configuration
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ENABLE_MCP` | `false` | Off means the route 404s |
+| `MCP_ALLOWED_ORIGINS` | empty | Browser origins allowed to call the endpoint |
+| `MCP_RATE_LIMIT_MAX` | `120` | Requests per window, per API key |
+| `MCP_RATE_LIMIT_WINDOW_S` | `60` | Window length in seconds |
+
+`MCP_ALLOWED_ORIGINS` is a DNS-rebinding defense required by the transport spec. A request carrying **no** `Origin` header is allowed — every client above is a native or server-side caller that sends none — while a request carrying one that is not on the list is refused. Leave it empty unless a browser application genuinely needs the endpoint.
+
+Rate limiting shares the auth limiter, so it is subject to `AUTH_RATE_LIMIT_ENABLED` and needs `REDIS_URL` when that is on.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `404` | `ENABLE_MCP` is not `true`, or the server has not been restarted since it was set |
+| `401` | Missing/typo'd key, a revoked or expired key, or a JWT sent instead of an `sk_live_` key |
+| `403 Origin not allowed` | The client sent an `Origin` header not in `MCP_ALLOWED_ORIGINS` |
+| `429` | Per-key budget spent; `Retry-After` says how long to wait |
+| Tool reports a missing scope | The key lacks `inboxes:read` or `messages:read`. Scopes are fixed at creation — mint a new key |
+| "Provide at least one of q, from, tags or categories" | `pibx_email_search_messages` was called with no filter. Use `pibx_email_list_messages` to page without filtering |
+| "No inbox with id … is available to this API key" | The inbox belongs to another organization, or does not exist — the message is the same either way. `pibx_email_list_inboxes` shows what the key can reach |
+
+---
+
 ## Commands
 
 ```bash
@@ -197,6 +320,9 @@ Optional:
 - `WEBHOOK_EGRESS_ALLOWLIST` — Comma-separated egress allowlist for tenant-controlled webhook URLs
 - `WEBHOOK_ALLOW_PRIVATE_NETWORK` — Dev-only escape hatch; ignored in production
 - `ENABLE_BILLING` — Commercial layer (default `false`)
+- `ENABLE_MCP` — MCP server at `POST /api/mcp` (default `false`; the route 404s while off). See [MCP Server](#mcp-server-agent-access)
+- `MCP_ALLOWED_ORIGINS` — Comma-separated browser origins allowed to call `/api/mcp`. Empty by default, which refuses any request carrying an `Origin` header
+- `MCP_RATE_LIMIT_MAX` / `MCP_RATE_LIMIT_WINDOW_S` — Per-API-key budget for `/api/mcp` (defaults `120` per `60` seconds)
 - `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL` — Enrichment. Setting a provider requires an API key, except for `ollama`
 
 See `.env.example` for details — a test fails if it drifts from the schema.
