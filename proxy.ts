@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isPublicPath } from '@/lib/auth/public-routes'
 
 /**
  * Request proxy for route protection
@@ -11,14 +12,11 @@ import type { NextRequest } from 'next/server'
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Public routes that don't require authentication
-  // Both branches below currently return NextResponse.next(), so this list is
-  // documentation of intent rather than enforcement — see CLAUDE.md. Keep it in
-  // step with AuthGuard's PUBLIC_ROUTES, which is the gate that actually runs.
-  const publicRoutes = ['/auth/login', '/auth/register', '/auth/verify']
-  const isPublicRoute = publicRoutes.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  )
+  // Both branches below currently return NextResponse.next(), so this check is
+  // documentation of intent rather than enforcement — see CLAUDE.md. It reads
+  // the same list AuthGuard gates on, which is what keeps the intent honest;
+  // it used to be a third hand-maintained copy and had already drifted.
+  const isPublicRoute = isPublicPath(pathname)
 
   // Allow public routes to pass through
   if (isPublicRoute) {

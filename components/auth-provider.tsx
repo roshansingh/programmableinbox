@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { getCurrentUser, type User, type AppConfig } from "@/lib/api/auth.api"
+import { isPublicPath, SESSION_FETCH_SKIPPED_ROUTES } from "@/lib/auth/public-routes"
 
 interface AuthContextValue {
   user: User | null
@@ -37,8 +38,6 @@ const EMPTY_CONFIG: AppConfig = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/api-docs']
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,9 +47,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const organizationId = user?.organizations?.[0]?.id ?? null
   const config = user?.config ?? EMPTY_CONFIG
 
-  const isPublicRoute = PUBLIC_ROUTES.some(route =>
-    pathname === route || pathname.startsWith(route + '/')
-  )
+  // Narrower than AuthGuard's gate: this decides whether `/auth/me` is called
+  // at all, and `/auth/verify` needs the session it would otherwise skip.
+  const isPublicRoute = isPublicPath(pathname, SESSION_FETCH_SKIPPED_ROUTES)
 
   const refreshUser = async () => {
     try {

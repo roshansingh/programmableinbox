@@ -74,6 +74,29 @@ describe('AuthGuard', () => {
 
     expect(mockPush).not.toHaveBeenCalled()
   })
+
+  // Both password-reset pages are only ever reached by a signed-out user — one
+  // is where you go because you cannot log in, the other is opened from an
+  // emailed link on whatever device happens to be to hand. Omitting either
+  // from PUBLIC_ROUTES bounces every visit to /auth/login, which is the one
+  // page the visitor has already established they cannot get past.
+  it.each(['/auth/forgot-password', '/auth/reset-password'])(
+    'allows access to %s when not authenticated',
+    async (route) => {
+      vi.mocked(usePathname).mockReturnValue(route)
+      render(
+        <AuthGuard>
+          <div>Reset Flow</div>
+        </AuthGuard>
+      )
+
+      await waitFor(() => {
+        expect(screen.getByText('Reset Flow')).toBeInTheDocument()
+      })
+
+      expect(mockPush).not.toHaveBeenCalled()
+    }
+  )
 })
 
 /**
