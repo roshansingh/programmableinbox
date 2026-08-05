@@ -30,7 +30,8 @@ describe('resolveApiKeyPrincipal', () => {
     apiKeyFindFirstMock.mockResolvedValue({
       id: 'key_1',
       organizationId: 'org_1',
-      scopes: ['messages:read'],
+      userId: 'user_1',
+      scopes: ['email_messages:read'],
     })
 
     const { resolveApiKeyPrincipal } = await loadModule()
@@ -39,8 +40,22 @@ describe('resolveApiKeyPrincipal', () => {
       kind: 'apiKey',
       apiKeyId: 'key_1',
       organizationId: 'org_1',
-      scopes: ['messages:read'],
+      userId: 'user_1',
+      scopes: ['email_messages:read'],
     })
+  })
+
+  it('selects the creating user, because an inbox row needs an owner', async () => {
+    // EmailInbox.userId is NOT NULL, so a key that can create an inbox has to
+    // carry a user to attribute it to. ApiKey.userId is the only defensible
+    // answer — the human who minted the credential.
+    apiKeyFindFirstMock.mockResolvedValue(null)
+
+    const { resolveApiKeyPrincipal } = await loadModule()
+    await resolveApiKeyPrincipal(RAW_KEY)
+
+    const [{ select }] = apiKeyFindFirstMock.mock.calls[0] as [{ select: Record<string, boolean> }]
+    expect(select.userId).toBe(true)
   })
 
   it('looks the key up by hash, never by the raw value', async () => {

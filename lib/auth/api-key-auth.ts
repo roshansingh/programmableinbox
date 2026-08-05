@@ -16,6 +16,7 @@ export async function resolveApiKeyPrincipal(rawKey: string): Promise<{
   kind: 'apiKey'
   apiKeyId: string
   organizationId: string
+  userId: string
   scopes: string[]
 } | null> {
   const now = new Date()
@@ -34,6 +35,10 @@ export async function resolveApiKeyPrincipal(rawKey: string): Promise<{
     select: {
       id: true,
       organizationId: true,
+      // The human who minted the key. EmailInbox.userId is NOT NULL, so a key
+      // holding email_inboxes:write needs someone to attribute a created inbox
+      // to, and this is the only party with a real claim to it.
+      userId: true,
       scopes: true,
     },
   })
@@ -51,6 +56,7 @@ export async function resolveApiKeyPrincipal(rawKey: string): Promise<{
     kind: 'apiKey',
     apiKeyId: apiKey.id,
     organizationId: apiKey.organizationId,
+    userId: apiKey.userId,
     scopes: apiKey.scopes,
   }
 }

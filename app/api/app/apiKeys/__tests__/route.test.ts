@@ -45,7 +45,7 @@ describe('GET /api/app/apiKeys', () => {
         name: 'Production Key',
         organizationId: 'org_1',
         userId: 'user_1',
-        scopes: ['inboxes:read', 'messages:read'],
+        scopes: ['email_inboxes:read', 'email_messages:read'],
         createdAt: new Date('2026-05-18T00:00:00.000Z'),
       },
     ])
@@ -62,7 +62,7 @@ describe('GET /api/app/apiKeys', () => {
         name: 'Production Key',
         organizationId: 'org_1',
         userId: 'user_1',
-        scopes: ['inboxes:read', 'messages:read'],
+        scopes: ['email_inboxes:read', 'email_messages:read'],
         createdAt: '2026-05-18T00:00:00.000Z',
       },
     ])
@@ -115,7 +115,7 @@ describe('POST /api/app/apiKeys', () => {
       name: 'Partner Key',
       organizationId: 'org_1',
       userId: 'user_1',
-      scopes: ['inboxes:read'],
+      scopes: ['email_inboxes:read'],
       createdAt: new Date('2026-05-18T00:00:00.000Z'),
     })
 
@@ -125,7 +125,7 @@ describe('POST /api/app/apiKeys', () => {
       body: JSON.stringify({
         organizationId: 'org_1',
         name: 'Partner Key',
-        scopes: ['inboxes:read'],
+        scopes: ['email_inboxes:read'],
       }),
       headers: {
         'content-type': 'application/json',
@@ -144,7 +144,7 @@ describe('POST /api/app/apiKeys', () => {
         name: 'Partner Key',
         organizationId: 'org_1',
         userId: 'user_1',
-        scopes: ['inboxes:read'],
+        scopes: ['email_inboxes:read'],
         apiKey: expect.stringMatching(/^sk_live_/),
       })
     )

@@ -34,8 +34,8 @@ describe('ApiKeysPage', () => {
 
     expect(screen.getByText('Development Key')).toBeInTheDocument()
     expect(screen.getByText(mockApiKeyList[0].prefix)).toBeInTheDocument()
-    expect(screen.getAllByText('inboxes:read')).toHaveLength(2)
-    expect(screen.getByText('messages:read')).toBeInTheDocument()
+    expect(screen.getAllByText('email_inboxes:read')).toHaveLength(2)
+    expect(screen.getByText('email_messages:read')).toBeInTheDocument()
   })
 
   it('shows empty state when no keys exist', async () => {
@@ -83,8 +83,8 @@ describe('ApiKeysPage', () => {
     const nameInput = screen.getByPlaceholderText('e.g., Production API Key')
     await user.type(nameInput, 'My New Key')
 
-    await user.click(screen.getByLabelText('inboxes:read'))
-    await user.click(screen.getByLabelText('messages:read'))
+    await user.click(screen.getByLabelText('email_inboxes:read'))
+    await user.click(screen.getByLabelText('email_messages:read'))
 
     // Click "Create Key" submit button
     const submitButton = screen.getByRole('button', { name: /^create key$/i })
@@ -99,8 +99,8 @@ describe('ApiKeysPage', () => {
       screen.getByText("Copy your API key now. You won't be able to see it again!")
     ).toBeInTheDocument()
     expect(screen.getByDisplayValue(mockCreatedApiKey.apiKey)).toBeInTheDocument()
-    expect(screen.getAllByText('inboxes:read').length).toBeGreaterThan(1)
-    expect(screen.getAllByText('messages:read').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('email_inboxes:read').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('email_messages:read').length).toBeGreaterThan(1)
 
     await user.click(screen.getByRole('button', { name: /done/i }))
 
@@ -110,6 +110,35 @@ describe('ApiKeysPage', () => {
 
     expect(screen.getByText(mockCreatedApiKey.prefix)).toBeInTheDocument()
     expect(screen.queryByText(mockCreatedApiKey.apiKey)).not.toBeInTheDocument()
+  })
+
+  it('explains what each scope grants, so write is not just a third checkbox', async () => {
+    const { user } = render(<ApiKeysPage />)
+
+    await waitFor(() => expect(screen.getByText('API Keys')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /create api key/i }))
+
+    // Three bare `email_*` strings give a user no way to tell that one of them
+    // provisions addresses on domains we own and the other two only read.
+    expect(screen.getByText(/create and rename inboxes/i)).toBeInTheDocument()
+  })
+
+  it('ticks the inbox read scope when the write scope is selected', async () => {
+    // The scopes do not imply one another on the server — the effective grant
+    // of a ticked box must equal its label. But a key that can create an inbox
+    // and cannot list what it created is a strange object, so the dialog picks
+    // the read scope up rather than leaving the user to notice.
+    const { user } = render(<ApiKeysPage />)
+
+    await waitFor(() => expect(screen.getByText('API Keys')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /create api key/i }))
+
+    await user.click(screen.getByLabelText('email_inboxes:write'))
+
+    expect(screen.getByLabelText('email_inboxes:read')).toBeChecked()
+    expect(screen.getByLabelText('email_inboxes:write')).toBeChecked()
+    // Not granted by implication — messages are a separate capability.
+    expect(screen.getByLabelText('email_messages:read')).not.toBeChecked()
   })
 
   it('deletes an API key after confirmation', async () => {

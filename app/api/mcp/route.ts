@@ -16,7 +16,7 @@ import logger from '@/lib/logger'
  * trivially while still resolving the key, enforcing revocation and expiry, and
  * attaching the `'apiKey'` route tag the structural guards read. Scopes are
  * then enforced per *tool*, because a single route-level declaration cannot
- * express "this call needs inboxes:read and that one needs messages:read" when
+ * express "this call needs email_inboxes:read and that one needs email_messages:read" when
  * both arrive down the same POST.
  *
  * A JWT is rejected before any verification, by prefix, exactly as on every

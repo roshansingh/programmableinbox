@@ -12,7 +12,7 @@ import {
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 
 export const GET = withApiKey<{ id: string }>(
-  { scopes: ['messages:read'] },
+  { scopes: ['email_messages:read'] },
   async (request, principal, { params }) => {
     const { id } = await params
     const searchParams = request.nextUrl.searchParams

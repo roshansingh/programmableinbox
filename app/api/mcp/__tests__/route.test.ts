@@ -32,7 +32,7 @@ const KEY = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 const ALLOWED = {
@@ -234,7 +234,7 @@ describe('POST /api/mcp', () => {
   })
 
   describe('the MCP protocol itself', () => {
-    it('lists every tool with its schema and read-only annotations', async () => {
+    it('lists every tool with its schema and honest annotations', async () => {
       setConfigEnv({ ENABLE_MCP: 'true' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
@@ -249,10 +249,19 @@ describe('POST /api/mcp', () => {
         'pibx_email_get_message',
         'pibx_email_get_thread',
         'pibx_email_get_latest_otp',
+        'pibx_email_create_inbox',
+        'pibx_email_update_inbox',
       ])
 
+      // The write tools are advertised as writes. Clients gate confirmation
+      // prompts on readOnlyHint, so a mutation claiming to be read-only is
+      // silently exempted from the prompt a user would want to see.
+      const WRITE_TOOLS = new Set(['pibx_email_create_inbox', 'pibx_email_update_inbox'])
+
       for (const tool of body.result.tools) {
-        expect(tool.annotations.readOnlyHint).toBe(true)
+        expect(tool.annotations.readOnlyHint).toBe(!WRITE_TOOLS.has(tool.name))
+        // Nothing on this surface destroys anything — deletion is not exposed.
+        expect(tool.annotations.destructiveHint).toBe(false)
         expect(tool.inputSchema.type).toBe('object')
       }
     })
@@ -377,7 +386,7 @@ describe('POST /api/mcp', () => {
     it('enforces per-tool scopes, so a narrow key cannot reach a wider tool', async () => {
       resolveApiKeyPrincipalMock.mockResolvedValue({
         ...KEY,
-        scopes: ['inboxes:read'],
+        scopes: ['email_inboxes:read'],
       })
 
       setConfigEnv({ ENABLE_MCP: 'true' })
@@ -395,7 +404,7 @@ describe('POST /api/mcp', () => {
 
       const body = await rpcBody(response)
       expect(body.result.isError).toBe(true)
-      expect(body.result.content[0].text).toContain('messages:read')
+      expect(body.result.content[0].text).toContain('email_messages:read')
       expect(listMessagesMock).not.toHaveBeenCalled()
     })
   })

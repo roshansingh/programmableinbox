@@ -27,19 +27,6 @@ const OWNER = { userId: 'user_1' }
 describe('mutation services reject non-creators', () => {
   beforeEach(() => vi.resetAllMocks())
 
-  it('updateInbox constrains by userId', async () => {
-    inboxFindFirstMock.mockResolvedValue(null)
-    const { updateInbox } = await import('../email-inbox')
-
-    const result = await updateInbox(OWNER, 'inbox_1', { name: 'x' })
-
-    expect(result).toBeNull()
-    expect(inboxFindFirstMock).toHaveBeenCalledWith({
-      where: { id: 'inbox_1', userId: 'user_1' },
-    })
-    expect(inboxUpdateMock).not.toHaveBeenCalled()
-  })
-
   it('deleteInbox refuses an inbox owned by someone else', async () => {
     inboxFindFirstMock.mockResolvedValue(null)
     const { deleteInbox } = await import('../email-inbox')

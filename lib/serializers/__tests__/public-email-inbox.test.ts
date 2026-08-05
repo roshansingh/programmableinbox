@@ -100,7 +100,7 @@ describe('serializePublicMessage', () => {
   it('exposes the searchable body text', () => {
     // Published alongside the `q` filter (issue #106): a caller that searches
     // needs to see what matched, and it is derived from `text`/`html`, which the
-    // same messages:read scope already returns in full.
+    // same email_messages:read scope already returns in full.
     expect(serializePublicMessage(MESSAGE_ROW).bodyText).toBe('body')
   })
 
@@ -121,7 +121,7 @@ describe('serializePublicMessage', () => {
 
   it('exposes the extracted OTP', () => {
     // Deliberate: the OTP is derived from `text`/`html`, which the same
-    // messages:read scope already returns, so withholding it would protect
+    // email_messages:read scope already returns, so withholding it would protect
     // nothing while forcing every consumer to re-parse the body.
     expect(serializePublicMessage(MESSAGE_ROW).extractedOtp).toBe('123456')
   })

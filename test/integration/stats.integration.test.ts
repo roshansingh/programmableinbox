@@ -21,7 +21,7 @@ describe('GET /api/app/stats', () => {
     await seedMessage(inboxA1.id, org.id)
     await seedMessage(inboxA1.id, org.id)
     await seedMessage(inboxA2.id, org.id)
-    await createApiKey(org.id, user.id, ['messages:read'])
+    await createApiKey(org.id, user.id, ['email_messages:read'])
     await seedAutomation(org.id, inboxA1.id)
 
     // Other org: 5 inboxes, 4 messages (today), 2 api keys, 3 active automations
@@ -34,8 +34,8 @@ describe('GET /api/app/stats', () => {
     await seedMessage(inboxB1.id, other.org.id)
     await seedMessage(inboxB1.id, other.org.id)
     await seedMessage(inboxB1.id, other.org.id)
-    await createApiKey(other.org.id, other.user.id, ['messages:read'])
-    await createApiKey(other.org.id, other.user.id, ['messages:read'])
+    await createApiKey(other.org.id, other.user.id, ['email_messages:read'])
+    await createApiKey(other.org.id, other.user.id, ['email_messages:read'])
     await seedAutomation(other.org.id, inboxB1.id)
     await seedAutomation(other.org.id, inboxB1.id)
     await seedAutomation(other.org.id, inboxB1.id)

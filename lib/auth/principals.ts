@@ -20,5 +20,15 @@ export type ApiKeyPrincipal = {
   kind: 'apiKey'
   apiKeyId: string
   organizationId: string
+  /**
+   * The user who minted the key.
+   *
+   * Present so that an inbox created through `email_inboxes:write` has an
+   * owner — `EmailInbox.userId` is NOT NULL. It is deliberately NOT enough to
+   * make a key into a user: `toOwnerScope` still accepts only a
+   * `UserPrincipal`, so carrying a userId here does not put `deleteInbox` or
+   * `deleteMessage` within reach. See `lib/services/scope.ts`.
+   */
+  userId: string
   scopes: string[]
 }

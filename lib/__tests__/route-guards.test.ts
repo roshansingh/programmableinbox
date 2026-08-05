@@ -94,18 +94,50 @@ const VERIFICATION_OPT_OUTS = [
 ]
 
 describe('structural route guards', () => {
-  it('guard 1: no mutating handler exists anywhere under app/api/v1', async () => {
+  it('guard 1: app/api/v1 mutates only where email_inboxes:write is meant to', async () => {
     const MUTATING = ['POST', 'PUT', 'PATCH', 'DELETE']
+
+    // The external surface used to be read-only, and this guard asserted
+    // exactly that. `email_inboxes:write` retires the blanket rule, so the
+    // guard becomes an allowlist instead of an emptiness check — otherwise the
+    // only way to admit the two intended handlers is to delete the guard, and
+    // the next mutating route lands unnoticed.
+    //
+    // DELETE and PUT appear nowhere: deleting an inbox permanently retires its
+    // address, so it stays dashboard-only and key-unreachable by type.
+    const ALLOWED = new Set([
+      'app/api/v1/emailInbox/route.ts POST',
+      'app/api/v1/emailInbox/[id]/route.ts PATCH',
+    ])
+
     const offenders: string[] = []
 
     for (const file of findRouteFiles('app/api/v1')) {
       const mod = (await import(path.join(REPO_ROOT, file))) as Record<string, unknown>
       for (const method of MUTATING) {
-        if (typeof mod[method] === 'function') offenders.push(`${file} ${method}`)
+        const handler = `${file} ${method}`
+        if (typeof mod[method] === 'function' && !ALLOWED.has(handler)) {
+          offenders.push(handler)
+        }
       }
     }
 
     expect(offenders).toEqual([])
+  })
+
+  it('guard 1b: every allowlisted v1 mutation actually exists', async () => {
+    // Without this, renaming or removing a route silently turns its allowlist
+    // entry into dead text, and guard 1 goes back to being an emptiness check
+    // that nobody notices has stopped covering anything.
+    const inboxes = (await import(
+      path.join(REPO_ROOT, 'app/api/v1/emailInbox/route.ts')
+    )) as Record<string, unknown>
+    const inbox = (await import(
+      path.join(REPO_ROOT, 'app/api/v1/emailInbox/[id]/route.ts')
+    )) as Record<string, unknown>
+
+    expect(typeof inboxes.POST).toBe('function')
+    expect(typeof inbox.PATCH).toBe('function')
   })
 
   it('guard 2: every handler under app/api/v1 is wrapped with withApiKey', async () => {

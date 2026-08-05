@@ -20,7 +20,7 @@ const KEY = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 describe('GET /api/v1/emailInbox', () => {
@@ -39,8 +39,8 @@ describe('GET /api/v1/emailInbox', () => {
     expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('403s a key lacking inboxes:read', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['messages:read'] })
+  it('403s a key lacking email_inboxes:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_messages:read'] })
     const { GET } = await import('../route')
 
     const response = await GET(keyRequest(), { params: Promise.resolve({}) })
@@ -91,10 +91,13 @@ describe('GET /api/v1/emailInbox', () => {
     expect((await GET(keyRequest(), { params: Promise.resolve({}) })).status).toBe(401)
   })
 
-  it('exports no mutating handlers', async () => {
+  it('exports no DELETE handler', async () => {
+    // The external surface is no longer read-only — POST landed with
+    // `email_inboxes:write`. Deletion is the line that stays: it permanently
+    // retires the address, so it remains dashboard-only and key-unreachable by
+    // type. See `app/api/v1/emailInbox/__tests__/write-route.test.ts` for the
+    // POST contract.
     const mod = await import('../route')
-    expect(mod).not.toHaveProperty('POST')
-    expect(mod).not.toHaveProperty('PATCH')
     expect(mod).not.toHaveProperty('DELETE')
   })
 })

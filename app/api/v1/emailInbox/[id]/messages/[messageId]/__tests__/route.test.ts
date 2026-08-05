@@ -24,7 +24,7 @@ const KEY = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 const MESSAGE = {
@@ -70,8 +70,8 @@ describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('403s a key lacking messages:read', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+  it('403s a key lacking email_messages:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:read'] })
     const { GET } = await import('../route')
 
     const response = await GET(request(), { params })
@@ -114,7 +114,7 @@ describe('GET /api/v1/emailInbox/[id]/messages/[messageId]', () => {
     expect(body.data.extractedOtp).toBe('123456')
   })
 
-  it('exports no PATCH — starring is dashboard state, and it was gated by messages:read', async () => {
+  it('exports no PATCH — starring is dashboard state, and it was gated by email_messages:read', async () => {
     const mod = await import('../route')
     expect(mod).not.toHaveProperty('PATCH')
   })

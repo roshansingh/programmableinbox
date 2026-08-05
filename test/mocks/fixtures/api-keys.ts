@@ -7,7 +7,7 @@ export const mockApiKeyList: ApiKeyListItem[] = [
     name: 'Production Key',
     organizationId: 'org-1',
     userId: 'user-1',
-    scopes: ['inboxes:read', 'messages:read'],
+    scopes: ['email_inboxes:read', 'email_messages:read'],
     createdAt: '2025-01-15T10:00:00.000Z',
   },
   {
@@ -16,7 +16,7 @@ export const mockApiKeyList: ApiKeyListItem[] = [
     name: 'Development Key',
     organizationId: 'org-1',
     userId: 'user-1',
-    scopes: ['inboxes:read'],
+    scopes: ['email_inboxes:read'],
     createdAt: '2025-01-10T08:00:00.000Z',
   },
 ]
@@ -28,6 +28,6 @@ export const mockCreatedApiKey: CreatedApiKey = {
   name: 'My New Key',
   organizationId: 'org-1',
   userId: 'user-1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
   createdAt: '2025-01-20T12:00:00.000Z',
 }

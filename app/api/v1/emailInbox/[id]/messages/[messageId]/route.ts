@@ -9,12 +9,12 @@ import { jsonSuccess, jsonError } from '@/lib/api-helpers'
  * to /api/app/emailInbox — star is dashboard UI state that never belonged in a
  * public contract, and the delete was reachable by any organization key.
  *
- * The PATCH was also gated by `messages:read`, so a key issued as read-only
+ * The PATCH was also gated by `email_messages:read`, so a key issued as read-only
  * could mutate. That scope string is now declared in the withApiKey call
  * beside the method rather than inside the handler body, where it drifted.
  */
 export const GET = withApiKey<{ id: string; messageId: string }>(
-  { scopes: ['messages:read'] },
+  { scopes: ['email_messages:read'] },
   async (_request, principal, { params }) => {
     const { id: inboxId, messageId } = await params
 

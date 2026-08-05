@@ -6,7 +6,12 @@ import { encodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { fetchGroupedThreadHeads, type GroupedThreadHead } from './grouped-query'
 import { fetchSearchedMessages } from './message-search'
 import type { MessageSearch } from '@/lib/search/message-search-params'
-import type { OrgScope, OwnerScope } from './scope'
+import { parseInboxAddress } from '@/lib/email-address'
+import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-policy'
+import { isUniqueViolation } from '@/lib/api-helpers'
+import type { OrgScope, OwnerScope, InboxWriteScope } from './scope'
+
+type EmailInboxRow = Awaited<ReturnType<typeof prisma.emailInbox.create>>
 
 export type ListMessagesOptions = {
   limit: number
@@ -150,32 +155,166 @@ async function ownedInbox(owner: OwnerScope, id: string) {
   return prisma.emailInbox.findFirst({ where: { id, userId: owner.userId } })
 }
 
+// ---------------------------------------------------------------------------
+// Inbox writes reachable by an API key (`email_inboxes:write`)
+// ---------------------------------------------------------------------------
+
 /**
- * Owner-scoped read, for handlers that must establish mutation authority
- * *before* they inspect the request body.
- *
- * PATCH needs the stored row to compare the submitted address against, and
- * resolving that row through the read scope would answer body-shaped questions
- * for a caller who is not allowed to mutate at all — a non-owner in the same
- * organization would get 409 "address is immutable" instead of 404, which
- * distinguishes an inbox they may not touch from one that does not exist.
+ * Deliberately identical whether the address is held by another tenant or by a
+ * soft-deleted inbox, so creation cannot be used to probe which addresses exist
+ * in other orgs.
  */
-export async function getOwnedInbox(owner: OwnerScope, id: string) {
-  return ownedInbox(owner, id)
+const ADDRESS_UNAVAILABLE = 'Email address is not available'
+
+const EMAIL_IMMUTABLE = 'The address of an inbox cannot be changed. Create a new inbox instead.'
+
+/**
+ * A caller-correctable rejection, carrying the status the HTTP surface should
+ * return and the wording the MCP surface should put in its tool text.
+ *
+ * Returned rather than thrown so a route cannot forget to handle it, and so the
+ * two surfaces cannot drift on what a given failure means — which is the whole
+ * reason this logic moved out of the app route in the first place.
+ */
+export type InboxWriteError = { message: string; status: number }
+
+export type InboxWriteResult<T> = { inbox: T; error?: never } | { inbox?: never; error: InboxWriteError }
+
+/**
+ * The single implementation of "make an inbox", for every caller.
+ *
+ * This used to live inline in `app/api/app/emailInbox/route.ts`. Adding
+ * `POST /api/v1/emailInbox` and an MCP tool would have made three copies of
+ * the address normalization, the issue #98 policy, the probe-resistant 409 and
+ * the unique-violation catch — and the copy that fell behind would have been
+ * one of the ones enforcing the anti-impersonation rules.
+ */
+export async function createInbox(
+  scope: InboxWriteScope,
+  input: { email: unknown; name?: unknown },
+): Promise<InboxWriteResult<EmailInboxRow>> {
+  // Normalize before anything compares or stores the address (F1). Inbound
+  // routing matches on the lowercased recipient, so claiming must happen in
+  // that same space — otherwise `Billing@corp.com` and `billing@corp.com` are
+  // two rows to the unique index but one address to the router, and the second
+  // claimant intercepts the first's mail.
+  // A null organization means the caller is a user who did not say where the
+  // inbox goes. Updates tolerate that — the row already has an organization —
+  // but creation cannot guess, and an inbox cannot be moved afterwards. A key
+  // is always bound, so this is unreachable for one.
+  const { organizationId } = scope
+  if (!organizationId) return { error: { message: 'organizationId is required', status: 400 } }
+
+  const address = parseInboxAddress(input.email)
+  if (!address) return { error: { message: 'email must be a valid email address', status: 400 } }
+
+  // Policy runs before the address is claimed and before the table is touched
+  // at all (issue #98). Syntax validation only proves the address is
+  // well-formed; these prove it is one we can receive at, and that it does not
+  // impersonate a brand or the platform on a domain we own.
+  const addressViolation = validateInboxAddress(address)
+  if (addressViolation) return { error: addressViolation }
+
+  const nameViolation = validateInboxName(input.name)
+  if (nameViolation) return { error: nameViolation }
+
+  // Store the value the policy actually judged. Persisting the raw string while
+  // validating the trimmed one lets `" "` through as a name that validated as
+  // absent — and any padding survives into every listing.
+  const name = typeof input.name === 'string' ? input.name.trim() || null : null
+
+  // Friendly pre-check. Not authoritative: reads are soft-delete filtered, so
+  // an address held by a deleted inbox is invisible here, and two concurrent
+  // requests can both pass. The unique index below is what decides.
+  const existing = await prisma.emailInbox.findFirst({
+    where: { email: address },
+    select: { id: true },
+  })
+  if (existing) return { error: { message: ADDRESS_UNAVAILABLE, status: 409 } }
+
+  try {
+    const inbox = await prisma.emailInbox.create({
+      data: {
+        organizationId,
+        userId: scope.userId,
+        email: address,
+        name,
+      },
+    })
+    return { inbox }
+  } catch (error) {
+    // Same wording and status as the pre-check. A distinguishable answer here
+    // would reveal that a soft-deleted inbox holds the address.
+    if (isUniqueViolation(error, 'email')) {
+      return { error: { message: ADDRESS_UNAVAILABLE, status: 409 } }
+    }
+    // Anything else is ours, not the caller's. Rethrow so the route logs it and
+    // answers 500 rather than reporting a database fault as a bad request.
+    throw error
+  }
 }
 
-export async function updateInbox(
-  owner: OwnerScope,
-  id: string,
-  data: { name?: string | null },
-) {
-  const inbox = await ownedInbox(owner, id)
-  if (!inbox) return null
-
-  return prisma.emailInbox.update({
-    where: { id },
-    data: { ...(data.name !== undefined && { name: data.name }) },
+/**
+ * Resolves an inbox a write scope is allowed to mutate.
+ *
+ * Constrained by creator, and additionally by organization when the scope
+ * names one. Organization-only would let any member rename a colleague's
+ * inbox, which is a behaviour change nobody asked for; creator-only is what
+ * `OwnerScope` gave and is what a dashboard PATCH still gets. A key always
+ * carries an organization, which is what stops it writing into another org its
+ * minter happens to belong to. Its rule reads simply: a key can manage what it
+ * created, since inboxes it creates are attributed to the user who minted it.
+ */
+export async function getInboxForWrite(scope: InboxWriteScope, id: string) {
+  return prisma.emailInbox.findFirst({
+    // The organization narrowing is added only when the scope carries one.
+    // `organizationId: null` in the predicate would match nothing at all, since
+    // the column is NOT NULL — a user PATCH would 404 on its own inbox.
+    where: {
+      id,
+      userId: scope.userId,
+      ...(scope.organizationId !== null && { organizationId: scope.organizationId }),
+    },
   })
+}
+
+export async function updateInboxForWrite(
+  scope: InboxWriteScope,
+  id: string,
+  input: { email?: unknown; name?: unknown },
+): Promise<InboxWriteResult<EmailInboxRow>> {
+  // Resolved before any body field is inspected. Answering a body-shaped
+  // question first would tell a caller with no authority to mutate that the
+  // inbox exists and that their address guess was wrong.
+  const existing = await getInboxForWrite(scope, id)
+  if (!existing) return { error: { message: 'Not found', status: 404 } }
+
+  // The address is immutable once the inbox exists (F1). Re-pointing it was a
+  // second route to cross-tenant interception — claim a throwaway address, then
+  // move it onto a case variant of a tenant's — and it breaks the guarantee
+  // that a delivered message's recipient still names a live inbox.
+  //
+  // A submission matching the current address after normalization is a no-op
+  // and allowed, so a client can PATCH a full record back to rename it.
+  if (input.email !== undefined && parseInboxAddress(input.email) !== existing.email) {
+    return { error: { message: EMAIL_IMMUTABLE, status: 409 } }
+  }
+
+  // The same name policy as creation (issue #98). Without it the blocklist is
+  // worthless: an inbox created as `qa` could simply be renamed to
+  // `Amazon Support` afterwards, and the display name is what a recipient reads.
+  const nameViolation = validateInboxName(input.name)
+  if (nameViolation) return { error: nameViolation }
+
+  const name =
+    input.name === undefined ? undefined : typeof input.name === 'string' ? input.name.trim() || null : null
+
+  const inbox = await prisma.emailInbox.update({
+    where: { id },
+    data: { ...(name !== undefined && { name }) },
+  })
+
+  return { inbox }
 }
 
 export async function deleteInbox(owner: OwnerScope, id: string): Promise<boolean> {

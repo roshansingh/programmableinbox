@@ -36,7 +36,7 @@ const KEY = {
   kind: 'apiKey' as const,
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 describe('withUser', () => {
@@ -172,7 +172,7 @@ describe('withApiKey', () => {
 
   it('rejects a JWT without attempting a key lookup', async () => {
     const { withApiKey } = await import('../with-auth')
-    const handler = withApiKey({ scopes: ['inboxes:read'] }, async () => new Response('ok'))
+    const handler = withApiKey({ scopes: ['email_inboxes:read'] }, async () => new Response('ok'))
 
     const response = await handler(requestWith('Bearer eyJhbGciOiJIUzI1NiJ9.x.y'), emptyCtx)
 
@@ -181,14 +181,16 @@ describe('withApiKey', () => {
   })
 
   it('403s when a required scope is missing', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:read'] })
     const { withApiKey } = await import('../with-auth')
-    const handler = withApiKey({ scopes: ['messages:read'] }, async () => new Response('ok'))
+    const handler = withApiKey({ scopes: ['email_messages:read'] }, async () => new Response('ok'))
 
     const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({ message: 'Missing required scope: messages:read' })
+    expect(await response.json()).toEqual({
+      message: 'Missing required scope: email_messages:read',
+    })
   })
 
   it('passes the key principal when scopes are satisfied', async () => {
@@ -196,7 +198,7 @@ describe('withApiKey', () => {
     const { withApiKey } = await import('../with-auth')
 
     let seen: unknown
-    const handler = withApiKey({ scopes: ['messages:read'] }, async (_req, principal) => {
+    const handler = withApiKey({ scopes: ['email_messages:read'] }, async (_req, principal) => {
       seen = principal
       return new Response('ok')
     })
@@ -208,10 +210,48 @@ describe('withApiKey', () => {
   it('401s for an unknown or revoked key', async () => {
     resolveApiKeyPrincipalMock.mockResolvedValue(null)
     const { withApiKey } = await import('../with-auth')
-    const handler = withApiKey({ scopes: ['inboxes:read'] }, async () => new Response('ok'))
+    const handler = withApiKey({ scopes: ['email_inboxes:read'] }, async () => new Response('ok'))
 
     const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
     expect(response.status).toBe(401)
+  })
+
+  it('accepts a key still holding a pre-rename scope', async () => {
+    // The migration that rewrites api_keys.scopes does not land atomically with
+    // this deploy. Without the alias, every request from an un-migrated key
+    // 403s for the duration of the rollout.
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: ['email_inboxes:read'] }, async () => new Response('ok'))
+
+    const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
+    expect(response.status).toBe(200)
+  })
+
+  it('does not let a legacy read scope satisfy the write scope', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({
+      ...KEY,
+      scopes: ['inboxes:read', 'messages:read'],
+    })
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: ['email_inboxes:write'] }, async () => new Response('ok'))
+
+    const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
+    expect(response.status).toBe(403)
+  })
+
+  it('reports the current scope name when an un-migrated key lacks it', async () => {
+    // The holder cannot act on `inboxes:read` — it is not a name they can ask
+    // for any more. Naming the stored value would send them looking for a
+    // scope the dashboard no longer offers.
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: ['email_messages:read'] }, async () => new Response('ok'))
+
+    const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
+    expect(await response.json()).toEqual({
+      message: 'Missing required scope: email_messages:read',
+    })
   })
 })
 
