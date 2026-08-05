@@ -206,7 +206,6 @@ See `.env.example` for details — a test fails if it drifts from the schema.
 ## Known Issues
 
 - `app/phones/[id]/page.tsx` and `app/phones/page.tsx` have pre-existing TypeScript errors (MobileSidebarProps). Don't fix as drive-by.
-- `package.json#name` is still `my-v0-project` from the v0 scaffold.
 
 ---
 

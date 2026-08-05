@@ -392,7 +392,6 @@ wrong would leave the trap armed.
 
 **TypeScript errors (pre-existing)**:
 - `app/phones/[id]/page.tsx` and `app/phones/page.tsx` have TS errors around `MobileSidebarProps`
-- `package.json#name` is still `my-v0-project` from the v0.app scaffold
 - `test/integration/setup/setup.ts` uses top-level await, which trips TS1378 under the repo's `tsconfig` target (harmless — Vitest/esbuild transpiles it; `next build` has `ignoreBuildErrors`)
 
 **Security vulnerabilities** (pre-existing, require major version upgrades):

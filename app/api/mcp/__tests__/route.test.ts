@@ -273,9 +273,11 @@ describe('POST /api/mcp', () => {
       )
 
       const body = await rpcBody(response)
-      expect(body.result.serverInfo.name).toBe('programmableinbox')
-      // The version a client actually receives tracks package.json, rather than
-      // a literal that is correct exactly once.
+      // What a client actually receives tracks package.json on both fields,
+      // rather than literals that are correct exactly once. The name is pinned
+      // to its literal value in lib/mcp/__tests__/server-info.test.ts, since a
+      // package rename would otherwise silently rename the server.
+      expect(body.result.serverInfo.name).toBe(packageJson.name)
       expect(body.result.serverInfo.version).toBe(packageJson.version)
       expect(response.headers.get('mcp-session-id')).toBeNull()
     })
