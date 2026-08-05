@@ -590,6 +590,55 @@ describe('Webhook Email Processing — Integration', () => {
       expect(dispatchAutomationsForEmailMock).toHaveBeenCalledWith('msg_b');
     });
 
+    /**
+     * bodyText is what makes a message searchable (issue #106). It is derived at
+     * write time rather than during enrichment, because enrichment is LLM-gated
+     * and optional — "searchable only once enriched" would be an invisible gap.
+     */
+    describe('bodyText derivation', () => {
+      async function storeAndCaptureCreateData(email: object): Promise<Record<string, unknown>> {
+        const { POST } = await loadRoute()
+        const inbox = { id: 'inbox_sync', email: 'inbox@example.com', organizationId: 'org_1' }
+        inboxFindManyMock.mockResolvedValueOnce([inbox])
+        inboxFindManyMock.mockResolvedValueOnce([inbox])
+        getEmailMock.mockResolvedValueOnce({ data: email })
+        messageCreateMock.mockResolvedValueOnce({ id: 'msg_1', organizationId: 'org_1' })
+        dispatchAutomationsForEmailMock.mockResolvedValue([])
+
+        await POST(makeWebhookRequest(emailReceivedBody('em_body_text')) as any)
+
+        return (messageCreateMock.mock.calls[0][0] as { data: Record<string, unknown> }).data
+      }
+
+      it('stores the sender text part as bodyText when one was supplied', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({ to: ['inbox@example.com'], text: 'the plain part' }),
+        )
+
+        expect(data.bodyText).toBe('the plain part')
+      })
+
+      it('derives bodyText from the html when the email is html-only', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({
+            to: ['inbox@example.com'],
+            text: '',
+            html: '<html><head><style>.p{color:red}</style></head><body><p>Your code is 123456</p></body></html>',
+          }),
+        )
+
+        expect(data.bodyText).toBe('Your code is 123456')
+      })
+
+      it('stores null bodyText when the email has no body at all', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({ to: ['inbox@example.com'], text: '', html: '' }),
+        )
+
+        expect(data.bodyText).toBeNull()
+      })
+    })
+
     it('returns 500 and does not enqueue when sync processing throws', async () => {
       // If dispatchAutomationsForEmail throws, the route's outer try/catch
       // catches it and returns 500.  storeIncomingEmail itself silently swallows

@@ -193,6 +193,16 @@ model EmailMessage {
   subject             String
   text                String
   html                String
+  /// Best-effort plain text of the body, for full-text search (issue #106). The
+  /// provider's `text` when the sender supplied one, otherwise text extracted
+  /// from `html` at write time by lib/email/extract-body-text.ts. `text` keeps
+  /// meaning "what the sender sent"; this is what we derived.
+  ///
+  /// Nullable, and deliberately not backfilled: the generated column below falls
+  /// back to `text`, so subject search covers all mail from day one and body
+  /// search covers everything that arrived with a text part. Only the bodies of
+  /// pre-existing HTML-only mail are missing.
+  bodyText            String?
   headers             Json
   /// Resend's opaque email id — an external string, not a row id.
   externalId          String
@@ -216,6 +226,20 @@ model EmailMessage {
   /// gates each step on its own marker rather than on message existence, so a
   /// retry after a mid-processing crash re-runs the steps that didn't finish
   /// instead of skipping them because the message row already exists.
+  /// Full-text index over subject (weight A) and body (weight B), maintained by
+  /// Postgres as a STORED generated column — see the migration for the
+  /// expression. Declared Unsupported so Prisma knows the column exists and
+  /// never selects or writes it; `lib/services/message-search.ts` queries it
+  /// through raw SQL.
+  ///
+  /// The `@default(dbgenerated(...))` is not a default — the column has none. It
+  /// is the only way to tell Prisma's differ that this column's value is produced
+  /// by an expression, and it must match what Postgres reports in
+  /// `information_schema` byte for byte. Without it `prisma migrate diff` reports
+  /// permanent drift, and the next `prisma migrate dev` offers to "fix" it by
+  /// dropping the generation expression — silently turning the search index into a
+  /// column nothing ever writes.
+  searchVector        Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, \"left\"(COALESCE(subject, ''::text), 10000)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, \"left\"(COALESCE(\"bodyText\", text, ''::text), 100000)), 'B'::\"char\"))"))
   dispatchedAt        DateTime? @db.Timestamptz(3)
   enrichedAt          DateTime? @db.Timestamptz(3)
   deletedAt           DateTime? @db.Timestamptz(3)
@@ -236,6 +260,8 @@ model EmailMessage {
   @@index([threadId])
   @@index([parentMessageId])
   @@index([categories], type: Gin)
+  @@index([tags], type: Gin)
+  @@index([searchVector], type: Gin)
   /// Threading's subject fallback runs on every inbound email that Message-ID
   /// matching misses, so this scan is on the ingest hot path (F25).
   @@index([inboxEmailAddressId, subject])

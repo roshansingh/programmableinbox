@@ -42,6 +42,7 @@ type MessageRow = {
   bcc: string[]
   text: string
   html: string
+  bodyText: string | null
   isStarred: boolean
   tags: string[]
   categories: string[]
@@ -89,6 +90,8 @@ export function serializeAppMessage(message: MessageRow) {
     bcc: message.bcc,
     text: message.text,
     html: message.html,
+    // The searchable plain text of the body (issue #106).
+    bodyText: message.bodyText,
     isStarred: message.isStarred,
     tags: message.tags,
     categories: message.categories,

@@ -4,6 +4,7 @@ import { withUser } from '@/lib/auth/with-auth'
 import { toOwnerScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { getResend } from '@/lib/resend'
+import { deriveBodyText } from '@/lib/email/extract-body-text'
 import logger from '@/lib/logger'
 
 export const POST = withUser<{ id: string }>(async (request, principal, { params }) => {
@@ -84,6 +85,9 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
         subject,
         text: text || '',
         html: html || '',
+        // Sent mail is listed alongside received mail, so it has to be searchable
+        // on the same terms (issue #106).
+        bodyText: deriveBodyText({ text: text || '', html: html || '' }),
         headers: emailHeaders,
         externalId: resendId,
         inboxEmailAddressId: inbox.id,

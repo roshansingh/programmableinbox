@@ -143,6 +143,51 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(row.threadId).toBe(row.id)
   })
 
+  /**
+   * Sent mail is stored and listed alongside received mail, so it has to be
+   * searchable on the same terms (issue #106) — bodyText is derived on this path
+   * too, not only at ingest.
+   */
+  it('derives bodyText from the html when sending an html-only message', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    resend.send.mockResolvedValue({ data: { id: 'resend-sent-html' }, error: null })
+
+    const res = await POST(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
+        method: 'POST', credential: token,
+        body: {
+          to: ['dest@test.dev'],
+          subject: 'Receipt',
+          html: '<html><head><style>.x{color:red}</style></head><body><p>Order 4471 confirmed</p></body></html>',
+        },
+      }),
+      params({ id: inbox.id })
+    )
+
+    expect(res.status).toBe(201)
+    const row = await prisma.emailMessage.findFirstOrThrow({ where: { externalId: 'resend-sent-html' } })
+    expect(row.text).toBe('')
+    expect(row.bodyText).toBe('Order 4471 confirmed')
+  })
+
+  it('stores the sender text part as bodyText when sending plain text', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    resend.send.mockResolvedValue({ data: { id: 'resend-sent-plain' }, error: null })
+
+    await POST(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
+        method: 'POST', credential: token,
+        body: { to: ['dest@test.dev'], subject: 'Hi', text: 'the plain part' },
+      }),
+      params({ id: inbox.id })
+    )
+
+    const row = await prisma.emailMessage.findFirstOrThrow({ where: { externalId: 'resend-sent-plain' } })
+    expect(row.bodyText).toBe('the plain part')
+  })
+
   it('joins an existing thread when inReplyTo matches a prior message', async () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)

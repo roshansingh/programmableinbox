@@ -176,9 +176,63 @@ export const spec = {
             name: 'grouped',
             in: 'query',
             description:
-              'If true, returns only the latest message per thread (grouped view)',
+              'If true, returns only the latest message per thread (grouped view). '
+              + 'Cannot be combined with any search parameter — the combination returns 400.',
             required: false,
             schema: { type: 'boolean' },
+          },
+          {
+            name: 'q',
+            in: 'query',
+            description:
+              'Full-text search over the subject and the message body. Supports '
+              + '"quoted phrases", `or`, and `-negation` (Postgres websearch syntax). '
+              + 'The body searched is the plain-text `bodyText` field, which is extracted '
+              + 'from `html` for messages that carry no text part. Results stay in '
+              + 'reverse-chronological order — this filters, it does not rank.',
+            required: false,
+            schema: { type: 'string', maxLength: 200 },
+            example: '"order confirmed" -refund',
+          },
+          {
+            name: 'from',
+            in: 'query',
+            description:
+              'Case-insensitive substring match on the sender. Matches the raw header, '
+              + 'so it covers both the display name and the address.',
+            required: false,
+            schema: { type: 'string', maxLength: 200 },
+            example: 'billing@acme.com',
+          },
+          {
+            name: 'tags',
+            in: 'query',
+            description:
+              'Return messages carrying any of these tags (exact match, OR-combined). '
+              + 'Repeat the parameter: tags=a&tags=b. A comma-separated single value '
+              + '(tags=a,b) is also accepted, but cannot express a tag that itself '
+              + 'contains a comma. Max 20 values.',
+            required: false,
+            schema: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+            // explode:true — the repeated form is the documented contract because it
+            // round-trips any value. The server also accepts the comma-separated form,
+            // which is a deliberate superset, not what this describes.
+            style: 'form',
+            explode: true,
+          },
+          {
+            name: 'categories',
+            in: 'query',
+            description:
+              'Return messages carrying any of these categories (exact match, '
+              + 'OR-combined). Repeat the parameter: categories=a&categories=b. A '
+              + 'comma-separated single value is also accepted, but cannot express a '
+              + 'category that itself contains a comma. Max 20 values.',
+            required: false,
+            schema: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+            // See the note on `tags` above.
+            style: 'form',
+            explode: true,
           },
         ],
         responses: {
@@ -228,7 +282,9 @@ export const spec = {
             },
           },
           '400': {
-            description: 'Invalid cursor',
+            description:
+              'Invalid cursor, a search parameter over its length or value limit, or a '
+              + 'search parameter combined with grouped=true',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -367,8 +423,22 @@ export const spec = {
           bcc: { type: 'array', items: { type: 'string', format: 'email' } },
           text: { type: 'string', example: 'Hello, I need help with...' },
           html: { type: 'string', example: '<p>Hello, I need help with...</p>' },
+          bodyText: {
+            type: 'string',
+            nullable: true,
+            example: 'Hello, I need help with...',
+            description:
+              'Plain text of the body, and the field the `q` parameter searches. Equal '
+              + 'to `text` when the sender supplied a text part, otherwise extracted from '
+              + '`html`. Null for messages stored before this field existed.',
+          },
           isStarred: { type: 'boolean', example: false },
           tags: { type: 'array', items: { type: 'string' } },
+          categories: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Categories assigned to the message. Matched by the `categories` parameter.',
+          },
           extractedOtp: {
             type: 'string',
             nullable: true,
@@ -393,8 +463,10 @@ export const spec = {
           'bcc',
           'text',
           'html',
+          'bodyText',
           'isStarred',
           'tags',
+          'categories',
           'extractedOtp',
           'createdAt',
         ],
