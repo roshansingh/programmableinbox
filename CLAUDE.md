@@ -91,7 +91,7 @@ Four properties are load-bearing:
 
 **Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `EMAIL_INBOX_DOMAINS`.
 
-**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (30), `PASSWORD_RESET_TOKEN_TTL_MINUTES` (30), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
+**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `ENABLE_BILLING` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (30), `PASSWORD_RESET_TOKEN_TTL_MINUTES` (30), `ENABLE_MCP` (false), `MCP_ALLOWED_ORIGINS` (empty), `MCP_RATE_LIMIT_MAX` (120), `MCP_RATE_LIMIT_WINDOW_S` (60), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
 
 **Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` **or** `AUTH_RATE_LIMIT_ENABLED` is on (it defaults to on) — `assertConfig()` refuses to start without it, naming both reasons. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
 
@@ -180,17 +180,18 @@ Handlers never query with a principal. They convert it into one of two scope typ
 
 Reads widened to organization-wide; mutation authority did not. A user therefore sees inboxes they cannot rename, delete or send from, which is why `serializeAppInbox` derives `isOwner` — the UI gates on it rather than rendering actions that 404.
 
-### The three route trees
+### The four route trees
 
 | Tree | Wrapper | Contents |
 |---|---|---|
 | `app/api/v1/**` | `withApiKey` | The published external API. **Read-only** — GET handlers only. |
 | `app/api/app/**` | `withUser` (`withPublic` for `auth/login`, `auth/register`, `auth/verification/confirm`, `auth/password-reset/*`) | Everything the dashboard calls. |
 | `app/api/webhooks/**` | `withPublic` | Provider ingest, which authenticates the *request* by HMAC rather than the caller. |
+| `app/api/mcp` | `withApiKey({ scopes: [] })` | The MCP server (issue #104). One POST; scopes are enforced per tool, not per route. |
 
-`lib/__tests__/route-guards.test.ts` enforces this structurally, by importing every route module and reading a non-enumerable symbol the wrappers attach. Source-text matching cannot answer "was this wrapped?" honestly; a symbol can only be present if the wrapper actually ran. The guards assert no mutating handler exists under `/api/v1`, each tree carries its expected wrapper, no handler is untagged, and every documented OpenAPI path sits under `/api/v1`.
+`lib/__tests__/route-guards.test.ts` enforces this structurally, by importing every route module and reading a non-enumerable symbol the wrappers attach. Source-text matching cannot answer "was this wrapped?" honestly; a symbol can only be present if the wrapper actually ran. The guards assert no mutating handler exists under `/api/v1`, each tree carries its expected wrapper (guard 8 covers `app/api/mcp`), no handler is untagged, and every documented OpenAPI path sits under `/api/v1`.
 
-Serializers are hand-written allowlists (`lib/serializers/public/` for the external contract, `lib/serializers/app/` for the dashboard) so a column added to the schema cannot publish itself. The public ones are snapshot-tested. Note the snapshots catch *additions*; they do not catch omitting a field a consumer already reads.
+Serializers are hand-written allowlists (`lib/serializers/public/` for the external contract, `lib/serializers/app/` for the dashboard, `lib/serializers/mcp/` for the MCP surface) so a column added to the schema cannot publish itself. The public ones are snapshot-tested. Note the snapshots catch *additions*; they do not catch omitting a field a consumer already reads.
 
 ### API Key security architecture
 
@@ -309,6 +310,35 @@ Four query parameters on **both** `GET /api/app/emailInbox/[id]/messages` and `G
 Stop words follow from the `english` configuration: a query of only common words (`the is`) matches nothing rather than everything. Non-English mail degrades to roughly `simple` behaviour; per-message language detection is out of scope.
 
 `bodyText` and `categories` are now in **both** serializers. `categories` was previously withheld from the public contract as worker-internal state; shipping a `categories` filter while hiding the field would mean callers filter on something they cannot read back.
+
+A third caller now uses the same parser: `pibx_email_search_messages` on the MCP surface (below). It renders its typed arguments back into a `URLSearchParams` and hands them to `parseMessageSearch` rather than building a `MessageSearch` itself — the one-parser guarantee is only worth as much as the number of callers that actually go through it.
+
+### MCP server (issue #104)
+
+`POST /api/mcp` exposes the read-only email surface over MCP, authenticated with an existing `sk_live_` API key. Off unless `ENABLE_MCP=true`, in which case the route 404s — a feature that is off should not advertise that it exists.
+
+**Tool handlers call the service layer in process.** `toOrgScope(principal)` → `listMessages(scope, …)`, exactly as the `/api/v1` routes do. Building MCP as a shim that forwards the caller's key to our own `/api/v1` would be the token-passthrough pattern the MCP security spec forbids outright ("MCP servers MUST NOT pass through the token received from the MCP client"); "both ends are ours" is not an exemption, and in-process avoids it by construction.
+
+**Nothing here can mutate, and that is a type-level fact rather than a policy.** A mutating service takes an `OwnerScope`, `toOwnerScope` accepts only a `UserPrincipal`, and the only principal reaching this tree is an `ApiKeyPrincipal` — so the compiler refuses a write regardless of what a prompt-injected model asks for. That property is the entire reason it is defensible to let a model choose the calls.
+
+Six tools, all prefixed `pibx_email_`: `list_inboxes`, `list_messages`, `search_messages`, `get_message`, `get_thread`, `get_latest_otp`. Two segments in the prefix doing two jobs — `pibx_` because tool names are only server-scoped and users connect many servers, `email_` because a `PhoneInbox` already exists in the schema and MCP has no alias mechanism, so a rename after the first client config exists is a hard break.
+
+- **`search_messages` is a separate tool from `list_messages`, and has no `grouped` argument.** `parseMessageSearch` rejects grouped+search with a 400; a single tool carrying both would advertise a combination guaranteed to fail, and a model will try it. Omitting the field makes the invalid state unrepresentable in the schema instead of caught at runtime.
+- **Schemas are plain JSON Schema through `fromJsonSchema`, not Zod.** This repo is on `zod@3` and `@modelcontextprotocol/server` installs `zod@4` nested; schemas from one instance are not reliably readable by the other. The SDK only needs a JSON Schema to advertise and a validator, and `fromJsonSchema` supplies both — so the version question never arises. Argument validation still happens (a missing required field comes back as `isError`, not a crash).
+- **Every tool is annotated `readOnlyHint: true`.** The spec defaults are `destructiveHint: true` and `openWorldHint: true`, so omitting annotations advertises these as destructive, and clients gate confirmation prompts on it.
+- **`isError: true` vs a JSON-RPC error is a real distinction.** Anything the caller could fix by calling differently — missing scope, invisible inbox, bad cursor, a search parameter over its cap — is a tool result with a corrective sentence. JSON-RPC errors are reserved for unknown-tool and malformed-request.
+- **`lib/serializers/mcp/` defaults to snippets and never emits `html` at any verbosity.** Claude Code caps a tool result at 25,000 tokens; one templated marketing email can clear the warning threshold alone. Full bodies come from `get_message` or `response_format: detailed`, and even those are capped with a marker saying how much was dropped — without it a model reads a truncated body as a complete one.
+- **The server object is built per request**, closing over that request's principal. The transport is stateless, so there is nothing to reuse, and a module-level server would need the principal in a mutable global that concurrent requests would race on.
+
+`withApiKey({ scopes: [] })` looks like it checks nothing; the empty array satisfies the route-level AND-check while still resolving the key, enforcing revocation and expiry, and attaching the `'apiKey'` tag the guards read. Scopes are then checked per tool, because one route-level declaration cannot express "this call needs `inboxes:read` and that one needs `messages:read`" when both arrive down the same POST.
+
+`MCP_ALLOWED_ORIGINS` is the DNS-rebinding defense the transport spec requires: **absent `Origin` is allowed, present-and-unknown is refused**, and the list is empty by default. Every supported client (Claude Code, Cursor, VS Code, claude.ai) is a server-side or native caller that sends no `Origin`, so the default costs nothing real. The expected origin is operator configuration and never derived from the request — comparing against `Host`/`X-Forwarded-Host` would let the attacker supply both sides of the comparison, the same call already made for `APP_BASE_URL`.
+
+Rate limiting reuses `lib/security/rate-limit.ts` under a new `mcp` scope rather than adding a third limiter, keyed on `apiKeyId` — a credential we issued is a stabler bucket than an address behind a shared NAT, and it is present on every request here, unlike a trustworthy IP.
+
+The route returns the JSON-RPC envelope **verbatim**, a deliberate exception to the `jsonSuccess` rule: wrapping it would make the response unparseable to every MCP client, and `lib/api-client.ts` (which auto-unwraps `data.data`) never calls this route. MCP paths must also stay out of `lib/openapi/email-inboxes.ts` — guard 6 requires every documented path to start with `/api/v1`.
+
+**Not in `AppConfig`.** Nothing in the dashboard branches on whether MCP is on, and `AppConfig` is an allowlist published to every authenticated user; adding a key there is a review gate, not a default.
 
 ### Prisma 7 (non-default setup)
 
