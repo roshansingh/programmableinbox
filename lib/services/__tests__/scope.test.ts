@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toOrgScope, toOwnerScope, toInboxWriteScope } from '../scope'
+import { toOrgScope, toOwnerScope, toInboxWriteScope, toInboxDeleteScope } from '../scope'
 
 const USER = {
   kind: 'user' as const,
@@ -19,7 +19,7 @@ const KEY = {
   scopes: ['email_inboxes:read'],
 }
 
-const KEY_WITH_WRITE = { ...KEY, scopes: ['email_inboxes:write'] }
+const KEY_WITH_WRITE = { ...KEY, scopes: ['email_inboxes:create', 'email_inboxes:update'] }
 
 describe('toOrgScope', () => {
   it('gives a user every organization they belong to', () => {
@@ -123,5 +123,37 @@ describe('toInboxWriteScope', () => {
     // able to write into org_2. Constraining by userId alone would allow it.
     const result = toInboxWriteScope(KEY_WITH_WRITE)
     expect(result.scope?.organizationId).toBe('org_1')
+  })
+})
+
+describe('toInboxDeleteScope', () => {
+  it('produces a scope that is not an inbox write scope', () => {
+    // Structurally identical, deliberately different types. Deleting is the one
+    // operation on this surface that cannot be undone, so a handler resolving
+    // "may create" must not be able to hand that value to deleteInbox.
+    const write = toInboxWriteScope(KEY_WITH_WRITE).scope
+    const del = toInboxDeleteScope({ ...KEY, scopes: ['email_inboxes:delete'] }).scope
+
+    expect(del).toEqual({ organizationId: 'org_1', userId: 'key_owner' })
+    expect(write).toEqual({ organizationId: 'org_1', userId: 'key_owner' })
+  })
+
+  it('binds a key to its own organization', () => {
+    const result = toInboxDeleteScope(KEY)
+    expect(result.scope?.organizationId).toBe('org_1')
+  })
+
+  it('403s a key naming a different organization', () => {
+    expect(toInboxDeleteScope(KEY, 'org_2').error?.status).toBe(403)
+  })
+
+  it('constrains an unnamed-organization user delete to the creator alone', () => {
+    // Exactly the authority the owner scope gave the dashboard before.
+    const result = toInboxDeleteScope(USER)
+    expect(result.scope).toEqual({ organizationId: null, userId: 'user_1' })
+  })
+
+  it('403s a user deleting in an organization they do not belong to', () => {
+    expect(toInboxDeleteScope(USER, 'org_other').error?.status).toBe(403)
   })
 })

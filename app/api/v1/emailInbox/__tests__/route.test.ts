@@ -93,10 +93,10 @@ describe('GET /api/v1/emailInbox', () => {
 
   it('exports no DELETE handler', async () => {
     // The external surface is no longer read-only — POST landed with
-    // `email_inboxes:write`. Deletion is the line that stays: it permanently
-    // retires the address, so it remains dashboard-only and key-unreachable by
-    // type. See `app/api/v1/emailInbox/__tests__/write-route.test.ts` for the
-    // POST contract.
+    // `email_inboxes:create`. What stays absent here is a collection-level
+    // DELETE: deletion targets one inbox and lives on the `[id]` route, since
+    // a bulk destroy would retire every address an organization holds. See
+    // `write-route.test.ts` for the POST contract.
     const mod = await import('../route')
     expect(mod).not.toHaveProperty('DELETE')
   })

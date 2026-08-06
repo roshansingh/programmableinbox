@@ -93,15 +93,17 @@ describe('api key scope prefix migration', () => {
   })
 
   it('grants no write scope to anyone', async () => {
-    // A rename must never be a privilege grant. `email_inboxes:write` is the
-    // first scope that lets a key mutate, and it may only ever be held by a key
-    // whose creator chose it.
+    // A rename must never be a privilege grant. The mutating scopes may only
+    // ever be held by a key whose creator chose them.
     const { org, user } = await createOrgWithUser()
     const id = await seedKey(org.id, user.id, ['inboxes:read', 'messages:read'])
 
     await applyMigration()
 
-    expect(await scopesOf(id)).not.toContain('email_inboxes:write')
+    const scopes = await scopesOf(id)
+    for (const granted of scopes) {
+      expect(granted.endsWith(':read')).toBe(true)
+    }
   })
 
   it('backfills an active key that was already empty, with read scopes only', async () => {
@@ -137,11 +139,11 @@ describe('api key scope prefix migration', () => {
 
   it('leaves an already-migrated key unchanged', async () => {
     const { org, user } = await createOrgWithUser()
-    const id = await seedKey(org.id, user.id, ['email_inboxes:read', 'email_inboxes:write'])
+    const id = await seedKey(org.id, user.id, ['email_inboxes:read', 'email_inboxes:delete'])
 
     await applyMigration()
 
-    expect(await scopesOf(id)).toEqual(['email_inboxes:read', 'email_inboxes:write'])
+    expect(await scopesOf(id)).toEqual(['email_inboxes:read', 'email_inboxes:delete'])
   })
 
   it('is idempotent', async () => {

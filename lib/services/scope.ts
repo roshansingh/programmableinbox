@@ -72,17 +72,24 @@ export function toOwnerScope(principal: UserPrincipal): OwnerScope {
 /**
  * Who can CREATE or UPDATE an inbox. A third type, deliberately.
  *
- * `email_inboxes:write` is the first scope that lets an API key mutate
- * anything, which retires the blanket guarantee that no key reaches a mutating
- * service. The narrow way to give that up is a separate type rather than
- * widening `toOwnerScope`: only `createInbox` and `updateInboxForWrite` accept an
- * `InboxWriteScope`, so `deleteInbox`, `deleteMessage` and `setMessageStarred`
- * keep taking an `OwnerScope` and stay unreachable from a key — still enforced
- * by the compiler, and still covered by the assertions in `scope.test-d.ts`.
+ * Covers `email_inboxes:create` and `email_inboxes:update`, and deliberately
+ * NOT `email_inboxes:delete` — that has `InboxDeleteScope` below.
  *
- * Inbox deletion in particular must never become key-reachable: it permanently
- * retires the address (see the `EmailInbox.email` comment in schema.prisma), so
- * it is irreversible in a way no other mutation here is.
+ * The separate types are how the compiler keeps the three inbox capabilities
+ * apart. Runtime scope checks live in one place per route or tool, and this
+ * repo has already shipped one route that gated a write behind the wrong scope
+ * (`messages:read`, see `withApiKey`). A type that cannot be passed to the
+ * wrong service is what makes that class of mistake unrepresentable rather
+ * than merely reviewed for.
+ *
+ * Create and update share one type while delete gets its own, because the two
+ * are not equally expensive to confuse. Renaming an inbox when you meant to
+ * create one is recoverable; deleting one is not — the row soft-deletes, but
+ * `EmailInbox.email` is a plain unique index, so the address is retired for
+ * good. The asymmetry is the point, not an oversight.
+ *
+ * `deleteMessage` and `setMessageStarred` stay on `OwnerScope` and remain
+ * unreachable from any API key at all.
  *
  * One `organizationId`, not a list — a write has to land somewhere specific,
  * and an inbox cannot be moved afterwards.
@@ -110,6 +117,27 @@ export type InboxWriteScope = {
   readonly __scope?: 'inboxWrite'
 }
 
+/**
+ * Who can DELETE an inbox. Structurally identical to `InboxWriteScope`, and a
+ * different type on purpose — see the note there.
+ *
+ * Deleting soft-deletes the inbox and its messages in one transaction, so the
+ * data is recoverable. The address is not: `EmailInbox.email` is a plain
+ * unique index rather than one partial on `deletedAt IS NULL`, because DNS
+ * keeps delivering to a deleted address and freeing it would hand the next
+ * claimant the previous owner's still-arriving mail. There is no restore path
+ * in this codebase.
+ */
+export type InboxDeleteScope = {
+  organizationId: string | null
+  userId: string
+  readonly __scope?: 'inboxDelete'
+}
+
+export type InboxDeleteScopeResult =
+  | { scope: InboxDeleteScope; error?: never }
+  | { scope?: never; error: Response }
+
 export type InboxWriteScopeResult =
   | { scope: InboxWriteScope; error?: never }
   | { scope?: never; error: Response }
@@ -132,6 +160,38 @@ export function toInboxWriteScope(
   requestedOrganizationId?: string | null,
 ): InboxWriteScopeResult
 export function toInboxWriteScope(
+  principal: UserPrincipal | ApiKeyPrincipal,
+  requestedOrganizationId?: string | null,
+): InboxWriteScopeResult {
+  return resolveInboxScope(principal, requestedOrganizationId)
+}
+
+/**
+ * The delete counterpart. Same resolution, different result type.
+ *
+ * A wrapper rather than a flag on `toInboxWriteScope`, because the whole
+ * mechanism is that the two produce values a handler cannot mix up. A boolean
+ * argument returning a union would put that decision back at the call site.
+ */
+export function toInboxDeleteScope(principal: UserPrincipal): { scope: InboxDeleteScope }
+export function toInboxDeleteScope(
+  principal: UserPrincipal | ApiKeyPrincipal,
+  requestedOrganizationId?: string | null,
+): InboxDeleteScopeResult
+export function toInboxDeleteScope(
+  principal: UserPrincipal | ApiKeyPrincipal,
+  requestedOrganizationId?: string | null,
+): InboxDeleteScopeResult {
+  return resolveInboxScope(principal, requestedOrganizationId) as InboxDeleteScopeResult
+}
+
+/**
+ * The one implementation both wrappers share.
+ *
+ * Private, so the untyped shape it returns can never reach a service — every
+ * caller goes through a wrapper and gets a value the compiler can tell apart.
+ */
+function resolveInboxScope(
   principal: UserPrincipal | ApiKeyPrincipal,
   requestedOrganizationId?: string | null,
 ): InboxWriteScopeResult {

@@ -22,7 +22,12 @@ const KEY: ApiKeyPrincipal = {
   apiKeyId: 'key_1',
   organizationId: 'org_1',
   userId: 'user_1',
-  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:write'],
+  scopes: [
+    'email_inboxes:read',
+    'email_messages:read',
+    'email_inboxes:create',
+    'email_inboxes:update',
+  ],
 }
 
 const ORG_SCOPE = { organizationIds: ['org_1'] }
@@ -124,7 +129,7 @@ describe('tool surface', () => {
 
   it('annotates every read tool read-only — the spec defaults are destructive and open-world', () => {
     for (const t of EMAIL_TOOLS) {
-      if (t.scope === 'email_inboxes:write') continue
+      if (t.scope.endsWith(':create') || t.scope.endsWith(':update')) continue
       expect(t.config.annotations).toMatchObject({
         readOnlyHint: true,
         destructiveHint: false,
@@ -587,7 +592,7 @@ describe('pibx_email_get_latest_otp', () => {
 })
 
 describe('pibx_email_create_inbox', () => {
-  it('refuses a key without the write scope, without touching the service', async () => {
+  it('refuses a key without the create scope, without touching the service', async () => {
     const readOnly: ApiKeyPrincipal = {
       ...KEY,
       scopes: ['email_inboxes:read', 'email_messages:read'],
@@ -596,7 +601,16 @@ describe('pibx_email_create_inbox', () => {
     const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS }, readOnly)
 
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('email_inboxes:write')
+    expect(text(result)).toContain('email_inboxes:create')
+    expect(createInboxMock).not.toHaveBeenCalled()
+  })
+
+  it('is not satisfied by the update scope', async () => {
+    const updateOnly: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:update'] }
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS }, updateOnly)
+
+    expect(result.isError).toBe(true)
     expect(createInboxMock).not.toHaveBeenCalled()
   })
 
@@ -651,13 +665,27 @@ describe('pibx_email_create_inbox', () => {
 })
 
 describe('pibx_email_update_inbox', () => {
-  it('refuses a key without the write scope', async () => {
+  it('refuses a key without the update scope', async () => {
     const readOnly: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:read'] }
 
     const result = await call(
       'pibx_email_update_inbox',
       { inboxId: 'inbox_1', name: 'QA' },
       readOnly,
+    )
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('email_inboxes:update')
+    expect(updateInboxForWriteMock).not.toHaveBeenCalled()
+  })
+
+  it('is not satisfied by the create scope', async () => {
+    const createOnly: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:create'] }
+
+    const result = await call(
+      'pibx_email_update_inbox',
+      { inboxId: 'inbox_1', name: 'QA' },
+      createOnly,
     )
 
     expect(result.isError).toBe(true)
@@ -691,5 +719,38 @@ describe('pibx_email_update_inbox', () => {
 
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('inbox_1')
+  })
+})
+
+describe('deletion is absent from the MCP surface', () => {
+  it('exposes no tool that deletes anything', () => {
+    // Deliberate, and the one asymmetry with /api/v1 — which does expose
+    // DELETE on email_inboxes:delete. MCP is the surface a model drives from
+    // attacker-controlled message bodies, and deleting an inbox retires its
+    // address permanently. Every other operation here can be undone by making
+    // another call; this one cannot be undone at all.
+    for (const t of EMAIL_TOOLS) {
+      expect(t.name).not.toMatch(/delete|destroy|remove/i)
+      expect(t.scope).not.toBe('email_inboxes:delete')
+    }
+  })
+
+  it('advertises nothing as destructive, because nothing here is', () => {
+    for (const t of EMAIL_TOOLS) {
+      expect(t.config.annotations).toMatchObject({ destructiveHint: false })
+    }
+  })
+
+  it('does not let a key holding email_inboxes:delete reach any write tool', async () => {
+    // Holding the delete scope is not a way in through the side door.
+    const deleteOnly: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:delete'] }
+
+    for (const name of ['pibx_email_create_inbox', 'pibx_email_update_inbox']) {
+      const result = await call(name, { inboxId: 'inbox_1', email: NEW_ADDRESS, name: 'QA' }, deleteOnly)
+      expect(result.isError).toBe(true)
+    }
+
+    expect(createInboxMock).not.toHaveBeenCalled()
+    expect(updateInboxForWriteMock).not.toHaveBeenCalled()
   })
 })

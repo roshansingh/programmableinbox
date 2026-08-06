@@ -18,7 +18,7 @@ const KEY = {
   apiKeyId: 'key_1',
   organizationId: 'org_1',
   userId: 'user_1',
-  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:write'],
+  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:create'],
 }
 
 const INBOX = {
@@ -192,11 +192,24 @@ describe('POST /api/v1/emailInbox', () => {
 })
 
 describe('DELETE is not part of the external surface', () => {
-  it('exports no DELETE handler', async () => {
-    // Deleting an inbox permanently retires its address, so it stays
-    // dashboard-only. A route file that quietly grew one would hand every key
-    // holding email_inboxes:write an irreversible operation.
+  it('exports no DELETE handler on the collection route', async () => {
+    // Deletion targets one inbox and lives on the [id] route. A collection-level
+    // DELETE would be a bulk destroy of every address in an organization.
     const route = await import('../route')
     expect('DELETE' in route).toBe(false)
+  })
+
+  it('403s a key holding update but not create', async () => {
+    // The point of splitting the write scope: these are separate grants.
+    resolveApiKeyPrincipalMock.mockResolvedValue({
+      ...KEY,
+      scopes: ['email_inboxes:read', 'email_inboxes:update'],
+    })
+    const { POST } = await import('../route')
+
+    const response = await POST(postRequest({ email: INBOX.email }), ctx)
+
+    expect(response.status).toBe(403)
+    expect(createInboxMock).not.toHaveBeenCalled()
   })
 })

@@ -11,11 +11,12 @@
 -- Table is "api_keys" (model ApiKey carries @@map). Column names stay camelCase
 -- and therefore must be quoted.
 --
--- This is a rename, NOT a grant. No row gains `email_inboxes:write` here: that
--- scope is the first one that lets a key mutate anything, and it must only ever
--- be held by a key whose creator chose it. `LEGACY_SCOPE_ALIASES` in
+-- This is a rename, NOT a grant. No row gains a mutating scope here
+-- (`email_inboxes:create`, `:update` or `:delete`). Each of those must only
+-- ever be held by a key whose creator chose it, and `:delete` in particular
+-- retires an address permanently. `LEGACY_SCOPE_ALIASES` in
 -- lib/api-key-scopes.ts maps the old read names forward for the duration of the
--- rollout, and it deliberately has no entry pointing at the write scope.
+-- rollout, and it deliberately has no entry pointing at any mutating scope.
 
 -- array_replace rewrites in place, so a key holding both scopes keeps both and
 -- ordering is preserved. Guarded by the ANY(...) predicate rather than run

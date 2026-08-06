@@ -6,17 +6,23 @@
  * in the wild. The MCP tool names already made this call (`pibx_email_*`);
  * these are the last identifiers that hadn't.
  *
- * `email_inboxes:write` is the first write scope this product has had. It
- * covers create and update only. Delete stays off the external surface: a
- * deleted inbox keeps its address forever (see the `EmailInbox.email` comment
- * in schema.prisma), so deletion is irreversible and address-consuming, which
- * is not something to expose to a credential that gets pasted into an agent
- * config. That is the same reasoning that retired `messages:delete`.
+ * The three mutating scopes are deliberately granular rather than one
+ * `email_inboxes:write`. They do not cost the same to get wrong: creating and
+ * renaming an inbox are recoverable, while deleting one permanently consumes
+ * its address. `EmailInbox.email` is a plain unique index — not partial on
+ * `deletedAt IS NULL` — because DNS keeps delivering to a deleted address, so
+ * freeing it would hand the next claimant the previous owner's still-arriving
+ * mail. The row is soft-deleted and recoverable; the address is not.
+ *
+ * Bundling them would mean the grant needed to provision a throwaway inbox
+ * also carried the one irreversible operation on this surface.
  */
 export const API_KEY_SCOPES = [
   'email_inboxes:read',
   'email_messages:read',
-  'email_inboxes:write',
+  'email_inboxes:create',
+  'email_inboxes:update',
+  'email_inboxes:delete',
 ] as const
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
@@ -25,9 +31,9 @@ export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
  * Enumerated explicitly rather than spread from API_KEY_SCOPES. The spread is
  * how the previous default came to include `messages:delete` — a scope added
  * for one purpose silently became a default grant for every new key. That is
- * no longer hypothetical: `email_inboxes:write` is in the list above, and a
- * spread here would hand every new key the ability to provision addresses on
- * our domains without anyone choosing it.
+ * no longer hypothetical: three mutating scopes sit in the list above, and a
+ * spread here would hand every new key the ability to claim and destroy
+ * addresses on our domains without anyone choosing it.
  */
 export const DEFAULT_API_KEY_SCOPES: ApiKeyScope[] = ['email_inboxes:read', 'email_messages:read']
 
@@ -42,10 +48,11 @@ export const API_KEY_SCOPE_SET = new Set<string>(API_KEY_SCOPES)
  */
 export const API_KEY_SCOPE_DESCRIPTIONS: Record<ApiKeyScope, string> = {
   'email_inboxes:read': 'List and read email inboxes.',
-  'email_messages:read':
-    'Read messages, search them, and retrieve one-time codes.',
-  'email_inboxes:write':
-    'Create and rename inboxes. Claims addresses on your domains; cannot delete anything.',
+  'email_messages:read': 'Read messages, search them, and retrieve one-time codes.',
+  'email_inboxes:create': 'Claim new inbox addresses on your domains.',
+  'email_inboxes:update': 'Rename inboxes. The address itself can never be changed.',
+  'email_inboxes:delete':
+    'Delete inboxes and their messages. The address is retired permanently and can never be claimed again, including by you.',
 }
 
 /**
@@ -58,7 +65,9 @@ export const API_KEY_SCOPE_DESCRIPTIONS: Record<ApiKeyScope, string> = {
  * the user to discover the gap after minting a key they cannot change.
  */
 export const IMPLIED_IN_UI: Partial<Record<ApiKeyScope, readonly ApiKeyScope[]>> = {
-  'email_inboxes:write': ['email_inboxes:read'],
+  'email_inboxes:create': ['email_inboxes:read'],
+  'email_inboxes:update': ['email_inboxes:read'],
+  'email_inboxes:delete': ['email_inboxes:read'],
 }
 
 /**
@@ -71,9 +80,9 @@ export const IMPLIED_IN_UI: Partial<Record<ApiKeyScope, readonly ApiKeyScope[]>>
  * which reads to a customer as "my key broke" rather than "a deploy is in
  * flight".
  *
- * Deliberately read-only aliases. A legacy name must never resolve onto
- * `email_inboxes:write` — a rename is not a privilege grant, and the whole
- * point of the write scope is that it can only be held by having been chosen.
+ * Deliberately read-only aliases. A legacy name must never resolve onto a
+ * mutating scope — a rename is not a privilege grant, and the whole point of
+ * the mutating scopes is that each can only be held by having been chosen.
  *
  * Delete this map, `resolveScope`, and their call sites one release after the
  * migration has run.

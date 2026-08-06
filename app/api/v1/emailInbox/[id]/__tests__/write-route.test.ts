@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 const resolveApiKeyPrincipalMock = vi.fn()
 const updateInboxForWriteMock = vi.fn()
+const deleteInboxMock = vi.fn()
 
 vi.mock('@/lib/auth/api-key-auth', () => ({
   resolveApiKeyPrincipal: (...a: unknown[]) => resolveApiKeyPrincipalMock(...a),
@@ -11,6 +12,7 @@ vi.mock('@/lib/auth/api-key-auth', () => ({
 vi.mock('@/lib/services/email-inbox', () => ({
   getInbox: vi.fn(),
   updateInboxForWrite: (...a: unknown[]) => updateInboxForWriteMock(...a),
+  deleteInbox: (...a: unknown[]) => deleteInboxMock(...a),
 }))
 
 const KEY = {
@@ -18,7 +20,7 @@ const KEY = {
   apiKeyId: 'key_1',
   organizationId: 'org_1',
   userId: 'user_1',
-  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:write'],
+  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:update'],
 }
 
 const INBOX = {
@@ -158,9 +160,102 @@ describe('PATCH /api/v1/emailInbox/[id]', () => {
     expect(await response.json()).toEqual({ message: 'Internal server error' })
   })
 
-  it('exports no DELETE handler', async () => {
-    // Deletion permanently retires the address and stays dashboard-only.
-    const route = await import('../route')
-    expect('DELETE' in route).toBe(false)
+  it('403s a key holding create but not update', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({
+      ...KEY,
+      scopes: ['email_inboxes:read', 'email_inboxes:create'],
+    })
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(patchRequest({ name: 'Renamed' }), ctx)
+
+    expect(response.status).toBe(403)
+    expect(updateInboxForWriteMock).not.toHaveBeenCalled()
+  })
+})
+
+function deleteRequest() {
+  return new NextRequest('http://localhost:4000/api/v1/emailInbox/inbox_1', {
+    method: 'DELETE',
+    headers: { authorization: 'Bearer sk_live_abcdef123456' },
+  })
+}
+
+describe('DELETE /api/v1/emailInbox/[id]', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.resetModules()
+  })
+
+  it('rejects a JWT', async () => {
+    const { DELETE } = await import('../route')
+    const request = new NextRequest('http://localhost:4000/api/v1/emailInbox/inbox_1', {
+      method: 'DELETE',
+      headers: { authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.x.y' },
+    })
+
+    expect((await DELETE(request, ctx)).status).toBe(401)
+    expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
+  })
+
+  it('403s a key holding create and update but not delete', async () => {
+    // The whole reason delete is its own scope: it retires the address
+    // permanently, so it must not ride along with the grant used to provision
+    // throwaway inboxes.
+    resolveApiKeyPrincipalMock.mockResolvedValue({
+      ...KEY,
+      scopes: ['email_inboxes:read', 'email_inboxes:create', 'email_inboxes:update'],
+    })
+    const { DELETE } = await import('../route')
+
+    const response = await DELETE(deleteRequest(), ctx)
+
+    expect(response.status).toBe(403)
+    expect(deleteInboxMock).not.toHaveBeenCalled()
+  })
+
+  it('does not let a legacy read scope reach it', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({
+      ...KEY,
+      scopes: ['inboxes:read', 'messages:read'],
+    })
+    const { DELETE } = await import('../route')
+
+    expect((await DELETE(deleteRequest(), ctx)).status).toBe(403)
+    expect(deleteInboxMock).not.toHaveBeenCalled()
+  })
+
+  it('soft-deletes through the service and returns 204 with no body', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:delete'] })
+    deleteInboxMock.mockResolvedValue(true)
+    const { DELETE } = await import('../route')
+
+    const response = await DELETE(deleteRequest(), ctx)
+
+    expect(response.status).toBe(204)
+    expect(await response.text()).toBe('')
+    expect(deleteInboxMock).toHaveBeenCalledWith(
+      { organizationId: 'org_1', userId: 'user_1' },
+      'inbox_1',
+    )
+  })
+
+  it('404s an inbox the scope cannot reach, without saying which reason', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:delete'] })
+    deleteInboxMock.mockResolvedValue(false)
+    const { DELETE } = await import('../route')
+
+    expect((await DELETE(deleteRequest(), ctx)).status).toBe(404)
+  })
+
+  it('500s an unexpected service failure without leaking it', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:delete'] })
+    deleteInboxMock.mockRejectedValue(new Error('connection reset'))
+    const { DELETE } = await import('../route')
+
+    const response = await DELETE(deleteRequest(), ctx)
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ message: 'Internal server error' })
   })
 })

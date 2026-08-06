@@ -112,18 +112,21 @@ describe('ApiKeysPage', () => {
     expect(screen.queryByText(mockCreatedApiKey.apiKey)).not.toBeInTheDocument()
   })
 
-  it('explains what each scope grants, so write is not just a third checkbox', async () => {
+  it('explains what each scope grants, so a mutating one is not just another checkbox', async () => {
     const { user } = render(<ApiKeysPage />)
 
     await waitFor(() => expect(screen.getByText('API Keys')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: /create api key/i }))
 
-    // Three bare `email_*` strings give a user no way to tell that one of them
-    // provisions addresses on domains we own and the other two only read.
-    expect(screen.getByText(/create and rename inboxes/i)).toBeInTheDocument()
+    // Five bare `email_*` strings give a user no way to tell which of them
+    // claim addresses, which rename, and which retire an address for good.
+    expect(screen.getByText(/claim new inbox addresses/i)).toBeInTheDocument()
+    expect(screen.getByText(/rename inboxes/i)).toBeInTheDocument()
+    // The delete description has to say the part that cannot be undone.
+    expect(screen.getByText(/never be claimed again/i)).toBeInTheDocument()
   })
 
-  it('ticks the inbox read scope when the write scope is selected', async () => {
+  it('ticks the inbox read scope when a mutating scope is selected', async () => {
     // The scopes do not imply one another on the server — the effective grant
     // of a ticked box must equal its label. But a key that can create an inbox
     // and cannot list what it created is a strange object, so the dialog picks
@@ -133,12 +136,15 @@ describe('ApiKeysPage', () => {
     await waitFor(() => expect(screen.getByText('API Keys')).toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: /create api key/i }))
 
-    await user.click(screen.getByLabelText('email_inboxes:write'))
+    await user.click(screen.getByLabelText('email_inboxes:delete'))
 
     expect(screen.getByLabelText('email_inboxes:read')).toBeChecked()
-    expect(screen.getByLabelText('email_inboxes:write')).toBeChecked()
-    // Not granted by implication — messages are a separate capability.
+    expect(screen.getByLabelText('email_inboxes:delete')).toBeChecked()
+    // Not granted by implication — messages are a separate capability, and so
+    // is every other mutating scope. Deleting does not imply creating.
     expect(screen.getByLabelText('email_messages:read')).not.toBeChecked()
+    expect(screen.getByLabelText('email_inboxes:create')).not.toBeChecked()
+    expect(screen.getByLabelText('email_inboxes:update')).not.toBeChecked()
   })
 
   it('deletes an API key after confirmation', async () => {
