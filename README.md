@@ -135,8 +135,14 @@ In the dashboard, go to **API Keys → Create**, and grant:
 
 | Scope | Needed for |
 |---|---|
-| `inboxes:read` | listing inboxes |
-| `messages:read` | everything else — listing, searching, reading, OTP |
+| `email_inboxes:read` | listing inboxes |
+| `email_messages:read` | listing, searching, reading messages, and OTP |
+| `email_inboxes:write` | creating and renaming inboxes |
+
+`email_inboxes:write` is opt-in and never granted by default. It lets a key
+claim addresses on your domains, so grant it only to a key that needs to
+provision inboxes. It does **not** allow deletion — nothing on the external
+surface does, because a deleted inbox's address is permanently retired.
 
 The full `sk_live_…` key is shown **once, at creation**. Copy it then; only its 12-character prefix is retrievable afterwards.
 
@@ -186,16 +192,19 @@ Keep the key in an environment variable rather than inline where the client supp
 
 ### Tools
 
-All six are prefixed `pibx_email_` and annotated read-only.
+All are prefixed `pibx_email_`. The six read tools are annotated read-only;
+the two write tools are not, so clients can prompt for confirmation on them.
 
 | Tool | Scope | What it does |
 |---|---|---|
-| `pibx_email_list_inboxes` | `inboxes:read` | Lists inboxes the key can read. Start here — every other tool takes an `inboxId` |
-| `pibx_email_list_messages` | `messages:read` | Messages newest first, snippet per message. Supports `threadId`, `grouped`, `cursor` |
-| `pibx_email_search_messages` | `messages:read` | Filters by `q` (subject + body), `from`, `tags`, `categories` |
-| `pibx_email_get_message` | `messages:read` | One message with its full plain-text body |
-| `pibx_email_get_thread` | `messages:read` | A whole conversation, oldest first, in one call |
-| `pibx_email_get_latest_otp` | `messages:read` | The most recent one-time code, with the message it came from |
+| `pibx_email_list_inboxes` | `email_inboxes:read` | Lists inboxes the key can read. Start here — every other tool takes an `inboxId` |
+| `pibx_email_list_messages` | `email_messages:read` | Messages newest first, snippet per message. Supports `threadId`, `grouped`, `cursor` |
+| `pibx_email_search_messages` | `email_messages:read` | Filters by `q` (subject + body), `from`, `tags`, `categories` |
+| `pibx_email_get_message` | `email_messages:read` | One message with its full plain-text body |
+| `pibx_email_get_thread` | `email_messages:read` | A whole conversation, oldest first, in one call |
+| `pibx_email_get_latest_otp` | `email_messages:read` | The most recent one-time code, with the message it came from |
+| `pibx_email_create_inbox` | `email_inboxes:write` | Claims a new address and returns the inbox |
+| `pibx_email_update_inbox` | `email_inboxes:write` | Renames an inbox. The address itself cannot be changed |
 
 Things worth knowing when a search comes back empty:
 
@@ -231,7 +240,8 @@ Rate limiting shares the auth limiter, so it is subject to `AUTH_RATE_LIMIT_ENAB
 | `401` | Missing/typo'd key, a revoked or expired key, or a JWT sent instead of an `sk_live_` key |
 | `403 Origin not allowed` | The client sent an `Origin` header not in `MCP_ALLOWED_ORIGINS` |
 | `429` | Per-key budget spent; `Retry-After` says how long to wait |
-| Tool reports a missing scope | The key lacks `inboxes:read` or `messages:read`. Scopes are fixed at creation — mint a new key |
+| Tool reports a missing scope | The key lacks the scope that tool needs — see the table above. Scopes are fixed at creation, so mint a new key rather than trying to edit one |
+| Missing-scope error names a scope you thought you had | Keys created before the rename hold `inboxes:read` / `messages:read`. Those are still accepted, and the error reports the current name; the migration rewrites them |
 | "Provide at least one of q, from, tags or categories" | `pibx_email_search_messages` was called with no filter. Use `pibx_email_list_messages` to page without filtering |
 | "No inbox with id … is available to this API key" | The inbox belongs to another organization, or does not exist — the message is the same either way. `pibx_email_list_inboxes` shows what the key can reach |
 

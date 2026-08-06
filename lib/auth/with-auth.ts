@@ -5,7 +5,7 @@ import { config } from '@/lib/config'
 import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
 import { tagHandler } from './route-tags'
-import { API_KEY_PREFIX, type ApiKeyScope } from '@/lib/api-key-scopes'
+import { API_KEY_PREFIX, resolveScope, type ApiKeyScope } from '@/lib/api-key-scopes'
 import type { UserPrincipal, ApiKeyPrincipal } from './principals'
 
 export type RouteCtx<P = Record<string, never>> = { params: Promise<P> }
@@ -125,7 +125,16 @@ export function withApiKey<P = Record<string, never>>(
     const principal = await resolveApiKeyPrincipal(credential)
     if (!principal) return jsonError('Unauthorized', 401)
 
-    const missing = options.scopes.filter((scope) => !principal.scopes.includes(scope))
+    // Resolved rather than compared raw, so a key whose row the rename
+    // migration has not reached yet still authorizes. `resolveScope` maps only
+    // the two retired read names, so this cannot widen a key onto
+    // `email_inboxes:write`.
+    const held = new Set(principal.scopes.map(resolveScope))
+
+    // Reported by their current names. A holder cannot act on `inboxes:read`:
+    // it is not a name the dashboard offers any more, so echoing what is
+    // stored would send them looking for a scope that no longer exists.
+    const missing = options.scopes.filter((scope) => !held.has(scope))
     if (missing.length > 0) {
       return jsonError(`Missing required scope: ${missing.join(', ')}`, 403)
     }

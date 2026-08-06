@@ -1,8 +1,20 @@
 import 'server-only'
 import { fromJsonSchema } from '@modelcontextprotocol/server'
 import type { McpServer } from '@modelcontextprotocol/server'
-import { toOrgScope, type OrgScope } from '@/lib/services/scope'
-import { getMessage, listInboxes, listMessages } from '@/lib/services/email-inbox'
+import { resolveScope } from '@/lib/api-key-scopes'
+import {
+  toInboxWriteScope,
+  toOrgScope,
+  type InboxWriteScope,
+  type OrgScope,
+} from '@/lib/services/scope'
+import {
+  createInbox,
+  getMessage,
+  listInboxes,
+  listMessages,
+  updateInboxForWrite,
+} from '@/lib/services/email-inbox'
 import { decodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
 import { clampLimit } from '@/lib/pagination/params'
 import {
@@ -30,11 +42,25 @@ import type { ApiKeyPrincipal } from '@/lib/auth/principals'
  * MCP security spec forbids outright, and "both ends are ours" is not an
  * exemption to it.
  *
- * Nothing here can mutate. Not by policy but by type: a mutating service takes
- * an `OwnerScope`, `toOwnerScope` accepts only a `UserPrincipal`, and the only
- * principal that reaches this module is an `ApiKeyPrincipal`. The compiler
- * refuses a write regardless of what a prompt-injected model asks for, which is
- * what makes it defensible to let a model choose the calls at all.
+ * This surface is no longer read-only: `email_inboxes:write` adds
+ * `pibx_email_create_inbox` and `pibx_email_update_inbox`. The guarantee that
+ * replaced the old blanket one is narrower and still enforced by the compiler
+ * rather than by policy — **nothing here can delete anything.**
+ * `deleteInbox`, `deleteMessage` and `setMessageStarred` take an `OwnerScope`,
+ * `toOwnerScope` accepts only a `UserPrincipal`, and the only principal that
+ * reaches this module is an `ApiKeyPrincipal`. The write tools take an
+ * `InboxWriteScope`, a deliberately different type (`lib/services/scope.ts`),
+ * so admitting create and update did not admit deletion with them. That
+ * matters most here: an inbox delete permanently retires its address.
+ *
+ * The two write tools change the threat model. An agent reading
+ * attacker-controlled message bodies now holds a tool that provisions
+ * addresses on domains we own. What stops that being useful to an attacker is
+ * not this module — it is `validateInboxAddress` and `validateInboxName`
+ * (issue #98), which run inside `createInbox` and cannot be bypassed by any
+ * caller. What is *not* covered is volume: an injected instruction to create a
+ * thousand inboxes passes every per-request check there is. A per-key creation
+ * quota is the open item.
  */
 
 /** Scan depth for `pibx_email_get_latest_otp`. */
@@ -184,17 +210,45 @@ function buildSearch(args: {
  * The scope check is per tool rather than on the route wrapper. The route is
  * wrapped `withApiKey({ scopes: [] })`, which still resolves the key and
  * enforces revocation and expiry, but a single route-level declaration cannot
- * express "this call needs inboxes:read and that one needs messages:read" when
- * both arrive down the same POST.
+ * express "this call needs email_inboxes:read and that one needs
+ * email_messages:read" when both arrive down the same POST.
+ *
+ * Stored scopes are resolved through `resolveScope` for the same reason
+ * `withApiKey` does it: the rename migration and this deploy are not atomic,
+ * and a key whose row has not been rewritten yet must keep working. The alias
+ * table is read-only, so no legacy name can reach a write tool this way.
  */
 function authorize(principal: ApiKeyPrincipal, requiredScope: string): OrgScope {
-  if (!principal.scopes.includes(requiredScope)) {
+  if (!principal.scopes.map(resolveScope).includes(requiredScope)) {
     throw new ToolInputError(
       `This API key does not have the "${requiredScope}" scope. Create a new key with that scope from the dashboard.`,
     )
   }
 
   const { scope, error } = toOrgScope(principal)
+  if (error) {
+    throw new ToolInputError('This API key is not authorized for any organization.')
+  }
+
+  return scope
+}
+
+/**
+ * The write counterpart of `authorize`.
+ *
+ * Separate rather than a flag on `authorize` because it returns a different
+ * scope type, which is the whole mechanism keeping deletion out of reach: a
+ * handler holding an `InboxWriteScope` cannot call a service that wants an
+ * `OwnerScope`, and the compiler says so.
+ */
+function authorizeWrite(principal: ApiKeyPrincipal): InboxWriteScope {
+  if (!principal.scopes.map(resolveScope).includes('email_inboxes:write')) {
+    throw new ToolInputError(
+      'This API key does not have the "email_inboxes:write" scope. Create a new key with that scope from the dashboard.',
+    )
+  }
+
+  const { scope, error } = toInboxWriteScope(principal)
   if (error) {
     throw new ToolInputError('This API key is not authorized for any organization.')
   }
@@ -241,6 +295,23 @@ const READ_ONLY = {
   openWorldHint: false,
 } as const
 
+/**
+ * The write tools' annotations.
+ *
+ * Not `READ_ONLY` with one field flipped: `idempotentHint` differs between
+ * create and update, and a client retrying on a timeout uses it to decide
+ * whether a second attempt is safe. Calling create twice claims two addresses.
+ *
+ * `destructiveHint: false` on both is accurate rather than lenient — neither
+ * tool removes anything. The destructive operation is inbox deletion, which
+ * this surface deliberately does not expose.
+ */
+const WRITES = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  openWorldHint: false,
+} as const
+
 export type ToolDefinition = {
   name: string
   scope: string
@@ -250,7 +321,7 @@ export type ToolDefinition = {
 
 const listInboxesTool: ToolDefinition = {
   name: 'pibx_email_list_inboxes',
-  scope: 'inboxes:read',
+  scope: 'email_inboxes:read',
   config: {
     title: 'List email inboxes',
     description:
@@ -264,7 +335,7 @@ const listInboxesTool: ToolDefinition = {
   },
   run: async (_args: never, principal) =>
     run(async () => {
-      const scope = authorize(principal, 'inboxes:read')
+      const scope = authorize(principal, 'email_inboxes:read')
       const inboxes = await listInboxes(scope)
       return toolResult({ inboxes: inboxes.map(serializeMcpInbox) })
     }),
@@ -274,7 +345,7 @@ type ListMessagesArgs = CommonListArgs & { threadId?: string; grouped?: boolean 
 
 const listMessagesTool: ToolDefinition = {
   name: 'pibx_email_list_messages',
-  scope: 'messages:read',
+  scope: 'email_messages:read',
   config: {
     title: 'List messages in an inbox',
     description:
@@ -305,7 +376,7 @@ const listMessagesTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as ListMessagesArgs
-      const scope = authorize(principal, 'messages:read')
+      const scope = authorize(principal, 'email_messages:read')
 
       const result = await listMessages(scope, typed.inboxId, {
         limit: clampLimit(typed.limit),
@@ -335,7 +406,7 @@ type SearchMessagesArgs = CommonListArgs & {
 
 const searchMessagesTool: ToolDefinition = {
   name: 'pibx_email_search_messages',
-  scope: 'messages:read',
+  scope: 'email_messages:read',
   config: {
     title: 'Search messages in an inbox',
     description: [
@@ -391,7 +462,7 @@ const searchMessagesTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as SearchMessagesArgs
-      const scope = authorize(principal, 'messages:read')
+      const scope = authorize(principal, 'email_messages:read')
       const search = buildSearch(typed)
 
       const result = await listMessages(scope, typed.inboxId, {
@@ -418,7 +489,7 @@ type GetMessageArgs = { inboxId: string; messageId: string }
 
 const getMessageTool: ToolDefinition = {
   name: 'pibx_email_get_message',
-  scope: 'messages:read',
+  scope: 'email_messages:read',
   config: {
     title: 'Read one message',
     description:
@@ -437,7 +508,7 @@ const getMessageTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as GetMessageArgs
-      const scope = authorize(principal, 'messages:read')
+      const scope = authorize(principal, 'email_messages:read')
 
       const message = await getMessage(scope, typed.inboxId, typed.messageId)
       if (!message) {
@@ -459,7 +530,7 @@ type GetThreadArgs = {
 
 const getThreadTool: ToolDefinition = {
   name: 'pibx_email_get_thread',
-  scope: 'messages:read',
+  scope: 'email_messages:read',
   config: {
     title: 'Read a whole thread',
     description:
@@ -483,7 +554,7 @@ const getThreadTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as GetThreadArgs
-      const scope = authorize(principal, 'messages:read')
+      const scope = authorize(principal, 'email_messages:read')
 
       const result = await listMessages(scope, typed.inboxId, {
         limit: clampLimit(typed.limit),
@@ -507,7 +578,7 @@ type GetLatestOtpArgs = { inboxId: string; from?: string; withinMinutes?: number
 
 const getLatestOtpTool: ToolDefinition = {
   name: 'pibx_email_get_latest_otp',
-  scope: 'messages:read',
+  scope: 'email_messages:read',
   config: {
     title: 'Get the latest one-time code',
     description:
@@ -537,7 +608,7 @@ const getLatestOtpTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as GetLatestOtpArgs
-      const scope = authorize(principal, 'messages:read')
+      const scope = authorize(principal, 'email_messages:read')
 
       const windowMinutes = typed.withinMinutes ?? OTP_DEFAULT_WINDOW_MINUTES
       // A `from` filter goes through the shared parser like any other search,
@@ -580,6 +651,91 @@ const getLatestOtpTool: ToolDefinition = {
     }),
 }
 
+type CreateInboxArgs = { email: string; name?: string }
+
+const createInboxTool: ToolDefinition = {
+  name: 'pibx_email_create_inbox',
+  scope: 'email_inboxes:write',
+  config: {
+    title: 'Create an email inbox',
+    description:
+      'Creates a new email inbox and returns it. The address must be on a domain this account can receive at, and cannot be changed afterwards — create another inbox instead. Use this to provision a throwaway address before a signup, then read the code back with pibx_email_get_latest_otp.',
+    inputSchema: fromJsonSchema<CreateInboxArgs>({
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description:
+            'The full address to claim, e.g. "qa-run-4@yourdomain.com". Normalized to lowercase. Permanent.',
+        },
+        name: {
+          type: 'string',
+          description: 'Optional display label for the inbox. Not part of the address.',
+        },
+      },
+      required: ['email'],
+      additionalProperties: false,
+    }),
+    annotations: { ...WRITES, idempotentHint: false },
+  },
+  run: async (args: never, principal) =>
+    run(async () => {
+      const typed = args as CreateInboxArgs
+      const scope = authorizeWrite(principal)
+
+      const result = await createInbox(scope, { email: typed.email, name: typed.name })
+      // Every rejection here is caller-correctable — a malformed address, a
+      // disallowed domain, an impersonating name, an address already taken.
+      // Surfacing the service's own wording keeps one description of each rule.
+      if (result.error) throw new ToolInputError(result.error.message)
+
+      return toolResult({ inbox: serializeMcpInbox(result.inbox) })
+    }),
+}
+
+type UpdateInboxArgs = { inboxId: string; name: string }
+
+const updateInboxTool: ToolDefinition = {
+  name: 'pibx_email_update_inbox',
+  scope: 'email_inboxes:write',
+  config: {
+    title: 'Rename an email inbox',
+    description:
+      'Changes an inbox display name. The address itself cannot be changed — create a new inbox for a different address.',
+    inputSchema: fromJsonSchema<UpdateInboxArgs>({
+      type: 'object',
+      properties: {
+        inboxId: INBOX_ID,
+        name: {
+          type: 'string',
+          description: 'The new display label. Send an empty string to clear it.',
+        },
+      },
+      required: ['inboxId', 'name'],
+      // No `email` property, deliberately. Advertising an argument the service
+      // will always reject invites a model to retry it indefinitely.
+      additionalProperties: false,
+    }),
+    annotations: { ...WRITES, idempotentHint: true },
+  },
+  run: async (args: never, principal) =>
+    run(async () => {
+      const typed = args as UpdateInboxArgs
+      const scope = authorizeWrite(principal)
+
+      const result = await updateInboxForWrite(scope, typed.inboxId, { name: typed.name })
+      if (result.error) {
+        // A 404 here means the same thing it means on a read: the inbox does
+        // not exist, or it is not this key's to touch. Same wording, so the
+        // difference is not observable.
+        if (result.error.status === 404) throw inboxNotFound(typed.inboxId)
+        throw new ToolInputError(result.error.message)
+      }
+
+      return toolResult({ inbox: serializeMcpInbox(result.inbox) })
+    }),
+}
+
 export const EMAIL_TOOLS: readonly ToolDefinition[] = [
   listInboxesTool,
   listMessagesTool,
@@ -587,6 +743,8 @@ export const EMAIL_TOOLS: readonly ToolDefinition[] = [
   getMessageTool,
   getThreadTool,
   getLatestOtpTool,
+  createInboxTool,
+  updateInboxTool,
 ]
 
 /**

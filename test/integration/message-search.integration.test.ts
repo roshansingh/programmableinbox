@@ -498,7 +498,7 @@ describe('message search', () => {
     }
 
     async function apiKeyFor(orgId: string, userId: string) {
-      const { rawKey } = await createApiKey(orgId, userId, ['messages:read'])
+      const { rawKey } = await createApiKey(orgId, userId, ['email_messages:read'])
       return rawKey
     }
 

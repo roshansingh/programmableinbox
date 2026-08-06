@@ -27,6 +27,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import {
   API_KEY_SCOPES,
+  API_KEY_SCOPE_DESCRIPTIONS,
+  IMPLIED_IN_UI,
   createApiKey,
   deleteApiKey,
   getApiKeys,
@@ -123,9 +125,16 @@ export default function ApiKeysPage() {
   }
 
   const toggleScope = (scope: ApiKeyScope, checked: boolean) => {
-    setSelectedScopes((prev) =>
-      checked ? [...prev, scope] : prev.filter((value) => value !== scope)
-    )
+    setSelectedScopes((prev) => {
+      if (!checked) return prev.filter((value) => value !== scope)
+
+      // Ticking a scope also ticks whatever it is useless without. Nothing is
+      // granted implicitly — the key stores exactly what is checked here — but
+      // scopes are fixed at creation, so a gap noticed afterwards costs a new
+      // key. Unticking the companion afterwards is allowed.
+      const additions = [scope, ...(IMPLIED_IN_UI[scope] ?? [])]
+      return [...prev, ...additions.filter((value) => !prev.includes(value))]
+    })
   }
 
   if (isLoading) {
@@ -189,18 +198,33 @@ export default function ApiKeysPage() {
                         <Label>Scopes</Label>
                         <div className="space-y-3">
                           {API_KEY_SCOPES.map((scope) => (
-                            <label
-                              key={scope}
-                              htmlFor={scope}
-                              className="flex items-center gap-3 text-sm"
-                            >
+                            <div key={scope} className="flex items-start gap-3 text-sm">
                               <Checkbox
                                 id={scope}
+                                className="mt-0.5"
+                                aria-describedby={`${scope}-description`}
                                 checked={selectedScopes.includes(scope)}
                                 onCheckedChange={(checked) => toggleScope(scope, checked === true)}
                               />
-                              <span>{scope}</span>
-                            </label>
+                              <div className="space-y-0.5">
+                                {/*
+                                  The label is the scope and nothing else, so the
+                                  checkbox's accessible name stays the exact
+                                  string that ends up on the key. The rationale
+                                  goes in a description instead — folding it into
+                                  the label would read out as one run-on name.
+                                */}
+                                <label htmlFor={scope} className="block font-mono">
+                                  {scope}
+                                </label>
+                                <p
+                                  id={`${scope}-description`}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  {API_KEY_SCOPE_DESCRIPTIONS[scope]}
+                                </p>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>

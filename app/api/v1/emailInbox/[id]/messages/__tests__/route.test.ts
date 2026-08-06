@@ -18,7 +18,7 @@ const KEY = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 function message(overrides: Record<string, unknown> = {}) {
@@ -67,8 +67,8 @@ describe('GET /api/v1/emailInbox/[id]/messages', () => {
     expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('403s a key lacking messages:read', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['inboxes:read'] })
+  it('403s a key lacking email_messages:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:read'] })
     const { GET } = await import('../route')
 
     const response = await GET(request(), { params })

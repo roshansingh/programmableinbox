@@ -14,11 +14,11 @@ describe('integration helpers', () => {
 
   it('creates an API key that resolves via the real hash lookup', async () => {
     const { org, user } = await createOrgWithUser()
-    const { rawKey } = await createApiKey(org.id, user.id, ['messages:read'])
+    const { rawKey } = await createApiKey(org.id, user.id, ['email_messages:read'])
     const { resolveApiKeyPrincipal } = await import('@/lib/auth/api-key-auth')
     const principal = await resolveApiKeyPrincipal(rawKey)
     expect(principal?.organizationId).toBe(org.id)
-    expect(principal?.scopes).toEqual(['messages:read'])
+    expect(principal?.scopes).toEqual(['email_messages:read'])
   })
 
   it('seeds inbox + message with a valid uuid threadId', async () => {

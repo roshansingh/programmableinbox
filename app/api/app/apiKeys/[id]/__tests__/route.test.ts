@@ -42,7 +42,7 @@ describe('GET /api/app/apiKeys/[id]', () => {
       name: 'Production Key',
       organizationId: 'org_1',
       userId: 'user_1',
-      scopes: ['inboxes:read'],
+      scopes: ['email_inboxes:read'],
       createdAt: new Date('2026-05-18T00:00:00.000Z'),
     })
 
@@ -59,7 +59,7 @@ describe('GET /api/app/apiKeys/[id]', () => {
       name: 'Production Key',
       organizationId: 'org_1',
       userId: 'user_1',
-      scopes: ['inboxes:read'],
+      scopes: ['email_inboxes:read'],
       createdAt: '2026-05-18T00:00:00.000Z',
     })
     expect(body.data).not.toHaveProperty('apiKey')

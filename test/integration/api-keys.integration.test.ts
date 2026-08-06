@@ -15,7 +15,7 @@ describe('POST /api/app/apiKeys', () => {
     const { org, token } = await createOrgWithUser()
     const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', {
       method: 'POST', credential: token,
-      body: { organizationId: org.id, name: 'CI', scopes: ['messages:read'] },
+      body: { organizationId: org.id, name: 'CI', scopes: ['email_messages:read'] },
     }))
     expect(res.status).toBe(201)
     const { data } = await res.json()
@@ -39,7 +39,7 @@ describe('POST /api/app/apiKeys', () => {
     const other = await createSecondOrg()
     const res = await POST(jsonRequest('http://localhost/api/app/apiKeys', {
       method: 'POST', credential: token,
-      body: { organizationId: other.org.id, name: 'x', scopes: ['messages:read'] },
+      body: { organizationId: other.org.id, name: 'x', scopes: ['email_messages:read'] },
     }))
     expect(res.status).toBe(403)
   })
@@ -53,10 +53,10 @@ describe('GET /api/app/apiKeys', () => {
 
   it('lists only the caller\'s keys, exposing prefix+scopes but never apiKey/keyHash', async () => {
     const { org, user, token } = await createOrgWithUser()
-    const mine = await createApiKey(org.id, user.id, ['inboxes:read', 'messages:read'])
+    const mine = await createApiKey(org.id, user.id, ['email_inboxes:read', 'email_messages:read'])
 
     const other = await createSecondOrg()
-    await createApiKey(other.org.id, other.user.id, ['messages:read'])
+    await createApiKey(other.org.id, other.user.id, ['email_messages:read'])
 
     const res = await GET(jsonRequest('http://localhost/api/app/apiKeys', { credential: token }))
     expect(res.status).toBe(200)
@@ -66,7 +66,7 @@ describe('GET /api/app/apiKeys', () => {
     expect(data).toHaveLength(1)
     expect(data[0].id).toBe(mine.id)
     expect(data[0].prefix).toBe(mine.rawKey.slice(0, 12))
-    expect(data[0].scopes).toEqual(['inboxes:read', 'messages:read'])
+    expect(data[0].scopes).toEqual(['email_inboxes:read', 'email_messages:read'])
     expect(data[0].apiKey).toBeUndefined()
     expect(data[0].keyHash).toBeUndefined()
   })
@@ -92,7 +92,7 @@ describe('GET /api/app/apiKeys/[id]', () => {
 
   it('gets the caller\'s own key', async () => {
     const { org, user, token } = await createOrgWithUser()
-    const key = await createApiKey(org.id, user.id, ['messages:read'])
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
 
     const res = await getById(
       jsonRequest(`http://localhost/api/app/apiKeys/${key.id}`, { credential: token }),
@@ -109,7 +109,7 @@ describe('GET /api/app/apiKeys/[id]', () => {
   it('404 getting another org\'s key', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const otherKey = await createApiKey(other.org.id, other.user.id, ['messages:read'])
+    const otherKey = await createApiKey(other.org.id, other.user.id, ['email_messages:read'])
 
     const res = await getById(
       jsonRequest(`http://localhost/api/app/apiKeys/${otherKey.id}`, { credential: token }),
@@ -130,7 +130,7 @@ describe('DELETE /api/app/apiKeys/[id]', () => {
 
   it('revokes the key: sets revokedAt and removes it from the GET list', async () => {
     const { org, user, token } = await createOrgWithUser()
-    const key = await createApiKey(org.id, user.id, ['messages:read'])
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
 
     const res = await deleteById(
       jsonRequest(`http://localhost/api/app/apiKeys/${key.id}`, { method: 'DELETE', credential: token }),
@@ -149,7 +149,7 @@ describe('DELETE /api/app/apiKeys/[id]', () => {
   it('404 deleting another org\'s key', async () => {
     const { token } = await createOrgWithUser()
     const other = await createSecondOrg()
-    const otherKey = await createApiKey(other.org.id, other.user.id, ['messages:read'])
+    const otherKey = await createApiKey(other.org.id, other.user.id, ['email_messages:read'])
 
     const res = await deleteById(
       jsonRequest(`http://localhost/api/app/apiKeys/${otherKey.id}`, { method: 'DELETE', credential: token }),

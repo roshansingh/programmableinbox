@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const listInboxesMock = vi.fn()
 const listMessagesMock = vi.fn()
 const getMessageMock = vi.fn()
+const createInboxMock = vi.fn()
+const updateInboxForWriteMock = vi.fn()
 
 vi.mock('@/lib/services/email-inbox', () => ({
   listInboxes: (...a: unknown[]) => listInboxesMock(...a),
   listMessages: (...a: unknown[]) => listMessagesMock(...a),
   getMessage: (...a: unknown[]) => getMessageMock(...a),
+  createInbox: (...a: unknown[]) => createInboxMock(...a),
+  updateInboxForWrite: (...a: unknown[]) => updateInboxForWriteMock(...a),
 }))
 
 import { EMAIL_TOOLS } from '../tools'
@@ -17,10 +21,24 @@ const KEY: ApiKeyPrincipal = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  userId: 'user_1',
+  scopes: ['email_inboxes:read', 'email_messages:read', 'email_inboxes:write'],
 }
 
 const ORG_SCOPE = { organizationIds: ['org_1'] }
+
+const NEW_ADDRESS = 'new@mail.programmableinbox.com'
+
+const INBOX_ROW = {
+  id: 'inbox_1',
+  organizationId: 'org_1',
+  userId: 'user_1',
+  email: NEW_ADDRESS,
+  name: null,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  deletedAt: null,
+}
 
 function tool(name: string) {
   const found = EMAIL_TOOLS.find((t) => t.name === name)
@@ -99,17 +117,45 @@ describe('tool surface', () => {
       'pibx_email_get_message',
       'pibx_email_get_thread',
       'pibx_email_get_latest_otp',
+      'pibx_email_create_inbox',
+      'pibx_email_update_inbox',
     ])
   })
 
-  it('annotates every tool read-only — the spec defaults are destructive and open-world', () => {
+  it('annotates every read tool read-only — the spec defaults are destructive and open-world', () => {
     for (const t of EMAIL_TOOLS) {
+      if (t.scope === 'email_inboxes:write') continue
       expect(t.config.annotations).toMatchObject({
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: false,
       })
     }
+  })
+
+  it('does not advertise a write tool as read-only', () => {
+    // Clients gate confirmation prompts on these. A mutation announcing itself
+    // as read-only is silently exempted from the prompt a user would want.
+    for (const name of ['pibx_email_create_inbox', 'pibx_email_update_inbox']) {
+      expect(tool(name).config.annotations).toMatchObject({
+        readOnlyHint: false,
+        // Neither creating nor renaming destroys anything. Deletion is the
+        // destructive operation, and it is deliberately not exposed here.
+        destructiveHint: false,
+        openWorldHint: false,
+      })
+    }
+  })
+
+  it('marks create as non-idempotent and update as idempotent', () => {
+    // Calling create twice claims two addresses; calling update twice with the
+    // same name is a no-op. A client retrying on timeout needs the difference.
+    expect(tool('pibx_email_create_inbox').config.annotations).toMatchObject({
+      idempotentHint: false,
+    })
+    expect(tool('pibx_email_update_inbox').config.annotations).toMatchObject({
+      idempotentHint: true,
+    })
   })
 
   it('declares no root-level anyOf/oneOf/allOf — the Claude API rejects those', () => {
@@ -158,22 +204,41 @@ describe('tool surface', () => {
 
 describe('scope enforcement', () => {
   it('refuses a tool whose scope the key lacks, without touching the service', async () => {
-    const noMessages: ApiKeyPrincipal = { ...KEY, scopes: ['inboxes:read'] }
+    const noMessages: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:read'] }
 
     const result = await call('pibx_email_list_messages', { inboxId: 'inbox_1' }, noMessages)
 
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('messages:read')
+    expect(text(result)).toContain('email_messages:read')
     expect(listMessagesMock).not.toHaveBeenCalled()
   })
 
-  it('refuses list_inboxes without inboxes:read', async () => {
-    const noInboxes: ApiKeyPrincipal = { ...KEY, scopes: ['messages:read'] }
+  it('refuses list_inboxes without email_inboxes:read', async () => {
+    const noInboxes: ApiKeyPrincipal = { ...KEY, scopes: ['email_messages:read'] }
 
     const result = await call('pibx_email_list_inboxes', {}, noInboxes)
 
     expect(result.isError).toBe(true)
     expect(listInboxesMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a key still holding a pre-rename scope', async () => {
+    const unmigrated: ApiKeyPrincipal = { ...KEY, scopes: ['inboxes:read'] }
+    listInboxesMock.mockResolvedValue([])
+
+    const result = await call('pibx_email_list_inboxes', {}, unmigrated)
+
+    expect(result.isError).toBeFalsy()
+    expect(listInboxesMock).toHaveBeenCalledWith(ORG_SCOPE)
+  })
+
+  it('names the current scope when an un-migrated key lacks one', async () => {
+    const unmigrated: ApiKeyPrincipal = { ...KEY, scopes: ['inboxes:read'] }
+
+    const result = await call('pibx_email_list_messages', { inboxId: 'inbox_1' }, unmigrated)
+
+    expect(text(result)).toContain('email_messages:read')
+    expect(text(result)).not.toContain('"messages:read"')
   })
 
   it('passes only an organization scope to the service, never the principal', async () => {
@@ -518,5 +583,113 @@ describe('pibx_email_get_latest_otp', () => {
   it('does not search when no sender filter was given', async () => {
     await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' })
     expect(listMessagesMock.mock.calls[0][2].search).toBeNull()
+  })
+})
+
+describe('pibx_email_create_inbox', () => {
+  it('refuses a key without the write scope, without touching the service', async () => {
+    const readOnly: ApiKeyPrincipal = {
+      ...KEY,
+      scopes: ['email_inboxes:read', 'email_messages:read'],
+    }
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS }, readOnly)
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('email_inboxes:write')
+    expect(createInboxMock).not.toHaveBeenCalled()
+  })
+
+  it('does not let a legacy read scope reach it', async () => {
+    // The alias table is read-only on purpose: a rename must not be a
+    // privilege grant.
+    const unmigrated: ApiKeyPrincipal = { ...KEY, scopes: ['inboxes:read', 'messages:read'] }
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS }, unmigrated)
+
+    expect(result.isError).toBe(true)
+    expect(createInboxMock).not.toHaveBeenCalled()
+  })
+
+  it('creates through the shared service, bound to the key organization', async () => {
+    createInboxMock.mockResolvedValue({ inbox: INBOX_ROW })
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS, name: 'QA' })
+
+    expect(result.isError).toBeFalsy()
+    expect(createInboxMock).toHaveBeenCalledWith(
+      { organizationId: 'org_1', userId: 'user_1' },
+      { email: NEW_ADDRESS, name: 'QA' },
+    )
+  })
+
+  it('returns the inbox in the same shape the listing tool returns', async () => {
+    // So an agent can feed the result straight back in as an inboxId without
+    // learning a second shape.
+    createInboxMock.mockResolvedValue({ inbox: INBOX_ROW })
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS })
+
+    expect(payload(result).inbox).toEqual({
+      id: 'inbox_1',
+      email: NEW_ADDRESS,
+      name: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })
+  })
+
+  it('reports a policy rejection as correctable text, not a crash', async () => {
+    createInboxMock.mockResolvedValue({
+      error: { message: 'Email address is not available', status: 409 },
+    })
+
+    const result = await call('pibx_email_create_inbox', { email: NEW_ADDRESS })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('Email address is not available')
+  })
+})
+
+describe('pibx_email_update_inbox', () => {
+  it('refuses a key without the write scope', async () => {
+    const readOnly: ApiKeyPrincipal = { ...KEY, scopes: ['email_inboxes:read'] }
+
+    const result = await call(
+      'pibx_email_update_inbox',
+      { inboxId: 'inbox_1', name: 'QA' },
+      readOnly,
+    )
+
+    expect(result.isError).toBe(true)
+    expect(updateInboxForWriteMock).not.toHaveBeenCalled()
+  })
+
+  it('renames through the shared service', async () => {
+    updateInboxForWriteMock.mockResolvedValue({ inbox: { ...INBOX_ROW, name: 'QA' } })
+
+    const result = await call('pibx_email_update_inbox', { inboxId: 'inbox_1', name: 'QA' })
+
+    expect(result.isError).toBeFalsy()
+    expect(updateInboxForWriteMock).toHaveBeenCalledWith(
+      { organizationId: 'org_1', userId: 'user_1' },
+      'inbox_1',
+      { name: 'QA' },
+    )
+  })
+
+  it('takes no email argument at all — the address is immutable', () => {
+    // Accepting one and rejecting it in the handler would advertise a
+    // capability that does not exist, which a model will keep retrying.
+    const json = jsonSchemaOf('pibx_email_update_inbox')
+    expect(json.properties).not.toHaveProperty('email')
+  })
+
+  it('reports an inbox it cannot reach as correctable text', async () => {
+    updateInboxForWriteMock.mockResolvedValue({ error: { message: 'Not found', status: 404 } })
+
+    const result = await call('pibx_email_update_inbox', { inboxId: 'inbox_1', name: 'QA' })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('inbox_1')
   })
 })

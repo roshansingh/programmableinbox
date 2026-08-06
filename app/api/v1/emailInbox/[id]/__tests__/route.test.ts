@@ -16,7 +16,7 @@ const KEY = {
   kind: 'apiKey',
   apiKeyId: 'key_1',
   organizationId: 'org_1',
-  scopes: ['inboxes:read', 'messages:read'],
+  scopes: ['email_inboxes:read', 'email_messages:read'],
 }
 
 const ROW = {
@@ -52,8 +52,8 @@ describe('GET /api/v1/emailInbox/[id]', () => {
     expect(resolveApiKeyPrincipalMock).not.toHaveBeenCalled()
   })
 
-  it('403s a key lacking inboxes:read', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['messages:read'] })
+  it('403s a key lacking email_inboxes:read', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_messages:read'] })
     const { GET } = await import('../route')
 
     expect((await GET(request(), { params })).status).toBe(403)
@@ -92,9 +92,10 @@ describe('GET /api/v1/emailInbox/[id]', () => {
     expect(body.data).not.toHaveProperty('deletedAt')
   })
 
-  it('exports no mutating handlers', async () => {
+  it('exports no DELETE or POST handler', async () => {
+    // PATCH landed with `email_inboxes:write` (see write-route.test.ts).
+    // DELETE did not, and must not: it permanently retires the address.
     const mod = await import('../route')
-    expect(mod).not.toHaveProperty('PATCH')
     expect(mod).not.toHaveProperty('DELETE')
     expect(mod).not.toHaveProperty('POST')
   })

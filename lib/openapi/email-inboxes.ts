@@ -26,7 +26,7 @@ export const spec = {
       get: {
         summary: 'List email inboxes',
         description:
-          'Returns a list of email inboxes for the organization. Requires API key with `inboxes:read` scope.',
+          'Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.',
         operationId: 'listEmailInboxes',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -68,7 +68,103 @@ export const spec = {
           },
           '403': {
             description:
-              'Forbidden - user not member of organization or API key lacks required scope (inboxes:read)',
+              'Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        summary: 'Create an email inbox',
+        description:
+          'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:write` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.',
+        operationId: 'createEmailInbox',
+        tags: ['Email Inboxes'],
+        security: [{ ApiKeyAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    description:
+                      'The address to claim. Normalized to lowercase before storage, and permanent once created.',
+                  },
+                  name: {
+                    type: 'string',
+                    nullable: true,
+                    description:
+                      'Optional display label. Subject to the same impersonation blocklist as the address.',
+                  },
+                  organizationId: {
+                    type: 'string',
+                    description:
+                      'Optional. Must match the organization the API key is bound to if supplied; the key\'s organization is used otherwise.',
+                  },
+                },
+                required: ['email'],
+              },
+            },
+          },
+        },
+        responses: {
+          '201': {
+            description: 'Inbox created',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { $ref: '#/components/schemas/EmailInbox' } },
+                  required: ['data'],
+                },
+              },
+            },
+          },
+          '400': {
+            description:
+              'Bad request - malformed JSON, or the address is not a valid email address',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - missing or invalid API key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '403': {
+            description:
+              'Forbidden - API key lacks the email_inboxes:write scope, or the body names a different organization',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '409': {
+            description:
+              'Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '422': {
+            description:
+              'Unprocessable - the domain is not permitted for this account, or the address or name is on the impersonation blocklist',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -82,7 +178,7 @@ export const spec = {
       get: {
         summary: 'Get an email inbox',
         description:
-          'Returns a single email inbox by id, scoped to the organization the API key is bound to. Requires API key with `inboxes:read` scope.',
+          'Returns a single email inbox by id, scoped to the organization the API key is bound to. Requires API key with `email_inboxes:read` scope.',
         operationId: 'getEmailInbox',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -116,7 +212,7 @@ export const spec = {
             },
           },
           403: {
-            description: 'API key lacks the inboxes:read scope',
+            description: 'API key lacks the email_inboxes:read scope',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -134,12 +230,116 @@ export const spec = {
           },
         },
       },
+      patch: {
+        summary: 'Rename an email inbox',
+        description:
+          'Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:write` scope. There is no DELETE on this surface: deleting an inbox permanently retires its address and remains a dashboard-only action.',
+        operationId: 'updateEmailInbox',
+        tags: ['Email Inboxes'],
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'The email inbox ID',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string',
+                    nullable: true,
+                    description:
+                      'The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one.',
+                  },
+                  email: {
+                    type: 'string',
+                    format: 'email',
+                    description:
+                      'Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': {
+            description: 'Inbox updated',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { $ref: '#/components/schemas/EmailInbox' } },
+                  required: ['data'],
+                },
+              },
+            },
+          },
+          '400': {
+            description: 'Bad request - malformed JSON, or the name is not a string',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - missing or invalid API key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - API key lacks the email_inboxes:write scope',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description:
+              'Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '409': {
+            description: 'Conflict - the address of an inbox cannot be changed',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '422': {
+            description: 'Unprocessable - the name is on the impersonation blocklist',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
     },
     '/api/v1/emailInbox/{id}/messages': {
       get: {
         summary: 'Get messages from an email inbox',
         description:
-          'Returns messages for a specific email inbox with optional pagination and filtering. Requires API key with `messages:read` scope.',
+          'Returns messages for a specific email inbox with optional pagination and filtering. Requires API key with `email_messages:read` scope.',
         operationId: 'getEmailInboxMessages',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -301,7 +501,7 @@ export const spec = {
           },
           '403': {
             description:
-              'Forbidden - user does not own inbox, API key lacks required scope (messages:read), or API key not authorized for this organization',
+              'Forbidden - user does not own inbox, API key lacks required scope (email_messages:read), or API key not authorized for this organization',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -323,7 +523,7 @@ export const spec = {
       get: {
         summary: 'Get a single message',
         description:
-          'Returns a specific message from an email inbox. Requires API key with `messages:read` scope.',
+          'Returns a specific message from an email inbox. Requires API key with `email_messages:read` scope.',
         operationId: 'getEmailMessage',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -368,7 +568,7 @@ export const spec = {
           },
           '403': {
             description:
-              'Forbidden - user does not own inbox, API key lacks required scope (messages:read), or API key not authorized for this organization',
+              'Forbidden - user does not own inbox, API key lacks required scope (email_messages:read), or API key not authorized for this organization',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -444,7 +644,7 @@ export const spec = {
             nullable: true,
             example: '123456',
             description:
-              'One-time code parsed from the message body. Derived from text/html, which the same messages:read scope already returns.',
+              'One-time code parsed from the message body. Derived from text/html, which the same email_messages:read scope already returns.',
           },
           createdAt: { type: 'string', format: 'date-time' },
           threadCount: {
@@ -488,7 +688,7 @@ export const spec = {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'API Key',
-        description: 'API Key in Authorization header (Bearer token format). API keys must have appropriate scopes: inboxes:read for inbox listing, messages:read for message listing.',
+        description: 'API Key in Authorization header (Bearer token format). API keys must have appropriate scopes: email_inboxes:read for inbox listing, email_messages:read for message listing.',
       },
     },
   },

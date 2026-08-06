@@ -6,9 +6,14 @@
  */
 
 import { apiClient } from '../api-client'
-import { API_KEY_SCOPES, type ApiKeyScope } from '@/lib/api-key-scopes'
+import {
+  API_KEY_SCOPES,
+  API_KEY_SCOPE_DESCRIPTIONS,
+  IMPLIED_IN_UI,
+  type ApiKeyScope,
+} from '@/lib/api-key-scopes'
 
-export { API_KEY_SCOPES }
+export { API_KEY_SCOPES, API_KEY_SCOPE_DESCRIPTIONS, IMPLIED_IN_UI }
 
 export interface ApiKeyListItem {
   id: string
