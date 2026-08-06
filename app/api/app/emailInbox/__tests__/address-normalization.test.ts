@@ -274,12 +274,19 @@ describe('PATCH /api/app/emailInbox/[id] — address immutability', () => {
     })
   })
 
-  it('409s an invalid address rather than treating it as absent', async () => {
+  it('400s an invalid address rather than treating it as absent or as immutable', async () => {
+    // The guarantee this test was written for is that a malformed `email` is
+    // not silently dropped and the rename allowed through — that still holds.
+    // The status is now 400 rather than 409: `parseInboxAddress` answers null
+    // for "malformed" and for "different address" alike, so the old comparison
+    // reported a mistyped address as "the address is frozen", which is both
+    // misleading and the opposite of what POST says about the same string.
     emailInboxFindFirstMock.mockResolvedValue(ROW)
 
     const response = await patch('inbox_1', { email: 'not-an-address' })
 
-    expect(response.status).toBe(409)
+    expect(response.status).toBe(400)
+    expect((await response.json()).message).toBe('email must be a valid email address')
     expect(emailInboxUpdateMock).not.toHaveBeenCalled()
   })
 })

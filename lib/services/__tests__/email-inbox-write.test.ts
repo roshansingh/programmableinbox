@@ -223,6 +223,24 @@ describe('updateInbox under an inbox write scope', () => {
     expect(inboxUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('400s a malformed address instead of calling it immutable', async () => {
+    // `parseInboxAddress` answers null for both "malformed" and "different",
+    // so folding the two together told a caller who mistyped an address they
+    // were not changing that the field is frozen. `createInbox` 400s the same
+    // string, and the two surfaces must not disagree about what it means.
+    inboxFindFirstMock.mockResolvedValue({ id: 'inbox_1', email: ALLOWED })
+    const { updateInboxForWrite } = await import('../email-inbox')
+
+    for (const email of ['not-an-address', '', 42, null]) {
+      const result = await updateInboxForWrite(SCOPE, 'inbox_1', { email, name: 'x' })
+
+      expect(result.error?.status).toBe(400)
+      expect(result.error?.message).toBe('email must be a valid email address')
+    }
+
+    expect(inboxUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('allows a submission that matches the current address after normalization', async () => {
     // So a client can PATCH a whole record back to rename it.
     inboxFindFirstMock.mockResolvedValue({ id: 'inbox_1', email: ALLOWED })
