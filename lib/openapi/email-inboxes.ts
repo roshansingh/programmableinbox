@@ -129,7 +129,10 @@ export const spec = {
           },
           '400': {
             description:
-              'Bad request - malformed JSON, or the address is not a valid email address',
+              'Bad request - malformed JSON, the address is not a valid email address, '
+              + 'the domain is not one this account may create inboxes at, the local part '
+              + 'is longer than 50 characters, or the name is not a string or is longer '
+              + 'than 100 characters.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -164,7 +167,9 @@ export const spec = {
           },
           '422': {
             description:
-              'Unprocessable - the domain is not permitted for this account, or the address or name is on the impersonation blocklist',
+              'Unprocessable - the address or the name is on the impersonation blocklist, '
+              + 'or the name contains characters outside printable ASCII. A disallowed '
+              + 'domain is a 400, not this.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -284,7 +289,10 @@ export const spec = {
             },
           },
           '400': {
-            description: 'Bad request - malformed JSON, or the name is not a string',
+            description:
+              'Bad request - malformed JSON, the name is not a string or is longer than '
+              + '100 characters, or `email` was supplied and is not a valid email address. '
+              + 'A well-formed address that differs from the current one is a 409 instead.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -325,7 +333,10 @@ export const spec = {
             },
           },
           '422': {
-            description: 'Unprocessable - the name is on the impersonation blocklist',
+            description:
+              'Unprocessable - the name is on the impersonation blocklist, or it contains '
+              + 'characters outside printable ASCII. Both are the same rule: a Cyrillic '
+              + 'lookalike normalizes past the blocklist and only the charset guard stops it.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

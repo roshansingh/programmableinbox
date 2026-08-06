@@ -8,6 +8,7 @@ import { fetchSearchedMessages } from './message-search'
 import type { MessageSearch } from '@/lib/search/message-search-params'
 import { parseInboxAddress } from '@/lib/email-address'
 import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-policy'
+import { INVALID_ADDRESS } from '@/lib/validation/inbox-policy-messages'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import type { OrgScope, OwnerScope, InboxWriteScope } from './scope'
 
@@ -206,7 +207,7 @@ export async function createInbox(
   if (!organizationId) return { error: { message: 'organizationId is required', status: 400 } }
 
   const address = parseInboxAddress(input.email)
-  if (!address) return { error: { message: 'email must be a valid email address', status: 400 } }
+  if (!address) return { error: { message: INVALID_ADDRESS, status: 400 } }
 
   // Policy runs before the address is claimed and before the table is touched
   // at all (issue #98). Syntax validation only proves the address is
@@ -296,8 +297,20 @@ export async function updateInboxForWrite(
   //
   // A submission matching the current address after normalization is a no-op
   // and allowed, so a client can PATCH a full record back to rename it.
-  if (input.email !== undefined && parseInboxAddress(input.email) !== existing.email) {
-    return { error: { message: EMAIL_IMMUTABLE, status: 409 } }
+  //
+  // Syntax is judged before the comparison. `parseInboxAddress` answers `null`
+  // for anything malformed, so folding the two together reported `not-an-email`
+  // as "the address is immutable" (409) — a caller who mistyped an address they
+  // were not trying to change would be told the field is frozen rather than
+  // that their input is invalid, and the answer disagreed with `createInbox`,
+  // which 400s the same string. Order is safe: `existing` is already resolved,
+  // so neither branch is reachable without mutation authority.
+  if (input.email !== undefined) {
+    const submitted = parseInboxAddress(input.email)
+    if (!submitted) return { error: { message: INVALID_ADDRESS, status: 400 } }
+    if (submitted !== existing.email) {
+      return { error: { message: EMAIL_IMMUTABLE, status: 409 } }
+    }
   }
 
   // The same name policy as creation (issue #98). Without it the blocklist is
