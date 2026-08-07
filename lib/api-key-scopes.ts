@@ -10,9 +10,10 @@
  * `email_inboxes:write`. They do not cost the same to get wrong: creating and
  * renaming an inbox are recoverable, while deleting one permanently consumes
  * its address. `EmailInbox.email` is a plain unique index — not partial on
- * `deletedAt IS NULL` — because DNS keeps delivering to a deleted address, so
- * freeing it would hand the next claimant the previous owner's still-arriving
- * mail. The row is soft-deleted and recoverable; the address is not.
+ * `deletedAt IS NULL` — because mail keeps being delivered to a deleted
+ * address, so freeing it would hand the next claimant the previous owner's
+ * still-arriving mail. The row is soft-deleted and recoverable; the address is
+ * not.
  *
  * Bundling them would mean the grant needed to provision a throwaway inbox
  * also carried the one irreversible operation on this surface.

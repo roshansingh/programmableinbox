@@ -127,10 +127,13 @@ describe('toInboxWriteScope', () => {
 })
 
 describe('toInboxDeleteScope', () => {
-  it('produces a scope that is not an inbox write scope', () => {
-    // Structurally identical, deliberately different types. Deleting is the one
-    // operation on this surface that cannot be undone, so a handler resolving
-    // "may create" must not be able to hand that value to deleteInbox.
+  it('resolves to the same runtime shape as an inbox write scope', () => {
+    // Structurally identical, deliberately different types — so there is
+    // nothing at runtime to assert the separation against, and this case pins
+    // the identity rather than the distinction. Deleting is the one operation
+    // on this surface that cannot be undone, so a handler resolving "may
+    // create" must not be able to hand that value to deleteInbox; that is
+    // enforced by the compiler and asserted in `scope.test-d.ts`.
     const write = toInboxWriteScope(KEY_WITH_WRITE).scope
     const del = toInboxDeleteScope({ ...KEY, scopes: ['email_inboxes:delete'] }).scope
 

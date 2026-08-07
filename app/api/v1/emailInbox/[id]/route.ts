@@ -12,8 +12,8 @@ import logger from '@/lib/logger'
  * do not cost the same to get wrong. A rename is recoverable. A delete
  * soft-deletes the row — recoverable — but retires the address permanently,
  * because `EmailInbox.email` is a plain unique index rather than one partial
- * on `deletedAt IS NULL`: DNS keeps delivering after deletion, so freeing the
- * address would hand the next claimant the previous owner's mail.
+ * on `deletedAt IS NULL`: mail keeps being delivered after deletion, so
+ * freeing the address would hand the next claimant the previous owner's mail.
  */
 export const GET = withApiKey<{ id: string }>(
   { scopes: ['email_inboxes:read'] },

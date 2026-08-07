@@ -123,10 +123,10 @@ export type InboxWriteScope = {
  *
  * Deleting soft-deletes the inbox and its messages in one transaction, so the
  * data is recoverable. The address is not: `EmailInbox.email` is a plain
- * unique index rather than one partial on `deletedAt IS NULL`, because DNS
- * keeps delivering to a deleted address and freeing it would hand the next
- * claimant the previous owner's still-arriving mail. There is no restore path
- * in this codebase.
+ * unique index rather than one partial on `deletedAt IS NULL`, because mail
+ * keeps being delivered to a deleted address and freeing it would hand the
+ * next claimant the previous owner's still-arriving mail. There is no restore
+ * path in this codebase.
  */
 export type InboxDeleteScope = {
   organizationId: string | null
