@@ -110,9 +110,9 @@ model EmailInbox {
   ///
   /// Soft-deleted rows keep their address, so a deleted inbox's address can
   /// never be reclaimed by another org. This is deliberately NOT a partial
-  /// index on `deleted_at IS NULL`: DNS/routing keeps delivering to the
-  /// address after an inbox is deleted, so freeing it for reclaim would hand
-  /// the next claimant the previous owner's still-arriving mail.
+  /// index on `deleted_at IS NULL`: mail keeps being delivered to the address
+  /// after an inbox is deleted, so freeing it for reclaim would hand the next
+  /// claimant the previous owner's still-arriving mail.
   email          String   @unique
   name           String?
   deletedAt      DateTime? @db.Timestamptz(3)
