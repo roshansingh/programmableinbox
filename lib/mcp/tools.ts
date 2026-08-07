@@ -42,16 +42,26 @@ import type { ApiKeyPrincipal } from '@/lib/auth/principals'
  * MCP security spec forbids outright, and "both ends are ours" is not an
  * exemption to it.
  *
- * This surface is no longer read-only: `email_inboxes:write` adds
- * `pibx_email_create_inbox` and `pibx_email_update_inbox`. The guarantee that
- * replaced the old blanket one is narrower and still enforced by the compiler
- * rather than by policy — **nothing here can delete anything.**
- * `deleteInbox`, `deleteMessage` and `setMessageStarred` take an `OwnerScope`,
- * `toOwnerScope` accepts only a `UserPrincipal`, and the only principal that
- * reaches this module is an `ApiKeyPrincipal`. The write tools take an
- * `InboxWriteScope`, a deliberately different type (`lib/services/scope.ts`),
- * so admitting create and update did not admit deletion with them. That
- * matters most here: an inbox delete permanently retires its address.
+ * This surface is no longer read-only: `email_inboxes:create` and
+ * `email_inboxes:update` add `pibx_email_create_inbox` and
+ * `pibx_email_update_inbox`. The guarantee that replaced the old blanket one is
+ * narrower and still enforced by the compiler rather than by policy —
+ * **nothing here can delete anything.**
+ *
+ * That is now a deliberate asymmetry with `/api/v1`, which *does* expose
+ * `DELETE /api/v1/emailInbox/[id]` on `email_inboxes:delete`. The reasoning is
+ * the difference in who drives the call. A REST client deletes because someone
+ * wrote code to; a tool call can be chosen by a model reading an
+ * attacker-controlled message body. Every other operation on this surface can
+ * be undone by making another call. Deleting an inbox cannot be undone at all:
+ * the row soft-deletes, but `EmailInbox.email` is a plain unique index, so the
+ * address is retired for good.
+ *
+ * The mechanism, not just the intent: the write tools resolve an
+ * `InboxWriteScope`, `deleteInbox` takes an `InboxDeleteScope`, and there is no
+ * `toInboxDeleteScope` call anywhere in this module. `deleteMessage` and
+ * `setMessageStarred` remain on `OwnerScope`, which only a `UserPrincipal` can
+ * produce and no principal here ever is.
  *
  * The two write tools change the threat model. An agent reading
  * attacker-controlled message bodies now holds a tool that provisions
@@ -238,13 +248,20 @@ function authorize(principal: ApiKeyPrincipal, requiredScope: string): OrgScope 
  *
  * Separate rather than a flag on `authorize` because it returns a different
  * scope type, which is the whole mechanism keeping deletion out of reach: a
- * handler holding an `InboxWriteScope` cannot call a service that wants an
- * `OwnerScope`, and the compiler says so.
+ * handler holding an `InboxWriteScope` cannot call `deleteInbox`, which wants
+ * an `InboxDeleteScope`, and the compiler says so. There is deliberately no
+ * `authorizeDelete` here.
  */
-function authorizeWrite(principal: ApiKeyPrincipal): InboxWriteScope {
-  if (!principal.scopes.map(resolveScope).includes('email_inboxes:write')) {
+function authorizeWrite(
+  principal: ApiKeyPrincipal,
+  requiredScope: 'email_inboxes:create' | 'email_inboxes:update',
+): InboxWriteScope {
+  // The required scope is a parameter rather than a single write check,
+  // because create and update are separate grants: a key provisioning
+  // throwaway inboxes has no reason to be able to rename existing ones.
+  if (!principal.scopes.map(resolveScope).includes(requiredScope)) {
     throw new ToolInputError(
-      'This API key does not have the "email_inboxes:write" scope. Create a new key with that scope from the dashboard.',
+      `This API key does not have the "${requiredScope}" scope. Create a new key with that scope from the dashboard.`,
     )
   }
 
@@ -655,7 +672,7 @@ type CreateInboxArgs = { email: string; name?: string }
 
 const createInboxTool: ToolDefinition = {
   name: 'pibx_email_create_inbox',
-  scope: 'email_inboxes:write',
+  scope: 'email_inboxes:create',
   config: {
     title: 'Create an email inbox',
     description:
@@ -681,7 +698,7 @@ const createInboxTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as CreateInboxArgs
-      const scope = authorizeWrite(principal)
+      const scope = authorizeWrite(principal, 'email_inboxes:create')
 
       const result = await createInbox(scope, { email: typed.email, name: typed.name })
       // Every rejection here is caller-correctable — a malformed address, a
@@ -697,7 +714,7 @@ type UpdateInboxArgs = { inboxId: string; name: string }
 
 const updateInboxTool: ToolDefinition = {
   name: 'pibx_email_update_inbox',
-  scope: 'email_inboxes:write',
+  scope: 'email_inboxes:update',
   config: {
     title: 'Rename an email inbox',
     description:
@@ -721,7 +738,7 @@ const updateInboxTool: ToolDefinition = {
   run: async (args: never, principal) =>
     run(async () => {
       const typed = args as UpdateInboxArgs
-      const scope = authorizeWrite(principal)
+      const scope = authorizeWrite(principal, 'email_inboxes:update')
 
       const result = await updateInboxForWrite(scope, typed.inboxId, { name: typed.name })
       if (result.error) {

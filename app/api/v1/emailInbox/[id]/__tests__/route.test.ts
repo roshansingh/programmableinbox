@@ -92,11 +92,11 @@ describe('GET /api/v1/emailInbox/[id]', () => {
     expect(body.data).not.toHaveProperty('deletedAt')
   })
 
-  it('exports no DELETE or POST handler', async () => {
-    // PATCH landed with `email_inboxes:write` (see write-route.test.ts).
-    // DELETE did not, and must not: it permanently retires the address.
+  it('exports no POST handler', async () => {
+    // Creation is a collection operation and lives on the parent route.
+    // PATCH and DELETE landed with `email_inboxes:update` / `:delete` — see
+    // write-route.test.ts for both contracts.
     const mod = await import('../route')
-    expect(mod).not.toHaveProperty('DELETE')
     expect(mod).not.toHaveProperty('POST')
   })
 })

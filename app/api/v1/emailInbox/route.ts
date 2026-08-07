@@ -26,11 +26,11 @@ export const GET = withApiKey({ scopes: ['email_inboxes:read'] }, async (request
  * anti-impersonation policy to fall out of date, and this is the surface a
  * prompt-injected agent can reach.
  *
- * There is no DELETE on this route tree, deliberately. Deleting an inbox
- * permanently retires its address, so it stays dashboard-only and remains
- * unreachable from a key by type — see `OwnerScope` in lib/services/scope.ts.
+ * There is no DELETE here. Deletion targets one inbox and lives on the `[id]`
+ * route; a collection-level DELETE would be a bulk destroy of every address an
+ * organization holds, and every one of those addresses is retired permanently.
  */
-export const POST = withApiKey({ scopes: ['email_inboxes:write'] }, async (request, principal) => {
+export const POST = withApiKey({ scopes: ['email_inboxes:create'] }, async (request, principal) => {
   let body: { email?: unknown; name?: unknown; organizationId?: unknown }
 
   try {

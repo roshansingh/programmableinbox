@@ -1,5 +1,5 @@
 import { withUser } from '@/lib/auth/with-auth'
-import { toOrgScope, toOwnerScope, toInboxWriteScope } from '@/lib/services/scope'
+import { toOrgScope, toInboxWriteScope, toInboxDeleteScope } from '@/lib/services/scope'
 import { getInbox, updateInboxForWrite, deleteInbox } from '@/lib/services/email-inbox'
 import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
@@ -57,9 +57,13 @@ export const DELETE = withUser<{ id: string }>(async (_request, principal, { par
   // hidden, and the row is kept so its address stays claimed by the unique
   // index (F1) and can never be reclaimed by another org.
   //
-  // Still `OwnerScope`, and deliberately so — this is the one inbox mutation
-  // an API key must never reach, which the type system enforces.
-  const deleted = await deleteInbox(toOwnerScope(principal), id)
+  // `InboxDeleteScope`, which an API key holding `email_inboxes:delete` can
+  // also produce. Naming no organization narrows to the creator alone, exactly
+  // the authority `OwnerScope` gave here before, so dashboard behaviour is
+  // unchanged. Message mutations still take an `OwnerScope` and stay
+  // key-unreachable entirely.
+  const { scope } = toInboxDeleteScope(principal)
+  const deleted = await deleteInbox(scope, id)
   if (!deleted) return jsonError('Not found', 404)
 
   return new Response(null, { status: 204 })

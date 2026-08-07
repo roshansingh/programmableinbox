@@ -137,12 +137,19 @@ In the dashboard, go to **API Keys → Create**, and grant:
 |---|---|
 | `email_inboxes:read` | listing inboxes |
 | `email_messages:read` | listing, searching, reading messages, and OTP |
-| `email_inboxes:write` | creating and renaming inboxes |
+| `email_inboxes:create` | claiming new inbox addresses |
+| `email_inboxes:update` | renaming inboxes |
+| `email_inboxes:delete` | deleting inboxes |
 
-`email_inboxes:write` is opt-in and never granted by default. It lets a key
-claim addresses on your domains, so grant it only to a key that needs to
-provision inboxes. It does **not** allow deletion — nothing on the external
-surface does, because a deleted inbox's address is permanently retired.
+The three mutating scopes are separate grants, and none is granted by default.
+They are split rather than bundled into one `write` because they do not cost
+the same to get wrong: creating and renaming are recoverable, while
+**deleting retires the address permanently**. The inbox and its messages are
+soft-deleted and the data survives, but the address stays claimed forever —
+mail keeps being delivered to it, so releasing it would hand the next claimant
+your still-arriving messages. There is no way to undo that, including for you.
+
+Grant `email_inboxes:delete` only where something genuinely needs it.
 
 The full `sk_live_…` key is shown **once, at creation**. Copy it then; only its 12-character prefix is retrievable afterwards.
 
@@ -203,8 +210,14 @@ the two write tools are not, so clients can prompt for confirmation on them.
 | `pibx_email_get_message` | `email_messages:read` | One message with its full plain-text body |
 | `pibx_email_get_thread` | `email_messages:read` | A whole conversation, oldest first, in one call |
 | `pibx_email_get_latest_otp` | `email_messages:read` | The most recent one-time code, with the message it came from |
-| `pibx_email_create_inbox` | `email_inboxes:write` | Claims a new address and returns the inbox |
-| `pibx_email_update_inbox` | `email_inboxes:write` | Renames an inbox. The address itself cannot be changed |
+| `pibx_email_create_inbox` | `email_inboxes:create` | Claims a new address and returns the inbox |
+| `pibx_email_update_inbox` | `email_inboxes:update` | Renames an inbox. The address itself cannot be changed |
+
+**There is no delete tool, deliberately** — even for a key holding
+`email_inboxes:delete`. `DELETE /api/v1/emailInbox/{id}` exists for that; MCP
+does not, because a tool call can be chosen by a model reading an
+attacker-controlled message body, and deleting an inbox is the one operation
+here that no follow-up call can undo.
 
 Things worth knowing when a search comes back empty:
 

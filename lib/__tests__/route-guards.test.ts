@@ -103,11 +103,13 @@ describe('structural route guards', () => {
     // only way to admit the two intended handlers is to delete the guard, and
     // the next mutating route lands unnoticed.
     //
-    // DELETE and PUT appear nowhere: deleting an inbox permanently retires its
-    // address, so it stays dashboard-only and key-unreachable by type.
+    // PUT appears nowhere, and DELETE only on the single-inbox route — a
+    // collection-level DELETE would be a bulk destroy of every address an
+    // organization holds.
     const ALLOWED = new Set([
       'app/api/v1/emailInbox/route.ts POST',
       'app/api/v1/emailInbox/[id]/route.ts PATCH',
+      'app/api/v1/emailInbox/[id]/route.ts DELETE',
     ])
 
     const offenders: string[] = []
@@ -138,6 +140,7 @@ describe('structural route guards', () => {
 
     expect(typeof inboxes.POST).toBe('function')
     expect(typeof inbox.PATCH).toBe('function')
+    expect(typeof inbox.DELETE).toBe('function')
   })
 
   it('guard 2: every handler under app/api/v1 is wrapped with withApiKey', async () => {

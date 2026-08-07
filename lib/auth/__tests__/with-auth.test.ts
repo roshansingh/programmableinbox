@@ -228,13 +228,24 @@ describe('withApiKey', () => {
     expect(response.status).toBe(200)
   })
 
-  it('does not let a legacy read scope satisfy the write scope', async () => {
+  it('does not let a legacy read scope satisfy any mutating scope', async () => {
     resolveApiKeyPrincipalMock.mockResolvedValue({
       ...KEY,
       scopes: ['inboxes:read', 'messages:read'],
     })
     const { withApiKey } = await import('../with-auth')
-    const handler = withApiKey({ scopes: ['email_inboxes:write'] }, async () => new Response('ok'))
+
+    for (const scope of ['email_inboxes:create', 'email_inboxes:update', 'email_inboxes:delete'] as const) {
+      const handler = withApiKey({ scopes: [scope] }, async () => new Response('ok'))
+      const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
+      expect(response.status).toBe(403)
+    }
+  })
+
+  it('does not let one mutating scope satisfy another', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: ['email_inboxes:create'] })
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: ['email_inboxes:delete'] }, async () => new Response('ok'))
 
     const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
     expect(response.status).toBe(403)

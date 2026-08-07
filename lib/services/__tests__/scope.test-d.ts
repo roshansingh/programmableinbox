@@ -1,6 +1,17 @@
 import { expectTypeOf, test } from 'vitest'
-import { toOwnerScope, type InboxWriteScope, type OwnerScope } from '../scope'
-import { deleteInbox, deleteMessage, setMessageStarred } from '../email-inbox'
+import {
+  toOwnerScope,
+  type InboxDeleteScope,
+  type InboxWriteScope,
+  type OwnerScope,
+} from '../scope'
+import {
+  createInbox,
+  deleteInbox,
+  deleteMessage,
+  setMessageStarred,
+  updateInboxForWrite,
+} from '../email-inbox'
 import type { UserPrincipal, ApiKeyPrincipal } from '@/lib/auth/principals'
 
 test('toOwnerScope accepts a user principal', () => {
@@ -40,4 +51,32 @@ test('deleteInbox is unreachable with an inbox write scope', () => {
 test('message mutations are unreachable with an inbox write scope', () => {
   expectTypeOf<InboxWriteScope>().not.toExtend<Parameters<typeof deleteMessage>[0]>()
   expectTypeOf<InboxWriteScope>().not.toExtend<Parameters<typeof setMessageStarred>[0]>()
+})
+
+/**
+ * Deletion is the one operation on the external surface that cannot be undone:
+ * the row soft-deletes and is recoverable, but `EmailInbox.email` is a plain
+ * unique index, so the address is retired permanently.
+ *
+ * `email_inboxes:delete` is therefore a scope of its own, and so is its type.
+ * These assertions are what stop the three inbox scopes collapsing back into
+ * one shape — which would compile silently and let a handler that resolved
+ * "may create" reach `deleteInbox`.
+ */
+test('an inbox write scope cannot delete', () => {
+  expectTypeOf<InboxWriteScope>().not.toExtend<Parameters<typeof deleteInbox>[0]>()
+})
+
+test('an inbox delete scope cannot create or update', () => {
+  expectTypeOf<InboxDeleteScope>().not.toExtend<Parameters<typeof createInbox>[0]>()
+  expectTypeOf<InboxDeleteScope>().not.toExtend<Parameters<typeof updateInboxForWrite>[0]>()
+})
+
+test('an inbox delete scope still cannot touch messages', () => {
+  expectTypeOf<InboxDeleteScope>().not.toExtend<Parameters<typeof deleteMessage>[0]>()
+  expectTypeOf<InboxDeleteScope>().not.toExtend<Parameters<typeof setMessageStarred>[0]>()
+})
+
+test('an inbox delete scope is not an owner scope', () => {
+  expectTypeOf<InboxDeleteScope>().not.toExtend<OwnerScope>()
 })

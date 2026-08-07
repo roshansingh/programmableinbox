@@ -80,7 +80,7 @@ export const spec = {
       post: {
         summary: 'Create an email inbox',
         description:
-          'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:write` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.',
+          'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.',
         operationId: 'createEmailInbox',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -149,7 +149,7 @@ export const spec = {
           },
           '403': {
             description:
-              'Forbidden - API key lacks the email_inboxes:write scope, or the body names a different organization',
+              'Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -238,7 +238,7 @@ export const spec = {
       patch: {
         summary: 'Rename an email inbox',
         description:
-          'Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:write` scope. There is no DELETE on this surface: deleting an inbox permanently retires its address and remains a dashboard-only action.',
+          'Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.',
         operationId: 'updateEmailInbox',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -308,7 +308,7 @@ export const spec = {
             },
           },
           '403': {
-            description: 'Forbidden - API key lacks the email_inboxes:write scope',
+            description: 'Forbidden - API key lacks the email_inboxes:update scope',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -337,6 +337,54 @@ export const spec = {
               'Unprocessable - the name is on the impersonation blocklist, or it contains '
               + 'characters outside printable ASCII. Both are the same rule: a Cyrillic '
               + 'lookalike normalizes past the blocklist and only the charset guard stops it.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        summary: 'Delete an email inbox',
+        description:
+          'Soft-deletes the inbox and its messages in one transaction. The rows are retained and every read filters them out, so the data is recoverable — but the **address is retired permanently and can never be claimed again, by anyone including you**. Mail keeps being delivered to it, so releasing it would hand the next claimant your still-arriving messages. Requires API key with `email_inboxes:delete` scope, which is granted separately from create and update for exactly this reason.',
+        operationId: 'deleteEmailInbox',
+        tags: ['Email Inboxes'],
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'The email inbox ID',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '204': {
+            description: 'Inbox deleted. No body — the record is no longer readable.',
+          },
+          '401': {
+            description: 'Unauthorized - missing or invalid API key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '403': {
+            description:
+              'Forbidden - API key lacks the email_inboxes:delete scope. Holding create and update does not grant it.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description:
+              'Not found - no such inbox, or it is not one this key may delete. Deliberately indistinguishable.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

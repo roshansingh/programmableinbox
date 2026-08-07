@@ -10,7 +10,7 @@ import { parseInboxAddress } from '@/lib/email-address'
 import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-policy'
 import { INVALID_ADDRESS } from '@/lib/validation/inbox-policy-messages'
 import { isUniqueViolation } from '@/lib/api-helpers'
-import type { OrgScope, OwnerScope, InboxWriteScope } from './scope'
+import type { OrgScope, OwnerScope, InboxWriteScope, InboxDeleteScope } from './scope'
 
 type EmailInboxRow = Awaited<ReturnType<typeof prisma.emailInbox.create>>
 
@@ -267,10 +267,27 @@ export async function createInbox(
  * created, since inboxes it creates are attributed to the user who minted it.
  */
 export async function getInboxForWrite(scope: InboxWriteScope, id: string) {
+  return reachableInbox(scope, id)
+}
+
+/**
+ * The predicate shared by every scoped inbox mutation.
+ *
+ * Takes the structural shape rather than either branded scope type, so update
+ * and delete resolve a row identically without one of them being able to pass
+ * its scope to the other's service. It is not exported: a caller outside this
+ * module would have to construct the shape by hand, which is exactly the
+ * unchecked authority the scope types exist to prevent.
+ *
+ * The organization narrowing is added only when the scope carries one.
+ * `organizationId: null` in the predicate would match nothing at all, since the
+ * column is NOT NULL — a dashboard request would 404 on its own inbox.
+ */
+async function reachableInbox(
+  scope: { userId: string; organizationId: string | null },
+  id: string,
+) {
   return prisma.emailInbox.findFirst({
-    // The organization narrowing is added only when the scope carries one.
-    // `organizationId: null` in the predicate would match nothing at all, since
-    // the column is NOT NULL — a user PATCH would 404 on its own inbox.
     where: {
       id,
       userId: scope.userId,
@@ -330,8 +347,22 @@ export async function updateInboxForWrite(
   return { inbox }
 }
 
-export async function deleteInbox(owner: OwnerScope, id: string): Promise<boolean> {
-  const inbox = await ownedInbox(owner, id)
+/**
+ * Soft-deletes an inbox and its messages.
+ *
+ * Takes an `InboxDeleteScope`, not an `OwnerScope`: `email_inboxes:delete` puts
+ * this within reach of an API key that holds it, and nothing else. A key with
+ * create or update cannot call this — its scope is a different type.
+ *
+ * What is and is not reversible here is worth being exact about, because the
+ * scope description promises it to whoever ticks the box. The rows are stamped,
+ * not removed, and every read filters them out through the client extension in
+ * lib/db.ts — so the data survives. The address does not come back: it stays
+ * claimed by the unique index on `EmailInbox.email` forever, and there is no
+ * restore path in this codebase.
+ */
+export async function deleteInbox(scope: InboxDeleteScope, id: string): Promise<boolean> {
+  const inbox = await reachableInbox(scope, id)
   if (!inbox) return false
 
   // The inbox and its messages are stamped in the same transaction so neither
