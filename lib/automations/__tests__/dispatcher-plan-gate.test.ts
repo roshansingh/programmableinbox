@@ -119,7 +119,7 @@ describe('dispatchAutomationsForEmail plan gate', () => {
 
     await dispatchAutomationsForEmail('msg_1')
 
-    expect(consume).toHaveBeenCalledWith('org_1', 'automation.runs', 1)
+    expect(consume).toHaveBeenCalledWith('org_1', 'automation.runs', 1, expect.anything())
   })
 
   it('stops executing once the run meter is exhausted', async () => {

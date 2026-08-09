@@ -18,22 +18,26 @@ const ctx = { params: Promise.resolve({}) }
 async function configure(peekResult = { limit: 1000, used: 250, resetsAt: null as Date | null }) {
   const { CommercialProvider } = await import('@/lib/commercial/provider')
   const { UNLIMITED } = await import('@/lib/commercial/plan-limits')
+  const resolve = vi.fn().mockResolvedValue({
+    planCode: 'free',
+    planName: 'Free',
+    limits: { ...UNLIMITED, incomingEmailsPerPeriod: 1000 },
+    periodStart: null,
+    periodEnd: null,
+  })
   const peek = vi.fn().mockResolvedValue({ allowed: true, ...peekResult })
+  const peekMany = vi
+    .fn()
+    .mockImplementation(async (_org: string, metrics: string[]) =>
+      new Map(metrics.map((metric) => [metric, { allowed: true, ...peekResult }])),
+    )
 
   CommercialProvider.configure(
-    {
-      resolve: async () => ({
-        planCode: 'free',
-        planName: 'Free',
-        limits: { ...UNLIMITED, incomingEmailsPerPeriod: 1000 },
-        periodStart: null,
-        periodEnd: null,
-      }),
-    },
-    { consume: vi.fn(), refund: vi.fn(), peek, increment: vi.fn() },
+    { resolve },
+    { consume: vi.fn(), refund: vi.fn(), peek, peekMany, increment: vi.fn() },
     CommercialProvider.metering,
   )
-  return { peek, CommercialProvider }
+  return { peek, peekMany, resolve, CommercialProvider }
 }
 
 describe('GET /api/app/usage', () => {
@@ -140,6 +144,34 @@ describe('GET /api/app/usage', () => {
     const response = await GET(request('?organizationId=org_other'), ctx)
 
     expect(response.status).toBe(403)
+  })
+
+  /**
+   * The route used to resolve the plan and then let `peek` resolve it again per
+   * metric — eight lookups for seven counters, on a route the banner polls.
+   */
+  it('resolves the plan once and reads every counter in one batch', async () => {
+    const { resolve, peekMany, peek } = await configure()
+    const { GET } = await import('../route')
+
+    await GET(request(), ctx)
+
+    expect(resolve).toHaveBeenCalledTimes(1)
+    expect(peekMany).toHaveBeenCalledTimes(1)
+    expect(peek).not.toHaveBeenCalled()
+  })
+
+  it('hands the already-resolved plan to the quota rather than making it look again', async () => {
+    const { peekMany } = await configure()
+    const { GET } = await import('../route')
+
+    await GET(request(), ctx)
+
+    expect(peekMany).toHaveBeenCalledWith(
+      'org_1',
+      expect.arrayContaining(['emails.processed']),
+      expect.objectContaining({ planCode: 'free' }),
+    )
   })
 
   it('reports unlimited under the OSS default', async () => {

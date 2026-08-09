@@ -173,6 +173,51 @@ describe('UsageBanner', () => {
   })
 
   /**
+   * The banner exists to warn *before* irreversible loss, so a single fetch on
+   * mount defeats it: a dashboard left open crosses 80% and then the cap
+   * without ever updating, and on a `drop` plan the mail in between is gone.
+   */
+  describe('polling', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('refetches on an interval so a long-lived dashboard stays current', async () => {
+      getUsageMock.mockResolvedValue({ organizationId: 'org_1', plan: FREE_PLAN, usage: [] })
+      render(<UsageBanner />)
+
+      await vi.waitFor(() => expect(getUsageMock).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(getUsageMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops polling once unmounted', async () => {
+      getUsageMock.mockResolvedValue({ organizationId: 'org_1', plan: FREE_PLAN, usage: [] })
+      const { unmount } = render(<UsageBanner />)
+
+      await vi.waitFor(() => expect(getUsageMock).toHaveBeenCalledTimes(1))
+      unmount()
+      await vi.advanceTimersByTimeAsync(180_000)
+
+      expect(getUsageMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not poll when there is no plan', async () => {
+      useAuthMock.mockReturnValue(authState(null))
+      render(<UsageBanner />)
+
+      await vi.advanceTimersByTimeAsync(180_000)
+
+      expect(getUsageMock).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
    * Usage is advisory — the server enforces the limits regardless. A failed
    * poll must never take the dashboard down with it.
    */

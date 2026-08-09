@@ -191,17 +191,23 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
     // Consumed *before* the insert. Consuming after leaves a window where
     // concurrent deliveries both observe the same usage and both proceed; the
     // statement behind `consume` is atomic precisely so this ordering is safe.
+    //
+    // Resolved once per inbox and threaded through every quota call below.
+    // Without it `consume` resolves, and then `increment`/`refund` resolve
+    // again — two or three lookups per delivered message.
+    const plan = await CommercialProvider.plans.resolve(inbox.organizationId)
     const quota = await CommercialProvider.quota.consume(
       inbox.organizationId,
       'emails.processed',
       1,
+      plan,
     )
 
     if (!quota.allowed) {
       // Dropped, not stored-and-flagged: nothing is persisted and the message
       // cannot be recovered by upgrading. `emails.dropped` is what lets the
       // dashboard say how much was lost rather than only that the cap was hit.
-      await CommercialProvider.quota.increment(inbox.organizationId, 'emails.dropped', 1)
+      await CommercialProvider.quota.increment(inbox.organizationId, 'emails.dropped', 1, plan)
       logger.warn(
         {
           inboxEmail: inbox.email,
@@ -260,14 +266,14 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
         // Give the unit back. Resend retries deliveries, and every retry would
         // otherwise burn another unit of an allowance the organization never
         // actually spent — the message was already stored the first time.
-        await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1)
+        await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1, plan)
         logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
         continue
       }
       // Not a duplicate, so nothing was stored and the unit is refunded too.
       // Failing to do so would charge an organization for our own fault, and
       // Resend's retry of the same message would charge again.
-      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1)
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1, plan)
       logger.error({ error, inboxEmail: inbox.email }, 'Failed to store email for inbox')
       continue
     }

@@ -74,6 +74,19 @@ export interface IPlanResolver {
  * Durable, atomic usage accounting. Unlike `IMetering`, this may not lose a
  * write — it is what enforcement reads and decrements.
  */
+/**
+ * Every method takes an optional already-resolved plan.
+ *
+ * Without it a caller that has *just* resolved a plan — to check a feature
+ * switch, say — pays for a second lookup when it then meters: `withApiKey` did
+ * two resolutions per external request, and `/api/app/usage` did eight. Passing
+ * the plan through removes the duplicate without introducing a cache, which is
+ * deliberately still deferred (see `ee/plans/resolver.ts`).
+ *
+ * It is an argument rather than request-scoped state because there is no
+ * request context down here, and a module-level cache would be wrong for a
+ * value that changes when a subscription does.
+ */
 export interface IQuota {
   /**
    * Atomic check-and-consume. Returns `allowed: false` **without consuming**
@@ -82,7 +95,12 @@ export interface IQuota {
    * Must be a single statement against the store. A separate read-then-write
    * lets concurrent inbound mail overshoot the cap.
    */
-  consume(organizationId: string, metric: QuotaMetric, quantity: number): Promise<QuotaResult>
+  consume(
+    organizationId: string,
+    metric: QuotaMetric,
+    quantity: number,
+    plan?: ResolvedPlan,
+  ): Promise<QuotaResult>
 
   /**
    * Return a consumed unit when the work turned out to be a no-op — chiefly a
@@ -90,13 +108,37 @@ export interface IQuota {
    * insert hit the `(externalId, inboxEmailAddressId)` unique constraint.
    * Without this, a provider's retries burn the organization's allowance.
    */
-  refund(organizationId: string, metric: QuotaMetric, quantity: number): Promise<void>
+  refund(
+    organizationId: string,
+    metric: QuotaMetric,
+    quantity: number,
+    plan?: ResolvedPlan,
+  ): Promise<void>
 
-  /** Read without consuming — for the usage endpoint and pre-flight checks. */
-  peek(organizationId: string, metric: QuotaMetric): Promise<QuotaResult>
+  /** Read without consuming — for pre-flight checks. */
+  peek(organizationId: string, metric: QuotaMetric, plan?: ResolvedPlan): Promise<QuotaResult>
+
+  /**
+   * Read several metrics in one statement, for the usage dashboard.
+   *
+   * Separate from `peek` rather than a loop over it: the dashboard reports
+   * seven metrics and is polled, so seven round trips per poll per open tab is
+   * a cost worth collapsing. Every requested metric appears in the result —
+   * one with no counter row yet reads zero, not absent.
+   */
+  peekMany(
+    organizationId: string,
+    metrics: QuotaMetric[],
+    plan?: ResolvedPlan,
+  ): Promise<Map<QuotaMetric, QuotaResult>>
 
   /** Unconditional increment, for report-only counters such as `emails.dropped`. */
-  increment(organizationId: string, metric: QuotaMetric, quantity: number): Promise<void>
+  increment(
+    organizationId: string,
+    metric: QuotaMetric,
+    quantity: number,
+    plan?: ResolvedPlan,
+  ): Promise<void>
 }
 
 export interface MeteringRequest {

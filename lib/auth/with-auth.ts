@@ -156,10 +156,13 @@ export function withApiKey<P = Record<string, never>>(
       })
     }
 
+    // The plan resolved above is passed through: without it the quota resolves
+    // it a second time, doubling the lookups on every external API request.
     const quota = await CommercialProvider.quota.consume(
       principal.organizationId,
       'api.requests',
       1,
+      plan,
     )
     if (!quota.allowed) {
       return jsonPlanDenial({

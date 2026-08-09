@@ -50,7 +50,7 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
   // Metered separately from the feature switch: a plan may allow sending and
   // still cap how much. Consumed before the send, since the unit is spent the
   // moment Resend accepts it — there is no un-sending on a later failure.
-  const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'emails.sent', 1)
+  const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'emails.sent', 1, plan)
   if (!quota.allowed) {
     return jsonPlanDenial({
       message: `You have reached your ${plan.planName} plan's outbound email limit.`,
@@ -84,7 +84,7 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
       // same as an explicit rejection below. Once it *has* resolved, the unit
       // is spent for real ("no un-sending on a later failure"), so nothing
       // past this point refunds on failure.
-      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1)
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1, plan)
       logger.error({ inboxId: id, error: sendError }, 'Resend send threw')
       return jsonError('Failed to send email', 500)
     }
@@ -93,7 +93,7 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     if (error) {
       // Resend rejected it, so nothing left the building — give the unit back
       // rather than charging for a send that did not happen.
-      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1)
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1, plan)
       logger.error({ inboxId: id, error }, 'Resend send error')
       return jsonError(error.message || 'Failed to send email', 500)
     }

@@ -51,17 +51,21 @@ export const GET = withUser(async (request: NextRequest, principal) => {
   }
   const organizationId = scope.organizationIds[0]
 
+  // Resolved once and handed to the quota, which would otherwise resolve it
+  // again per metric — eight lookups per request for seven counters, on a
+  // route the dashboard polls.
   const plan = await CommercialProvider.plans.resolve(organizationId)
+  const counters = await CommercialProvider.quota.peekMany(organizationId, REPORTED_METRICS, plan)
 
-  const usage = await Promise.all(
-    REPORTED_METRICS.map(async (metric) => {
-      const { limit, used, resetsAt } = await CommercialProvider.quota.peek(
-        organizationId,
-        metric,
-      )
-      return { metric, limit, used, resetsAt: resetsAt?.toISOString() ?? null }
-    }),
-  )
+  const usage = REPORTED_METRICS.map((metric) => {
+    const entry = counters.get(metric)
+    return {
+      metric,
+      limit: entry?.limit ?? null,
+      used: entry?.used ?? 0,
+      resetsAt: entry?.resetsAt?.toISOString() ?? null,
+    }
+  })
 
   return jsonSuccess({
     organizationId,

@@ -53,6 +53,7 @@ export async function dispatchAutomationsForEmail(messageId: string) {
       message.organizationId,
       'automation.runs',
       1,
+      plan,
     )
     if (!quota.allowed) break
 

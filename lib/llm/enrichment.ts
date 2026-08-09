@@ -54,6 +54,7 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
       message.organizationId,
       'llm.enrichments',
       1,
+      plan,
     )
     if (!quota.allowed) {
       console.log('[enrichMessage] skip: enrichment quota exhausted', {
@@ -81,7 +82,7 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
       // provider call succeeds but the update below fails, metadata stays
       // null, so a retry would call the (billable) provider again for the
       // same message unless this refunds the first attempt too.
-      await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1)
+      await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1, plan)
       throw error
     }
     return true

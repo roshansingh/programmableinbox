@@ -131,7 +131,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
 
     await POST(makeRequest() as any, { params: Promise.resolve({ id: 'inbox_1' }) })
 
-    expect(consume).toHaveBeenCalledWith('org_1', 'emails.sent', 1)
+    expect(consume).toHaveBeenCalledWith('org_1', 'emails.sent', 1, expect.anything())
   })
 
   /**
@@ -146,7 +146,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const response = await POST(makeRequest() as any, { params: Promise.resolve({ id: 'inbox_1' }) })
 
     expect(response.status).toBe(500)
-    expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1)
+    expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1, expect.anything())
   })
 
   /**
@@ -164,7 +164,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const response = await POST(makeRequest() as any, { params: Promise.resolve({ id: 'inbox_1' }) })
 
     expect(response.status).toBe(500)
-    expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1)
+    expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1, expect.anything())
   })
 
   /**

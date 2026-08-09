@@ -13,6 +13,17 @@ import { getUsage, usageRatio, type MetricUsage } from "@/lib/api/usage.api"
  */
 const WARN_AT = 0.8
 
+/**
+ * How often to refetch while the dashboard is open.
+ *
+ * A single fetch on mount defeats the point: a tab left open crosses 80% and
+ * then the cap without ever updating, and on a `drop` plan every message in
+ * between is discarded irrecoverably. One minute is frequent enough to warn
+ * before that matters and cheap enough to ignore — `peekMany` makes each poll
+ * one plan resolution plus one indexed read, not one per metric.
+ */
+const POLL_INTERVAL_MS = 60_000
+
 const METRIC_LABELS: Record<string, string> = {
   'emails.processed': 'incoming emails',
   'emails.sent': 'sent emails',
@@ -53,18 +64,26 @@ export function UsageBanner() {
     }
 
     let cancelled = false
-    getUsage(organizationId)
-      .then((response) => {
-        if (!cancelled) setUsage(response.usage)
-      })
-      // Usage is advisory. A failed poll must never break the dashboard — the
-      // server enforces the limits regardless of what this banner believes.
-      .catch(() => {
-        if (!cancelled) setUsage([])
-      })
+
+    const poll = () => {
+      getUsage(organizationId)
+        .then((response) => {
+          if (!cancelled) setUsage(response.usage)
+        })
+        // Usage is advisory. A failed poll must never break the dashboard — the
+        // server enforces the limits regardless of what this banner believes —
+        // and must not stop the interval either, since the next one may succeed.
+        .catch(() => {
+          if (!cancelled) setUsage([])
+        })
+    }
+
+    poll()
+    const timer = setInterval(poll, POLL_INTERVAL_MS)
 
     return () => {
       cancelled = true
+      clearInterval(timer)
     }
   }, [plan, organizationId, isAuthenticated])
 

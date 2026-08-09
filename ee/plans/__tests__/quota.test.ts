@@ -138,6 +138,133 @@ describe('PostgresQuota.refund', () => {
   })
 })
 
+/**
+ * Every quota method used to resolve the plan itself, so a caller that had
+ * already resolved one paid for a second lookup — `withApiKey` did two per
+ * request, and `/api/app/usage` did eight. Passing the resolved plan through
+ * removes the duplicate without introducing a cache.
+ */
+describe('reusing an already-resolved plan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockQueryRaw.mockResolvedValue([{ value: 1 }])
+    mockExecuteRaw.mockResolvedValue(1)
+  })
+
+  function countingResolver(overrides: Partial<typeof UNLIMITED> = {}) {
+    const resolve = vi.fn().mockResolvedValue({
+      planCode: 'free',
+      planName: 'Free',
+      limits: { ...UNLIMITED, ...overrides },
+      periodStart: PERIOD_START,
+      periodEnd: PERIOD_END,
+    })
+    return { resolve } as unknown as IPlanResolver & { resolve: ReturnType<typeof vi.fn> }
+  }
+
+  it('does not resolve again when consume is given a plan', async () => {
+    const resolver = countingResolver({ incomingEmailsPerPeriod: 1000 })
+    const { PostgresQuota } = await import('../quota')
+    const quota = new PostgresQuota(resolver)
+    const plan = await resolver.resolve('org-1')
+    resolver.resolve.mockClear()
+
+    await quota.consume('org-1', 'emails.processed', 1, plan)
+
+    expect(resolver.resolve).not.toHaveBeenCalled()
+  })
+
+  it('still resolves when no plan is supplied', async () => {
+    const resolver = countingResolver()
+    const { PostgresQuota } = await import('../quota')
+    const quota = new PostgresQuota(resolver)
+
+    await quota.consume('org-1', 'emails.processed', 1)
+
+    expect(resolver.resolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('honours the supplied plan rather than re-reading it', async () => {
+    const resolver = countingResolver({ incomingEmailsPerPeriod: null })
+    const { PostgresQuota } = await import('../quota')
+    const quota = new PostgresQuota(resolver)
+
+    const result = await quota.consume('org-1', 'emails.processed', 1, {
+      planCode: 'pro',
+      planName: 'Pro',
+      limits: { ...UNLIMITED, incomingEmailsPerPeriod: 5000 },
+      periodStart: PERIOD_START,
+      periodEnd: PERIOD_END,
+    })
+
+    expect(result.limit).toBe(5000)
+  })
+})
+
+/**
+ * `/api/app/usage` reports seven metrics. One statement rather than seven
+ * matters because the banner polls.
+ */
+describe('PostgresQuota.peekMany', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reads every metric in a single query', async () => {
+    mockQueryRaw.mockResolvedValue([
+      { metric: 'emails.processed', value: 250 },
+      { metric: 'emails.dropped', value: 12 },
+    ])
+    const quota = await quotaWith({ incomingEmailsPerPeriod: 1000 })
+
+    await quota.peekMany('org-1', ['emails.processed', 'emails.dropped', 'emails.sent'])
+
+    expect(mockQueryRaw).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a result for every requested metric, including ones with no row', async () => {
+    mockQueryRaw.mockResolvedValue([{ metric: 'emails.processed', value: 250 }])
+    const quota = await quotaWith({ incomingEmailsPerPeriod: 1000 })
+
+    const results = await quota.peekMany('org-1', ['emails.processed', 'emails.sent'])
+
+    expect(results.get('emails.processed')?.used).toBe(250)
+    // Never counted this period — zero, not absent.
+    expect(results.get('emails.sent')?.used).toBe(0)
+  })
+
+  it('carries each metric its own limit', async () => {
+    mockQueryRaw.mockResolvedValue([])
+    const quota = await quotaWith({ incomingEmailsPerPeriod: 1000, outboundEmailsPerPeriod: 50 })
+
+    const results = await quota.peekMany('org-1', ['emails.processed', 'emails.sent', 'emails.dropped'])
+
+    expect(results.get('emails.processed')?.limit).toBe(1000)
+    expect(results.get('emails.sent')?.limit).toBe(50)
+    // Report-only: no limit key, so unlimited.
+    expect(results.get('emails.dropped')?.limit).toBeNull()
+  })
+
+  it('resolves the plan once for the whole batch', async () => {
+    mockQueryRaw.mockResolvedValue([])
+    const resolver = {
+      resolve: vi.fn().mockResolvedValue({
+        planCode: 'free',
+        planName: 'Free',
+        limits: UNLIMITED,
+        periodStart: PERIOD_START,
+        periodEnd: PERIOD_END,
+      }),
+    }
+    const { PostgresQuota } = await import('../quota')
+    const quota = new PostgresQuota(resolver as unknown as IPlanResolver)
+
+    await quota.peekMany('org-1', ['emails.processed', 'emails.sent', 'api.requests'])
+
+    expect(resolver.resolve).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('PostgresQuota.peek', () => {
   beforeEach(() => {
     vi.clearAllMocks()

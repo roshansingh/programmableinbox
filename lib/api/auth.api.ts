@@ -62,7 +62,11 @@ export interface PlanLimits {
   automationsEnabled: boolean
   phoneInboxesEnabled: boolean
   overQuotaBehavior: 'drop' | 'overage'
-  [key: string]: number | boolean | string | null
+  // Deliberately no index signature. The server sends more keys than these, and
+  // TypeScript accepts extra properties on a value it receives — an index
+  // signature is not needed to tolerate them, and adding one would make every
+  // typo (`plan.limits.emailInboxs`) a valid access that silently reads
+  // undefined.
 }
 
 /**

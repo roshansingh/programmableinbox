@@ -860,7 +860,7 @@ describe('Webhook Email Processing — Integration', () => {
 
       await POST(makeWebhookRequest(emailReceivedBody('em_q1')) as any);
 
-      expect(consume).toHaveBeenCalledWith('org_q', 'emails.processed', 1);
+      expect(consume).toHaveBeenCalledWith('org_q', 'emails.processed', 1, expect.anything());
       expect(messageCreateMock).toHaveBeenCalledTimes(1);
     });
 
@@ -904,7 +904,7 @@ describe('Webhook Email Processing — Integration', () => {
 
       await POST(makeWebhookRequest(emailReceivedBody('em_q4')) as any);
 
-      expect(increment).toHaveBeenCalledWith('org_q', 'emails.dropped', 1);
+      expect(increment).toHaveBeenCalledWith('org_q', 'emails.dropped', 1, expect.anything());
     });
 
     it('does not dispatch automations for a dropped message', async () => {
@@ -936,7 +936,7 @@ describe('Webhook Email Processing — Integration', () => {
 
       await POST(makeWebhookRequest(emailReceivedBody('em_q6')) as any);
 
-      expect(refund).toHaveBeenCalledWith('org_q', 'emails.processed', 1);
+      expect(refund).toHaveBeenCalledWith('org_q', 'emails.processed', 1, expect.anything());
     });
 
     /**
@@ -1016,8 +1016,8 @@ describe('Webhook Email Processing — Integration', () => {
 
       await POST(makeWebhookRequest(emailReceivedBody('em_q7')) as any);
 
-      expect(consume).toHaveBeenCalledWith('org_a', 'emails.processed', 1);
-      expect(consume).toHaveBeenCalledWith('org_b', 'emails.processed', 1);
+      expect(consume).toHaveBeenCalledWith('org_a', 'emails.processed', 1, expect.anything());
+      expect(consume).toHaveBeenCalledWith('org_b', 'emails.processed', 1, expect.anything());
     });
 
     /**

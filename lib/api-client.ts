@@ -9,6 +9,17 @@ export interface ApiError {
   message: string
   status: number
   errors?: Record<string, string[]>
+  /**
+   * Present on a 402 plan denial (issue #117 §6b), where the server sends
+   * `limit`, `used` and `planCode` alongside the message so the UI can render
+   * an accurate upsell — "1 of 1 inboxes used" — rather than a bare sentence.
+   *
+   * Undefined on every other error. `limit` may legitimately be `0`, meaning
+   * "none allowed", so callers must check for `undefined` rather than falsiness.
+   */
+  limit?: number
+  used?: number
+  planCode?: string
 }
 
 export interface ApiResponse<T> {
@@ -101,12 +112,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorMessage = `Request failed with status ${response.status}`
     let errors: Record<string, string[]> | undefined
+    let planDetail: { limit?: unknown; used?: unknown; planCode?: unknown } = {}
 
     if (isJson) {
       try {
         const errorData = await response.json()
         errorMessage = errorData.message || errorData.error || errorMessage
         errors = errorData.errors
+        planDetail = errorData
       } catch {
         // If JSON parsing fails, use default error message
       }
@@ -122,6 +135,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
       message: errorMessage,
       status: response.status,
       errors,
+      // Forwarded rather than dropped: `jsonPlanDenial` sends these on a 402 so
+      // the UI can show what the cap was and how much of it is used. They were
+      // being parsed into `errorData` above and then discarded, which made the
+      // richer body unreachable from any call site.
+      ...(typeof planDetail.limit === 'number' ? { limit: planDetail.limit } : {}),
+      ...(typeof planDetail.used === 'number' ? { used: planDetail.used } : {}),
+      ...(typeof planDetail.planCode === 'string' ? { planCode: planDetail.planCode } : {}),
     }
 
     // Handle 401 Unauthorized - clear token and redirect to login

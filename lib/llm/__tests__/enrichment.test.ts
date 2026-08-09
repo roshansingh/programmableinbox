@@ -101,7 +101,7 @@ describe('enrichMessage', () => {
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
 
-    expect(mockConsume).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
+    expect(mockConsume).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
   /**
@@ -130,7 +130,7 @@ describe('enrichMessage', () => {
 
     await enrichMessage('msg-1')
 
-    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
+    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
   /**
@@ -146,7 +146,7 @@ describe('enrichMessage', () => {
 
     await expect(enrichMessage('msg-1')).resolves.toBe(false)
 
-    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
+    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
   it('skips when metadata is already set (idempotency)', async () => {
