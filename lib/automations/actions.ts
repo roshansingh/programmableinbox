@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { getResend } from '@/lib/resend'
 import { SsrfBlockedError, safeFetch } from '@/lib/security/ssrf-guard'
 import { claimAutoReplySlot, releaseAutoReplySlot } from './auto-reply-throttle'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
 import type {
   ActionNodeConfig,
@@ -15,6 +16,35 @@ type ActionExecutionContext = {
   inbox: Pick<EmailInbox, 'id' | 'email'>
   input: EmailAutomationInput
   isDryRun: boolean
+}
+
+/**
+ * The plan gate shared by every action that sends mail (issue #117 §6b).
+ *
+ * Returns a `skipped` result — never `failed`. A plan limit is a configuration
+ * fact, not a malfunction: reporting it as a failure would mark the whole run
+ * failed, mislead the operator about what went wrong, and hand the stuck-run
+ * sweeper a run that behaved exactly as configured. `planLimited` in the output
+ * is what lets the run log explain itself.
+ *
+ * Callers must invoke this *before* doing any work with a side effect — most
+ * importantly before `auto_reply` claims a throttle slot, which would otherwise
+ * burn a per-sender cooldown for a reply nobody receives.
+ */
+async function checkOutboundEmailAllowed(
+  organizationId: string,
+): Promise<AutomationActionResult | null> {
+  const plan = await CommercialProvider.plans.resolve(organizationId)
+  if (plan.limits.outboundEmail) return null
+
+  return {
+    status: 'skipped',
+    output: {
+      planLimited: true,
+      planCode: plan.planCode,
+      reason: `Outbound email is not included in the ${plan.planName} plan.`,
+    },
+  }
 }
 
 function renderTemplate(template: string, input: EmailAutomationInput) {
@@ -38,6 +68,9 @@ async function executeForwardEmail(
       },
     }
   }
+
+  const gated = await checkOutboundEmailAllowed(context.input.organizationId)
+  if (gated) return gated
 
   const text = node.config.prependNote
     ? `${node.config.prependNote}\n\n${context.input.bodyText}`
@@ -88,6 +121,39 @@ async function executeSendWebhook(
         dryRun: true,
         url: node.config.url,
         method: node.config.method ?? 'POST',
+      },
+    }
+  }
+
+  // Feature switch and meter, after the dry-run branch so a preview still
+  // renders on a plan that cannot deliver. `skipped` rather than `failed`, for
+  // the same reason as the outbound-email gate.
+  const plan = await CommercialProvider.plans.resolve(context.input.organizationId)
+  if (!plan.limits.outboundWebhooks) {
+    return {
+      status: 'skipped',
+      output: {
+        planLimited: true,
+        planCode: plan.planCode,
+        reason: `Outbound webhooks are not included in the ${plan.planName} plan.`,
+      },
+    }
+  }
+
+  const quota = await CommercialProvider.quota.consume(
+    context.input.organizationId,
+    'webhook.deliveries',
+    1,
+  )
+  if (!quota.allowed) {
+    return {
+      status: 'skipped',
+      output: {
+        planLimited: true,
+        planCode: plan.planCode,
+        reason: 'Webhook delivery quota exhausted for this period.',
+        limit: quota.limit,
+        used: quota.used,
       },
     }
   }
@@ -176,6 +242,12 @@ async function executeAutoReply(
       output: { reason: 'loop_guard_same_sender_as_inbox' },
     }
   }
+
+  // Before the throttle claim, deliberately. Claiming a slot for a reply the
+  // plan forbids would burn the per-sender cooldown, so an organization that
+  // upgraded would find senders throttled for replies nobody ever received.
+  const gated = await checkOutboundEmailAllowed(context.input.organizationId)
+  if (gated) return gated
 
   const throttleWindowHours = node.config.oncePerSenderWindowHours ?? 24
   const throttleKey = {

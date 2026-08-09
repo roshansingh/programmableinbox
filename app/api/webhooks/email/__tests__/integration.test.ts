@@ -783,4 +783,201 @@ describe('Webhook Email Processing — Integration', () => {
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Plan quota (issue #117 §6a)
+  //
+  // Metering lives in storeIncomingEmail rather than the route, because that is
+  // where the sync path and the async worker converge — a check in the route
+  // would be one the worker silently skips.
+  //
+  // The two invariants that matter most: Resend always gets a 200, and an
+  // over-quota message leaves no row behind.
+  // -------------------------------------------------------------------------
+  describe('Plan quota', () => {
+    beforeEach(() => {
+      setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' });
+    });
+
+    afterEach(async () => {
+      const { CommercialProvider } = await import('@/lib/commercial/provider');
+      CommercialProvider.reset();
+    });
+
+    /**
+     * Installs a quota that allows or refuses, and records what it was asked.
+     *
+     * **Must be called after `loadRoute()`.** That helper calls
+     * `vi.resetModules()`, so a provider configured beforehand lives in a
+     * discarded module graph and the route sees the untouched OSS default.
+     */
+    async function configureQuota(allowed: boolean) {
+      const { CommercialProvider } = await import('@/lib/commercial/provider');
+      const { UNLIMITED } = await import('@/lib/commercial/plan-limits');
+      const consume = vi.fn().mockResolvedValue({
+        allowed,
+        limit: 1000,
+        used: allowed ? 1 : 1000,
+        resetsAt: new Date('2026-09-01T00:00:00Z'),
+      });
+      const refund = vi.fn().mockResolvedValue(undefined);
+      const increment = vi.fn().mockResolvedValue(undefined);
+
+      CommercialProvider.configure(
+        {
+          resolve: async () => ({
+            planCode: 'free',
+            planName: 'Free',
+            limits: { ...UNLIMITED, incomingEmailsPerPeriod: 1000 },
+            periodStart: null,
+            periodEnd: null,
+          }),
+        },
+        { consume, refund, increment, peek: vi.fn() },
+        CommercialProvider.metering,
+      );
+      return { consume, refund, increment };
+    }
+
+    function singleInbox() {
+      const inbox = { id: 'inbox_q', email: 'q@example.com', organizationId: 'org_q' };
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['q@example.com'] }),
+      });
+      return inbox;
+    }
+
+    it('consumes one unit of emails.processed per stored message', async () => {
+      const { POST } = await loadRoute();
+      const { consume } = await configureQuota(true);
+      singleInbox();
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_q', organizationId: 'org_q' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q1')) as any);
+
+      expect(consume).toHaveBeenCalledWith('org_q', 'emails.processed', 1);
+      expect(messageCreateMock).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * The decision recorded in #117: over quota the message is discarded
+     * entirely. No row is written, so it cannot be recovered by upgrading.
+     */
+    it('writes no row when the organization is over quota', async () => {
+      const { POST } = await loadRoute();
+      await configureQuota(false);
+      singleInbox();
+
+      const response = await POST(makeWebhookRequest(emailReceivedBody('em_q2')) as any);
+
+      expect(messageCreateMock).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
+
+    /**
+     * Resend has no way to act on a 4xx here — the mail is already accepted at
+     * the SMTP edge — and a non-2xx would make it retry a message we are
+     * deliberately refusing. A plan limit must never look like a delivery
+     * failure.
+     */
+    it('still answers Resend with 200 when over quota', async () => {
+      const { POST } = await loadRoute();
+      await configureQuota(false);
+      singleInbox();
+
+      const response = await POST(makeWebhookRequest(emailReceivedBody('em_q3')) as any);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.message).toMatch(/Webhook/i);
+    });
+
+    it('counts the discard so the dashboard can report what was lost', async () => {
+      const { POST } = await loadRoute();
+      const { increment } = await configureQuota(false);
+      singleInbox();
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q4')) as any);
+
+      expect(increment).toHaveBeenCalledWith('org_q', 'emails.dropped', 1);
+    });
+
+    it('does not dispatch automations for a dropped message', async () => {
+      const { POST } = await loadRoute();
+      await configureQuota(false);
+      singleInbox();
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q5')) as any);
+
+      expect(dispatchAutomationsForEmailMock).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Resend retries deliveries. The duplicate is caught by the
+     * (externalId, inboxEmailAddressId) unique index, and without a refund
+     * every retry would burn another unit of an allowance the organization
+     * never actually used.
+     */
+    it('refunds the consumed unit when the insert hits a duplicate', async () => {
+      const { POST } = await loadRoute();
+      const { refund } = await configureQuota(true);
+      singleInbox();
+      messageCreateMock.mockRejectedValueOnce(
+        Object.assign(new Error('duplicate'), {
+          code: 'P2002',
+          meta: { target: ['externalId'] },
+        }),
+      );
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q6')) as any);
+
+      expect(refund).toHaveBeenCalledWith('org_q', 'emails.processed', 1);
+    });
+
+    /**
+     * Fan-out crosses tenants: one email can reach inboxes in different
+     * organizations, and each spends its own allowance. A single shared check
+     * would let one organization's exhausted quota silently drop another's mail.
+     */
+    it('meters each organization separately on a fan-out', async () => {
+      const { POST } = await loadRoute();
+      const { consume } = await configureQuota(true);
+      const inboxA = { id: 'inbox_a', email: 'a@example.com', organizationId: 'org_a' };
+      const inboxB = { id: 'inbox_b', email: 'b@example.com', organizationId: 'org_b' };
+      inboxFindManyMock.mockResolvedValueOnce([inboxA, inboxB]);
+      inboxFindManyMock.mockResolvedValueOnce([inboxA]);
+      inboxFindManyMock.mockResolvedValueOnce([inboxB]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['a@example.com', 'b@example.com'] }),
+      });
+      messageCreateMock
+        .mockResolvedValueOnce({ id: 'msg_a', organizationId: 'org_a' })
+        .mockResolvedValueOnce({ id: 'msg_b', organizationId: 'org_b' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q7')) as any);
+
+      expect(consume).toHaveBeenCalledWith('org_a', 'emails.processed', 1);
+      expect(consume).toHaveBeenCalledWith('org_b', 'emails.processed', 1);
+    });
+
+    /**
+     * The OSS default. NoopQuota allows everything, so a self-hosted
+     * deployment behaves exactly as it did before this feature existed.
+     */
+    it('stores normally under the unlimited default', async () => {
+      const { POST } = await loadRoute();
+      singleInbox();
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_oss', organizationId: 'org_q' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      const response = await POST(makeWebhookRequest(emailReceivedBody('em_q8')) as any);
+
+      expect(response.status).toBe(200);
+      expect(messageCreateMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

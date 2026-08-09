@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
 import { toOwnerScope } from '@/lib/services/scope'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
 import logger from '@/lib/logger'
@@ -31,6 +32,35 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     return jsonError('Message body (text or html) is required', 400)
   }
 
+  // The third outbound path, alongside `forward_email` and `auto_reply`
+  // (issue #117 §6b). One switch covers all three: gating only the automated
+  // ones would leave a free account able to send from a domain we own simply by
+  // using the dashboard.
+  const plan = await CommercialProvider.plans.resolve(inbox.organizationId)
+  if (!plan.limits.outboundEmail) {
+    return jsonPlanDenial({
+      message: `Sending email is not included in your ${plan.planName} plan.`,
+      status: 402,
+      limit: 0,
+      used: 0,
+      planCode: plan.planCode,
+    })
+  }
+
+  // Metered separately from the feature switch: a plan may allow sending and
+  // still cap how much. Consumed before the send, since the unit is spent the
+  // moment Resend accepts it — there is no un-sending on a later failure.
+  const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'emails.sent', 1)
+  if (!quota.allowed) {
+    return jsonPlanDenial({
+      message: `You have reached your ${plan.planName} plan's outbound email limit.`,
+      status: 402,
+      limit: quota.limit ?? 0,
+      used: quota.used,
+      planCode: plan.planCode,
+    })
+  }
+
   try {
     const emailHeaders: Record<string, string> = {}
     if (inReplyTo) emailHeaders['In-Reply-To'] = inReplyTo
@@ -48,6 +78,9 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     })
 
     if (error) {
+      // Resend rejected it, so nothing left the building — give the unit back
+      // rather than charging for a send that did not happen.
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1)
       logger.error({ inboxId: id, error }, 'Resend send error')
       return jsonError(error.message || 'Failed to send email', 500)
     }

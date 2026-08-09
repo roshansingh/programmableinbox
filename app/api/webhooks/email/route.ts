@@ -7,6 +7,7 @@ import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
 import { isUniqueViolation } from '@/lib/api-helpers'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { withPublic } from '@/lib/auth/with-auth'
 import { config } from '@/lib/config'
 import logger from '@/lib/logger'
@@ -179,6 +180,41 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
   const created = []
 
   for (const inbox of matchingInboxes) {
+    // Plan quota (issue #117 §6a). Metered here, not in the route, because this
+    // is where the sync path and the async worker converge — a check in the
+    // route is one the worker silently skips.
+    //
+    // Per inbox, and therefore per organization: fan-out crosses tenants, so a
+    // single shared check would let one organization's exhausted allowance drop
+    // another's mail.
+    //
+    // Consumed *before* the insert. Consuming after leaves a window where
+    // concurrent deliveries both observe the same usage and both proceed; the
+    // statement behind `consume` is atomic precisely so this ordering is safe.
+    const quota = await CommercialProvider.quota.consume(
+      inbox.organizationId,
+      'emails.processed',
+      1,
+    )
+
+    if (!quota.allowed) {
+      // Dropped, not stored-and-flagged: nothing is persisted and the message
+      // cannot be recovered by upgrading. `emails.dropped` is what lets the
+      // dashboard say how much was lost rather than only that the cap was hit.
+      await CommercialProvider.quota.increment(inbox.organizationId, 'emails.dropped', 1)
+      logger.warn(
+        {
+          inboxEmail: inbox.email,
+          organizationId: inbox.organizationId,
+          externalId: resendEmail.id,
+          limit: quota.limit,
+          used: quota.used,
+        },
+        'Incoming email dropped: organization is over its plan quota',
+      )
+      continue
+    }
+
     try {
       const messageId = crypto.randomUUID()
       const threading = await determineThreading(resendEmail, messageId, inbox.id)
@@ -233,9 +269,17 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
         isUniqueViolation(error, 'externalId') || isUniqueViolation(error, 'messageId')
 
       if (isDuplicateKeyViolation) {
+        // Give the unit back. Resend retries deliveries, and every retry would
+        // otherwise burn another unit of an allowance the organization never
+        // actually spent — the message was already stored the first time.
+        await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1)
         logger.info({ inboxEmail: inbox.email, externalId: resendEmail.id }, 'Duplicate email skipped for inbox')
         continue
       }
+      // Not a duplicate, so nothing was stored and the unit is refunded too.
+      // Failing to do so would charge an organization for our own fault, and
+      // Resend's retry of the same message would charge again.
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1)
       logger.error({ error, inboxEmail: inbox.email }, 'Failed to store email for inbox')
     }
   }

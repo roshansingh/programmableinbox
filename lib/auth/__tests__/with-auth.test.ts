@@ -306,3 +306,95 @@ describe('withPublic', () => {
     expect(await response.text()).toBe('reached')
   })
 })
+
+/**
+ * The plan gate on the external API surface (issue #117 §6b).
+ *
+ * A key is bound to exactly one organization, so unlike a user session there is
+ * never ambiguity about whose plan applies.
+ */
+describe('withApiKey plan gate', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  async function configure(overrides: { apiV1Access?: boolean }, quotaAllowed = true) {
+    const { CommercialProvider } = await import('@/lib/commercial/provider')
+    const { UNLIMITED } = await import('@/lib/commercial/plan-limits')
+    const consume = vi.fn().mockResolvedValue({
+      allowed: quotaAllowed,
+      limit: 1000,
+      used: quotaAllowed ? 1 : 1000,
+      resetsAt: null,
+    })
+    CommercialProvider.configure(
+      {
+        resolve: async () => ({
+          planCode: 'free',
+          planName: 'Free',
+          limits: { ...UNLIMITED, ...overrides },
+          periodStart: null,
+          periodEnd: null,
+        }),
+      },
+      { consume, refund: vi.fn(), peek: vi.fn(), increment: vi.fn() },
+      CommercialProvider.metering,
+    )
+    return { consume, CommercialProvider }
+  }
+
+  it('reaches the handler under the unlimited OSS default', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [] }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(await response.text()).toBe('reached')
+  })
+
+  it('402s when the plan excludes API access', async () => {
+    const { CommercialProvider } = await configure({ apiV1Access: false })
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [] }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(response.status).toBe(402)
+    CommercialProvider.reset()
+  })
+
+  it('402s when the API request meter is exhausted', async () => {
+    const { CommercialProvider } = await configure({ apiV1Access: true }, false)
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [] }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+    const body = await response.json()
+
+    expect(response.status).toBe(402)
+    expect(body.used).toBe(1000)
+    CommercialProvider.reset()
+  })
+
+  /**
+   * Ordering matters: a missing scope is an authorization failure and must
+   * answer 403, never 402. Otherwise a plan limit becomes the thing that tells
+   * a caller their key lacked a scope.
+   */
+  it('answers 403 for a missing scope before consulting the plan', async () => {
+    const { consume, CommercialProvider } = await configure({ apiV1Access: false })
+    resolveApiKeyPrincipalMock.mockResolvedValue({ ...KEY, scopes: [] })
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey(
+      { scopes: ['email_inboxes:read'] },
+      async () => new Response('reached'),
+    )
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(response.status).toBe(403)
+    expect(consume).not.toHaveBeenCalled()
+    CommercialProvider.reset()
+  })
+})

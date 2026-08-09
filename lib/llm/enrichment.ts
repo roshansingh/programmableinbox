@@ -45,8 +45,36 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
       return true
     }
 
+    // Metered after the idempotency check, so a re-run over an already-enriched
+    // message costs nothing. Exhausting the meter is a *settled* skip like the
+    // feature switch above: retrying would give the same answer until the
+    // period rolls over, so the caller must mark the step done rather than
+    // re-queue it indefinitely.
+    const quota = await CommercialProvider.quota.consume(
+      message.organizationId,
+      'llm.enrichments',
+      1,
+    )
+    if (!quota.allowed) {
+      console.log('[enrichMessage] skip: enrichment quota exhausted', {
+        organizationId: message.organizationId,
+        limit: quota.limit,
+        used: quota.used,
+      })
+      return true
+    }
+
     console.log('[enrichMessage] calling provider.enrich', messageId)
-    const result = await provider.enrich(message.subject, message.text)
+    let result
+    try {
+      result = await provider.enrich(message.subject, message.text)
+    } catch (error) {
+      // The provider call is the billable part. Returning the unit keeps a
+      // provider outage from draining the allowance while producing nothing —
+      // and from draining it again on every retry.
+      await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1)
+      throw error
+    }
     console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
     await prisma.emailMessage.update({
       where: { id: messageId },

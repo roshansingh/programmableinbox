@@ -19,9 +19,14 @@ function planWithEnrichment(enabled: boolean) {
   }
 }
 
+const mockConsume = vi.fn()
+
 vi.mock('../factory', () => ({ getProvider: mockGetProvider }))
 vi.mock('@/lib/commercial/provider', () => ({
-  CommercialProvider: { plans: { resolve: mockResolve } },
+  CommercialProvider: {
+    plans: { resolve: mockResolve },
+    quota: { consume: mockConsume, refund: vi.fn(), peek: vi.fn(), increment: vi.fn() },
+  },
 }))
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -40,6 +45,7 @@ describe('enrichMessage', () => {
     vi.clearAllMocks()
     mockGetProvider.mockReturnValue({ enrich: mockEnrich })
     mockResolve.mockResolvedValue(planWithEnrichment(true))
+    mockConsume.mockResolvedValue({ allowed: true, limit: null, used: 0, resetsAt: null })
     mockFindUnique.mockResolvedValue({
       id: 'msg-1',
       subject: 'Your OTP',
@@ -89,6 +95,42 @@ describe('enrichMessage', () => {
     await enrichMessage('msg-1')
 
     expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it('consumes one unit of llm.enrichments on success', async () => {
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockConsume).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
+  })
+
+  /**
+   * Exhausting the enrichment meter is a *settled* skip: retrying would produce
+   * the same answer until the period rolls over, so the caller must mark the
+   * step done rather than re-queue it forever.
+   */
+  it('returns settled without calling the provider when the meter is exhausted', async () => {
+    mockConsume.mockResolvedValue({ allowed: false, limit: 100, used: 100, resetsAt: null })
+    const { enrichMessage } = await import('../enrichment')
+
+    await expect(enrichMessage('msg-1')).resolves.toBe(true)
+    expect(mockEnrich).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The provider call is the billable part, so the unit is returned when it
+   * fails — otherwise a provider outage silently drains the allowance while
+   * producing nothing, and the retry drains it again.
+   */
+  it('refunds the unit when the provider call fails', async () => {
+    const { CommercialProvider } = await import('@/lib/commercial/provider')
+    mockEnrich.mockRejectedValue(new Error('rate limit'))
+    const { enrichMessage } = await import('../enrichment')
+
+    await enrichMessage('msg-1')
+
+    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
   })
 
   it('skips when metadata is already set (idempotency)', async () => {
