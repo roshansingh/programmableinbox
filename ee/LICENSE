@@ -1,0 +1,11 @@
+ProgrammableInbox Commercial License
+
+This directory ("ee/") contains, or is reserved for, commercial/enterprise functionality that
+is not covered by the AGPL-3.0 license applied to the rest of this repository (see the root
+LICENSE file).
+
+Notwithstanding the foregoing, you may copy and modify the software in this directory for
+development and testing purposes, without requiring a Subscription.
+
+[PLACEHOLDER] The full commercial license text has not been finalized and will replace this
+file before ee/ contains real commercial code or is relied upon.
