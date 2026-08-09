@@ -252,12 +252,6 @@ async function executeAutoReply(
     }
   }
 
-  // Before the throttle claim, deliberately. Claiming a slot for a reply the
-  // plan forbids would burn the per-sender cooldown, so an organization that
-  // upgraded would find senders throttled for replies nobody ever received.
-  const gated = await checkOutboundEmailAllowed(context.input.organizationId)
-  if (gated) return gated
-
   const throttleWindowHours = node.config.oncePerSenderWindowHours ?? 24
   const throttleKey = {
     automationId: context.automation.id,
@@ -268,7 +262,9 @@ async function executeAutoReply(
   const cutoff = new Date(claimAt.getTime() - throttleWindowHours * 60 * 60 * 1000)
 
   // Dry run previews the decision without consuming the slot: a plain read of
-  // the throttle window, no atomic claim and no send.
+  // the throttle window, no atomic claim and no send. Runs before the plan
+  // gate below, same as forward_email/send_webhook, so a preview stays
+  // useful on a plan that cannot currently deliver.
   if (context.isDryRun) {
     const existing = await findAutoReplyLedger(
       throttleKey.automationId,
@@ -286,6 +282,12 @@ async function executeAutoReply(
       output: { dryRun: true, to: context.input.from },
     }
   }
+
+  // Before the throttle claim, deliberately. Claiming a slot for a reply the
+  // plan forbids would burn the per-sender cooldown, so an organization that
+  // upgraded would find senders throttled for replies nobody ever received.
+  const gated = await checkOutboundEmailAllowed(context.input.organizationId)
+  if (gated) return gated
 
   // Real run: atomically claim the slot BEFORE sending (F17). Only the winner of
   // a concurrent race proceeds; everyone else is throttled.

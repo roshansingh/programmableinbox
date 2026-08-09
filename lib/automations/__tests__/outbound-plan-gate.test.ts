@@ -4,13 +4,13 @@ import { CommercialProvider } from '@/lib/commercial/provider'
 import { UNLIMITED, type PlanLimits } from '@/lib/commercial/plan-limits'
 
 const sendMock = vi.fn()
-const ledgerFindFirstMock = vi.fn()
+const ledgerFindUniqueMock = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     emailMessage: { update: vi.fn() },
     autoReplyLedger: {
-      findFirst: (...a: unknown[]) => ledgerFindFirstMock(...a),
+      findUnique: (...a: unknown[]) => ledgerFindUniqueMock(...a),
       upsert: vi.fn(),
       delete: vi.fn(),
     },
@@ -105,7 +105,7 @@ describe('outbound email plan gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sendMock.mockResolvedValue({ data: { id: 'resend-1' }, error: null })
-    ledgerFindFirstMock.mockResolvedValue(null)
+    ledgerFindUniqueMock.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -177,6 +177,22 @@ describe('outbound email plan gate', () => {
       await executeActionNode(autoReplyNode(), context)
 
       expect(claimAutoReplySlot).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A dry run makes no outbound request, so it must remain previewable on a
+     * plan that cannot deliver — same as send_webhook below. The gate used to
+     * run before the dry-run branch here (unlike forward_email/send_webhook),
+     * so a preview on a plan without outboundEmail came back planLimited
+     * instead of the normal preview.
+     */
+    it('still previews on a dry run when the plan excludes outbound email', async () => {
+      configurePlan({ outboundEmail: false })
+
+      const result = await executeActionNode(autoReplyNode(), { ...context, isDryRun: true })
+
+      expect(result.output).toMatchObject({ dryRun: true, to: input.from })
+      expect(result.output).not.toMatchObject({ planLimited: true })
     })
   })
 
