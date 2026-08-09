@@ -11,8 +11,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Programmable Inbox - Disposable Email & Phone Numbers',
-  description: 'Manage disposable email addresses and phone numbers',
+  title: 'Programmable Inbox - Programmable Email & Phone Numbers',
+  description: 'Manage programmable email addresses and phone numbers',
   generator: 'v0.app',
   icons: {
     icon: [

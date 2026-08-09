@@ -142,7 +142,7 @@ const BLOCKED_SUBSTRING_TERMS = [
   // Staff-sounding terms. A recipient reads `billing@<our-domain>` as the
   // platform's own billing desk, so these are reserved rather than claimable.
   // Collateral is accepted here: `supporter` and `securityteam` are rejected
-  // too. These are disposable inboxes — a rejection costs one retry.
+  // too. Inboxes are cheap to create — a rejection costs one retry.
   'abuse',
   'admin',
   'billing',

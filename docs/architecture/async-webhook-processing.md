@@ -1,5 +1,9 @@
 # Async Webhook Processing Architecture
 
+> Part of the [architecture docs](README.md). See also
+> [email-ingestion-and-search.md](email-ingestion-and-search.md) for the ingestion path this
+> plugs into.
+
 ## Overview
 
 ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend webhook reception from database storage and automation dispatch. This document covers the system design, components, and data flow.
