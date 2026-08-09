@@ -2,8 +2,19 @@
 
 import { useEffect, useState } from "react"
 import { AlertTriangle, TriangleAlert } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth-provider"
 import { getUsage, usageRatio, type MetricUsage } from "@/lib/api/usage.api"
+import { createCheckoutSession } from "@/lib/api/billing.api"
+
+/**
+ * The plan an over-quota organization is offered.
+ *
+ * A constant rather than a picker because there is exactly one paid plan
+ * (issue #120 scope). A second one turns this into a choice, and the banner is
+ * the wrong place for it — that belongs in settings.
+ */
+const UPGRADE_PLAN_CODE = 'pro'
 
 /**
  * Warn this far into a metric. Deliberately well before the cap, because on a
@@ -54,6 +65,29 @@ function formatReset(resetsAt: string | null): string {
 export function UsageBanner() {
   const { plan, organizationId, isAuthenticated } = useAuth()
   const [usage, setUsage] = useState<MetricUsage[]>([])
+  const [upgrading, setUpgrading] = useState(false)
+  const [upgradeError, setUpgradeError] = useState<string | null>(null)
+
+  /**
+   * Sends the browser to Stripe Checkout.
+   *
+   * `window.location.assign` rather than a router push: the destination is
+   * Stripe's domain, so this is a full navigation out of the app.
+   */
+  const startUpgrade = async () => {
+    if (!organizationId || upgrading) return
+    setUpgrading(true)
+    setUpgradeError(null)
+    try {
+      const { url } = await createCheckoutSession(organizationId, UPGRADE_PLAN_CODE)
+      window.location.assign(url)
+    } catch (error) {
+      // Stays on the page with a reason. A silent failure on a paid action is
+      // the worst outcome — the user cannot tell whether they were charged.
+      setUpgradeError((error as { message?: string }).message ?? 'Could not start checkout')
+      setUpgrading(false)
+    }
+  }
 
   useEffect(() => {
     // No plan means USE_COMMERCIAL is off, so there is nothing to meter and no
@@ -101,6 +135,23 @@ export function UsageBanner() {
 
   const dropsMail = plan.limits.overQuotaBehavior === 'drop'
   const incomingExhausted = exhausted.some((entry) => entry.metric === 'emails.processed')
+  // Only offered to organizations not already on the paid plan. Someone on
+  // `pro` who is over their meter needs the portal or support, not a second
+  // subscription to the plan they already have.
+  const canUpgrade = plan.code !== UPGRADE_PLAN_CODE
+
+  const upgradeButton = canUpgrade ? (
+    <div className="pt-1">
+      <Button size="sm" onClick={startUpgrade} disabled={upgrading}>
+        {upgrading ? 'Starting checkout…' : 'Upgrade'}
+      </Button>
+      {upgradeError && (
+        <p className="pt-1 text-xs text-destructive" role="alert">
+          {upgradeError}
+        </p>
+      )}
+    </div>
+  ) : null
 
   return (
     <div className="px-4 pt-4 sm:px-6" role="status" aria-live="polite">
@@ -131,6 +182,7 @@ export function UsageBanner() {
               )}
               {formatReset(exhausted[0]?.resetsAt ?? null)}
             </p>
+            {upgradeButton}
           </div>
         </div>
       )}

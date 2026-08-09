@@ -285,8 +285,36 @@ const EmailInboxSchema = z
 const CommercialSchema = z
   .object({
     USE_COMMERCIAL: zBool.optional(),
+    // Stripe lives in this domain rather than its own so the conditional
+    // requirement below can see the flag. A separate domain could not — each
+    // parses its own env slice — and `DOMAIN_SCHEMAS` forbids a variable
+    // appearing in two of them. Same shape as ENABLE_EMAIL_VERIFICATION and
+    // its EMAIL_LINK_SECRET / APP_BASE_URL.
+    STRIPE_SECRET_KEY: zSecret().optional(),
+    STRIPE_WEBHOOK_SECRET: zSecret().optional(),
   })
-  .transform((v) => ({ enabled: v.USE_COMMERCIAL ?? false }))
+  .superRefine((v, ctx) => {
+    if (!v.USE_COMMERCIAL) return
+
+    // A deployment that turns on plan enforcement without Stripe credentials
+    // cannot sell anything: checkout 500s and every subscription webhook is
+    // rejected. Better one loud boot failure naming the variable than a
+    // customer discovering it at the payment step.
+    for (const name of ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] as const) {
+      if (!v[name]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: 'is required when USE_COMMERCIAL is true',
+        })
+      }
+    }
+  })
+  .transform((v) => ({
+    enabled: v.USE_COMMERCIAL ?? false,
+    stripeSecretKey: v.STRIPE_SECRET_KEY ?? null,
+    stripeWebhookSecret: v.STRIPE_WEBHOOK_SECRET ?? null,
+  }))
 
 /**
  * The MCP server at `POST /api/mcp` (issue #104).
@@ -547,7 +575,10 @@ export const DOMAIN_SCHEMAS = {
       'AUTOMATION_SWEEPER_SECRET',
     ],
   },
-  commercial: { schema: CommercialSchema, vars: ['USE_COMMERCIAL'] },
+  commercial: {
+    schema: CommercialSchema,
+    vars: ['USE_COMMERCIAL', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+  },
   mcp: {
     schema: McpSchema,
     vars: [

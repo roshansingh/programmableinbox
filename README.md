@@ -345,6 +345,41 @@ Optional:
 - `WEBHOOK_EGRESS_ALLOWLIST` — Comma-separated egress allowlist for tenant-controlled webhook URLs
 - `WEBHOOK_ALLOW_PRIVATE_NETWORK` — Dev-only escape hatch; ignored in production
 - `USE_COMMERCIAL` — Plan enforcement (default `false`; renamed from `ENABLE_BILLING`, no alias)
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — **required** when `USE_COMMERCIAL=true`; asserted at boot
+
+### Stripe (only when `USE_COMMERCIAL=true`)
+
+Self-hosting needs none of this — with the flag off every organization is on an
+unlimited plan and the billing routes do not exist. They are stripped entirely
+from a FOSS build (`node scripts/foss.mjs`).
+
+Set up locally:
+
+1. Create a recurring price in the Stripe dashboard (test mode), then point the
+   `pro` plan at it:
+   ```sql
+   UPDATE plans SET "stripePriceId" = 'price_...' WHERE code = 'pro';
+   ```
+2. Forward webhooks to the local server. This prints the signing secret to use
+   as `STRIPE_WEBHOOK_SECRET`:
+   ```bash
+   stripe listen --forward-to localhost:4000/api/webhooks/stripe
+   ```
+3. Trigger events without paying:
+   ```bash
+   stripe trigger checkout.session.completed
+   stripe trigger customer.subscription.deleted
+   ```
+
+Two behaviours worth knowing:
+
+- **`past_due` keeps its paid limits.** Stripe retries a failed card for weeks;
+  dropping the customer to `free` on the first decline would stop their mail
+  over an expired card. Entitlement ends when Stripe gives up and the
+  subscription is deleted.
+- **`STRIPE_SECRET_KEY` shares the `sk_live_` prefix with this app's own API
+  keys.** They are distinguished by shape, not prefix — see the comment in
+  `.gitleaks.toml`.
 - `ENABLE_MCP` — MCP server at `POST /api/mcp` (default `false`; the route 404s while off). See [MCP Server](#mcp-server-agent-access)
 - `MCP_ALLOWED_ORIGINS` — Comma-separated browser origins allowed to call `/api/mcp`, each including its scheme. Empty by default, which refuses any request carrying an `Origin` header; a malformed entry fails at boot
 - `MCP_RATE_LIMIT_MAX` / `MCP_RATE_LIMIT_WINDOW_S` — Per-API-key budget for `/api/mcp` (defaults `120` per `60` seconds)

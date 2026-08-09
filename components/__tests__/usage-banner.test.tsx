@@ -15,6 +15,11 @@ vi.mock('@/components/auth-provider', () => ({
   useAuth: () => useAuthMock(),
 }))
 
+const createCheckoutSessionMock = vi.fn()
+vi.mock('@/lib/api/billing.api', () => ({
+  createCheckoutSession: (...a: unknown[]) => createCheckoutSessionMock(...a),
+}))
+
 const FREE_PLAN = {
   code: 'free',
   name: 'Free',
@@ -214,6 +219,65 @@ describe('UsageBanner', () => {
       await vi.advanceTimersByTimeAsync(180_000)
 
       expect(getUsageMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('upgrade', () => {
+    const exhausted = {
+      organizationId: 'org_1',
+      plan: FREE_PLAN,
+      usage: [metric({ metric: 'emails.processed', limit: 1000, used: 1000 })],
+    }
+
+    it('offers an upgrade once the limit is reached', async () => {
+      getUsageMock.mockResolvedValue(exhausted)
+      render(<UsageBanner />)
+
+      expect(await screen.findByRole('button', { name: /upgrade/i })).toBeInTheDocument()
+    })
+
+    it('names the plan by code, so the server resolves the price', async () => {
+      getUsageMock.mockResolvedValue(exhausted)
+      createCheckoutSessionMock.mockResolvedValue({ url: 'https://checkout.stripe.com/c/cs_1' })
+      render(<UsageBanner />)
+
+      ;(await screen.findByRole('button', { name: /upgrade/i })).click()
+
+      await waitFor(() =>
+        expect(createCheckoutSessionMock).toHaveBeenCalledWith('org_1', 'pro'),
+      )
+    })
+
+    /**
+     * Someone already on `pro` who is over a meter needs the billing portal or
+     * support, not a second subscription to the plan they already hold.
+     */
+    it('offers nothing to an organization already on the paid plan', async () => {
+      const proPlan = { code: 'pro', name: 'Pro', limits: { overQuotaBehavior: 'overage' } as never }
+      useAuthMock.mockReturnValue(authState(proPlan))
+      getUsageMock.mockResolvedValue({
+        organizationId: 'org_1',
+        plan: proPlan,
+        usage: [metric({ metric: 'emails.processed', limit: 5000, used: 5000 })],
+      })
+      render(<UsageBanner />)
+
+      await screen.findByText(/reached your Pro plan limit/i)
+      expect(screen.queryByRole('button', { name: /upgrade/i })).not.toBeInTheDocument()
+    })
+
+    /**
+     * A silent failure on a paid action is the worst outcome — the user cannot
+     * tell whether they were charged.
+     */
+    it('reports a checkout failure rather than failing silently', async () => {
+      getUsageMock.mockResolvedValue(exhausted)
+      createCheckoutSessionMock.mockRejectedValue({ message: 'Could not start checkout' })
+      render(<UsageBanner />)
+
+      ;(await screen.findByRole('button', { name: /upgrade/i })).click()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/could not start checkout/i)
     })
   })
 

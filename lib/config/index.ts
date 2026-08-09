@@ -150,6 +150,37 @@ export function requireRedisUrl(): string {
 }
 
 /**
+ * The absolute origin this deployment is reachable at, or throws naming the
+ * variable.
+ *
+ * `APP_BASE_URL` is parsed by the `emailVerification` domain, which only
+ * *demands* it when that feature is on. Billing needs it too — Stripe Checkout
+ * has to be told where to return the customer — so this is the same shape as
+ * {@link requireRedisUrl}: the value is nullable, and every path that genuinely
+ * needs it goes through one guard that names the variable.
+ *
+ * Operator configuration rather than the request's `Host` header, on purpose.
+ * Deriving the return origin from the request would let anyone who controls
+ * `Host` (or `X-Forwarded-Host`, behind a proxy that forwards it unvalidated)
+ * choose where a paying customer lands after checkout — the same call already
+ * made for emailed links.
+ */
+export function requireAppBaseUrl(): string {
+  const appBaseUrl = config.emailVerification.appBaseUrl
+
+  if (appBaseUrl === null) {
+    throw new ConfigError(
+      'APP_BASE_URL is required but not set. It has no default: the origin a ' +
+        'customer returns to after Stripe Checkout, like the origin in an ' +
+        'emailed link, must not come from the request.',
+      ['APP_BASE_URL'],
+    )
+  }
+
+  return appBaseUrl
+}
+
+/**
  * Returns the verification secret and link origin, or throws naming whichever
  * is missing (issue #102).
  *
