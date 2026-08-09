@@ -69,6 +69,10 @@ export default tseslint.config(
       'prisma/seed.ts',
       'next.config.mjs',
       'instrumentation.ts',
+      // The stripped build's copy of the boot hook. `scripts/foss.mjs` renames
+      // it over `instrumentation.ts`, so it reads `NEXT_RUNTIME` for the same
+      // reason and needs the same exemption.
+      'instrumentation.foss.ts',
       'vitest.config.ts',
       'vitest.integration.config.ts',
       'eslint.config.mjs',

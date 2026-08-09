@@ -249,13 +249,28 @@ describe('runtime schema', () => {
   })
 })
 
-describe('billing schema', () => {
+describe('commercial schema', () => {
   it('defaults to disabled', () => {
-    expect(parse('billing', {}).enabled).toBe(false)
+    expect(parse('commercial', {}).enabled).toBe(false)
   })
 
   it('enables on any documented truthy spelling', () => {
-    expect(parse('billing', { ENABLE_BILLING: 'yes' }).enabled).toBe(true)
+    expect(parse('commercial', { USE_COMMERCIAL: 'yes' }).enabled).toBe(true)
+  })
+
+  it('rejects a set-but-malformed value rather than falling back to false', () => {
+    expect(() => parse('commercial', { USE_COMMERCIAL: 'perhaps' })).toThrow()
+  })
+
+  // The rename from ENABLE_BILLING is deliberately breaking, on the
+  // EMAIL_VERIFICATION_SECRET -> EMAIL_LINK_SECRET precedent: a deployment
+  // still setting the old name must not silently start with enforcement off.
+  // DOMAIN_SCHEMAS is the authoritative variable list, so the absence of
+  // ENABLE_BILLING there is what makes assertConfig() report the new name.
+  it('no longer recognises ENABLE_BILLING anywhere in the registry', () => {
+    const all = Object.values(DOMAIN_SCHEMAS).flatMap((d) => d.vars as readonly string[])
+    expect(all).not.toContain('ENABLE_BILLING')
+    expect(all).toContain('USE_COMMERCIAL')
   })
 })
 

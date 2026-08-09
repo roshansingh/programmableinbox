@@ -1,52 +1,47 @@
-import { IPolicy, IEntitlements, IMetering } from './interfaces'
-import { AllowAllPolicy } from './oss/AllowAllPolicy'
-import { EnableAllEntitlements } from './oss/EnableAllEntitlements'
+import type { IPlanResolver, IQuota, IMetering } from './interfaces'
+import { UnlimitedPlanResolver } from './oss/UnlimitedPlanResolver'
+import { NoopQuota } from './oss/NoopQuota'
 import { NoopMetering } from './oss/NoopMetering'
 
 /**
- * CommercialProvider: Static service locator for commercial implementations.
+ * Service locator for the commercial plan engine (issue #117 §3).
  *
- * Default behavior (OSS):
- *   - policy: AllowAllPolicy (allows all operations)
- *   - entitlements: EnableAllEntitlements (enables all features)
- *   - metering: NoopMetering (discards metrics)
+ * This is the seam that lets the open-source build work with `ee/` deleted: the
+ * enforcement *call sites* live in the open tree and always call through this
+ * provider, while the implementations behind it are swapped at boot. With no
+ * `ee/` present the OSS defaults stand and every limit is unlimited — the same
+ * code path, a different implementation, rather than a second untested branch.
  *
- * SaaS override (billing app calls configure()):
- *   - policy: StrictPolicy (enforces Stripe limits)
- *   - entitlements: PlanEntitlements (tier-based features)
- *   - metering: StripeMetering (records to Stripe)
+ * Defaults (OSS):
+ *   - plans:     {@link UnlimitedPlanResolver} — `self_hosted`, never hits the DB
+ *   - quota:     {@link NoopQuota} — allows everything, counts nothing
+ *   - metering:  {@link NoopMetering} — discards
+ *
+ * Commercial override, from `ee/init.ts` at boot:
+ *   - plans:     DbPlanResolver (Subscription + Plan, Redis-cached)
+ *   - quota:     PostgresQuota (atomic conditional upsert on usage_counters)
+ *   - metering:  billing telemetry
  */
 export class CommercialProvider {
-  private static _policy: IPolicy | undefined
-  private static _entitlements: IEntitlements | undefined
+  private static _plans: IPlanResolver | undefined
+  private static _quota: IQuota | undefined
   private static _metering: IMetering | undefined
 
-  /**
-   * Get the current policy implementation.
-   * On first access, lazily loads AllowAllPolicy (OSS default).
-   */
-  static get policy(): IPolicy {
-    if (!this._policy) {
-      this._policy = new AllowAllPolicy()
+  /** Lazily falls back to the OSS default on first access. */
+  static get plans(): IPlanResolver {
+    if (!this._plans) {
+      this._plans = new UnlimitedPlanResolver()
     }
-    return this._policy
+    return this._plans
   }
 
-  /**
-   * Get the current entitlements implementation.
-   * On first access, lazily loads EnableAllEntitlements (OSS default).
-   */
-  static get entitlements(): IEntitlements {
-    if (!this._entitlements) {
-      this._entitlements = new EnableAllEntitlements()
+  static get quota(): IQuota {
+    if (!this._quota) {
+      this._quota = new NoopQuota()
     }
-    return this._entitlements
+    return this._quota
   }
 
-  /**
-   * Get the current metering implementation.
-   * On first access, lazily loads NoopMetering (OSS default).
-   */
   static get metering(): IMetering {
     if (!this._metering) {
       this._metering = new NoopMetering()
@@ -55,29 +50,24 @@ export class CommercialProvider {
   }
 
   /**
-   * Configure custom implementations (called by SaaS billing app at startup).
+   * Install the commercial implementations. Called once at boot from
+   * `ee/init.ts`, via root `instrumentation.ts`.
    *
-   * @example
-   * // In inboxui-billing/lib/init.ts:
-   * CommercialProvider.configure(
-   *   new StrictPolicy(stripe, plans),
-   *   new PlanEntitlements(plans),
-   *   new StripeMetering(stripe)
-   * )
+   * Deliberately all-or-nothing: a partial override would leave, say, a real
+   * plan resolver reporting a 1,000-email cap while a no-op quota let every
+   * message through, which reads as "enforcement is on" while enforcing
+   * nothing.
    */
-  static configure(policy: IPolicy, entitlements: IEntitlements, metering: IMetering): void {
-    this._policy = policy
-    this._entitlements = entitlements
+  static configure(plans: IPlanResolver, quota: IQuota, metering: IMetering): void {
+    this._plans = plans
+    this._quota = quota
     this._metering = metering
   }
 
-  /**
-   * Reset to uninitialized state (primarily for testing).
-   * Forces lazy-loading of defaults on next access.
-   */
+  /** Reset to uninitialised, so the next access lazily re-loads the defaults. */
   static reset(): void {
-    this._policy = undefined
-    this._entitlements = undefined
+    this._plans = undefined
+    this._quota = undefined
     this._metering = undefined
   }
 }

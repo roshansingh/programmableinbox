@@ -4,6 +4,7 @@ import { withConfigEnv } from '@/test/config'
 const inboxFindFirstMock = vi.fn()
 const inboxCreateMock = vi.fn()
 const inboxUpdateMock = vi.fn()
+const inboxCountMock = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -11,6 +12,7 @@ vi.mock('@/lib/db', () => ({
       findFirst: (...a: unknown[]) => inboxFindFirstMock(...a),
       create: (...a: unknown[]) => inboxCreateMock(...a),
       update: (...a: unknown[]) => inboxUpdateMock(...a),
+      count: (...a: unknown[]) => inboxCountMock(...a),
     },
   },
 }))
@@ -150,6 +152,105 @@ describe('createInbox', () => {
     const { createInbox } = await import('../email-inbox')
 
     await expect(createInbox(SCOPE, { email: ALLOWED })).rejects.toThrow('connection reset')
+  })
+
+  /**
+   * The cap lives in the service rather than in either route, for the same
+   * reason the address policy does: `/api/app/emailInbox` and
+   * `/api/v1/emailInbox` both create inboxes, and a check written in one route
+   * is a check the other silently skips.
+   */
+  describe('plan limit', () => {
+    async function withPlan(limits: { emailInboxes: number | null }) {
+      const { CommercialProvider } = await import('@/lib/commercial/provider')
+      const { UNLIMITED } = await import('@/lib/commercial/plan-limits')
+      CommercialProvider.configure(
+        {
+          resolve: async () => ({
+            planCode: 'free',
+            planName: 'Free',
+            limits: { ...UNLIMITED, ...limits },
+            periodStart: null,
+            periodEnd: null,
+          }),
+        },
+        CommercialProvider.quota,
+        CommercialProvider.metering,
+      )
+      return CommercialProvider
+    }
+
+    it('refuses with 402 once the organization is at its inbox limit', async () => {
+      const provider = await withPlan({ emailInboxes: 1 })
+      inboxCountMock.mockResolvedValue(1)
+      const { createInbox } = await import('../email-inbox')
+
+      const result = await createInbox(SCOPE, { email: ALLOWED })
+
+      expect(result.error?.status).toBe(402)
+      expect(result.error?.message).toMatch(/Free plan allows 1 email inbox/)
+      expect(inboxCreateMock).not.toHaveBeenCalled()
+      provider.reset()
+    })
+
+    it('counts only the organization, not the whole table', async () => {
+      const provider = await withPlan({ emailInboxes: 1 })
+      inboxCountMock.mockResolvedValue(0)
+      inboxFindFirstMock.mockResolvedValue(null)
+      inboxCreateMock.mockImplementation(({ data }: { data: unknown }) => ({ id: 'inbox_1', ...(data as object) }))
+      const { createInbox } = await import('../email-inbox')
+
+      await createInbox(SCOPE, { email: ALLOWED })
+
+      expect(inboxCountMock).toHaveBeenCalledWith({ where: { organizationId: 'org_1' } })
+      provider.reset()
+    })
+
+    it('creates normally when under the limit', async () => {
+      const provider = await withPlan({ emailInboxes: 2 })
+      inboxCountMock.mockResolvedValue(1)
+      inboxFindFirstMock.mockResolvedValue(null)
+      inboxCreateMock.mockImplementation(({ data }: { data: unknown }) => ({ id: 'inbox_1', ...(data as object) }))
+      const { createInbox } = await import('../email-inbox')
+
+      const result = await createInbox(SCOPE, { email: ALLOWED })
+
+      expect(result.inbox).toBeDefined()
+      provider.reset()
+    })
+
+    /**
+     * The OSS default. A self-hosted deployment must not run a COUNT on every
+     * inbox creation for a limit it does not have.
+     */
+    it('does not count at all under the unlimited default', async () => {
+      inboxCountMock.mockResolvedValue(0)
+      inboxFindFirstMock.mockResolvedValue(null)
+      inboxCreateMock.mockImplementation(({ data }: { data: unknown }) => ({ id: 'inbox_1', ...(data as object) }))
+      const { createInbox } = await import('../email-inbox')
+
+      const result = await createInbox(SCOPE, { email: ALLOWED })
+
+      expect(result.inbox).toBeDefined()
+      expect(inboxCountMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Ordering matters: the cap is about how many inboxes an organization
+     * holds, not about whether this particular address is legal. Judging the
+     * address first keeps a malformed request a 400 rather than reporting it
+     * as a billing problem.
+     */
+    it('reports a malformed address as 400, not as a plan denial', async () => {
+      const provider = await withPlan({ emailInboxes: 1 })
+      inboxCountMock.mockResolvedValue(5)
+      const { createInbox } = await import('../email-inbox')
+
+      const result = await createInbox(SCOPE, { email: 'not-an-address' })
+
+      expect(result.error?.status).toBe(400)
+      provider.reset()
+    })
   })
 })
 

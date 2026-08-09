@@ -61,6 +61,12 @@ model Organization {
   emailMessages EmailMessage[]
   automations   Automation[]
   automationRuns AutomationRun[]
+  /// Optional-singular rather than a list: `Subscription.organizationId` is
+  /// `@unique`, so one organization has at most one subscription. An org with
+  /// no row resolves to the `free` plan, which is what lets the flag be turned
+  /// on without backfilling every existing organization first.
+  subscription  Subscription?
+  usageCounters UsageCounter[]
 
   @@map("organizations")
 }
@@ -480,4 +486,93 @@ model BackupStatus {
   details       Json?
 
   @@map("backup_status")
+}
+
+/// A commercial plan (issue #117). Only read when `USE_COMMERCIAL=true`; a
+/// self-hosted deployment resolves every organization to unlimited limits
+/// without ever querying this table.
+model Plan {
+  /// Surrogate key. Never meaningful, never displayed, and never hardcoded in
+  /// application code — reference `code` instead. `SmallInt` because the row
+  /// count is a closed set of single digits.
+  id            Int      @id @default(autoincrement()) @db.SmallInt
+  /// Stable machine key: `self_hosted` | `free` | `pro`. The only plan
+  /// identifier application code, seeds and tests may reference. Changing it is
+  /// a deliberate breaking act, not a rename.
+  code          String   @unique
+  /// Display name. Free to change at any time — "Pro" to "Business" is a
+  /// one-field UPDATE that touches nothing else. Nothing keys off this.
+  name          String
+  /// Validated on read and on write by `PlanLimitsSchema`
+  /// (lib/commercial/plan-limits.ts). Prisma type-checks nothing here, so that
+  /// schema is the whole contract. `null` for a limit means unlimited —
+  /// `Infinity` does not survive JSON.
+  limits        Json
+  /// Unread until billing lands. Singular, so it cannot express monthly and
+  /// annual prices; revisit with Stripe.
+  stripePriceId String?
+  /// False hides a plan from any pricing or plan-picker UI. `self_hosted` is
+  /// not selectable on the hosted offering.
+  isPublic      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+/// One organization's current plan assignment. Exactly one row per
+/// organization, mutable in place — there is no history and no event log yet
+/// (issue #117 §9); adding either later is non-destructive.
+model Subscription {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @unique @db.Uuid
+  planId             Int      @db.SmallInt
+  /// `active` | `trialing` | `past_due` | `canceled`. Deliberately a String for
+  /// now rather than a Prisma enum, unlike Role/WebhookStatus — the value set
+  /// follows Stripe's and is not settled yet.
+  status             String
+  currentPeriodStart DateTime @db.Timestamptz(3)
+  currentPeriodEnd   DateTime @db.Timestamptz(3)
+  cancelAtPeriodEnd  Boolean  @default(false)
+  /// Stripe subscription id. Unread until billing lands; `@unique` so a
+  /// redelivered provider webhook is idempotent by constraint rather than by
+  /// application logic.
+  externalId         String?  @unique
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// No `onDelete`: the default `Restrict` is correct, so a plan with live
+  /// subscribers cannot be deleted out from under them.
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+/// Durable per-period usage, and the thing enforcement actually reads.
+///
+/// Postgres rather than Redis, deliberately: a dropped rate-limiter counter
+/// costs one extra request, a dropped quota counter is a billing error. The
+/// unique key is what makes check-and-consume a single atomic statement.
+model UsageCounter {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  /// A `QuotaMetric` (lib/commercial/interfaces.ts), e.g. `emails.processed`.
+  metric         String
+  periodStart    DateTime @db.Timestamptz(3)
+  periodEnd      DateTime @db.Timestamptz(3)
+  value          Int      @default(0)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// The atomic-consume key. Also the reason a plan change mid-period starts a
+  /// fresh counter: `periodStart` moves from calendar month to subscription
+  /// anniversary, so the upsert misses and creates a new row.
+  @@unique([organizationId, metric, periodStart])
+  @@index([organizationId, periodStart])
+  @@map("usage_counters")
 }

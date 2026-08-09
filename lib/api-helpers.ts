@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server'
+import type { PlanDenial } from '@/lib/commercial/enforce'
 
 export function jsonSuccess(data: unknown, status = 200) {
   return NextResponse.json({ data }, { status })
+}
+
+/**
+ * A plan cap refusal (issue #117 §6b).
+ *
+ * Deliberately a wider body than `jsonError`'s `{ message }`: the client needs
+ * `limit`, `used` and `planCode` to render an accurate upsell — "1 of 1 inboxes
+ * used, upgrade for more" — rather than a bare sentence. `message` keeps its
+ * usual place so any caller that only reads that field still works.
+ */
+export function jsonPlanDenial(denial: PlanDenial) {
+  const { message, status, ...detail } = denial
+  return NextResponse.json({ message, ...detail }, { status })
 }
 
 /**

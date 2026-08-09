@@ -7,8 +7,9 @@ title = "Programmable Inbox — secret scanning"
 useDefault = true
 
 # `sk_live_` is THIS application's API key prefix (lib/api-key-scopes.ts), not
-# Stripe's. Stripe is not a dependency (no package, no import, and `ENABLE_BILLING`
-# is an unwired flag), so every one of this rule's ~41 hits is a test fixture, and
+# Stripe's. Stripe is not a dependency (no package, no import, and `USE_COMMERCIAL`
+# gates plan enforcement only — `Plan.stripePriceId` is an unread column), so
+# every one of this rule's ~41 hits is a test fixture, and
 # the rule can never produce a true positive here. It is replaced below by
 # `programmable-inbox-api-key`, which matches the key format this app actually
 # mints. Re-enable this rule if Stripe is ever adopted.

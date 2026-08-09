@@ -28,12 +28,15 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
       return true
     }
 
-    const entitled = await CommercialProvider.entitlements.canUse({
-      organizationId: message.organizationId,
-      feature: 'llm_enrichment',
-    })
-    if (!entitled) {
-      console.log('[enrichMessage] skip: org not entitled', message.organizationId)
+    // A plan without LLM enrichment is a *settled* skip, not a transient one:
+    // retrying would produce the same answer forever, and the caller would
+    // never mark the step complete.
+    const plan = await CommercialProvider.plans.resolve(message.organizationId)
+    if (!plan.limits.llmEnrichment) {
+      console.log('[enrichMessage] skip: plan excludes llm enrichment', {
+        organizationId: message.organizationId,
+        planCode: plan.planCode,
+      })
       return true
     }
 

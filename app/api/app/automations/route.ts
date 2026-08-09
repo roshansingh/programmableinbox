@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db'
-import { jsonError, jsonSuccess } from '@/lib/api-helpers'
+import { jsonError, jsonSuccess, jsonPlanDenial } from '@/lib/api-helpers'
+import { checkResourceLimit } from '@/lib/commercial/enforce'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { withUser } from '@/lib/auth/with-auth'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
@@ -83,6 +85,24 @@ export const POST = withUser(async (request, principal) => {
   } catch {
     return jsonError('Invalid automation layout', 400)
   }
+
+  // Plan gates, after the config and layout are judged so a malformed
+  // automation stays a 400 rather than being reported as a billing problem.
+  const plan = await CommercialProvider.plans.resolve(scoped.organizationId)
+  if (!plan.limits.automationsEnabled) {
+    return jsonPlanDenial({
+      message: `Automations are not included in your ${plan.planName} plan.`,
+      status: 402,
+      limit: 0,
+      used: 0,
+      planCode: plan.planCode,
+    })
+  }
+
+  const denial = await checkResourceLimit(scoped.organizationId, 'automations', 'automation', () =>
+    prisma.automation.count({ where: { organizationId: scoped.organizationId } }),
+  )
+  if (denial) return jsonPlanDenial(denial)
 
   const created = await prisma.automation.create({
     data: {

@@ -10,6 +10,7 @@ import { parseInboxAddress } from '@/lib/email-address'
 import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-policy'
 import { INVALID_ADDRESS } from '@/lib/validation/inbox-policy-messages'
 import { isUniqueViolation } from '@/lib/api-helpers'
+import { checkResourceLimit } from '@/lib/commercial/enforce'
 import type { OrgScope, OwnerScope, InboxWriteScope, InboxDeleteScope } from './scope'
 
 type EmailInboxRow = Awaited<ReturnType<typeof prisma.emailInbox.create>>
@@ -177,7 +178,18 @@ const EMAIL_IMMUTABLE = 'The address of an inbox cannot be changed. Create a new
  * two surfaces cannot drift on what a given failure means — which is the whole
  * reason this logic moved out of the app route in the first place.
  */
-export type InboxWriteError = { message: string; status: number }
+/**
+ * `limit`/`used`/`planCode` are present only on a 402 from a plan cap
+ * (`PlanDenial`), and let a route forward an accurate upsell instead of a bare
+ * message.
+ */
+export type InboxWriteError = {
+  message: string
+  status: number
+  limit?: number
+  used?: number
+  planCode?: string
+}
 
 export type InboxWriteResult<T> = { inbox: T; error?: never } | { inbox?: never; error: InboxWriteError }
 
@@ -218,6 +230,20 @@ export async function createInbox(
 
   const nameViolation = validateInboxName(input.name)
   if (nameViolation) return { error: nameViolation }
+
+  // Plan cap (issue #117 §6c), after the address and name are judged: a
+  // malformed address is a 400 about the request, not a 402 about billing, and
+  // telling a caller who mistyped an address that they need to upgrade would be
+  // actively misleading.
+  //
+  // Counts live inboxes only — the soft-delete extension injects
+  // `deletedAt: null` into `count` automatically (lib/db-soft-delete.ts), so a
+  // deleted inbox frees a plan slot. It does not free the *address*: the row
+  // survives holding it and `EmailInbox.email` is globally unique.
+  const denial = await checkResourceLimit(organizationId, 'emailInboxes', 'email inbox', () =>
+    prisma.emailInbox.count({ where: { organizationId } }),
+  )
+  if (denial) return { error: denial }
 
   // Store the value the policy actually judged. Persisting the raw string while
   // validating the trimmed one lets `" "` through as a name that validated as
