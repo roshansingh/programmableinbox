@@ -201,7 +201,7 @@ export function CreateEmailDialog({ open, onOpenChange, organizationId, onSucces
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Create Disposable Email</DialogTitle>
+          <DialogTitle className="text-foreground">Create Email Inbox</DialogTitle>
           <DialogDescription>
             Generate a new temporary email address for receiving messages.
           </DialogDescription>

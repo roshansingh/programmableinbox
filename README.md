@@ -1,12 +1,13 @@
 # ProgrammableInbox
 
-**Disposable, programmable email inboxes with webhooks, automations, and agent access built in.**
+**A secondary inbox built for developers.**
 
-Claim an address, receive mail on it through a webhook in real time, thread and search messages,
-run automations against incoming mail, and read/manage it all from an API key or an
-[MCP](https://modelcontextprotocol.io) client like Claude Code or Cursor. Self-host it or use it
-as a library for building anything that needs a real, receivable email address on demand —
-signup flows, OTP capture, integration testing, agent workflows.
+Spin up a programmable email address in seconds. ProgrammableInbox receives, categorizes, and
+extracts every message — grab the OTP over an API, route mail with a rule, or read it in the UI.
+Open source and self-hostable, so your mail never leaves your infrastructure.
+
+It's also reachable from an [MCP](https://modelcontextprotocol.io) client like Claude Code or
+Cursor, so an agent can read the same inbox you can.
 
 Open source under [AGPL-3.0](LICENSE), with an optional commercial layer under [`ee/`](ee/).
 

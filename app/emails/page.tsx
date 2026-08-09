@@ -13,7 +13,7 @@ export default function EmailsPage() {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">Email Inboxes</h1>
             <p className="text-sm lg:text-base text-muted-foreground mt-2">
-              Manage all your disposable email addresses in one place
+              Manage all your programmable email addresses in one place
             </p>
           </div>
           <EmailsList />
