@@ -203,7 +203,7 @@ export function CreateEmailDialog({ open, onOpenChange, organizationId, onSucces
         <DialogHeader>
           <DialogTitle className="text-foreground">Create Email Inbox</DialogTitle>
           <DialogDescription>
-            Generate a new temporary email address for receiving messages.
+            Generate a new programmable email address for receiving messages.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

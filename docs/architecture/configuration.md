@@ -33,9 +33,8 @@ Four properties worth understanding before you add a new variable:
   `toJSON` (used by the logger), and `util.inspect` (used by `console.log`) all render
   `[redacted]`. The real value is reachable only via `.reveal()`.
 
-`.env.example` documents every variable's format, and a test fails if it drifts from the schema.
-See the root [README](../../README.md#environment-variables) for the list of required and
-optional variables.
+See [`.env.example`](../../.env.example) for the full list of required and optional variables and
+their formats — a test fails if it drifts from the schema.
 
 ## Client-visible config (`AppConfig`)
 

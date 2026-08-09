@@ -7,49 +7,71 @@ license itself.
 
 ## The pattern: an injected, swappable provider
 
-`lib/commercial/` defines the interfaces a commercial layer would implement, plus permissive
-no-op defaults that the open-source build ships with:
+`lib/commercial/` defines the plan/quota/metering engine's interfaces, plus the permissive
+no-op defaults an open-source, self-hosted build runs with. `ee/` holds the real, DB-backed
+implementations. Call sites in `lib/` and `app/` go through `CommercialProvider`, never through a
+concrete implementation, so the exact same code path runs whether or not `ee/` is present:
 
-| File | Role |
-|---|---|
-| `interfaces.ts` | `IPolicy`, `IEntitlements`, `IMetering` |
-| `provider.ts` | `CommercialProvider.configure(policy, entitlements, metering)` — the injection point |
-| `init.ts` | `initializeCommercial()` — reads config, wires a provider (or the OSS defaults) |
-| `oss/AllowAllPolicy.ts`, `oss/EnableAllEntitlements.ts`, `oss/NoopMetering.ts` | The OSS defaults — permit everything, meter nothing |
+| | OSS default (`lib/commercial/oss/`) | Commercial (`ee/`, wired from `ee/init.ts`) |
+|---|---|---|
+| `CommercialProvider.plans` (`IPlanResolver`) | `UnlimitedPlanResolver` — returns the `self_hosted` plan, never touches the database | `DbPlanResolver` — resolves `Subscription` → `Plan` from Postgres |
+| `CommercialProvider.quota` (`IQuota`) | `NoopQuota` — allows everything, counts nothing | `PostgresQuota` — atomic check-and-consume against a `usage_counters` table |
+| `CommercialProvider.metering` (`IMetering`) | `NoopMetering` — discards | still the OSS no-op today; billing telemetry has no consumer until Stripe lands |
 
-Call sites go through `CommercialProvider`, never through a concrete implementation, so the same
-code path works whether or not a commercial layer is present:
+`ee/init.ts` is called once at boot, from root `instrumentation.ts`. With `USE_COMMERCIAL=false`
+(the default) it returns immediately, without configuring anything — the OSS defaults stand and
+the `plans`, `subscriptions`, and `usage_counters` tables are never queried. **Deleting `ee/`
+removes the only caller of `CommercialProvider.configure()`**, which is what makes a stripped
+build unlimited by construction, not by a flag someone has to remember to set.
 
-```
-lib/llm/enrichment.ts → CommercialProvider.entitlements.canUse({ organizationId, feature: 'llm_enrichment' })
-```
+`USE_COMMERCIAL` replaced an earlier `ENABLE_BILLING` flag, deliberately without a compatibility
+alias — the old name described a narrower thing (payments) than the flag actually gates now, and
+a deployment still setting the old name fails `assertConfig()` naming the new variable, rather
+than silently starting with enforcement off.
 
-With no commercial layer configured, that call resolves to `EnableAllEntitlements`, which permits
-everything. That's the entire mechanism — a self-hosted, fully open-source build has no missing
-imports and no disabled code paths; it just always gets the permissive answer.
+## What's actually enforced
 
-## Why `ee/`, not a separate repo
+Two different enforcement shapes, because they need different guarantees:
 
-Keeping commercial code in a directory inside this repository — rather than a downstream fork
-that merges from upstream, or a second repo that imports this one as a package — avoids a merge
-tax that scales with how far the two codebases drift. The pattern (sometimes called an
-**additive overlay**) has one invariant: commercial code only *adds* files, it never edits a file
-that also exists in the open-source tree. `CommercialProvider.configure(...)` is that one edit
-point, and it's already in place — a commercial layer plugs into it without touching anything
-else in `lib/` or `app/`.
+- **Count caps** (`checkResourceLimit`, `lib/commercial/enforce.ts`) — gate *creation*: "you may
+  have at most N inboxes / API keys / webhooks / automations / members." A create-time predicate
+  only — an organization already over its limit when `USE_COMMERCIAL` is switched on keeps every
+  existing resource working; only the *next* create is refused. It's advisory against
+  concurrency (two simultaneous creates can both land under the same cap), which is an accepted
+  trade-off: the window is milliseconds and the harm is one extra row.
+- **Per-period meters** (`IQuota.consume` / `refund` / `peek` / `peekMany`) — for metrics like
+  `emails.processed`, `llm.enrichments`, or `api.requests` that accumulate over a billing period.
+  These *are* atomic — a single conditional statement against the store, because a
+  read-then-write here would let concurrent inbound mail overshoot the cap. `refund` exists so a
+  duplicate webhook delivery (rejected by the `(externalId, inboxEmailAddressId)` unique
+  constraint) doesn't burn an organization's allowance for work that never actually happened.
 
-If you're looking for the fuller reasoning behind this choice (why not a fork, why not a separate
-package, what other open-core products do here), see `reports/oss-saas-strategy.md` if it's
-present in your checkout — that analysis isn't shipped as part of the public docs.
+Both paths read `Plan.limits`, a Prisma `Json` column validated end-to-end by `PlanLimitsSchema`
+(`lib/commercial/plan-limits.ts`) — the schema is the entire contract, since Prisma type-checks
+nothing about JSON column contents. Two things about it matter for anyone adding a limit:
 
-## Current state
+- **`null` means unlimited; `0` is a real limit meaning "none allowed."** The two must stay
+  distinguishable, so enforcement never treats an unset limit as a hard zero.
+- **New fields default permissively.** Adding a key to the schema must not retroactively enforce
+  a limit no one chose on every already-seeded `Plan` row; the one exception is
+  `overQuotaBehavior`, which defaults to `overage` (allow and keep counting) rather than `drop`
+  (discard permanently) for the same reason — a default must never be the irreversible choice.
 
-As of this writing, the seam is built but mostly unwired: `IPolicy.check()` and
-`IMetering.record()` have no production callers yet, and there's no billing code or Stripe
-integration in this repository. `ENABLE_BILLING` exists as a config flag but doesn't gate any
-behavior — it only selects which line gets logged at startup. Treat `lib/commercial/` as the
-contract a future commercial layer will implement, not as a feature that's live today.
+A refused create returns `402 Payment Required` — not `403` (already used for authorization) or
+`429` (already used for rate limiting) — carrying `limit`, `used`, and `planCode` so the client
+can render an accurate upsell instead of a bare error.
+
+## What the client sees
+
+- **Plan limits** ride `organizations[]` on `GET /api/app/auth/me`, via
+  `resolveOrganizationPlans()` (`lib/commercial/org-plan.ts`) — deliberately *not* on `AppConfig`,
+  which is deployment-scoped and identical for every user, whereas a plan is tenant-scoped. With
+  `USE_COMMERCIAL` off this resolves to an empty map at no per-membership cost, which the client
+  reads as "no restrictions."
+- **Live usage** is a separate, polled endpoint, `GET /api/app/usage` — plan limits change rarely
+  and are fine to cache with the session; usage changes constantly and would go stale immediately
+  if it rode the same fetch.
 
 ## Related
 
-- [configuration.md](configuration.md) — where `ENABLE_BILLING` and other flags are validated
+- [configuration.md](configuration.md) — where `USE_COMMERCIAL` and other flags are validated
