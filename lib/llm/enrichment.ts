@@ -65,25 +65,25 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
     }
 
     console.log('[enrichMessage] calling provider.enrich', messageId)
-    let result
     try {
-      result = await provider.enrich(message.subject, message.text)
+      const result = await provider.enrich(message.subject, message.text)
+      console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
+      await prisma.emailMessage.update({
+        where: { id: messageId },
+        data: {
+          categories: result.categories,
+          extractedOtp: result.extractedOtp ?? null,
+          metadata: result.metadata,
+        },
+      })
     } catch (error) {
-      // The provider call is the billable part. Returning the unit keeps a
-      // provider outage from draining the allowance while producing nothing —
-      // and from draining it again on every retry.
+      // The unit isn't earned until the result is actually persisted: if the
+      // provider call succeeds but the update below fails, metadata stays
+      // null, so a retry would call the (billable) provider again for the
+      // same message unless this refunds the first attempt too.
       await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1)
       throw error
     }
-    console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
-    await prisma.emailMessage.update({
-      where: { id: messageId },
-      data: {
-        categories: result.categories,
-        extractedOtp: result.extractedOtp ?? null,
-        metadata: result.metadata,
-      },
-    })
     return true
   } catch (error) {
     // console.error intentional: pino transport may be unavailable when this fires

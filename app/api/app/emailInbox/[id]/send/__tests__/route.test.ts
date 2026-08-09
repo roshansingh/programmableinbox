@@ -149,6 +149,42 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1)
   })
 
+  /**
+   * Distinct from the Resend-rejection case above: here the SDK call itself
+   * throws (network/DNS/timeout) instead of resolving with `{ error }`, so
+   * there is no evidence the send happened. The generic catch used to swallow
+   * this without refunding, letting a Resend outage burn the org's send quota
+   * for messages that were never sent.
+   */
+  it('refunds the unit when the Resend SDK call itself throws', async () => {
+    const { refund } = await configurePlan({ outboundEmail: true })
+    sendMock.mockRejectedValue(new Error('socket hang up'))
+    const { POST } = await loadRoute()
+
+    const response = await POST(makeRequest() as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(500)
+    expect(refund).toHaveBeenCalledWith('org_1', 'emails.sent', 1)
+  })
+
+  /**
+   * Once Resend has accepted the send, the unit is spent for real — "there is
+   * no un-sending on a later failure" (see the comment above the consume
+   * call). A DB write failure after that point must not refund, or an
+   * organization could send unlimited email for free by inducing DB errors.
+   */
+  it('does not refund when a post-send database write fails', async () => {
+    const { refund } = await configurePlan({ outboundEmail: true })
+    messageCreateMock.mockRejectedValue(new Error('connection reset'))
+    const { POST } = await loadRoute()
+
+    const response = await POST(makeRequest() as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(500)
+    expect(sendMock).toHaveBeenCalled()
+    expect(refund).not.toHaveBeenCalled()
+  })
+
   it('does not consult a plan for an inbox the caller does not own', async () => {
     const { consume } = await configurePlan({ outboundEmail: false })
     inboxFindFirstMock.mockResolvedValue(null)

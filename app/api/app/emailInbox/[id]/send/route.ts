@@ -66,16 +66,29 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     if (inReplyTo) emailHeaders['In-Reply-To'] = inReplyTo
     if (references) emailHeaders['References'] = references
 
-    const { data, error } = await getResend().emails.send({
-      from: inbox.email,
-      to,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
-      subject,
-      text: text || undefined,
-      html: html || undefined,
-      headers: Object.keys(emailHeaders).length > 0 ? emailHeaders : undefined,
-    })
+    let sendResult
+    try {
+      sendResult = await getResend().emails.send({
+        from: inbox.email,
+        to,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
+        subject,
+        text: text || undefined,
+        html: html || undefined,
+        headers: Object.keys(emailHeaders).length > 0 ? emailHeaders : undefined,
+      })
+    } catch (sendError) {
+      // The SDK call itself threw rather than resolving with { error }, so
+      // there is no confirmation Resend ever received the request — refund,
+      // same as an explicit rejection below. Once it *has* resolved, the unit
+      // is spent for real ("no un-sending on a later failure"), so nothing
+      // past this point refunds on failure.
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1)
+      logger.error({ inboxId: id, error: sendError }, 'Resend send threw')
+      return jsonError('Failed to send email', 500)
+    }
+    const { data, error } = sendResult
 
     if (error) {
       // Resend rejected it, so nothing left the building — give the unit back

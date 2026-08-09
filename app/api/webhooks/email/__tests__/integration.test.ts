@@ -60,6 +60,7 @@ vi.mock('resend', () => ({
 const inboxFindManyMock = vi.fn();
 const messageCreateMock = vi.fn();
 const messageFindFirstMock = vi.fn().mockResolvedValue(null); // no parent thread
+const emailAttachmentCreateManyMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -71,7 +72,7 @@ vi.mock('@/lib/db', () => ({
       findFirst: (...args: unknown[]) => messageFindFirstMock(...args),
     },
     emailAttachment: {
-      createMany: vi.fn().mockResolvedValue(undefined),
+      createMany: (...args: unknown[]) => emailAttachmentCreateManyMock(...args),
     },
   },
 }));
@@ -179,7 +180,7 @@ async function loadRoute() {
         findFirst: (...args: unknown[]) => messageFindFirstMock(...args),
       },
       emailAttachment: {
-        createMany: vi.fn().mockResolvedValue(undefined),
+        createMany: (...args: unknown[]) => emailAttachmentCreateManyMock(...args),
       },
     },
   }));
@@ -213,6 +214,7 @@ describe('Webhook Email Processing — Integration', () => {
     // Default: emailMessage.create succeeds with a stub message.
     messageCreateMock.mockResolvedValue({ id: 'msg_default', organizationId: 'org_1' });
     messageFindFirstMock.mockResolvedValue(null); // no existing thread parent
+    emailAttachmentCreateManyMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -935,6 +937,60 @@ describe('Webhook Email Processing — Integration', () => {
       await POST(makeWebhookRequest(emailReceivedBody('em_q6')) as any);
 
       expect(refund).toHaveBeenCalledWith('org_q', 'emails.processed', 1);
+    });
+
+    /**
+     * The message row is already committed by the time the attachment insert
+     * runs. Refunding here would decrement usage for mail that is fully
+     * stored and visible in the dashboard, letting an org receive one more
+     * message than its plan allows.
+     */
+    it('does not refund emails.processed when only the attachment insert fails', async () => {
+      const { POST } = await loadRoute();
+      const { refund } = await configureQuota(true);
+      const inbox = { id: 'inbox_q9', email: 'q9@example.com', organizationId: 'org_q' };
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({
+          to: ['q9@example.com'],
+          attachments: [{ filename: 'invoice.pdf', content_type: 'application/pdf', size: 100 }],
+        }),
+      });
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_q9', organizationId: 'org_q' });
+      emailAttachmentCreateManyMock.mockRejectedValueOnce(new Error('connection reset'));
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q9')) as any);
+
+      expect(messageCreateMock).toHaveBeenCalledTimes(1);
+      expect(refund).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The message itself stored successfully, so automations must still run
+     * for it — an attachment failure is a partial-write problem, not a reason
+     * to treat the email as never having arrived.
+     */
+    it('still dispatches automations when only the attachment insert fails', async () => {
+      const { POST } = await loadRoute();
+      await configureQuota(true);
+      const inbox = { id: 'inbox_q10', email: 'q10@example.com', organizationId: 'org_q' };
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({
+          to: ['q10@example.com'],
+          attachments: [{ filename: 'invoice.pdf', content_type: 'application/pdf', size: 100 }],
+        }),
+      });
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_q10', organizationId: 'org_q' });
+      emailAttachmentCreateManyMock.mockRejectedValueOnce(new Error('connection reset'));
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_q10')) as any);
+
+      expect(dispatchAutomationsForEmailMock).toHaveBeenCalledWith('msg_q10');
     });
 
     /**

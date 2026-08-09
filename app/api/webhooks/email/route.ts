@@ -215,11 +215,12 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       continue
     }
 
+    let message
     try {
       const messageId = crypto.randomUUID()
       const threading = await determineThreading(resendEmail, messageId, inbox.id)
 
-      const message = await prisma.emailMessage.create({
+      message = await prisma.emailMessage.create({
         data: {
           id: messageId,
           from: resendEmail.from,
@@ -247,19 +248,6 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           references: threading.references,
         },
       })
-
-      if (resendEmail.attachments?.length) {
-        await prisma.emailAttachment.createMany({
-          data: resendEmail.attachments.map((attachment) => ({
-            emailMessageId: message.id,
-            filename: attachment.filename || 'attachment',
-            contentType: attachment.content_type || null,
-            sizeBytes: attachment.size || null,
-          })),
-        })
-      }
-
-      created.push(message)
     } catch (error: any) {
       // Skip duplicates. A retried delivery of the same email deterministically
       // reproduces both the (externalId, inboxEmailAddressId) unique key and the
@@ -281,7 +269,28 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       // Resend's retry of the same message would charge again.
       await CommercialProvider.quota.refund(inbox.organizationId, 'emails.processed', 1)
       logger.error({ error, inboxEmail: inbox.email }, 'Failed to store email for inbox')
+      continue
     }
+
+    if (resendEmail.attachments?.length) {
+      try {
+        await prisma.emailAttachment.createMany({
+          data: resendEmail.attachments.map((attachment) => ({
+            emailMessageId: message.id,
+            filename: attachment.filename || 'attachment',
+            contentType: attachment.content_type || null,
+            sizeBytes: attachment.size || null,
+          })),
+        })
+      } catch (error) {
+        // The message row is already committed at this point, so the
+        // organization has genuinely received it — no refund. Log and move on
+        // rather than losing the message over an attachment-only failure.
+        logger.error({ error, inboxEmail: inbox.email, messageId: message.id }, 'Failed to store attachments for email message')
+      }
+    }
+
+    created.push(message)
   }
 
   return created

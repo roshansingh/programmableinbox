@@ -176,6 +176,11 @@ async function executeSendWebhook(
       body: payload,
     })
   } catch (error) {
+    // Nothing was delivered — SSRF-blocked destinations never leave the
+    // server, and any other transport error means the attempt did not
+    // succeed either. Give the unit back rather than charging for a delivery
+    // that never happened.
+    await CommercialProvider.quota.refund(context.input.organizationId, 'webhook.deliveries', 1)
     if (error instanceof SsrfBlockedError) {
       // A blocked destination is a configuration problem, not an infrastructure
       // failure — report it as a failed action rather than throwing, so the run
@@ -194,6 +199,10 @@ async function executeSendWebhook(
   }
 
   if (!response.ok) {
+    // The request reached the destination, but it rejected delivery — same as
+    // Resend returning an error for an outbound email, that's not a spent
+    // unit.
+    await CommercialProvider.quota.refund(context.input.organizationId, 'webhook.deliveries', 1)
     return {
       status: 'failed',
       error: {

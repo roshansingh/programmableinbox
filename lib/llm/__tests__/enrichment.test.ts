@@ -133,6 +133,22 @@ describe('enrichMessage', () => {
     expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
   })
 
+  /**
+   * The provider call already happened and was billed. If persisting the
+   * result then fails, metadata stays null, so the caller's retry re-runs
+   * provider.enrich() and would consume a second unit for the same message
+   * unless this failure also refunds the first one.
+   */
+  it('refunds the unit when the DB write after a successful enrich fails', async () => {
+    const { CommercialProvider } = await import('@/lib/commercial/provider')
+    mockUpdate.mockRejectedValue(new Error('connection reset'))
+    const { enrichMessage } = await import('../enrichment')
+
+    await expect(enrichMessage('msg-1')).resolves.toBe(false)
+
+    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1)
+  })
+
   it('skips when metadata is already set (idempotency)', async () => {
     mockFindUnique.mockResolvedValue({
       id: 'msg-1', subject: 'Re', text: 'body', metadata: {}, organizationId: 'org-1',
