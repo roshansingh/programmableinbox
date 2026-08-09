@@ -42,6 +42,43 @@ export interface AuthResponse {
 /**
  * Organization information
  */
+/**
+ * The plan limits the browser is allowed to see (issue #117 §7b).
+ *
+ * A partial mirror of the server's `PlanLimits`: only the keys the UI actually
+ * branches on. `null` means unlimited — never zero, which is a real limit
+ * meaning "none allowed".
+ */
+export interface PlanLimits {
+  emailInboxes: number | null
+  phoneInboxes: number | null
+  apiKeys: number | null
+  webhooks: number | null
+  automations: number | null
+  incomingEmailsPerPeriod: number | null
+  outboundEmailsPerPeriod: number | null
+  outboundEmail: boolean
+  llmEnrichment: boolean
+  automationsEnabled: boolean
+  phoneInboxesEnabled: boolean
+  overQuotaBehavior: 'drop' | 'overage'
+  // Deliberately no index signature. The server sends more keys than these, and
+  // TypeScript accepts extra properties on a value it receives — an index
+  // signature is not needed to tolerate them, and adding one would make every
+  // typo (`plan.limits.emailInboxs`) a valid access that silently reads
+  // undefined.
+}
+
+/**
+ * Present only when the deployment runs with `USE_COMMERCIAL=true`. Its absence
+ * is the self-hosted case and must read as "no plan restrictions".
+ */
+export interface OrganizationPlan {
+  code: string
+  name: string
+  limits: PlanLimits
+}
+
 export interface Organization {
   id: string
   name: string
@@ -49,6 +86,12 @@ export interface Organization {
   role: string
   createdAt: string
   updatedAt: string
+  /**
+   * Per-organization, alongside `role`, rather than on `config` — a plan is
+   * tenant-scoped and `AppConfig` is deployment-scoped, so there is no correct
+   * single value for a user in two organizations.
+   */
+  plan?: OrganizationPlan
 }
 
 /**

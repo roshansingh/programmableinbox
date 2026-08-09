@@ -31,6 +31,13 @@ export class NoopQuota implements IQuota {
     return NoopQuota.ALLOWED
   }
 
+  async peekMany(
+    _organizationId: string,
+    metrics: QuotaMetric[],
+  ): Promise<Map<QuotaMetric, QuotaResult>> {
+    return new Map(metrics.map((metric) => [metric, NoopQuota.ALLOWED]))
+  }
+
   async increment(_organizationId: string, _metric: QuotaMetric, _quantity: number): Promise<void> {
     // Report-only counters are not kept when nothing is enforced.
   }

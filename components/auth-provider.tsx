@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { getCurrentUser, type User, type AppConfig } from "@/lib/api/auth.api"
+import { getCurrentUser, type User, type AppConfig, type OrganizationPlan } from "@/lib/api/auth.api"
 import { isPublicPath, SESSION_FETCH_SKIPPED_ROUTES } from "@/lib/auth/public-routes"
 
 interface AuthContextValue {
@@ -15,6 +15,15 @@ interface AuthContextValue {
    * that as "this feature is unavailable" rather than "no restrictions".
    */
   config: AppConfig
+  /**
+   * The current organization's plan (issue #117 §7b), or `null` when the
+   * deployment runs without `USE_COMMERCIAL`.
+   *
+   * **Null means "no plan restrictions", not "no access."** A self-hosted
+   * install never sends this, so every consumer must treat its absence as
+   * unlimited — the opposite of `config`, where empty is fail-closed.
+   */
+  plan: OrganizationPlan | null
   isLoading: boolean
   isAuthenticated: boolean
   refreshUser: () => Promise<void>
@@ -46,6 +55,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const organizationId = user?.organizations?.[0]?.id ?? null
   const config = user?.config ?? EMPTY_CONFIG
+  // Same `[0]` as organizationId above: one organization per user is the
+  // working assumption for the client. The server never relies on it —
+  // enforcement always resolves a concrete organization — so a future org
+  // switcher is a UI change, not a migration.
+  const plan = user?.organizations?.[0]?.plan ?? null
 
   // Narrower than AuthGuard's gate: this decides whether `/auth/me` is called
   // at all, and `/auth/verify` needs the session it would otherwise skip.
@@ -74,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isPublicRoute])
 
   return (
-    <AuthContext.Provider value={{ user, organizationId, config, isLoading, isAuthenticated, refreshUser }}>
+    <AuthContext.Provider value={{ user, organizationId, config, plan, isLoading, isAuthenticated, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,6 +1,7 @@
 import 'server-only'
 import { NextRequest } from 'next/server'
-import { jsonError } from '@/lib/api-helpers'
+import { jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { config } from '@/lib/config'
 import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
@@ -137,6 +138,40 @@ export function withApiKey<P = Record<string, never>>(
     const missing = options.scopes.filter((scope) => !held.has(scope))
     if (missing.length > 0) {
       return jsonError(`Missing required scope: ${missing.join(', ')}`, 403)
+    }
+
+    // Plan gate (issue #117 §6b). After scopes, so a request that is not
+    // authorized still answers 403 rather than 402 — a plan limit must never
+    // be the thing that reveals a scope was missing.
+    //
+    // A key is always bound to exactly one organization, so no ambiguity here.
+    const plan = await CommercialProvider.plans.resolve(principal.organizationId)
+    if (!plan.limits.apiV1Access) {
+      return jsonPlanDenial({
+        message: `API access is not included in your ${plan.planName} plan.`,
+        status: 402,
+        limit: 0,
+        used: 0,
+        planCode: plan.planCode,
+      })
+    }
+
+    // The plan resolved above is passed through: without it the quota resolves
+    // it a second time, doubling the lookups on every external API request.
+    const quota = await CommercialProvider.quota.consume(
+      principal.organizationId,
+      'api.requests',
+      1,
+      plan,
+    )
+    if (!quota.allowed) {
+      return jsonPlanDenial({
+        message: `You have reached your ${plan.planName} plan's API request limit.`,
+        status: 402,
+        limit: quota.limit ?? 0,
+        used: quota.used,
+        planCode: plan.planCode,
+      })
     }
 
     return handler(request, principal, context)

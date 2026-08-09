@@ -45,17 +45,46 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
       return true
     }
 
+    // Metered after the idempotency check, so a re-run over an already-enriched
+    // message costs nothing. Exhausting the meter is a *settled* skip like the
+    // feature switch above: retrying would give the same answer until the
+    // period rolls over, so the caller must mark the step done rather than
+    // re-queue it indefinitely.
+    const quota = await CommercialProvider.quota.consume(
+      message.organizationId,
+      'llm.enrichments',
+      1,
+      plan,
+    )
+    if (!quota.allowed) {
+      console.log('[enrichMessage] skip: enrichment quota exhausted', {
+        organizationId: message.organizationId,
+        limit: quota.limit,
+        used: quota.used,
+      })
+      return true
+    }
+
     console.log('[enrichMessage] calling provider.enrich', messageId)
-    const result = await provider.enrich(message.subject, message.text)
-    console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
-    await prisma.emailMessage.update({
-      where: { id: messageId },
-      data: {
-        categories: result.categories,
-        extractedOtp: result.extractedOtp ?? null,
-        metadata: result.metadata,
-      },
-    })
+    try {
+      const result = await provider.enrich(message.subject, message.text)
+      console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
+      await prisma.emailMessage.update({
+        where: { id: messageId },
+        data: {
+          categories: result.categories,
+          extractedOtp: result.extractedOtp ?? null,
+          metadata: result.metadata,
+        },
+      })
+    } catch (error) {
+      // The unit isn't earned until the result is actually persisted: if the
+      // provider call succeeds but the update below fails, metadata stays
+      // null, so a retry would call the (billable) provider again for the
+      // same message unless this refunds the first attempt too.
+      await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1, plan)
+      throw error
+    }
     return true
   } catch (error) {
     // console.error intentional: pino transport may be unavailable when this fires

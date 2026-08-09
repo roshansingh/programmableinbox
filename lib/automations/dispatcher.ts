@@ -2,6 +2,7 @@ import { AutomationRunStatus } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { executeAutomation } from './executor'
 import { parseAutomationConfig } from './serialization'
+import { CommercialProvider } from '@/lib/commercial/provider'
 
 async function loadMessageContext(messageId: string) {
   return prisma.emailMessage.findUnique({
@@ -16,6 +17,11 @@ async function loadMessageContext(messageId: string) {
 export async function dispatchAutomationsForEmail(messageId: string) {
   const message = await loadMessageContext(messageId)
   if (!message) return []
+
+  // Before the automation query, not after: a plan without automations should
+  // not pay to look them up on every inbound message.
+  const plan = await CommercialProvider.plans.resolve(message.organizationId)
+  if (!plan.limits.automationsEnabled) return []
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -39,6 +45,18 @@ export async function dispatchAutomationsForEmail(messageId: string) {
 
   const results = []
   for (const entry of sorted) {
+    // Metered per automation rather than per message: one inbound email can
+    // trigger several, and each is a separate unit of work. Consuming here
+    // rather than inside the executor keeps the meter next to the decision to
+    // run, so a plan that runs out mid-fan-out stops cleanly.
+    const quota = await CommercialProvider.quota.consume(
+      message.organizationId,
+      'automation.runs',
+      1,
+      plan,
+    )
+    if (!quota.allowed) break
+
     const result = await executeAutomation({
       automation: entry.automation,
       revision: entry.automation.activeRevision!,

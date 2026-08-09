@@ -4,6 +4,7 @@ import type {
   IQuota,
   QuotaMetric,
   QuotaResult,
+  ResolvedPlan,
 } from '@/lib/commercial/interfaces'
 import type { PlanLimits } from '@/lib/commercial/plan-limits'
 
@@ -52,8 +53,9 @@ export class PostgresQuota implements IQuota {
     organizationId: string,
     metric: QuotaMetric,
     quantity: number,
+    resolved?: ResolvedPlan,
   ): Promise<QuotaResult> {
-    const plan = await this.plans.resolve(organizationId)
+    const plan = resolved ?? (await this.plans.resolve(organizationId))
     const limit = limitFor(plan.limits, metric)
     const { periodStart, periodEnd } = this.period(plan)
 
@@ -73,8 +75,13 @@ export class PostgresQuota implements IQuota {
     return { allowed: true, limit, used: rows[0].value, resetsAt: periodEnd }
   }
 
-  async refund(organizationId: string, metric: QuotaMetric, quantity: number): Promise<void> {
-    const plan = await this.plans.resolve(organizationId)
+  async refund(
+    organizationId: string,
+    metric: QuotaMetric,
+    quantity: number,
+    resolved?: ResolvedPlan,
+  ): Promise<void> {
+    const plan = resolved ?? (await this.plans.resolve(organizationId))
     const { periodStart } = this.period(plan)
 
     // `GREATEST(..., 0)` because a refund must never drive a counter negative:
@@ -89,8 +96,12 @@ export class PostgresQuota implements IQuota {
     `
   }
 
-  async peek(organizationId: string, metric: QuotaMetric): Promise<QuotaResult> {
-    const plan = await this.plans.resolve(organizationId)
+  async peek(
+    organizationId: string,
+    metric: QuotaMetric,
+    resolved?: ResolvedPlan,
+  ): Promise<QuotaResult> {
+    const plan = resolved ?? (await this.plans.resolve(organizationId))
     const limit = limitFor(plan.limits, metric)
     const { periodStart, periodEnd } = this.period(plan)
 
@@ -105,12 +116,52 @@ export class PostgresQuota implements IQuota {
     return { allowed: limit === null || used < limit, limit, used, resetsAt: periodEnd }
   }
 
+  /**
+   * One statement for every metric the usage dashboard reports.
+   *
+   * A loop over `peek` would be seven round trips *and* seven plan resolutions
+   * per poll, per open tab. The plan is resolved once and the counters come
+   * back in a single indexed read on `(organizationId, periodStart)`.
+   */
+  async peekMany(
+    organizationId: string,
+    metrics: QuotaMetric[],
+    resolved?: ResolvedPlan,
+  ): Promise<Map<QuotaMetric, QuotaResult>> {
+    const plan = resolved ?? (await this.plans.resolve(organizationId))
+    const { periodStart, periodEnd } = this.period(plan)
+
+    const rows = await prisma.$queryRaw<{ metric: string; value: number }[]>`
+      SELECT "metric", "value" FROM "usage_counters"
+       WHERE "organizationId" = ${organizationId}::uuid
+         AND "periodStart" = ${periodStart}
+         AND "metric" = ANY(${metrics})
+    `
+
+    const counts = new Map(rows.map((row) => [row.metric, row.value]))
+
+    // Built from the requested list, not from the rows: a metric never counted
+    // this period has no row at all, and must read as zero rather than being
+    // missing from the response.
+    return new Map(
+      metrics.map((metric) => {
+        const limit = limitFor(plan.limits, metric)
+        const used = counts.get(metric) ?? 0
+        return [
+          metric,
+          { allowed: limit === null || used < limit, limit, used, resetsAt: periodEnd },
+        ]
+      }),
+    )
+  }
+
   async increment(
     organizationId: string,
     metric: QuotaMetric,
     quantity: number,
+    resolved?: ResolvedPlan,
   ): Promise<void> {
-    const plan = await this.plans.resolve(organizationId)
+    const plan = resolved ?? (await this.plans.resolve(organizationId))
     const { periodStart, periodEnd } = this.period(plan)
     await this.upsertUnguarded(organizationId, metric, periodStart, periodEnd, quantity)
   }

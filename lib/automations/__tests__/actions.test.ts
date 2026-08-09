@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActionNodeConfig, EmailAutomationInput } from '@/lib/automations/types'
 
 const { safeFetchMock } = vi.hoisted(() => ({ safeFetchMock: vi.fn() }))
@@ -63,6 +63,38 @@ beforeEach(() => {
   safeFetchMock.mockReset()
 })
 
+afterEach(async () => {
+  const { CommercialProvider } = await import('@/lib/commercial/provider')
+  CommercialProvider.reset()
+})
+
+/**
+ * Installs a quota that allows delivery and spies on consume/refund, so
+ * refund tests don't depend on the OSS NoopQuota default (which discards
+ * every call and can't be asserted against).
+ */
+async function configureWebhookQuota() {
+  const { CommercialProvider } = await import('@/lib/commercial/provider')
+  const { UNLIMITED } = await import('@/lib/commercial/plan-limits')
+  const consume = vi.fn().mockResolvedValue({ allowed: true, limit: null, used: 0, resetsAt: null })
+  const refund = vi.fn().mockResolvedValue(undefined)
+
+  CommercialProvider.configure(
+    {
+      resolve: async () => ({
+        planCode: 'self_hosted',
+        planName: 'Self-hosted',
+        limits: { ...UNLIMITED, outboundWebhooks: true },
+        periodStart: null,
+        periodEnd: null,
+      }),
+    },
+    { consume, refund, peek: vi.fn(), increment: vi.fn() },
+    CommercialProvider.metering,
+  )
+  return { consume, refund }
+}
+
 describe('executeSendWebhook — SSRF guard (#39)', () => {
   it('routes the request through the SSRF guard rather than global fetch', async () => {
     const fetchSpy = vi.fn()
@@ -123,6 +155,43 @@ describe('executeSendWebhook — SSRF guard (#39)', () => {
     expect(Object.keys(result.error ?? {})).not.toContain('body')
   })
 
+  /**
+   * webhook.deliveries is consumed before the guarded fetch, since the unit
+   * has to be reserved before a tenant-controlled URL is touched at all. None
+   * of the three ways delivery can fail to actually happen were refunding it.
+   */
+  it('refunds webhook.deliveries on a non-2xx response', async () => {
+    const { consume, refund } = await configureWebhookQuota()
+    safeFetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      finalUrl: 'https://hooks.example.com/webhook',
+      redirects: 0,
+    })
+
+    const result = await executeActionNode(webhookNode(), context)
+
+    expect(result.status).toBe('failed')
+    expect(consume).toHaveBeenCalledWith('org-1', 'webhook.deliveries', 1)
+    expect(refund).toHaveBeenCalledWith('org-1', 'webhook.deliveries', 1)
+  })
+
+  it('refunds webhook.deliveries when the destination is SSRF-blocked', async () => {
+    const { refund } = await configureWebhookQuota()
+    const { safeFetch: realSafeFetch } =
+      await vi.importActual<typeof import('@/lib/security/ssrf-guard')>('@/lib/security/ssrf-guard')
+    safeFetchMock.mockImplementation(realSafeFetch)
+
+    const result = await executeActionNode(
+      webhookNode({ url: 'http://127.0.0.1:6379/' }),
+      context
+    )
+
+    expect(result.status).toBe('failed')
+    expect(refund).toHaveBeenCalledWith('org-1', 'webhook.deliveries', 1)
+  })
+
   it.each([
     'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
     'http://127.0.0.1:6379/',
@@ -147,9 +216,12 @@ describe('executeSendWebhook — SSRF guard (#39)', () => {
     expect(Object.keys(result.error ?? {}).sort()).toEqual(['code', 'detail', 'host', 'reason'])
   })
 
-  it('propagates non-SSRF transport errors so the run records a real failure', async () => {
+  it('refunds webhook.deliveries and still propagates non-SSRF transport errors', async () => {
+    const { refund } = await configureWebhookQuota()
     safeFetchMock.mockRejectedValue(new Error('socket hang up'))
+
     await expect(executeActionNode(webhookNode(), context)).rejects.toThrow('socket hang up')
+    expect(refund).toHaveBeenCalledWith('org-1', 'webhook.deliveries', 1)
   })
 
   it('still short-circuits on a dry run without touching the network', async () => {

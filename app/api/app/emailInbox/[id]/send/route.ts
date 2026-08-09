@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
 import { toOwnerScope } from '@/lib/services/scope'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
 import logger from '@/lib/logger'
@@ -31,23 +32,68 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     return jsonError('Message body (text or html) is required', 400)
   }
 
+  // The third outbound path, alongside `forward_email` and `auto_reply`
+  // (issue #117 §6b). One switch covers all three: gating only the automated
+  // ones would leave a free account able to send from a domain we own simply by
+  // using the dashboard.
+  const plan = await CommercialProvider.plans.resolve(inbox.organizationId)
+  if (!plan.limits.outboundEmail) {
+    return jsonPlanDenial({
+      message: `Sending email is not included in your ${plan.planName} plan.`,
+      status: 402,
+      limit: 0,
+      used: 0,
+      planCode: plan.planCode,
+    })
+  }
+
+  // Metered separately from the feature switch: a plan may allow sending and
+  // still cap how much. Consumed before the send, since the unit is spent the
+  // moment Resend accepts it — there is no un-sending on a later failure.
+  const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'emails.sent', 1, plan)
+  if (!quota.allowed) {
+    return jsonPlanDenial({
+      message: `You have reached your ${plan.planName} plan's outbound email limit.`,
+      status: 402,
+      limit: quota.limit ?? 0,
+      used: quota.used,
+      planCode: plan.planCode,
+    })
+  }
+
   try {
     const emailHeaders: Record<string, string> = {}
     if (inReplyTo) emailHeaders['In-Reply-To'] = inReplyTo
     if (references) emailHeaders['References'] = references
 
-    const { data, error } = await getResend().emails.send({
-      from: inbox.email,
-      to,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
-      subject,
-      text: text || undefined,
-      html: html || undefined,
-      headers: Object.keys(emailHeaders).length > 0 ? emailHeaders : undefined,
-    })
+    let sendResult
+    try {
+      sendResult = await getResend().emails.send({
+        from: inbox.email,
+        to,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
+        subject,
+        text: text || undefined,
+        html: html || undefined,
+        headers: Object.keys(emailHeaders).length > 0 ? emailHeaders : undefined,
+      })
+    } catch (sendError) {
+      // The SDK call itself threw rather than resolving with { error }, so
+      // there is no confirmation Resend ever received the request — refund,
+      // same as an explicit rejection below. Once it *has* resolved, the unit
+      // is spent for real ("no un-sending on a later failure"), so nothing
+      // past this point refunds on failure.
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1, plan)
+      logger.error({ inboxId: id, error: sendError }, 'Resend send threw')
+      return jsonError('Failed to send email', 500)
+    }
+    const { data, error } = sendResult
 
     if (error) {
+      // Resend rejected it, so nothing left the building — give the unit back
+      // rather than charging for a send that did not happen.
+      await CommercialProvider.quota.refund(inbox.organizationId, 'emails.sent', 1, plan)
       logger.error({ inboxId: id, error }, 'Resend send error')
       return jsonError(error.message || 'Failed to send email', 500)
     }

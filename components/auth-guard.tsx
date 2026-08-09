@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/components/auth-provider'
 import { VerifyEmailNotice } from '@/components/verify-email-notice'
+import { UsageBanner } from '@/components/usage-banner'
 import { isPublicPath } from '@/lib/auth/public-routes'
 
 interface AuthGuardProps {
@@ -55,5 +56,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <VerifyEmailNotice />
   }
 
-  return <>{children}</>
+  // Above the dashboard rather than inside a page, so a user who is over quota
+  // sees it wherever they are. Renders nothing at all when the deployment has
+  // no plan (issue #117 §7d).
+  return (
+    <>
+      <UsageBanner />
+      {children}
+    </>
+  )
 }

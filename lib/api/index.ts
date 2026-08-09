@@ -8,4 +8,5 @@ export * from './phones.api'
 export * from './auth.api'
 export * from './api-keys.api'
 export * from './webhooks.api'
+export * from './usage.api'
 
