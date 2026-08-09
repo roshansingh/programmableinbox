@@ -20,7 +20,12 @@ const ALLOWLIST = [
   /^prisma\/seed\.ts$/,
   /^next\.config\.mjs$/,
   /^eslint\.config\.mjs$/,
-  /^instrumentation\.ts$/,
+  // Both Next.js instrumentation entrypoints. They read `NEXT_RUNTIME` to keep
+  // Node-only imports out of the Edge bundle, which cannot go through
+  // `lib/config` — that module graph is exactly what the guard excludes.
+  // `.foss.ts` is the stripped build's copy (scripts/foss.mjs renames it over
+  // the default one), so it needs the same exemption.
+  /^instrumentation(\.foss)?\.ts$/,
   /^vitest[.\w]*\.config\.ts$/,
   /^test\//,
   /(^|\/)__tests__\//,

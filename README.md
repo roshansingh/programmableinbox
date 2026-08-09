@@ -344,7 +344,7 @@ Optional:
 - `AUTOMATION_SWEEPER_SECRET` — Required by `POST /api/cron/sweep-stuck-runs`
 - `WEBHOOK_EGRESS_ALLOWLIST` — Comma-separated egress allowlist for tenant-controlled webhook URLs
 - `WEBHOOK_ALLOW_PRIVATE_NETWORK` — Dev-only escape hatch; ignored in production
-- `ENABLE_BILLING` — Commercial layer (default `false`)
+- `USE_COMMERCIAL` — Plan enforcement (default `false`; renamed from `ENABLE_BILLING`, no alias)
 - `ENABLE_MCP` — MCP server at `POST /api/mcp` (default `false`; the route 404s while off). See [MCP Server](#mcp-server-agent-access)
 - `MCP_ALLOWED_ORIGINS` — Comma-separated browser origins allowed to call `/api/mcp`, each including its scheme. Empty by default, which refuses any request carrying an `Origin` header; a malformed entry fails at boot
 - `MCP_RATE_LIMIT_MAX` / `MCP_RATE_LIMIT_WINDOW_S` — Per-API-key budget for `/api/mcp` (defaults `120` per `60` seconds)

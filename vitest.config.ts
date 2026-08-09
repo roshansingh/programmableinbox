@@ -71,7 +71,17 @@ export default defineConfig({
         // Pure Node tests — lib utilities, no DOM
         test: {
           name: 'node',
-          include: ['lib/__tests__/**/*.test.*', 'lib/**/__tests__/**/*.test.*'],
+          // `ee/` carries the commercial plan implementations (issue #117 §8).
+          // Its tests run in the same project as `lib/` on purpose: the OSS
+          // build is verified by *deleting* ee/ and re-running, so these must
+          // be ordinary tests that simply disappear with the directory, not a
+          // separate suite someone has to remember to run.
+          include: [
+            'lib/__tests__/**/*.test.*',
+            'lib/**/__tests__/**/*.test.*',
+            'ee/**/__tests__/**/*.test.*',
+            'scripts/__tests__/**/*.test.*',
+          ],
           environment: 'node',
           globals: true,
           env: configEnv,

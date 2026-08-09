@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { checkResourceLimit } from '@/lib/commercial/enforce'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
 import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
 
@@ -64,12 +65,18 @@ export const POST = withUser(async (request, principal) => {
       return jsonError('No organization found', 400)
     }
 
+    const { organizationId } = firstMembership
+    const denial = await checkResourceLimit(organizationId, 'webhooks', 'webhook', () =>
+      prisma.webhook.count({ where: { organizationId } }),
+    )
+    if (denial) return jsonPlanDenial(denial)
+
     const webhook = await prisma.webhook.create({
       data: {
         name,
         url,
         events,
-        organizationId: firstMembership.organizationId,
+        organizationId,
         secret: secret || null,
       },
     })

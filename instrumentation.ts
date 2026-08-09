@@ -27,6 +27,22 @@ export async function register() {
     const { assertConfig } = await import('@/lib/config/assert')
     assertConfig()
 
+    // Plan enforcement (issue #117). Runs once per process, here rather than in
+    // `app/layout.tsx` where it previously sat — that is a React Server
+    // Component render function, so it re-ran on every RSC render and was
+    // idempotent only by virtue of being empty.
+    //
+    // A no-op unless `USE_COMMERCIAL=true`; the check lives inside so a
+    // self-hosted deployment never constructs a DB-backed resolver.
+    //
+    // NOTE for the stripped OSS build: this is a static import path, so
+    // deleting `ee/` breaks the build here. The FOSS artifact needs the
+    // two-entrypoint swap (an `instrumentation.foss.ts` that omits this call,
+    // renamed over this file by the strip script) — the same technique
+    // Rocket.Chat's `fossify` uses. Not built yet.
+    const { initializeCommercialPlans } = await import('@/ee/init')
+    initializeCommercialPlans()
+
     const { register: registerWorker } = await import('@/lib/instrumentation')
     await registerWorker()
   }

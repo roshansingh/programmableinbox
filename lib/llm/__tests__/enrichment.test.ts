@@ -1,15 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { EnrichmentResult } from '../types'
+import { UNLIMITED } from '@/lib/commercial/plan-limits'
 
 const mockEnrich = vi.fn<() => Promise<EnrichmentResult>>()
 const mockGetProvider = vi.fn()
-const mockCanUse = vi.fn()
+const mockResolve = vi.fn()
 const mockFindUnique = vi.fn()
 const mockUpdate = vi.fn()
 
+/** Builds a resolved plan with `llmEnrichment` set as given. */
+function planWithEnrichment(enabled: boolean) {
+  return {
+    planCode: enabled ? 'self_hosted' : 'free',
+    planName: enabled ? 'Self-hosted' : 'Free',
+    limits: { ...UNLIMITED, llmEnrichment: enabled },
+    periodStart: null,
+    periodEnd: null,
+  }
+}
+
 vi.mock('../factory', () => ({ getProvider: mockGetProvider }))
 vi.mock('@/lib/commercial/provider', () => ({
-  CommercialProvider: { entitlements: { canUse: mockCanUse } },
+  CommercialProvider: { plans: { resolve: mockResolve } },
 }))
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -27,7 +39,7 @@ describe('enrichMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetProvider.mockReturnValue({ enrich: mockEnrich })
-    mockCanUse.mockResolvedValue(true)
+    mockResolve.mockResolvedValue(planWithEnrichment(true))
     mockFindUnique.mockResolvedValue({
       id: 'msg-1',
       subject: 'Your OTP',
@@ -66,13 +78,13 @@ describe('enrichMessage', () => {
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('missing-id')
 
-    expect(mockCanUse).not.toHaveBeenCalled()
+    expect(mockResolve).not.toHaveBeenCalled()
     expect(mockEnrich).not.toHaveBeenCalled()
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
-  it('skips when org is not entitled', async () => {
-    mockCanUse.mockResolvedValue(false)
+  it('skips when the plan does not include LLM enrichment', async () => {
+    mockResolve.mockResolvedValue(planWithEnrichment(false))
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
 

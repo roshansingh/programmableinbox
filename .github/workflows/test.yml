@@ -67,3 +67,80 @@ jobs:
       - name: Test results
         if: always()
         run: echo "✅ All tests passed"
+
+  # The open-source edition, built and tested with every commercial path deleted
+  # (issue #117 §8).
+  #
+  # This job — not the LICENSE carve-out — is what keeps the OSS build honest.
+  # A carve-out that says the commercial directories are separately licensed
+  # "if that directory exists" is only true if a tree without them is a real,
+  # tested artifact. Rocket.Chat shipped that wording without ever building the
+  # stripped tree and to this day has no publishable CE build; Chatwoot runs the
+  # equivalent `rm -rf enterprise` on every PR and does.
+  #
+  # Runs as a separate job rather than a step so the two results are legible
+  # independently: "the product is broken" and "the OSS edition is broken" are
+  # different failures with different owners.
+  foss:
+    name: FOSS build (ee/ removed)
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://inbox:test@localhost:5432/inbox?options=-c%20timezone%3DUTC
+      JWT_SECRET: test-jwt-secret-at-least-16-chars
+      WEBHOOK_SECRET: test-webhook-secret
+      AUTOMATION_SWEEPER_SECRET: test-sweeper-secret
+      HEALTHZ_SECRET: test-healthz-secret
+      AUTH_RESEND_API_KEY: re_test_key
+      AUTH_EMAIL_FROM: test@example.com
+      AUTH_EMAIL_FROM_NAME: Test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # Fresh checkout, so the dirty-tree guard would pass anyway; --force keeps
+      # the job from depending on that.
+      - name: Strip commercial code
+        run: node scripts/foss.mjs --force
+
+      # The load-bearing assertion. `instrumentation.ts` statically imports
+      # `@/ee/init`, so without the entrypoint swap the strip script performs
+      # this build fails to resolve — which is precisely the regression this
+      # job exists to catch.
+      - name: Assert no commercial code survives
+        run: |
+          if [ -d ee ]; then
+            echo "::error::ee/ still present after strip"
+            exit 1
+          fi
+          # Import syntax only — `from '@/ee/…'` and `import('@/ee/…')`. A bare
+          # substring search would also match prose in comments and the strip
+          # script's own tests, which are not imports and must not fail the job.
+          if grep -rnE "(from|import\()\s*'@/ee/" \
+              --include="*.ts" --include="*.tsx" . \
+              --exclude-dir=node_modules --exclude-dir=.next; then
+            echo "::error::a source file still imports @/ee/ after the strip"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: FOSS results
+        if: always()
+        run: echo "✅ OSS edition builds and passes with ee/ removed"

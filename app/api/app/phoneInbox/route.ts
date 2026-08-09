@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
 import { toOrgScope } from '@/lib/services/scope'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { checkResourceLimit } from '@/lib/commercial/enforce'
+import { CommercialProvider } from '@/lib/commercial/provider'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 
 export const GET = withUser(async (request, principal) => {
@@ -43,6 +45,26 @@ export const POST = withUser(async (request, principal) => {
 
     const { error } = toOrgScope(principal, organizationId)
     if (error) return error
+
+    // Two gates, and they answer different questions: `phoneInboxesEnabled` is
+    // "does this plan have the feature at all", `phoneInboxes` is "how many".
+    // Both SaaS plans currently disable the feature outright — there is no SMS
+    // ingest route to meter yet — so the feature check is the one that fires.
+    const plan = await CommercialProvider.plans.resolve(organizationId)
+    if (!plan.limits.phoneInboxesEnabled) {
+      return jsonPlanDenial({
+        message: `Phone inboxes are not included in your ${plan.planName} plan.`,
+        status: 402,
+        limit: 0,
+        used: 0,
+        planCode: plan.planCode,
+      })
+    }
+
+    const denial = await checkResourceLimit(organizationId, 'phoneInboxes', 'phone inbox', () =>
+      prisma.phoneInbox.count({ where: { organizationId } }),
+    )
+    if (denial) return jsonPlanDenial(denial)
 
     const inbox = await prisma.phoneInbox.create({
       data: {

@@ -6,7 +6,6 @@ import { AuthProvider } from '@/components/auth-provider'
 import { AuthGuard } from '@/components/auth-guard'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
-import { initializeCommercial } from '@/lib/commercial/init'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -39,7 +38,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  initializeCommercial()
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

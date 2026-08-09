@@ -268,16 +268,30 @@ const EmailInboxSchema = z
     return { domains }
   })
 
-const BillingSchema = z
+/**
+ * The commercial layer: DB-backed plans, quotas and entitlements (issue #117).
+ *
+ * Off by default, which is the OSS posture — every organization resolves to an
+ * unlimited `self_hosted` plan and the `plans`/`subscriptions`/`usage_counters`
+ * tables are never queried. Turning it on is what makes a deployment a tenant
+ * of its own plan engine.
+ *
+ * Renamed from `ENABLE_BILLING`, deliberately without an alias. The old name
+ * described a narrower thing (payments) than the flag actually gates, and a
+ * deployment still setting it must fail `assertConfig()` naming the new
+ * variable rather than starting silently with enforcement off — the same
+ * precedent as `EMAIL_VERIFICATION_SECRET` -> `EMAIL_LINK_SECRET`.
+ */
+const CommercialSchema = z
   .object({
-    ENABLE_BILLING: zBool.optional(),
+    USE_COMMERCIAL: zBool.optional(),
   })
-  .transform((v) => ({ enabled: v.ENABLE_BILLING ?? false }))
+  .transform((v) => ({ enabled: v.USE_COMMERCIAL ?? false }))
 
 /**
  * The MCP server at `POST /api/mcp` (issue #104).
  *
- * Off by default, on the `ENABLE_BILLING` precedent: exposing a new transport
+ * Off by default, on the `USE_COMMERCIAL` precedent: exposing a new transport
  * over the same data must be a decision an operator takes, not something an
  * upgrade turns on. While off the route 404s, so a deployment that never wanted
  * it does not advertise a surface it is not watching.
@@ -533,7 +547,7 @@ export const DOMAIN_SCHEMAS = {
       'AUTOMATION_SWEEPER_SECRET',
     ],
   },
-  billing: { schema: BillingSchema, vars: ['ENABLE_BILLING'] },
+  commercial: { schema: CommercialSchema, vars: ['USE_COMMERCIAL'] },
   mcp: {
     schema: McpSchema,
     vars: [

@@ -2,7 +2,8 @@ import crypto from 'crypto'
 import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
 import { toOrgScope } from '@/lib/services/scope'
-import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
+import { checkResourceLimit } from '@/lib/commercial/enforce'
 import logger from '@/lib/logger'
 import { API_KEY_SCOPE_SET } from '@/lib/api-key-scopes'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
@@ -102,6 +103,22 @@ export const POST = withUser(async (request, principal) => {
 
     const { error } = toOrgScope(principal, organizationId)
     if (error) return error
+
+    // `ApiKey` is not in SOFT_DELETE_MODELS — it tracks lifecycle with
+    // `revokedAt`/`expiresAt` rather than `deletedAt` — so the extension does
+    // not filter this count and it has to be written by hand. Counting dead
+    // credentials would mean a user who rotates a key three times on a
+    // three-key plan can never mint another one.
+    const denial = await checkResourceLimit(organizationId, 'apiKeys', 'API key', () =>
+      prisma.apiKey.count({
+        where: {
+          organizationId,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      }),
+    )
+    if (denial) return jsonPlanDenial(denial)
 
     const apiKey = `sk_live_${crypto.randomBytes(24).toString('hex')}`
     const prefix = getKeyPrefix(apiKey)
