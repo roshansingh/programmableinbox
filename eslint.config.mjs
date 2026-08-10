@@ -27,6 +27,13 @@ export default tseslint.config(
       '.claude/**',
       'coverage/**',
       'dist/**',
+      // Generated SDK client (issue #124) — third-party-generated code from
+      // openapi-generator, not hand-written, so it isn't held to this repo's
+      // lint rules. The generator's own `.js`/`.ts` header comments trip
+      // "unused eslint-disable directive" against this repo's minimal rule
+      // set, since they were written to satisfy openapi-generator's default
+      // target config, not this one.
+      'sdk/typescript/**',
     ],
   },
   // Parser and plugin only — `base` enables no rules of its own, which keeps
