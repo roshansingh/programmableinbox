@@ -5,6 +5,7 @@ const subscriptionUpsertMock = vi.fn()
 const subscriptionUpdateManyMock = vi.fn()
 const subscriptionDeleteManyMock = vi.fn()
 const organizationUpdateMock = vi.fn()
+const organizationFindUniqueMock = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -14,7 +15,10 @@ vi.mock('@/lib/db', () => ({
       updateMany: (...a: unknown[]) => subscriptionUpdateManyMock(...a),
       deleteMany: (...a: unknown[]) => subscriptionDeleteManyMock(...a),
     },
-    organization: { update: (...a: unknown[]) => organizationUpdateMock(...a) },
+    organization: {
+      update: (...a: unknown[]) => organizationUpdateMock(...a),
+      findUnique: (...a: unknown[]) => organizationFindUniqueMock(...a),
+    },
   },
 }))
 
@@ -89,6 +93,76 @@ describe('syncSubscriptionFromStripe', () => {
     planFindUniqueMock.mockResolvedValue(PRO_PLAN)
     subscriptionUpsertMock.mockResolvedValue({})
     subscriptionDeleteManyMock.mockResolvedValue({ count: 1 })
+    organizationFindUniqueMock.mockResolvedValue({ id: 'org_1' })
+  })
+
+  /**
+   * The organization named in Stripe metadata can be gone — deleted locally,
+   * or an id typed by hand into the Stripe dashboard.
+   *
+   * `prisma.organization.update` throws P2025 when the row is missing, which
+   * would surface as a 500 from the webhook. Stripe retries a 500 and disables
+   * an endpoint that keeps failing, so one deleted organization would stop
+   * subscription events arriving for *every* customer. It has to be a
+   * reported, acknowledged no-op instead.
+   */
+  describe('when the organization no longer exists', () => {
+    beforeEach(() => {
+      organizationFindUniqueMock.mockResolvedValue(null)
+    })
+
+    it('does not throw', async () => {
+      const { syncSubscriptionFromStripe } = await import('../subscription-sync')
+
+      await expect(
+        syncSubscriptionFromStripe(stripeSubscription() as never),
+      ).resolves.toBeDefined()
+    })
+
+    it('reports it distinctly from missing metadata', async () => {
+      const { syncSubscriptionFromStripe } = await import('../subscription-sync')
+
+      const result = await syncSubscriptionFromStripe(stripeSubscription() as never)
+
+      expect(result).toEqual({ handled: false, reason: 'unknown_organization' })
+    })
+
+    it('attempts no writes at all', async () => {
+      const { syncSubscriptionFromStripe } = await import('../subscription-sync')
+
+      await syncSubscriptionFromStripe(stripeSubscription() as never)
+
+      expect(organizationUpdateMock).not.toHaveBeenCalled()
+      expect(subscriptionUpsertMock).not.toHaveBeenCalled()
+      expect(subscriptionDeleteManyMock).not.toHaveBeenCalled()
+    })
+
+    /**
+     * Including the terminal path: a `deleted` event for a vanished
+     * organization must be as quiet as any other.
+     */
+    it('does not throw on a terminal status either', async () => {
+      const { syncSubscriptionFromStripe } = await import('../subscription-sync')
+
+      await expect(
+        syncSubscriptionFromStripe(stripeSubscription({ status: 'canceled' }) as never),
+      ).resolves.toEqual({ handled: false, reason: 'unknown_organization' })
+    })
+  })
+
+  /**
+   * A missing billing window and an unrecognised price are different faults —
+   * configuration drift versus a malformed or very old event payload — and
+   * reporting both as `unknown_price` makes the logs lie about which happened.
+   */
+  it('distinguishes a missing billing period from an unknown price', async () => {
+    const { syncSubscriptionFromStripe } = await import('../subscription-sync')
+
+    const result = await syncSubscriptionFromStripe(
+      stripeSubscription({ items: { data: [{ price: { id: 'price_pro' } }] } }) as never,
+    )
+
+    expect(result).toEqual({ handled: false, reason: 'no_billing_period' })
   })
 
   it('upserts the subscription against the organization', async () => {

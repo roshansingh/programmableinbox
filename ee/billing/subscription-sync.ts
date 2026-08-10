@@ -4,9 +4,24 @@ import { prisma } from '@/lib/db'
 import { SubscriptionStatus } from '@/lib/generated/prisma/client'
 import logger from '@/lib/logger'
 
+/**
+ * Each `reason` names a distinct fault, because they call for different
+ * responses and collapsing them makes the logs lie about which happened:
+ *
+ * - `no_organization` — the Stripe object carries no `organizationId` at all.
+ *   Usually a subscription created outside checkout.
+ * - `unknown_organization` — it names one that does not exist here. A deleted
+ *   organization, or an id typed by hand in the Stripe dashboard.
+ * - `unknown_price` — the price maps to no `Plan`. Configuration drift.
+ * - `no_billing_period` — the object carries no period. A malformed or very
+ *   old event payload, not a configuration problem.
+ */
 export type SyncResult =
   | { handled: true; organizationId: string; status: SubscriptionStatus }
-  | { handled: false; reason: 'no_organization' | 'unknown_price' }
+  | {
+      handled: false
+      reason: 'no_organization' | 'unknown_organization' | 'unknown_price' | 'no_billing_period'
+    }
 
 /**
  * Statuses that mean "this organization is entitled to its paid plan".
@@ -90,9 +105,15 @@ function billingWindow(subscription: Stripe.Subscription): { start: Date; end: D
  *   carries its own current state, so a `subscription.updated` arriving before
  *   the `checkout.session.completed` that created it still lands correctly.
  *
- * Never throws for data reasons. A non-2xx makes Stripe retry, and an event we
- * structurally cannot handle would then retry until Stripe disables the
- * endpoint. Unhandleable events are reported and acknowledged.
+ * **Never throws for data reasons.** A non-2xx makes Stripe retry, and an event
+ * we structurally cannot handle would retry until Stripe disables the endpoint
+ * — which would stop subscription events for every customer, not just the one
+ * whose event was bad. Unhandleable events are reported and acknowledged.
+ *
+ * Infrastructure faults still throw, and should: a database outage is exactly
+ * when a retry is wanted. The one residual data-shaped throw is a TOCTOU — the
+ * organization being deleted between the existence check and a write below —
+ * which is self-healing, since Stripe's retry then takes the no-op path.
  */
 export async function syncSubscriptionFromStripe(
   subscription: Stripe.Subscription,
@@ -107,6 +128,24 @@ export async function syncSubscriptionFromStripe(
   }
 
   const status = mapSubscriptionStatus(subscription.status)
+
+  // Checked before any write. The organization named in Stripe metadata can be
+  // gone — deleted here, or an id typed by hand into the Stripe dashboard — and
+  // `prisma.organization.update` throws P2025 on a missing row. That would
+  // surface as a 500 from the webhook, and Stripe disables an endpoint that
+  // keeps failing: one deleted organization would stop subscription events
+  // arriving for *every* customer. A reported no-op is the only safe answer.
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { id: true },
+  })
+  if (!organization) {
+    logger.warn(
+      { organizationId, stripeSubscriptionId: subscription.id },
+      'Stripe subscription names an organization that does not exist here; ignoring',
+    )
+    return { handled: false, reason: 'unknown_organization' }
+  }
 
   const customerId =
     typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id
@@ -154,7 +193,9 @@ export async function syncSubscriptionFromStripe(
       { organizationId, stripeSubscriptionId: subscription.id },
       'Stripe subscription carries no billing period; ignoring',
     )
-    return { handled: false, reason: 'unknown_price' }
+    // Distinct from `unknown_price`: the price resolved fine, the payload is
+    // malformed or predates the field moving onto the subscription item.
+    return { handled: false, reason: 'no_billing_period' }
   }
 
   const shared = {
