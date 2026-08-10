@@ -4,8 +4,14 @@ import { PlanLimitsSchema } from '@/lib/commercial/plan-limits'
 import { periodFor } from './period'
 import { isEntitled } from '@/ee/billing/subscription-sync'
 
-/** The plan an organization with no subscription row falls back to. */
-const DEFAULT_PLAN_CODE = 'free'
+/**
+ * The plan an organization with no subscription row falls back to.
+ *
+ * Exported because the boot-time price check has to exclude it: it is public
+ * and deliberately unpriced — nobody checks out for the plan they already fall
+ * back to — and hardcoding the code in two places is how they drift.
+ */
+export const DEFAULT_PLAN_CODE = 'free'
 
 /**
  * Resolves an organization's plan from `subscriptions` joined to `plans`
