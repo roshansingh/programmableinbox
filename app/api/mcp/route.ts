@@ -19,12 +19,18 @@ import logger from '@/lib/logger'
  * express "this call needs email_inboxes:read and that one needs email_messages:read" when
  * both arrive down the same POST.
  *
+ * `surface: 'mcp'` gates on `plan.limits.mcpAccess` instead of `apiV1Access`
+ * and skips the `api.requests` meter — this route has its own rate limiter
+ * below. Without it, this tree shared the v1 plan gate and quota, so a plan
+ * granting MCP but not v1 access (or vice versa) got the wrong answer, and
+ * every MCP call silently spent a v1-API allowance it has no relationship to.
+ *
  * A JWT is rejected before any verification, by prefix, exactly as on every
  * other API-key route — the RFC 8725 §2.8 cross-JWT confusion class this repo
  * already removed once.
  */
 
-export const POST = withApiKey({ scopes: [] }, async (request, principal) => {
+export const POST = withApiKey({ scopes: [], surface: 'mcp' }, async (request, principal) => {
   // Checked after authentication rather than before: an unauthenticated probe
   // is already rejected by the wrapper without touching the database, so
   // ordering it this way costs nothing and keeps the whole handler inside the

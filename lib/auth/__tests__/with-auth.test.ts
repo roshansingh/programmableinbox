@@ -398,3 +398,110 @@ describe('withApiKey plan gate', () => {
     CommercialProvider.reset()
   })
 })
+
+/**
+ * `withApiKey` backs two different surfaces (issue #117 §6b / MCP issue #104):
+ * `/api/v1` and `/api/mcp`. They gate on different plan-limit fields —
+ * `apiV1Access` and `mcpAccess` are independent switches — so the wrapper must
+ * know which surface a given route is on rather than always checking one.
+ */
+describe('withApiKey plan gate — mcp surface', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  async function configure(
+    overrides: { apiV1Access?: boolean; mcpAccess?: boolean },
+    quotaAllowed = true,
+  ) {
+    const { CommercialProvider } = await import('@/lib/commercial/provider')
+    const { UNLIMITED } = await import('@/lib/commercial/plan-limits')
+    const consume = vi.fn().mockResolvedValue({
+      allowed: quotaAllowed,
+      limit: 1000,
+      used: quotaAllowed ? 1 : 1000,
+      resetsAt: null,
+    })
+    CommercialProvider.configure(
+      {
+        resolve: async () => ({
+          planCode: 'free',
+          planName: 'Free',
+          limits: { ...UNLIMITED, ...overrides },
+          periodStart: null,
+          periodEnd: null,
+        }),
+      },
+      { consume, refund: vi.fn(), peek: vi.fn(), increment: vi.fn() },
+      CommercialProvider.metering,
+    )
+    return { consume, CommercialProvider }
+  }
+
+  it('reaches the handler under the unlimited OSS default', async () => {
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [], surface: 'mcp' }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(await response.text()).toBe('reached')
+  })
+
+  it('402s when the plan excludes MCP access, even with API v1 access on', async () => {
+    const { CommercialProvider } = await configure({ mcpAccess: false, apiV1Access: true })
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [], surface: 'mcp' }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(response.status).toBe(402)
+    CommercialProvider.reset()
+  })
+
+  /**
+   * The bug: a plan carrying `mcpAccess: true, apiV1Access: false` used to get
+   * every MCP call rejected, because the wrapper always checked
+   * `apiV1Access` regardless of which route tree called it.
+   */
+  it('reaches the handler when the plan excludes API v1 access but grants MCP access', async () => {
+    const { CommercialProvider } = await configure({ mcpAccess: true, apiV1Access: false })
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [], surface: 'mcp' }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(await response.text()).toBe('reached')
+    CommercialProvider.reset()
+  })
+
+  /**
+   * MCP has its own rate limiter (`consumeRateLimit('mcp', ...)` in the route
+   * itself, keyed on apiKeyId). Consuming `api.requests` here as well would
+   * drain a v1-API allowance for traffic that never touches `/api/v1` — an
+   * unrelated surface for an org that only uses MCP.
+   */
+  it('does not consume the api.requests quota for MCP calls', async () => {
+    const { consume, CommercialProvider } = await configure({ mcpAccess: true })
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [], surface: 'mcp' }, async () => new Response('reached'))
+
+    await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(consume).not.toHaveBeenCalled()
+    CommercialProvider.reset()
+  })
+
+  it('still checks apiV1Access, not mcpAccess, when no surface is given', async () => {
+    const { CommercialProvider } = await configure({ apiV1Access: false, mcpAccess: true })
+    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    const { withApiKey } = await import('../with-auth')
+    const handler = withApiKey({ scopes: [] }, async () => new Response('reached'))
+
+    const response = await handler(requestWith('Bearer sk_live_abc'), emptyCtx)
+
+    expect(response.status).toBe(402)
+    CommercialProvider.reset()
+  })
+})

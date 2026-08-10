@@ -112,11 +112,22 @@ export function withUser<P = Record<string, never>>(
  * the feature shipped belongs to a user the backfill migration grandfathered.
  * Adding a check would cost a `User` lookup on every external API request in
  * order to enforce a state that is unreachable by construction.
+ *
+ * `surface` picks which plan-limit field gates the request. `/api/v1` and
+ * `/api/mcp` (issue #104) are independent switches on the plan —
+ * `apiV1Access` and `mcpAccess` — so a plan can grant one without the other.
+ * Defaults to `'v1'` since every pre-MCP call site relied on that behavior.
+ * The `api.requests` meter is v1-only: MCP has its own rate limiter
+ * (`consumeRateLimit('mcp', ...)`, keyed on the same apiKeyId) in the route
+ * itself, so metering here too would drain a v1 allowance for traffic that
+ * never touches `/api/v1`.
  */
 export function withApiKey<P = Record<string, never>>(
-  options: { scopes: readonly ApiKeyScope[] },
+  options: { scopes: readonly ApiKeyScope[]; surface?: 'v1' | 'mcp' },
   handler: PrincipalHandler<ApiKeyPrincipal, P>,
 ): RouteHandler<P> {
+  const surface = options.surface ?? 'v1'
+
   return tagHandler(async (request: NextRequest, context: RouteCtx<P>) => {
     const credential = bearer(request)
     if (!credential || !looksLikeApiKey(credential)) {
@@ -140,12 +151,25 @@ export function withApiKey<P = Record<string, never>>(
       return jsonError(`Missing required scope: ${missing.join(', ')}`, 403)
     }
 
-    // Plan gate (issue #117 §6b). After scopes, so a request that is not
-    // authorized still answers 403 rather than 402 — a plan limit must never
-    // be the thing that reveals a scope was missing.
+    // Plan gate (issue #117 §6b, issue #104). After scopes, so a request that
+    // is not authorized still answers 403 rather than 402 — a plan limit must
+    // never be the thing that reveals a scope was missing.
     //
     // A key is always bound to exactly one organization, so no ambiguity here.
     const plan = await CommercialProvider.plans.resolve(principal.organizationId)
+    if (surface === 'mcp') {
+      if (!plan.limits.mcpAccess) {
+        return jsonPlanDenial({
+          message: `MCP access is not included in your ${plan.planName} plan.`,
+          status: 402,
+          limit: 0,
+          used: 0,
+          planCode: plan.planCode,
+        })
+      }
+      return handler(request, principal, context)
+    }
+
     if (!plan.limits.apiV1Access) {
       return jsonPlanDenial({
         message: `API access is not included in your ${plan.planName} plan.`,
