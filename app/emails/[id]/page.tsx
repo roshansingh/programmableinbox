@@ -6,8 +6,7 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Input } from "@/components/ui/input"
-import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
@@ -191,12 +190,18 @@ export default function InboxPage() {
     setExpandedThreadMessages(newExpanded)
   }
 
+  const headerSearch = {
+    value: searchQuery,
+    onChange: setSearchQuery,
+    placeholder: 'Search messages',
+  }
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex flex-col">
-          <DashboardHeader />
+          <DashboardHeader search={headerSearch} />
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
@@ -216,7 +221,7 @@ export default function InboxPage() {
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden w-full">
-        <DashboardHeader />
+        <DashboardHeader search={headerSearch} />
 
         <main className="flex-1 overflow-hidden">
           <div className="border-b border-border bg-card px-4 py-3 lg:px-8">
@@ -244,26 +249,6 @@ export default function InboxPage() {
                 <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">
                   · {messages.length} {messages.length === 1 ? 'message' : 'messages'}
                 </span>
-              </div>
-              <div className="relative flex-1 min-w-[5rem] max-w-xs">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search messages"
-                  aria-label="Search messages"
-                  className="h-8 pl-8 pr-7 text-sm"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Clear search"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
               <Button
                 variant="ghost"
