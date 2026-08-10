@@ -1,0 +1,8 @@
+groupId: com.programmableinbox
+artifactId: sdk
+artifactVersion: 0.1.0
+apiPackage: com.programmableinbox.sdk.api
+modelPackage: com.programmableinbox.sdk.model
+invokerPackage: com.programmableinbox.sdk
+library: native
+hideGenerationTimestamp: true
