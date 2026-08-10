@@ -44,17 +44,4 @@ setup.cfg
 setup.py
 test-requirements.txt
 test/__init__.py
-test/test_create_email_inbox201_response.py
-test/test_create_email_inbox_request.py
-test/test_email_inbox.py
-test/test_email_inboxes_api.py
-test/test_email_message.py
-test/test_error_response.py
-test/test_get_email_inbox200_response.py
-test/test_get_email_inbox_messages200_response.py
-test/test_get_email_inbox_messages200_response_data.py
-test/test_get_email_inbox_messages200_response_data_messages_inner.py
-test/test_get_email_message200_response.py
-test/test_list_email_inboxes200_response.py
-test/test_update_email_inbox_request.py
 tox.ini
