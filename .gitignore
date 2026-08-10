@@ -119,3 +119,4 @@ reports/
 /sdk/csharp/**/obj/
 /sdk/python/**/*.egg-info/
 /sdk/python/build/
+/sdk/python/.venv*/

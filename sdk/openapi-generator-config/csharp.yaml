@@ -2,3 +2,4 @@ packageName: ProgrammableInbox.Sdk
 packageVersion: 0.1.0
 targetFramework: net8.0
 nullableReferenceTypes: true
+packageGuid: "{316EE9BB-A75F-4585-875A-8F342FDC7C29}"
