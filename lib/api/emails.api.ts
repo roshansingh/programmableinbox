@@ -151,7 +151,7 @@ export async function getEmailMessages(
   if (params?.cursor) queryParams.append('cursor', params.cursor)
   if (params?.limit) queryParams.append('limit', params.limit.toString())
   if (params?.threadId) queryParams.append('threadId', params.threadId)
-  if (params?.grouped) queryParams.append('grouped', 'true')
+  if (params?.grouped !== undefined) queryParams.append('grouped', params.grouped ? 'true' : 'false')
   if (params?.q) queryParams.append('q', params.q)
   const query = queryParams.toString()
   return apiClient.get<EmailMessagesResponse>(

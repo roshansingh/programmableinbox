@@ -78,11 +78,14 @@ export default function InboxPage() {
     // reuses the existing list in place so typing doesn't flash the whole
     // view to a spinner on every debounce tick.
     const isInitialLoad = inbox === null
+    // Inbox metadata (email, name, isOwner) doesn't change while searching —
+    // refetching it on every debounce tick is a wasted request.
+    const skipInboxRefetch = !isInitialLoad && debouncedQuery !== ''
     if (isInitialLoad) setIsLoading(true)
     else setIsSearching(true)
     try {
       const [inboxData, messagesData] = await Promise.all([
-        getEmailInbox(inboxId),
+        skipInboxRefetch ? Promise.resolve(inbox) : getEmailInbox(inboxId),
         getEmailMessages(
           inboxId,
           debouncedQuery ? { q: debouncedQuery, grouped: false } : { grouped: true }
@@ -128,6 +131,14 @@ export default function InboxPage() {
   useEffect(() => {
     fetchData()
   }, [inboxId, debouncedQuery])
+
+  // A search-driven refetch replaces the list; a stale selection would leave
+  // the detail pane showing a message no longer in the new results, and on
+  // mobile keep the list hidden behind it.
+  useEffect(() => {
+    setSelectedMessage(null)
+    setShowMessageDetail(false)
+  }, [debouncedQuery])
 
   // Fetch all messages in the thread when a message is selected
   useEffect(() => {
