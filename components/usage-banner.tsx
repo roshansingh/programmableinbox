@@ -188,8 +188,8 @@ export function UsageBanner() {
       )}
 
       {approaching.length > 0 && (
-        <div className="mb-2 flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+        <div className="mb-2 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
           <div className="space-y-1">
             <p className="font-medium">Approaching your {plan.name} plan limit.</p>
             <p className="text-muted-foreground">

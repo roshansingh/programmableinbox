@@ -273,8 +273,8 @@ export default function ApiKeysPage() {
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-                        <p className="text-sm text-amber-600 dark:text-amber-500">
+                      <div className="rounded-lg bg-warning/10 border border-warning/20 p-3">
+                        <p className="text-sm text-warning">
                           Make sure to copy your API key now. You won't be able to see it again!
                         </p>
                       </div>
