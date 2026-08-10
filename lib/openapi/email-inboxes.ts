@@ -7,12 +7,12 @@ export const spec = {
   },
   servers: [
     {
-      url: 'http://localhost:4000',
-      description: 'Local development',
+      url: 'https://app.programmableinbox.com',
+      description: 'Production',
     },
     {
-      url: 'https://api.example.com',
-      description: 'Production',
+      url: 'http://localhost:4000',
+      description: 'Local development',
     },
   ],
   tags: [
