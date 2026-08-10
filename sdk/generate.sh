@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if ! command -v java >/dev/null 2>&1; then
+if ! java -version >/dev/null 2>&1; then
   if [ -x "/opt/homebrew/opt/openjdk/bin/java" ]; then
     export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
   elif [ -x "/usr/local/opt/openjdk/bin/java" ]; then
