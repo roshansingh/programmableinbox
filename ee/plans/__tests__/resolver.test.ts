@@ -143,6 +143,76 @@ describe('DbPlanResolver', () => {
     await expect((await resolver()).resolve('org-1')).rejects.toThrow(/free/i)
   })
 
+  /**
+   * Entitlement follows `Subscription.status`, which the resolver previously
+   * ignored entirely — any row at all meant paid limits.
+   */
+  describe('subscription status', () => {
+    function subscribed(status: string) {
+      return {
+        organizationId: 'org-1',
+        status,
+        currentPeriodStart: new Date('2026-08-01T00:00:00Z'),
+        currentPeriodEnd: new Date('2100-09-01T00:00:00Z'),
+        plan: PRO_PLAN,
+      }
+    }
+
+    it.each([['active'], ['trialing']])('serves the paid plan while %s', async (status) => {
+      mockSubscriptionFindUnique.mockResolvedValue(subscribed(status))
+
+      expect((await (await resolver()).resolve('org-1')).planCode).toBe('pro')
+    })
+
+    /**
+     * The one that matters. Stripe retries a failed card for roughly three
+     * weeks; dropping to `free` on the first decline would stop a paying
+     * customer's mail over an expired card — and on a `drop` plan that mail is
+     * discarded irrecoverably. Entitlement ends when Stripe gives up, not when
+     * a charge bounces.
+     */
+    it('keeps serving the paid plan while past_due', async () => {
+      mockSubscriptionFindUnique.mockResolvedValue(subscribed('past_due'))
+
+      const plan = await (await resolver()).resolve('org-1')
+
+      expect(plan.planCode).toBe('pro')
+      expect(plan.limits.emailInboxes).toBe(2)
+    })
+
+    /**
+     * A `canceled` row should not exist — the webhook deletes on a terminal
+     * status — but if one is ever left behind it must not keep serving paid
+     * limits to someone who stopped paying.
+     */
+    it('falls back to free on a canceled row rather than trusting it', async () => {
+      mockSubscriptionFindUnique.mockResolvedValue(subscribed('canceled'))
+
+      const plan = await (await resolver()).resolve('org-1')
+
+      expect(plan.planCode).toBe('free')
+      expect(mockPlanFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { code: 'free' } }),
+      )
+    })
+
+    it('ignores the stale billing window of an unentitled subscription', async () => {
+      // Mid-month, so a calendar-month fallback is distinguishable from the
+      // subscription's own window rather than coinciding with it.
+      mockSubscriptionFindUnique.mockResolvedValue({
+        ...subscribed('canceled'),
+        currentPeriodStart: new Date('2026-08-17T00:00:00Z'),
+        currentPeriodEnd: new Date('2100-09-17T00:00:00Z'),
+      })
+
+      const plan = await (await resolver()).resolve('org-1')
+
+      // The counters must key on the calendar month, not on a dead
+      // subscription's anniversary.
+      expect(plan.periodStart!.getUTCDate()).toBe(1)
+    })
+  })
+
   it('treats an unlimited plan row as unrestricted', async () => {
     mockPlanFindUnique.mockResolvedValue({ id: 1, code: 'self_hosted', name: 'Self-hosted', limits: {} })
 

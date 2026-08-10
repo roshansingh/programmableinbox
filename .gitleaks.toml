@@ -6,13 +6,21 @@ title = "Programmable Inbox — secret scanning"
 [extend]
 useDefault = true
 
-# `sk_live_` is THIS application's API key prefix (lib/api-key-scopes.ts), not
-# Stripe's. Stripe is not a dependency (no package, no import, and `USE_COMMERCIAL`
-# gates plan enforcement only — `Plan.stripePriceId` is an unread column), so
-# every one of this rule's ~41 hits is a test fixture, and
-# the rule can never produce a true positive here. It is replaced below by
-# `programmable-inbox-api-key`, which matches the key format this app actually
-# mints. Re-enable this rule if Stripe is ever adopted.
+# `sk_live_` is BOTH this application's API key prefix (lib/api-key-scopes.ts)
+# and Stripe's live secret key prefix. Stripe is now a dependency (issue #120),
+# so the tripwire the previous version of this comment described has been
+# reached — but the upstream rule still cannot be re-enabled as-is, because it
+# matches every one of this repo's ~41 `sk_live_` test fixtures.
+#
+# The two formats are distinguishable by shape rather than prefix:
+#
+#   ours    `sk_live_` + exactly 48 LOWERCASE HEX  (crypto.randomBytes(24).toString('hex'))
+#   Stripe  `sk_live_` + 24-107 BASE62             (mixed case in practice)
+#
+# So `stripe-secret-key` below requires an uppercase letter, which our format
+# can never contain, and `programmable-inbox-api-key` requires 48 lowercase hex,
+# which a Stripe key effectively never is. Neither rule can fire on the other's
+# keys, and both fire on their own.
 disabledRules = ["stripe-access-token"]
 
 # ---------------------------------------------------------------------------
@@ -35,6 +43,37 @@ description = "Programmable Inbox live API key (sk_live_ + 48 hex)"
 regex = '''sk_live_[0-9a-f]{48}'''
 keywords = ["sk_live_"]
 tags = ["api-key", "programmable-inbox"]
+
+# Stripe secret and restricted keys (issue #120), replacing the upstream
+# `stripe-access-token` rule disabled above.
+#
+# The uppercase letter is the whole discriminator, and it is why this cannot be
+# a simple length or charset rule: this repo's own `sk_live_` keys are 48
+# characters of lowercase hex, so any rule that matches "sk_live_ + N
+# alphanumerics" fires on every fixture in the suite. Requiring `[A-Z]`
+# somewhere makes the two formats mutually exclusive.
+#
+# RE2 has no lookahead, so "contains an uppercase" is expressed positionally:
+# some base62, an uppercase, more base62. A real Stripe key is 24-107 base62
+# characters, so the chance it contains no uppercase at all is (36/62)^24 —
+# about three in a million. Every placeholder in this repo (`sk_test_abcdef…`,
+# `sk_live_abcd1234efgh…`) is entirely lowercase and cannot match.
+[[rules]]
+id = "stripe-secret-key"
+description = "Stripe secret or restricted API key"
+regex = '''(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{6,}[A-Z][0-9a-zA-Z]{6,}'''
+keywords = ["sk_live_", "sk_test_", "rk_live_", "rk_test_"]
+tags = ["api-key", "stripe"]
+
+# Stripe webhook signing secret (STRIPE_WEBHOOK_SECRET). Same discriminator: the
+# real thing is base64-ish with mixed case, and the placeholders here
+# (`whsec_xxxx…`, `whsec_abcdef…`) are lowercase only.
+[[rules]]
+id = "stripe-webhook-secret"
+description = "Stripe webhook signing secret"
+regex = '''whsec_[0-9a-zA-Z]{6,}[A-Z][0-9a-zA-Z]{6,}'''
+keywords = ["whsec_"]
+tags = ["secret", "stripe"]
 
 # Resend keys as actually issued: `re_<id>_<secret>`. Gitleaks runs on Go's RE2,
 # which has no lookahead, so the exclusion is expressed through shape instead —

@@ -2,9 +2,16 @@ import { prisma } from '@/lib/db'
 import type { IPlanResolver, ResolvedPlan } from '@/lib/commercial/interfaces'
 import { PlanLimitsSchema } from '@/lib/commercial/plan-limits'
 import { periodFor } from './period'
+import { isEntitled } from '@/ee/billing/subscription-sync'
 
-/** The plan an organization with no subscription row falls back to. */
-const DEFAULT_PLAN_CODE = 'free'
+/**
+ * The plan an organization with no subscription row falls back to.
+ *
+ * Exported because the boot-time price check has to exclude it: it is public
+ * and deliberately unpriced — nobody checks out for the plan they already fall
+ * back to — and hardcoding the code in two places is how they drift.
+ */
+export const DEFAULT_PLAN_CODE = 'free'
 
 /**
  * Resolves an organization's plan from `subscriptions` joined to `plans`
@@ -25,11 +32,24 @@ export class DbPlanResolver implements IPlanResolver {
   async resolve(organizationId: string): Promise<ResolvedPlan> {
     const now = new Date()
 
-    const subscription = await prisma.subscription.findUnique({
+    const row = await prisma.subscription.findUnique({
       where: { organizationId },
       include: { plan: true },
     })
 
+    // Entitlement follows the *status*, not merely the existence of a row.
+    //
+    // `past_due` is deliberately entitled: Stripe retries a failed card on its
+    // own schedule for roughly three weeks, and dropping a customer to `free`
+    // on the first decline would stop their mail over an expired card — which
+    // on a `drop` plan destroys it. Entitlement ends when Stripe gives up and
+    // the webhook deletes the row.
+    //
+    // A `canceled` row should never exist, because the webhook deletes rather
+    // than storing that status. Checking anyway means a row left behind by a
+    // missed event cannot keep serving paid limits to someone who stopped
+    // paying — the failure direction that costs money.
+    const subscription = row && isEntitled(row.status) ? row : null
     const planRow = subscription?.plan ?? (await this.defaultPlan())
 
     return {

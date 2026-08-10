@@ -16,7 +16,7 @@ concrete implementation, so the exact same code path runs whether or not `ee/` i
 |---|---|---|
 | `CommercialProvider.plans` (`IPlanResolver`) | `UnlimitedPlanResolver` — returns the `self_hosted` plan, never touches the database | `DbPlanResolver` — resolves `Subscription` → `Plan` from Postgres |
 | `CommercialProvider.quota` (`IQuota`) | `NoopQuota` — allows everything, counts nothing | `PostgresQuota` — atomic check-and-consume against a `usage_counters` table |
-| `CommercialProvider.metering` (`IMetering`) | `NoopMetering` — discards | still the OSS no-op today; billing telemetry has no consumer until Stripe lands |
+| `CommercialProvider.metering` (`IMetering`) | `NoopMetering` — discards | still the OSS no-op; usage-based billing has no consumer yet, and `IMetering` is deliberately allowed to drop writes, which is why it can never be what enforcement reads |
 
 `ee/init.ts` is called once at boot, from root `instrumentation.ts`. With `USE_COMMERCIAL=false`
 (the default) it returns immediately, without configuring anything — the OSS defaults stand and
@@ -60,6 +60,97 @@ nothing about JSON column contents. Two things about it matter for anyone adding
 A refused create returns `402 Payment Required` — not `403` (already used for authorization) or
 `429` (already used for rate limiting) — carrying `limit`, `used`, and `planCode` so the client
 can render an accurate upsell instead of a bare error.
+
+## Billing (Stripe)
+
+Live only when `USE_COMMERCIAL=true`. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are then
+**required and asserted at boot** — a deployment that enforces plans but cannot sell anything
+should fail loudly rather than 500 at the payment step. Both are `Secret`-boxed.
+
+There is no publishable key: hosted Checkout returns a `session.url` and the browser is redirected
+to it, so Stripe.js never loads.
+
+| Route | Purpose |
+|---|---|
+| `POST /api/app/billing/checkout` | Starts a Checkout session; returns the URL to redirect to |
+| `POST /api/app/billing/portal` | Opens Stripe's Billing Portal — card changes, invoices, cancellation |
+| `POST /api/webhooks/stripe` | Subscription lifecycle |
+
+All three live in `(ee)` route groups (`app/api/app/(ee)/…`, `app/api/webhooks/(ee)/…`). App Router
+routes cannot live under `ee/` — routing is by file position — so the route group is how a
+commercial route stays strippable. `scripts/foss.mjs` removes them, which means a FOSS build has no
+billing endpoints at all.
+
+**The price is always resolved server-side** from `Plan.stripePriceId`, keyed by the plan `code` the
+client sends. A client-supplied price id would let anyone subscribe an organization to a price they
+created in their own Stripe account. Checkout is owner/admin-only, and its return URLs come from
+`APP_BASE_URL`, never the request `Host`.
+
+Cancellation and card changes go through Stripe's portal rather than routes here. Rebuilding those
+means rebuilding SCA, dunning, proration, and tax receipts — and getting each subtly wrong. It also
+defaults to end-of-period cancellation, which is what keeps a downgrade landing on the billing
+boundary where the usage counter rolls over anyway.
+
+### The webhook
+
+Authenticated by signature over the **raw** body, like the Resend ingest — `constructEvent` verifies
+against the exact bytes Stripe sent, so a re-serialised object fails even when identical.
+
+Three properties it has to have, because Stripe guarantees none of them:
+
+- **Replay is normal.** Every write is an upsert or delete keyed on the organization, so a
+  redelivered event produces the same end state. There is no seen-events table.
+- **Delivery is unordered.** A `subscription.updated` can arrive before the
+  `checkout.session.completed` that created it. The subscription object carries its own current
+  state, so nothing infers a sequence.
+- **Unknown event types return 200.** A 4xx makes Stripe retry the same unhandleable event until it
+  disables the endpoint — taking every *other* event down with it. The only non-2xx are a failed
+  signature (400) and a genuine internal fault (500), where a retry is what you want.
+
+Stripe's eight subscription statuses narrow onto the four in `SubscriptionStatus`, and **anything
+unrecognised maps to `canceled`**. Stripe can add statuses without asking, and the failure mode of
+guessing the other way is serving paid limits to someone who is not paying.
+
+### `past_due` keeps its paid limits
+
+Entitlement follows `Subscription.status`, and `past_due` is deliberately entitled.
+
+Stripe retries a failed card on its own schedule for roughly three weeks. Dropping a customer to
+`free` on the first decline would stop their mail over an expired card — and on a plan whose
+`overQuotaBehavior` is `drop`, destroy it. Entitlement ends when Stripe gives up and the webhook
+deletes the subscription, not when a charge bounces.
+
+A terminal status **deletes** the row rather than storing `canceled`: the resolver falls back to
+`free` on *absence*, so a row left behind by a missed event would otherwise keep serving paid
+limits.
+
+### `sk_live_` is a shared prefix
+
+`API_KEY_PREFIX` (`lib/api-key-scopes.ts`) is literally `sk_live_` — the same prefix Stripe uses for
+live secret keys. The two are told apart by shape, not prefix:
+
+| | Format |
+|---|---|
+| ours | `sk_live_` + exactly 48 **lowercase hex** |
+| Stripe | `sk_live_` + 24–107 **base62**, mixed case in practice |
+
+`.gitleaks.toml` encodes exactly that: the Stripe rules require an uppercase letter, which our
+format cannot contain, and ours requires 48 lowercase hex, which a Stripe key effectively never is.
+Neither rule can fire on the other's keys.
+
+### Local development
+
+```bash
+# 1. Point the pro plan at a test-mode recurring price
+#    UPDATE plans SET "stripePriceId" = 'price_...' WHERE code = 'pro';
+
+# 2. Forward webhooks; this prints the STRIPE_WEBHOOK_SECRET to use
+stripe listen --forward-to localhost:4000/api/webhooks/stripe
+
+# 3. Trigger events without paying
+stripe trigger checkout.session.completed
+stripe trigger customer.subscription.deleted
+```
 
 ## What the client sees
 

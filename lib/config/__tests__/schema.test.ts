@@ -255,7 +255,14 @@ describe('commercial schema', () => {
   })
 
   it('enables on any documented truthy spelling', () => {
-    expect(parse('commercial', { USE_COMMERCIAL: 'yes' }).enabled).toBe(true)
+    // Turning the flag on also demands Stripe credentials — see the
+    // `stripe credentials` block below.
+    const enabled = parse('commercial', {
+      USE_COMMERCIAL: 'yes',
+      STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+      STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+    })
+    expect(enabled.enabled).toBe(true)
   })
 
   it('rejects a set-but-malformed value rather than falling back to false', () => {
@@ -271,6 +278,73 @@ describe('commercial schema', () => {
     const all = Object.values(DOMAIN_SCHEMAS).flatMap((d) => d.vars as readonly string[])
     expect(all).not.toContain('ENABLE_BILLING')
     expect(all).toContain('USE_COMMERCIAL')
+  })
+
+  /**
+   * Stripe credentials live in this domain rather than their own so the
+   * "required when the flag is on" check can be a `superRefine` over both — the
+   * `ENABLE_EMAIL_VERIFICATION` / `EMAIL_LINK_SECRET` precedent. A separate
+   * domain could not see `USE_COMMERCIAL`, and the registry forbids a variable
+   * appearing in two domains.
+   */
+  describe('stripe credentials', () => {
+    const KEY = 'sk_test_abcdefghijklmnopqrstuvwx'
+    const WHSEC = 'whsec_abcdefghijklmnopqrstuvwx'
+
+    it('is null when the commercial layer is off', () => {
+      const parsed = parse('commercial', {})
+      expect(parsed.stripeSecretKey).toBeNull()
+      expect(parsed.stripeWebhookSecret).toBeNull()
+    })
+
+    it('does not demand Stripe credentials while the flag is off', () => {
+      expect(() => parse('commercial', {})).not.toThrow()
+    })
+
+    /**
+     * A deployment that turns on plan enforcement without Stripe cannot sell
+     * anything. Failing at boot naming the variable beats 500ing on the first
+     * customer's checkout attempt.
+     */
+    it('requires the secret key once the commercial layer is on', () => {
+      expect(() => parse('commercial', { USE_COMMERCIAL: 'true', STRIPE_WEBHOOK_SECRET: WHSEC })).toThrow(
+        /STRIPE_SECRET_KEY/,
+      )
+    })
+
+    it('requires the webhook secret once the commercial layer is on', () => {
+      expect(() => parse('commercial', { USE_COMMERCIAL: 'true', STRIPE_SECRET_KEY: KEY })).toThrow(
+        /STRIPE_WEBHOOK_SECRET/,
+      )
+    })
+
+    it('accepts a fully configured commercial deployment', () => {
+      const parsed = parse('commercial', {
+        USE_COMMERCIAL: 'true',
+        STRIPE_SECRET_KEY: KEY,
+        STRIPE_WEBHOOK_SECRET: WHSEC,
+      })
+
+      expect(parsed.enabled).toBe(true)
+      expect(parsed.stripeSecretKey?.reveal()).toBe(KEY)
+      expect(parsed.stripeWebhookSecret?.reveal()).toBe(WHSEC)
+    })
+
+    /**
+     * Both are `Secret`-boxed, so Pino's serializer and `console.log` render
+     * `[redacted]` and the value is reachable only through `.reveal()`. A live
+     * Stripe key in a log line is a full account compromise.
+     */
+    it('boxes both secrets so they cannot be logged by accident', () => {
+      const parsed = parse('commercial', {
+        USE_COMMERCIAL: 'true',
+        STRIPE_SECRET_KEY: KEY,
+        STRIPE_WEBHOOK_SECRET: WHSEC,
+      })
+
+      expect(String(parsed.stripeSecretKey)).toBe('[redacted]')
+      expect(JSON.stringify(parsed.stripeWebhookSecret)).toBe('"[redacted]"')
+    })
   })
 })
 

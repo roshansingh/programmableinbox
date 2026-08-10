@@ -34,7 +34,16 @@ const ROOT = resolve(import.meta.dirname, '..')
  * fails if they drift, which is the check Cal.com lacked when a third `ee`
  * directory sat outside its own LICENSE for years.
  */
-export const COMMERCIAL_PATHS = ['ee']
+export const COMMERCIAL_PATHS = [
+  'ee',
+  // App Router routes cannot live under `ee/` — routing is by file position —
+  // so commercial routes sit in `(ee)` route groups, which are stripped from
+  // the URL but are real directories. A FOSS build therefore has no billing
+  // endpoints at all, which is correct: a self-hosted deployment has nothing
+  // to sell.
+  'app/api/app/(ee)',
+  'app/api/webhooks/(ee)',
+]
 
 /** Swapped over their non-FOSS counterparts, in order. */
 const ENTRYPOINT_SWAPS = [['instrumentation.foss.ts', 'instrumentation.ts']]

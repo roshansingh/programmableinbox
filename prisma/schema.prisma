@@ -67,6 +67,14 @@ model Organization {
   /// on without backfilling every existing organization first.
   subscription  Subscription?
   usageCounters UsageCounter[]
+  /// Stripe's customer handle (issue #120). Null until the organization first
+  /// reaches checkout — a free organization never gets one, and a self-hosted
+  /// deployment never writes one at all.
+  ///
+  /// Unique so a double-submitted checkout cannot mint two Stripe customers for
+  /// one organization, which would split their invoices and payment methods
+  /// across two records nobody can reconcile.
+  stripeCustomerId String? @unique
 
   @@map("organizations")
 }
@@ -525,14 +533,38 @@ model Plan {
 /// One organization's current plan assignment. Exactly one row per
 /// organization, mutable in place — there is no history and no event log yet
 /// (issue #117 §9); adding either later is non-destructive.
+/// Stripe's subscription lifecycle, narrowed to the states this app acts on.
+///
+/// `incomplete` / `incomplete_expired` / `unpaid` / `paused` are deliberately
+/// absent: the webhook maps them onto the four below rather than widening the
+/// enum, so every state has a decided answer to "does this organization get
+/// paid limits?" — a state nobody thought about must not be representable.
+enum SubscriptionStatus {
+  /// Paying, current. Full plan limits.
+  active
+  /// In a trial Stripe is managing. Treated as `active` for entitlement.
+  trialing
+  /// A payment failed and Stripe is retrying. **Still entitled** — see the
+  /// note on `Subscription.status`.
+  past_due
+  /// Stripe has given up or the customer cancelled and the period has ended.
+  /// Not entitled; the resolver falls back to `free`.
+  canceled
+}
+
 model Subscription {
   id                 String   @id @default(uuid(7)) @db.Uuid
   organizationId     String   @unique @db.Uuid
   planId             Int      @db.SmallInt
-  /// `active` | `trialing` | `past_due` | `canceled`. Deliberately a String for
-  /// now rather than a Prisma enum, unlike Role/WebhookStatus — the value set
-  /// follows Stripe's and is not settled yet.
-  status             String
+  /// Mirrors Stripe's subscription status (issue #120). Now an enum rather than
+  /// a String: the value set follows Stripe's and Stripe has settled it, so the
+  /// column can carry the same guarantee as Role / WebhookStatus.
+  ///
+  /// `past_due` is load-bearing rather than informational — the resolver keeps
+  /// serving the paid plan through it, because Stripe retries a failed card for
+  /// weeks and dropping a customer to `free` on the first decline would stop
+  /// their mail over an expired card.
+  status             SubscriptionStatus
   currentPeriodStart DateTime @db.Timestamptz(3)
   currentPeriodEnd   DateTime @db.Timestamptz(3)
   cancelAtPeriodEnd  Boolean  @default(false)
