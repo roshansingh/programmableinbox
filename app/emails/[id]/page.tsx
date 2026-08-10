@@ -6,7 +6,8 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
@@ -25,6 +26,9 @@ export default function InboxPage() {
   const [listHasMore, setListHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedMessage, setSelectedMessage] = useState<EmailMessage | null>(null)
   const [expandedThreadMessages, setExpandedThreadMessages] = useState<Set<string>>(new Set())
   const [showMessageDetail, setShowMessageDetail] = useState(false)
@@ -70,11 +74,19 @@ export default function InboxPage() {
   }
 
   const fetchData = async () => {
-    setIsLoading(true)
+    // Only the very first load blanks the page; a search-driven refetch
+    // reuses the existing list in place so typing doesn't flash the whole
+    // view to a spinner on every debounce tick.
+    const isInitialLoad = inbox === null
+    if (isInitialLoad) setIsLoading(true)
+    else setIsSearching(true)
     try {
       const [inboxData, messagesData] = await Promise.all([
         getEmailInbox(inboxId),
-        getEmailMessages(inboxId, { grouped: true }),
+        getEmailMessages(
+          inboxId,
+          debouncedQuery ? { q: debouncedQuery, grouped: false } : { grouped: true }
+        ),
       ])
       setInbox(inboxData)
       setMessages(messagesData.messages)
@@ -83,7 +95,8 @@ export default function InboxPage() {
     } catch (error) {
       console.error('Failed to fetch inbox data:', error)
     } finally {
-      setIsLoading(false)
+      if (isInitialLoad) setIsLoading(false)
+      setIsSearching(false)
     }
   }
 
@@ -91,7 +104,12 @@ export default function InboxPage() {
     if (!listCursor || isLoadingMore) return
     setIsLoadingMore(true)
     try {
-      const data = await getEmailMessages(inboxId, { grouped: true, cursor: listCursor })
+      const data = await getEmailMessages(
+        inboxId,
+        debouncedQuery
+          ? { q: debouncedQuery, grouped: false, cursor: listCursor }
+          : { grouped: true, cursor: listCursor }
+      )
       setMessages((prev) => [...prev, ...data.messages])
       setListCursor(data.nextCursor)
       setListHasMore(data.hasMore)
@@ -103,8 +121,13 @@ export default function InboxPage() {
   }
 
   useEffect(() => {
+    const handle = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(handle)
+  }, [searchQuery])
+
+  useEffect(() => {
     fetchData()
-  }, [inboxId])
+  }, [inboxId, debouncedQuery])
 
   // Fetch all messages in the thread when a message is selected
   useEffect(() => {
@@ -202,11 +225,34 @@ export default function InboxPage() {
                 <ArrowLeft className="h-4 w-4 mr-0 lg:mr-2" />
                 <span className="hidden lg:inline">Back</span>
               </Button>
-              <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex items-center gap-1.5 overflow-hidden">
                 <Mail className="h-4 w-4 text-primary shrink-0" />
                 <span className="font-mono text-xs lg:text-sm font-medium text-foreground truncate">
                   {inbox?.email || inboxId}
                 </span>
+                <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">
+                  · {messages.length} {messages.length === 1 ? 'message' : 'messages'}
+                </span>
+              </div>
+              <div className="relative flex-1 min-w-[5rem] max-w-xs">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search messages"
+                  aria-label="Search messages"
+                  className="h-8 pl-8 pr-7 text-sm"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               <Button
                 variant="ghost"
@@ -214,7 +260,7 @@ export default function InboxPage() {
                 onClick={fetchData}
                 className="ml-auto text-muted-foreground hover:text-foreground"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className={`h-4 w-4 ${isSearching ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
@@ -222,20 +268,21 @@ export default function InboxPage() {
           <div className="flex h-[calc(100vh-9rem)] overflow-hidden">
             {/* Message list */}
             <div className={`w-full lg:w-96 border-r border-border bg-card ${showMessageDetail ? 'hidden lg:block' : 'block'}`}>
-              <div className="border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <h2 className="font-semibold text-foreground">Inbox</h2>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{messages.length} messages</p>
-              </div>
-
-              <ScrollArea className="h-[calc(100%-4rem)]">
+              <ScrollArea className="h-full">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Mail className="h-12 w-12 mb-4 opacity-50" />
-                    <p className="text-sm">No messages yet</p>
-                    <p className="text-xs mt-1">Emails sent to this inbox will appear here</p>
+                    {debouncedQuery ? (
+                      <>
+                        <p className="text-sm">No messages match &ldquo;{debouncedQuery}&rdquo;</p>
+                        <p className="text-xs mt-1">Try a different search term</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm">No messages yet</p>
+                        <p className="text-xs mt-1">Emails sent to this inbox will appear here</p>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="divide-y divide-border">
