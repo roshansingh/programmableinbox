@@ -1,11 +1,36 @@
-ProgrammableInbox Commercial License
+ProgrammableInbox Enterprise Edition (EE) License (the "EE License")
+Copyright (c) 2026 Orbit Labs LLC ("Orbit Labs," doing business as "ProgrammableInbox").
 
 This directory ("ee/") contains, or is reserved for, commercial/enterprise functionality that
 is not covered by the AGPL-3.0 license applied to the rest of this repository (see the root
 LICENSE file).
 
-Notwithstanding the foregoing, you may copy and modify the software in this directory for
-development and testing purposes, without requiring a Subscription.
+This software and associated documentation files (the "Software") may only be used in
+production if you (and any entity you represent) either (a) have a separate written agreement
+with Orbit Labs governing your use of the Software, or (b) hold a valid ProgrammableInbox
+Enterprise Edition subscription (a "Subscription") covering the correct number of user seats.
 
-[PLACEHOLDER] The full commercial license text has not been finalized and will replace this
-file before ee/ contains real commercial code or is relied upon.
+Subject to the foregoing paragraph, you are free to modify the Software and to create patches
+to it. Orbit Labs and/or its licensors (as applicable) retain all right, title, and interest in
+and to any such modifications and patches, and any such modifications and patches may only be
+used, copied, modified, displayed, distributed, or otherwise exploited by you if you satisfy
+clause (a) or (b) above. Notwithstanding the foregoing, you may copy and modify the Software for
+your own development and testing purposes without a Subscription, provided that Orbit Labs
+and/or its licensors (as applicable) retain all right, title, and interest in and to any such
+modifications.
+
+Except as expressly permitted above, you are granted no other rights in the Software, and it is
+forbidden to copy, merge, publish, distribute, sublicense, and/or sell the Software.
+
+The full text of this EE License shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+For all third-party components incorporated into the ProgrammableInbox Software, those
+components are licensed under the original license provided by the owner of the applicable
+component.
