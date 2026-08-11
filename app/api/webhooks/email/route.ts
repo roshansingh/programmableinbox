@@ -358,10 +358,14 @@ export const POST = withPublic(async (request: NextRequest) => {
 
   try {
     // Fetch full email data from Resend (webhook only contains the email ID)
-    const { data: email } = await getResend().emails.receiving.get(event.data.email_id)
+    const { data: email, error: fetchError } = await getResend().emails.receiving.get(event.data.email_id)
 
     if (!email) {
-      logger.warn({ emailId: event.data.email_id }, 'Email not found for ID')
+      // `error` carries the actual reason (not_found, restricted_api_key,
+      // invalid_access, rate_limit_exceeded, ...) — surfacing it is the only
+      // way to tell a genuine missing email apart from an API-key/permission
+      // problem that will fail on every event, not just this one.
+      logger.warn({ emailId: event.data.email_id, error: fetchError }, 'Email not found for ID')
       return NextResponse.json({ message: 'Webhook received' })
     }
 

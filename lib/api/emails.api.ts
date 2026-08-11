@@ -145,13 +145,14 @@ export async function deleteEmailInbox(id: string): Promise<void> {
  */
 export async function getEmailMessages(
   inboxId: string,
-  params?: { cursor?: string; limit?: number; threadId?: string; grouped?: boolean }
+  params?: { cursor?: string; limit?: number; threadId?: string; grouped?: boolean; q?: string }
 ): Promise<EmailMessagesResponse> {
   const queryParams = new URLSearchParams()
   if (params?.cursor) queryParams.append('cursor', params.cursor)
   if (params?.limit) queryParams.append('limit', params.limit.toString())
   if (params?.threadId) queryParams.append('threadId', params.threadId)
-  if (params?.grouped) queryParams.append('grouped', 'true')
+  if (params?.grouped !== undefined) queryParams.append('grouped', params.grouped ? 'true' : 'false')
+  if (params?.q) queryParams.append('q', params.q)
   const query = queryParams.toString()
   return apiClient.get<EmailMessagesResponse>(
     `/app/emailInbox/${inboxId}/messages${query ? `?${query}` : ''}`

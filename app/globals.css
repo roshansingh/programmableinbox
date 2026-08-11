@@ -128,6 +128,23 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * Radix's ScrollArea wraps its children in an internal `display: table`
+   * div (for its own content-size measurement) that we don't render and
+   * can't pass a className to. Table auto-layout sizes that div to the
+   * max-content width of any `white-space: nowrap` descendant — e.g. every
+   * Tailwind `truncate` — which can be wider than the actual viewport. The
+   * viewport's own overflow:hidden still clips the excess, but `text-overflow:
+   * ellipsis` only fires relative to an element's own box, so descendants
+   * never shrink enough for their ellipsis to show — text just gets a hard,
+   * ellipsis-less cutoff at the viewport edge instead. Forcing this div back
+   * to a normal block restores standard width inheritance.
+   */
+  [data-slot='scroll-area-viewport'] > div {
+    display: block !important;
+    min-width: 0 !important;
+  }
 }
 
 :root {
