@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
-import { Inbox, Mail, Settings, Key, Webhook, Workflow } from 'lucide-react'
+import { Inbox, Mail, Settings, Key, Workflow } from 'lucide-react'
 import { useAuth } from "@/components/auth-provider"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
@@ -12,7 +12,6 @@ const navigation = [
   { name: "Emails", icon: Mail, href: "/emails", current: false },
   { name: "Automations", icon: Workflow, href: "/automations", current: false },
 { name: "API Keys", icon: Key, href: "/api-keys", current: false },
-  { name: "Webhooks", icon: Webhook, href: "/webhooks", current: false },
 { name: "Settings", icon: Settings, href: "/settings", current: false },
 ]
 
