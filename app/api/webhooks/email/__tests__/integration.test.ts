@@ -60,6 +60,7 @@ vi.mock('resend', () => ({
 const inboxFindManyMock = vi.fn();
 const messageCreateMock = vi.fn();
 const messageFindFirstMock = vi.fn().mockResolvedValue(null); // no parent thread
+const messageUpdateMock = vi.fn().mockResolvedValue(undefined);
 const emailAttachmentCreateManyMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/db', () => ({
@@ -70,6 +71,7 @@ vi.mock('@/lib/db', () => ({
     emailMessage: {
       create: (...args: unknown[]) => messageCreateMock(...args),
       findFirst: (...args: unknown[]) => messageFindFirstMock(...args),
+      update: (...args: unknown[]) => messageUpdateMock(...args),
     },
     emailAttachment: {
       createMany: (...args: unknown[]) => emailAttachmentCreateManyMock(...args),
@@ -109,6 +111,16 @@ const dispatchAutomationsForEmailMock = vi.fn();
 vi.mock('@/lib/automations/dispatcher', () => ({
   dispatchAutomationsForEmail: (...args: unknown[]) =>
     dispatchAutomationsForEmailMock(...args),
+}));
+
+// ---------------------------------------------------------------------------
+// LLM enrichment mock
+// ---------------------------------------------------------------------------
+
+const enrichMessageMock = vi.fn();
+
+vi.mock('@/lib/llm/enrichment', () => ({
+  enrichMessage: (...args: unknown[]) => enrichMessageMock(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -178,6 +190,7 @@ async function loadRoute() {
       emailMessage: {
         create: (...args: unknown[]) => messageCreateMock(...args),
         findFirst: (...args: unknown[]) => messageFindFirstMock(...args),
+        update: (...args: unknown[]) => messageUpdateMock(...args),
       },
       emailAttachment: {
         createMany: (...args: unknown[]) => emailAttachmentCreateManyMock(...args),
@@ -191,6 +204,9 @@ async function loadRoute() {
   vi.mock('@/lib/automations/dispatcher', () => ({
     dispatchAutomationsForEmail: (...args: unknown[]) =>
       dispatchAutomationsForEmailMock(...args),
+  }));
+  vi.mock('@/lib/llm/enrichment', () => ({
+    enrichMessage: (...args: unknown[]) => enrichMessageMock(...args),
   }));
   return import('../route');
 }
@@ -214,7 +230,9 @@ describe('Webhook Email Processing — Integration', () => {
     // Default: emailMessage.create succeeds with a stub message.
     messageCreateMock.mockResolvedValue({ id: 'msg_default', organizationId: 'org_1' });
     messageFindFirstMock.mockResolvedValue(null); // no existing thread parent
+    messageUpdateMock.mockResolvedValue(undefined);
     emailAttachmentCreateManyMock.mockResolvedValue(undefined);
+    enrichMessageMock.mockResolvedValue(true); // settled by default
   });
 
   afterEach(() => {
@@ -523,6 +541,23 @@ describe('Webhook Email Processing — Integration', () => {
 
       expect(dispatchAutomationsForEmailMock).not.toHaveBeenCalled();
     });
+
+    it('does not call enrichMessage in async mode', async () => {
+      // Enrichment for async-processed messages is the worker's job
+      // (lib/webhooks/worker.ts), not the route's — the route only enqueues.
+      const { POST } = await loadRoute();
+      inboxFindManyMock.mockResolvedValueOnce([
+        { id: 'inbox_1', email: 'inbox@example.com', organizationId: 'org_1' },
+      ]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['inbox@example.com'] }),
+      });
+
+      const body = emailReceivedBody('em_no_sync_enrich');
+      await POST(makeWebhookRequest(body) as any);
+
+      expect(enrichMessageMock).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -590,6 +625,73 @@ describe('Webhook Email Processing — Integration', () => {
       expect(dispatchAutomationsForEmailMock).toHaveBeenCalledTimes(2);
       expect(dispatchAutomationsForEmailMock).toHaveBeenCalledWith('msg_a');
       expect(dispatchAutomationsForEmailMock).toHaveBeenCalledWith('msg_b');
+    });
+
+    it('calls enrichMessage for each stored message in sync mode', async () => {
+      // Async mode gets LLM enrichment from the worker's own Step 3
+      // (lib/webhooks/worker.ts). The sync path reimplements storage and
+      // dispatch inline but must not skip enrichment — otherwise every
+      // message stored while async processing is disabled goes through
+      // without ever getting an LLM call.
+      const { POST } = await loadRoute();
+      const inboxA = { id: 'inbox_sync_a', email: 'a@example.com', organizationId: 'org_1' };
+      const inboxB = { id: 'inbox_sync_b', email: 'b@example.com', organizationId: 'org_2' };
+      inboxFindManyMock.mockResolvedValueOnce([inboxA, inboxB]);
+      inboxFindManyMock.mockResolvedValueOnce([inboxA]);
+      inboxFindManyMock.mockResolvedValueOnce([inboxB]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['a@example.com', 'b@example.com'] }),
+      });
+      messageCreateMock
+        .mockResolvedValueOnce({ id: 'msg_enrich_a', organizationId: 'org_1' })
+        .mockResolvedValueOnce({ id: 'msg_enrich_b', organizationId: 'org_2' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+
+      const body = emailReceivedBody('em_sync_enrich');
+      await POST(makeWebhookRequest(body) as any);
+
+      expect(enrichMessageMock).toHaveBeenCalledTimes(2);
+      expect(enrichMessageMock).toHaveBeenCalledWith('msg_enrich_a');
+      expect(enrichMessageMock).toHaveBeenCalledWith('msg_enrich_b');
+    });
+
+    it('marks enrichedAt after enrichment settles', async () => {
+      const { POST } = await loadRoute();
+      const inbox = { id: 'inbox_sync', email: 'inbox@example.com', organizationId: 'org_1' };
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['inbox@example.com'] }),
+      });
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_settled', organizationId: 'org_1' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+      enrichMessageMock.mockResolvedValueOnce(true); // settled
+
+      const body = emailReceivedBody('em_sync_enrich_settled');
+      await POST(makeWebhookRequest(body) as any);
+
+      expect(messageUpdateMock).toHaveBeenCalledWith({
+        where: { id: 'msg_settled' },
+        data: { enrichedAt: expect.any(Date) },
+      });
+    });
+
+    it('does not mark enrichedAt when enrichment reports a transient failure', async () => {
+      const { POST } = await loadRoute();
+      const inbox = { id: 'inbox_sync', email: 'inbox@example.com', organizationId: 'org_1' };
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ to: ['inbox@example.com'] }),
+      });
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_unsettled', organizationId: 'org_1' });
+      dispatchAutomationsForEmailMock.mockResolvedValue([]);
+      enrichMessageMock.mockResolvedValueOnce(false); // transient failure, not settled
+
+      const body = emailReceivedBody('em_sync_enrich_unsettled');
+      await POST(makeWebhookRequest(body) as any);
+
+      expect(messageUpdateMock).not.toHaveBeenCalled();
     });
 
     /**
