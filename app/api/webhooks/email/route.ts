@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { enqueueEmailWebhookJob } from '@/lib/webhooks/queue'
 import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
+import { enrichMessage } from '@/lib/llm/enrichment'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
 import { isUniqueViolation } from '@/lib/api-helpers'
@@ -432,18 +433,43 @@ export const POST = withPublic(async (request: NextRequest) => {
       logger.info({ emailId: event.data.email_id, jobCount: matchingInboxes.length }, 'Enqueued jobs for email webhook')
       return NextResponse.json({ message: 'Webhook received and queued for processing' })
     } else {
-      // SYNC PATH: Store emails and dispatch automations inline (500ms-2s)
-      // Blocks the webhook response on database and API latency.
-      // Used when async processing is disabled or Redis is unavailable.
+      // SYNC PATH: Store emails, dispatch automations, and run LLM enrichment
+      // inline (500ms-2s). Blocks the webhook response on database and API
+      // latency. Used when async processing is disabled or Redis is unavailable.
+      //
+      // Mirrors the async worker's per-message steps (lib/webhooks/worker.ts)
+      // so a message processed synchronously isn't missing anything a message
+      // processed via the queue would have gotten.
       const storedMessages = await Promise.all(
         matchingInboxes.map((inbox) =>
           storeIncomingEmail(resendEmail, [inbox.id])
         )
       )
+      const created = storedMessages.flat()
 
       // Trigger automation workflows for newly stored messages
       await Promise.all(
-        storedMessages.flat().map((message) => dispatchAutomationsForEmail(message.id))
+        created.map((message) => dispatchAutomationsForEmail(message.id))
+      )
+
+      // LLM enrichment (best-effort, never throws) — mirrors the worker's
+      // Step 3. Every message here is a fresh insert (storeIncomingEmail only
+      // returns newly created rows), so enrichedAt is always unset going in.
+      // Only mark it once enrichMessage reports the step settled: unlike the
+      // async worker, the sync path has no queue to retry an unsettled
+      // message, so leaving enrichedAt unset on a transient failure doesn't
+      // get it retried automatically — it just keeps the marker honest rather
+      // than falsely claiming a failed attempt succeeded.
+      await Promise.all(
+        created.map(async (message) => {
+          const settled = await enrichMessage(message.id)
+          if (settled) {
+            await prisma.emailMessage.update({
+              where: { id: message.id },
+              data: { enrichedAt: new Date() },
+            })
+          }
+        })
       )
 
       return NextResponse.json({ message: 'Webhook processed' })
