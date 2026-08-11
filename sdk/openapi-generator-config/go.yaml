@@ -1,0 +1,5 @@
+packageName: programmableinbox
+packageVersion: 0.1.0
+gitUserId: roshansingh
+gitRepoId: programmableinbox-go
+withGoMod: true

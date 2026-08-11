@@ -110,3 +110,13 @@ debates
 design
 .claude/worktrees/
 reports/
+
+# SDK generation (issue #124) — build artifacts only; generated SDK source is committed
+/sdk/openapi.json
+/sdk/typescript/node_modules/
+/sdk/java/target/
+/sdk/csharp/**/bin/
+/sdk/csharp/**/obj/
+/sdk/python/**/*.egg-info/
+/sdk/python/build/
+/sdk/python/.venv*/

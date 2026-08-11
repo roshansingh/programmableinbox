@@ -57,6 +57,8 @@ Log in with `test@example.com` / `password123`, or register a new account.
   broken into one doc per topic
 - **[Environment variables](.env.example)** — every variable, documented; validated at boot by
   `lib/config/` (see [configuration.md](docs/architecture/configuration.md))
+- **[Client SDKs](sdk/README.md)** — generated Python, Go, TypeScript, Java, and C# clients for the
+  v1 API
 - **[Operator guide](docs/async-webhook-processing-operator-guide.md)** — running async webhook
   processing in production
 - **[Logging](docs/logging.md)** — structured logging setup

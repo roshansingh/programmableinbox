@@ -1,0 +1,972 @@
+openapi: 3.0.0
+info:
+  description: Email inbox management endpoints with API key support
+  title: ProgrammableInbox Email Inboxes API
+  version: 1.0.0
+servers:
+- description: Production
+  url: https://app.programmableinbox.com
+- description: Local development
+  url: http://localhost:4000
+tags:
+- description: Email inbox management (JWT or API key authentication)
+  name: Email Inboxes
+paths:
+  /api/v1/emailInbox:
+    get:
+      description: Returns a list of email inboxes for the organization. Requires
+        API key with `email_inboxes:read` scope.
+      operationId: listEmailInboxes
+      parameters:
+      - description: "Optional organization ID to filter inboxes. User must be a member\
+          \ of the organization, or API key must belong to this organization."
+        explode: true
+        in: query
+        name: organizationId
+        required: false
+        schema:
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/listEmailInboxes_200_response"
+          description: Successfully retrieved email inboxes
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid token/API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Forbidden - user not member of organization or API key lacks
+            required scope (email_inboxes:read)
+      security:
+      - ApiKeyAuth: []
+      summary: List email inboxes
+      tags:
+      - Email Inboxes
+      x-accepts:
+      - application/json
+    post:
+      description: "Claims a new email address and returns the inbox. The address\
+        \ must be on a domain this account can receive at, and is immutable once created.\
+        \ Requires API key with `email_inboxes:create` scope. The inbox is created\
+        \ in the organization the key is bound to; supplying a different `organizationId`\
+        \ is a 403 rather than a silently ignored field."
+      operationId: createEmailInbox
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/createEmailInbox_request"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/createEmailInbox_201_response"
+          description: Inbox created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Bad request - malformed JSON, the address is not a valid email\
+            \ address, the domain is not one this account may create inboxes at, the\
+            \ local part is longer than 50 characters, or the name is not a string\
+            \ or is longer than 100 characters."
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Forbidden - API key lacks the email_inboxes:create scope,\
+            \ or the body names a different organization"
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Conflict - the address is not available. Returned identically\
+            \ whether it is held by another organization or by a deleted inbox, so\
+            \ this endpoint cannot be used to probe which addresses exist."
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Unprocessable - the address or the name is on the impersonation\
+            \ blocklist, or the name contains characters outside printable ASCII.\
+            \ A disallowed domain is a 400, not this."
+      security:
+      - ApiKeyAuth: []
+      summary: Create an email inbox
+      tags:
+      - Email Inboxes
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /api/v1/emailInbox/{id}:
+    delete:
+      description: "Soft-deletes the inbox and its messages in one transaction. The\
+        \ rows are retained and every read filters them out, so the data is recoverable\
+        \ — but the **address is retired permanently and can never be claimed again,\
+        \ by anyone including you**. Mail keeps being delivered to it, so releasing\
+        \ it would hand the next claimant your still-arriving messages. Requires API\
+        \ key with `email_inboxes:delete` scope, which is granted separately from\
+        \ create and update for exactly this reason."
+      operationId: deleteEmailInbox
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Inbox deleted. No body — the record is no longer readable.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Forbidden - API key lacks the email_inboxes:delete scope. Holding
+            create and update does not grant it.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Not found - no such inbox, or it is not one this key may delete.\
+            \ Deliberately indistinguishable."
+      security:
+      - ApiKeyAuth: []
+      summary: Delete an email inbox
+      tags:
+      - Email Inboxes
+      x-accepts:
+      - application/json
+    get:
+      description: "Returns a single email inbox by id, scoped to the organization\
+        \ the API key is bound to. Requires API key with `email_inboxes:read` scope."
+      operationId: getEmailInbox
+      parameters:
+      - description: Email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getEmailInbox_200_response"
+          description: The email inbox
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Missing, malformed or revoked API key"
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: API key lacks the email_inboxes:read scope
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: No such inbox in the organization the key is bound to. Deliberately
+            indistinguishable from an inbox that does not exist.
+      security:
+      - ApiKeyAuth: []
+      summary: Get an email inbox
+      tags:
+      - Email Inboxes
+      x-accepts:
+      - application/json
+    patch:
+      description: "Updates an inbox display name. The address is immutable — submitting\
+        \ a different one is a 409; submitting the current one (after normalization)\
+        \ is an allowed no-op, so a client can PATCH a whole record back. Requires\
+        \ API key with `email_inboxes:update` scope."
+      operationId: updateEmailInbox
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/updateEmailInbox_request"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/createEmailInbox_201_response"
+          description: Inbox updated
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Bad request - malformed JSON, the name is not a string or\
+            \ is longer than 100 characters, or `email` was supplied and is not a\
+            \ valid email address. A well-formed address that differs from the current\
+            \ one is a 409 instead."
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Forbidden - API key lacks the email_inboxes:update scope
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Not found - no such inbox, or it is not one this key may modify.\
+            \ Deliberately indistinguishable."
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Conflict - the address of an inbox cannot be changed
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Unprocessable - the name is on the impersonation blocklist,\
+            \ or it contains characters outside printable ASCII. Both are the same\
+            \ rule: a Cyrillic lookalike normalizes past the blocklist and only the\
+            \ charset guard stops it."
+      security:
+      - ApiKeyAuth: []
+      summary: Rename an email inbox
+      tags:
+      - Email Inboxes
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /api/v1/emailInbox/{id}/messages:
+    get:
+      description: Returns messages for a specific email inbox with optional pagination
+        and filtering. Requires API key with `email_messages:read` scope.
+      operationId: getEmailInboxMessages
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: Opaque pagination cursor from a previous response's nextCursor.
+          Omit for the first page.
+        explode: true
+        in: query
+        name: cursor
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: "Number of messages per page (default: 50, max: 100)"
+        explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+        style: form
+      - description: Optional thread ID to filter messages to a specific thread
+        explode: true
+        in: query
+        name: threadId
+        required: false
+        schema:
+          type: string
+        style: form
+      - description: "If true, returns only the latest message per thread (grouped\
+          \ view). Cannot be combined with any search parameter — the combination\
+          \ returns 400."
+        explode: true
+        in: query
+        name: grouped
+        required: false
+        schema:
+          type: boolean
+        style: form
+      - description: "Full-text search over the subject and the message body. Supports\
+          \ \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax).\
+          \ The body searched is the plain-text `bodyText` field, which is extracted\
+          \ from `html` for messages that carry no text part. Results stay in reverse-chronological\
+          \ order — this filters, it does not rank."
+        example: '"order confirmed" -refund'
+        explode: true
+        in: query
+        name: q
+        required: false
+        schema:
+          maxLength: 200
+          type: string
+        style: form
+      - description: "Case-insensitive substring match on the sender. Matches the\
+          \ raw header, so it covers both the display name and the address."
+        example: billing@acme.com
+        explode: true
+        in: query
+        name: from
+        required: false
+        schema:
+          maxLength: 200
+          type: string
+        style: form
+      - description: "Return messages carrying any of these tags (exact match, OR-combined).\
+          \ Repeat the parameter: tags=a&tags=b. A comma-separated single value (tags=a,b)\
+          \ is also accepted, but cannot express a tag that itself contains a comma.\
+          \ Max 20 values."
+        explode: true
+        in: query
+        name: tags
+        required: false
+        schema:
+          items:
+            type: string
+          maxItems: 20
+          type: array
+        style: form
+      - description: "Return messages carrying any of these categories (exact match,\
+          \ OR-combined). Repeat the parameter: categories=a&categories=b. A comma-separated\
+          \ single value is also accepted, but cannot express a category that itself\
+          \ contains a comma. Max 20 values."
+        explode: true
+        in: query
+        name: categories
+        required: false
+        schema:
+          items:
+            type: string
+          maxItems: 20
+          type: array
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getEmailInboxMessages_200_response"
+          description: Successfully retrieved messages
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Invalid cursor, a search parameter over its length or value\
+            \ limit, or a search parameter combined with grouped=true"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid token/API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Forbidden - user does not own inbox, API key lacks required\
+            \ scope (email_messages:read), or API key not authorized for this organization"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Email inbox not found
+      security:
+      - ApiKeyAuth: []
+      summary: Get messages from an email inbox
+      tags:
+      - Email Inboxes
+      x-accepts:
+      - application/json
+  /api/v1/emailInbox/{id}/messages/{messageId}:
+    get:
+      description: Returns a specific message from an email inbox. Requires API key
+        with `email_messages:read` scope.
+      operationId: getEmailMessage
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: The message ID
+        explode: false
+        in: path
+        name: messageId
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getEmailMessage_200_response"
+          description: Successfully retrieved message
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Forbidden - user does not own inbox, API key lacks required\
+            \ scope (email_messages:read), or API key not authorized for this organization"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Message or inbox not found
+      security:
+      - ApiKeyAuth: []
+      summary: Get a single message
+      tags:
+      - Email Inboxes
+      x-accepts:
+      - application/json
+components:
+  schemas:
+    EmailInbox:
+      description: An email inbox
+      example:
+        id: inbox-1
+        organizationId: org-1
+        email: support@example.com
+        name: Support Inbox
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          example: inbox-1
+          type: string
+        organizationId:
+          example: org-1
+          type: string
+        email:
+          example: support@example.com
+          format: email
+          type: string
+        name:
+          example: Support Inbox
+          nullable: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - createdAt
+      - email
+      - id
+      - name
+      - organizationId
+      - updatedAt
+      type: object
+    EmailMessage:
+      description: An email message
+      example:
+        id: msg-1
+        threadId: thread-1
+        parentMessageId: msg-0
+        subject: Support Request
+        from: customer@example.com
+        to:
+        - to
+        - to
+        cc:
+        - cc
+        - cc
+        bcc:
+        - bcc
+        - bcc
+        text: "Hello, I need help with..."
+        html: "<p>Hello, I need help with...</p>"
+        bodyText: "Hello, I need help with..."
+        isStarred: false
+        tags:
+        - tags
+        - tags
+        categories:
+        - categories
+        - categories
+        extractedOtp: "123456"
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        threadCount: 0
+      properties:
+        id:
+          example: msg-1
+          type: string
+        threadId:
+          example: thread-1
+          type: string
+        parentMessageId:
+          example: msg-0
+          nullable: true
+          type: string
+        subject:
+          example: Support Request
+          type: string
+        from:
+          example: customer@example.com
+          format: email
+          type: string
+        to:
+          items:
+            format: email
+            type: string
+          type: array
+        cc:
+          items:
+            format: email
+            type: string
+          type: array
+        bcc:
+          items:
+            format: email
+            type: string
+          type: array
+        text:
+          example: "Hello, I need help with..."
+          type: string
+        html:
+          example: "<p>Hello, I need help with...</p>"
+          type: string
+        bodyText:
+          description: "Plain text of the body, and the field the `q` parameter searches.\
+            \ Equal to `text` when the sender supplied a text part, otherwise extracted\
+            \ from `html`. Null for messages stored before this field existed."
+          example: "Hello, I need help with..."
+          nullable: true
+          type: string
+        isStarred:
+          example: false
+          type: boolean
+        tags:
+          items:
+            type: string
+          type: array
+        categories:
+          description: Categories assigned to the message. Matched by the `categories`
+            parameter.
+          items:
+            type: string
+          type: array
+        extractedOtp:
+          description: "One-time code parsed from the message body. Derived from text/html,\
+            \ which the same email_messages:read scope already returns."
+          example: "123456"
+          nullable: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        threadCount:
+          description: Number of messages in the thread (present only in grouped mode)
+          type: integer
+      required:
+      - bcc
+      - bodyText
+      - categories
+      - cc
+      - createdAt
+      - extractedOtp
+      - from
+      - html
+      - id
+      - isStarred
+      - parentMessageId
+      - subject
+      - tags
+      - text
+      - threadId
+      - to
+      type: object
+    ErrorResponse:
+      example:
+        message: Unauthorized
+      properties:
+        message:
+          description: Error message
+          example: Unauthorized
+          type: string
+      required:
+      - message
+      type: object
+    listEmailInboxes_200_response:
+      example:
+        data:
+        - id: inbox-1
+          organizationId: org-1
+          email: support@example.com
+          name: Support Inbox
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+        - id: inbox-1
+          organizationId: org-1
+          email: support@example.com
+          name: Support Inbox
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/EmailInbox"
+          type: array
+      required:
+      - data
+      type: object
+    createEmailInbox_request:
+      properties:
+        email:
+          description: "The address to claim. Normalized to lowercase before storage,\
+            \ and permanent once created."
+          format: email
+          type: string
+        name:
+          description: Optional display label. Subject to the same impersonation blocklist
+            as the address.
+          nullable: true
+          type: string
+        organizationId:
+          description: Optional. Must match the organization the API key is bound
+            to if supplied; the key's organization is used otherwise.
+          type: string
+      required:
+      - email
+      type: object
+    createEmailInbox_201_response:
+      example:
+        data:
+          id: inbox-1
+          organizationId: org-1
+          email: support@example.com
+          name: Support Inbox
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailInbox"
+      required:
+      - data
+      type: object
+    getEmailInbox_200_response:
+      example:
+        data:
+          id: inbox-1
+          organizationId: org-1
+          email: support@example.com
+          name: Support Inbox
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          updatedAt: 2000-01-23T04:56:07.000+00:00
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailInbox"
+      type: object
+    updateEmailInbox_request:
+      properties:
+        name:
+          description: "The new display label. Subject to the impersonation blocklist,\
+            \ so an inbox cannot be renamed into one."
+          nullable: true
+          type: string
+        email:
+          description: Accepted only when it matches the current address. Present
+            so a client can round-trip a full record; any other value is a 409.
+          format: email
+          type: string
+      type: object
+    getEmailInboxMessages_200_response_data_messages_inner:
+      allOf:
+      - $ref: "#/components/schemas/EmailMessage"
+      - properties:
+          threadCount:
+            description: Number of messages in the thread (present only in grouped
+              mode)
+            type: integer
+        type: object
+      example:
+        id: msg-1
+        threadId: thread-1
+        parentMessageId: msg-0
+        subject: Support Request
+        from: customer@example.com
+        to:
+        - to
+        - to
+        cc:
+        - cc
+        - cc
+        bcc:
+        - bcc
+        - bcc
+        text: "Hello, I need help with..."
+        html: "<p>Hello, I need help with...</p>"
+        bodyText: "Hello, I need help with..."
+        isStarred: false
+        tags:
+        - tags
+        - tags
+        categories:
+        - categories
+        - categories
+        extractedOtp: "123456"
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        threadCount: 6
+    getEmailInboxMessages_200_response_data:
+      example:
+        messages:
+        - id: msg-1
+          threadId: thread-1
+          parentMessageId: msg-0
+          subject: Support Request
+          from: customer@example.com
+          to:
+          - to
+          - to
+          cc:
+          - cc
+          - cc
+          bcc:
+          - bcc
+          - bcc
+          text: "Hello, I need help with..."
+          html: "<p>Hello, I need help with...</p>"
+          bodyText: "Hello, I need help with..."
+          isStarred: false
+          tags:
+          - tags
+          - tags
+          categories:
+          - categories
+          - categories
+          extractedOtp: "123456"
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          threadCount: 6
+        - id: msg-1
+          threadId: thread-1
+          parentMessageId: msg-0
+          subject: Support Request
+          from: customer@example.com
+          to:
+          - to
+          - to
+          cc:
+          - cc
+          - cc
+          bcc:
+          - bcc
+          - bcc
+          text: "Hello, I need help with..."
+          html: "<p>Hello, I need help with...</p>"
+          bodyText: "Hello, I need help with..."
+          isStarred: false
+          tags:
+          - tags
+          - tags
+          categories:
+          - categories
+          - categories
+          extractedOtp: "123456"
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          threadCount: 6
+        nextCursor: nextCursor
+        hasMore: true
+      properties:
+        messages:
+          items:
+            $ref: "#/components/schemas/getEmailInboxMessages_200_response_data_messages_inner"
+          type: array
+        nextCursor:
+          description: "Cursor for the next page, or null if there are no more results"
+          nullable: true
+          type: string
+        hasMore:
+          description: True if more results exist beyond this page
+          type: boolean
+      required:
+      - hasMore
+      - messages
+      - nextCursor
+      type: object
+    getEmailInboxMessages_200_response:
+      example:
+        data:
+          messages:
+          - id: msg-1
+            threadId: thread-1
+            parentMessageId: msg-0
+            subject: Support Request
+            from: customer@example.com
+            to:
+            - to
+            - to
+            cc:
+            - cc
+            - cc
+            bcc:
+            - bcc
+            - bcc
+            text: "Hello, I need help with..."
+            html: "<p>Hello, I need help with...</p>"
+            bodyText: "Hello, I need help with..."
+            isStarred: false
+            tags:
+            - tags
+            - tags
+            categories:
+            - categories
+            - categories
+            extractedOtp: "123456"
+            createdAt: 2000-01-23T04:56:07.000+00:00
+            threadCount: 6
+          - id: msg-1
+            threadId: thread-1
+            parentMessageId: msg-0
+            subject: Support Request
+            from: customer@example.com
+            to:
+            - to
+            - to
+            cc:
+            - cc
+            - cc
+            bcc:
+            - bcc
+            - bcc
+            text: "Hello, I need help with..."
+            html: "<p>Hello, I need help with...</p>"
+            bodyText: "Hello, I need help with..."
+            isStarred: false
+            tags:
+            - tags
+            - tags
+            categories:
+            - categories
+            - categories
+            extractedOtp: "123456"
+            createdAt: 2000-01-23T04:56:07.000+00:00
+            threadCount: 6
+          nextCursor: nextCursor
+          hasMore: true
+      properties:
+        data:
+          $ref: "#/components/schemas/getEmailInboxMessages_200_response_data"
+      required:
+      - data
+      type: object
+    getEmailMessage_200_response:
+      example:
+        data:
+          id: msg-1
+          threadId: thread-1
+          parentMessageId: msg-0
+          subject: Support Request
+          from: customer@example.com
+          to:
+          - to
+          - to
+          cc:
+          - cc
+          - cc
+          bcc:
+          - bcc
+          - bcc
+          text: "Hello, I need help with..."
+          html: "<p>Hello, I need help with...</p>"
+          bodyText: "Hello, I need help with..."
+          isStarred: false
+          tags:
+          - tags
+          - tags
+          categories:
+          - categories
+          - categories
+          extractedOtp: "123456"
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          threadCount: 0
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailMessage"
+      required:
+      - data
+      type: object
+  securitySchemes:
+    ApiKeyAuth:
+      bearerFormat: API Key
+      description: "API Key in Authorization header (Bearer token format). API keys\
+        \ must have appropriate scopes: email_inboxes:read for inbox listing, email_messages:read\
+        \ for message listing."
+      scheme: bearer
+      type: http
+

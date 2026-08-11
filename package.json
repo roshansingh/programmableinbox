@@ -13,6 +13,8 @@
     "scan:secrets": "gitleaks git --config .gitleaks.toml --log-opts=--all --redact .",
     "backfill:api-keys": "node --import tsx scripts/backfill-api-key-hashes.ts",
     "backfill:org-names": "node --import tsx scripts/backfill-org-names.ts",
+    "sdk:export-spec": "node --import tsx scripts/export-openapi-spec.ts",
+    "sdk:generate": "bash sdk/generate.sh",
     "start": "next start --port 4000",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -94,6 +96,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@openapitools/openapi-generator-cli": "^2.40.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

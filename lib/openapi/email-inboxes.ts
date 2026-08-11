@@ -11,7 +11,7 @@ export const spec = {
       description: 'Local development',
     },
     {
-      url: 'https://api.example.com',
+      url: 'https://app.programmableinbox.com',
       description: 'Production',
     },
   ],
