@@ -1,24 +1,12 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Menu, Moon, Search, Sun, X } from 'lucide-react'
+import { Menu, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { MobileSidebar } from "@/components/mobile-sidebar"
 
-export interface DashboardHeaderSearch {
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-}
-
-interface DashboardHeaderProps {
-  /** Renders a search box centered in the header. Omitted on pages that don't search anything. */
-  search?: DashboardHeaderSearch
-}
-
-export function DashboardHeader({ search }: DashboardHeaderProps = {}) {
+export function DashboardHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
@@ -33,8 +21,8 @@ export function DashboardHeader({ search }: DashboardHeaderProps = {}) {
     <>
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="px-4 py-4 lg:px-8">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -46,32 +34,7 @@ export function DashboardHeader({ search }: DashboardHeaderProps = {}) {
 
             </div>
 
-            <div className="flex-1 flex justify-center px-2">
-              {search && (
-                <div className="relative w-full max-w-sm">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
-                    placeholder={search.placeholder ?? 'Search'}
-                    aria-label={search.placeholder ?? 'Search'}
-                    className="h-9 pl-8 pr-7 text-sm"
-                  />
-                  {search.value && (
-                    <button
-                      type="button"
-                      onClick={() => search.onChange('')}
-                      aria-label="Clear search"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               {mounted ? (
                 <Button
                   variant="ghost"

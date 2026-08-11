@@ -6,7 +6,8 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
@@ -190,18 +191,12 @@ export default function InboxPage() {
     setExpandedThreadMessages(newExpanded)
   }
 
-  const headerSearch = {
-    value: searchQuery,
-    onChange: setSearchQuery,
-    placeholder: 'Search messages',
-  }
-
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
         <div className="flex-1 flex flex-col">
-          <DashboardHeader search={headerSearch} />
+          <DashboardHeader />
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
@@ -221,7 +216,7 @@ export default function InboxPage() {
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden w-full">
-        <DashboardHeader search={headerSearch} />
+        <DashboardHeader />
 
         <main className="flex-1 overflow-hidden">
           <div className="border-b border-border bg-card px-4 py-3 lg:px-8">
@@ -264,7 +259,29 @@ export default function InboxPage() {
           <div className="flex h-[calc(100vh-9rem)] overflow-hidden">
             {/* Message list */}
             <div className={`w-full lg:w-96 border-r border-border bg-card ${showMessageDetail ? 'hidden lg:block' : 'block'}`}>
-              <ScrollArea className="h-full">
+              <div className="border-b border-border p-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search messages"
+                    aria-label="Search messages"
+                    className="h-9 pl-8 pr-7 text-sm"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Clear search"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <ScrollArea className="h-[calc(100%-3.75rem)]">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Mail className="h-12 w-12 mb-4 opacity-50" />
