@@ -36,7 +36,7 @@ const ALLOWLIST = [
 ]
 
 /** Files whose only matches are prose in a comment. */
-const COMMENT_ONLY = new Set(['lib/db.ts'])
+const COMMENT_ONLY = new Set(['lib/db.ts', 'ee/observability/init.ts'])
 
 describe('process.env is confined to lib/config', () => {
   it('has no production reads outside the allowlist', () => {
