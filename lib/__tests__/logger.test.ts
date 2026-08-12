@@ -1,8 +1,14 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 
 describe('logger config', () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs()
+    // Clears the globalThis-backed extra-transport list and built flag (see
+    // lib/logger.config.ts). vi.resetModules() alone gives the next test a
+    // pristine module instance, but does NOT clear globalThis, so without
+    // this explicit reset state would leak between tests in this file.
+    const { resetLoggerConfigStateForTests } = await import('../logger.config')
+    resetLoggerConfigStateForTests()
     vi.resetModules()
   })
 
