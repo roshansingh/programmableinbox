@@ -85,13 +85,26 @@ boot sequence logs.
 ## Why generic OTel env vars, not Grafana-specific config
 
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME` are standard
-OpenTelemetry SDK environment variables. `@vercel/otel` and `pino-opentelemetry-transport` both
-read them directly from `process.env` — they are never re-plumbed through `config.observability`.
-`config.observability` exists purely so `assertConfig()` can validate them at boot (present,
-non-empty, required together); `ee/observability/init.ts` never reads the endpoint or headers
-values back out of `config`. This means any OTLP-compatible backend works, not just Grafana —
-Grafana Cloud is what the operator guide documents as a free reference backend, not something the
-code is coupled to.
+OpenTelemetry SDK environment variables, but they don't all reach the exporters the same way:
+
+- `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` are read directly from
+  `process.env` by `@vercel/otel` and `pino-opentelemetry-transport` themselves —
+  `ee/observability/init.ts` never reads `config.observability.otlpEndpoint` or `.otlpHeaders`
+  back out of `config` and passes neither to `registerOTel()` or the log transport. For these two,
+  `config.observability` exists purely so `assertConfig()` can validate them at boot (present,
+  non-empty, required together); at runtime they flow straight from the environment to the
+  libraries, bypassing `config` entirely.
+- `OTEL_SERVICE_NAME` is different: `config.observability.serviceName` (defaulted to `'inboxui'`
+  if unset) *is* read back out of `config` and passed explicitly —
+  `registerOTel(config.observability.serviceName)` and
+  `resourceAttributes: { 'service.name': config.observability.serviceName }` on the log transport.
+  It is the one field in `config.observability` with a genuine runtime role beyond boot-time
+  validation.
+
+Either way, none of this is Grafana-specific: any OTLP-compatible backend works, since the
+libraries speak the standard OTel protocol regardless of where the endpoint points. Grafana Cloud
+is what the operator guide documents as a free reference backend, not something the code is
+coupled to.
 
 ## Build note
 
