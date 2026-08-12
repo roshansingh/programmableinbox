@@ -56,8 +56,7 @@ describe.skipIf(ALREADY_STRIPPED)('FOSS entrypoint', () => {
    * worker never starting, say, which no test would otherwise catch because the
    * FOSS build is not what the suite runs against. Comparing the import lists
    * makes that a failure here instead.
-   */
-  /**
+   *
    * Generalized to a prefix check rather than one literal string: any dynamic
    * import under @/ee/ is a commercial boot step, and this guard exists
    * precisely so adding a second one (as observability did) can't silently

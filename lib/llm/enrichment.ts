@@ -24,6 +24,14 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
         span.setStatus({ code: SpanStatusCode.ERROR, message: 'enrichment failed transiently' })
       }
       return settled
+    } catch (error) {
+      // Defensive: enrichMessageInner's own catch-all means this should never
+      // fire today, but if that contract ever changes silently, the span
+      // should record the exception rather than end with an UNSET status.
+      // Matches the pattern in lib/webhooks/worker.ts's processEmailWebhookJob.
+      span.recordException(error as Error)
+      span.setStatus({ code: SpanStatusCode.ERROR })
+      throw error
     } finally {
       span.end()
     }

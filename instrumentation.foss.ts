@@ -1,11 +1,12 @@
 /**
  * The FOSS build's `instrumentation.ts`.
  *
- * Identical to the default entrypoint minus the one static import of
- * `@/ee/init`. `scripts/foss.mjs` deletes `ee/` and renames this file over
- * `instrumentation.ts`, which is what makes the stripped tree buildable — the
- * same two-entrypoint technique Rocket.Chat's `fossify` script uses
- * (`startRocketChat.ts` / `startRocketChatFOSS.ts`).
+ * Identical to the default entrypoint minus the two `@/ee/`-prefixed dynamic
+ * imports (`@/ee/init` and `@/ee/observability/init`). `scripts/foss.mjs`
+ * deletes `ee/` and renames this file over `instrumentation.ts`, which is
+ * what makes the stripped tree buildable — the same two-entrypoint technique
+ * Rocket.Chat's `fossify` script uses (`startRocketChat.ts` /
+ * `startRocketChatFOSS.ts`).
  *
  * A build-time swap rather than a runtime `if`, because the goal is that no
  * commercial code exists in the artifact at all — a conditional import would
