@@ -23,6 +23,7 @@ type ExecuteAutomationParams = {
     | 'subject'
     | 'text'
     | 'html'
+    | 'createdAt'
     | 'headers'
     | 'organizationId'
     | 'inboxEmailAddressId'
@@ -51,6 +52,7 @@ function buildInput(params: ExecuteAutomationParams): EmailAutomationInput {
     subject: params.message.subject,
     bodyText: params.message.text,
     bodyHtml: params.message.html,
+    createdAt: params.message.createdAt,
     headers: (params.message.headers as Record<string, string>) ?? {},
     tags: params.message.tags,
     hasAttachment: params.attachments.length > 0,

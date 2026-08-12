@@ -36,6 +36,7 @@ const input: EmailAutomationInput = {
   subject: 'Order confirmation',
   bodyText: 'hello',
   bodyHtml: '',
+  createdAt: new Date('2026-08-11T13:05:13.000Z'),
   headers: {},
   tags: [],
   hasAttachment: false,
@@ -120,6 +121,25 @@ describe('outbound email plan gate', () => {
 
       expect(result.status).toBe('succeeded')
       expect(sendMock).toHaveBeenCalled()
+    })
+
+    /**
+     * Forwarding sends from the inbox address, so without this block the
+     * recipient has no way to see who the mail originally came from short of
+     * reading raw headers.
+     */
+    it('prepends an Original Message header naming the original sender', async () => {
+      configurePlan({ outboundEmail: true })
+
+      await executeActionNode(forwardNode(), context)
+
+      const [sentEmail] = sendMock.mock.calls[0]
+      expect(sentEmail.text).toContain('---------- Original Message ----------')
+      expect(sentEmail.text).toContain(`From: ${input.from}`)
+      expect(sentEmail.text).toContain(`Subject: ${input.subject}`)
+      expect(sentEmail.text).toContain(`To: ${input.to.join(', ')}`)
+      expect(sentEmail.text.indexOf('---------- Original Message ----------'))
+        .toBeLessThan(sentEmail.text.indexOf(input.bodyText))
     })
 
     /**

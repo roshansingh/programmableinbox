@@ -55,6 +55,50 @@ function renderTemplate(template: string, input: EmailAutomationInput) {
     .replaceAll('{{inbox_email}}', input.inboxEmail)
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
+/**
+ * `From`/`Date`/`Subject`/`To` block prepended to a forwarded message so the
+ * recipient can see who originally sent it — the automation forwards from
+ * the inbox address, so without this the original sender is otherwise only
+ * visible in raw headers.
+ */
+function formatOriginalMessageDate(date: Date) {
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
+
+function buildOriginalMessageHeaderLines(input: EmailAutomationInput) {
+  return [
+    `From: ${input.from}`,
+    `Date: ${formatOriginalMessageDate(input.createdAt)}`,
+    `Subject: ${input.subject}`,
+    `To: ${input.to.join(', ')}`,
+  ]
+}
+
+function buildOriginalMessageHeaderText(input: EmailAutomationInput) {
+  return ['---------- Original Message ----------', ...buildOriginalMessageHeaderLines(input)].join('\n')
+}
+
+function buildOriginalMessageHeaderHtml(input: EmailAutomationInput) {
+  const lines = ['---------- Original Message ----------', ...buildOriginalMessageHeaderLines(input)]
+  return `<p>${lines.map(escapeHtml).join('<br>\n')}</p>`
+}
+
 async function executeForwardEmail(
   node: Extract<ActionNodeConfig, { actionType: 'forward_email' }>,
   context: ActionExecutionContext
@@ -72,9 +116,20 @@ async function executeForwardEmail(
   const gated = await checkOutboundEmailAllowed(context.input.organizationId)
   if (gated) return gated
 
-  const text = node.config.prependNote
-    ? `${node.config.prependNote}\n\n${context.input.bodyText}`
-    : context.input.bodyText
+  const originalMessageHeaderText = buildOriginalMessageHeaderText(context.input)
+  const text = [node.config.prependNote, originalMessageHeaderText, context.input.bodyText]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const html = context.input.bodyHtml
+    ? [
+        node.config.prependNote ? `<p>${escapeHtml(node.config.prependNote)}</p>` : null,
+        buildOriginalMessageHeaderHtml(context.input),
+        context.input.bodyHtml,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : undefined
 
   const { data, error } = await getResend().emails.send({
     from: context.inbox.email,
@@ -83,7 +138,7 @@ async function executeForwardEmail(
     bcc: node.config.bcc,
     subject: `Fwd: ${context.input.subject}`,
     text,
-    html: context.input.bodyHtml || undefined,
+    html,
   })
 
   if (error) {

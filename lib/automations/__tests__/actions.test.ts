@@ -27,6 +27,7 @@ const input: EmailAutomationInput = {
   subject: 'Order confirmation',
   bodyText: 'hello',
   bodyHtml: '',
+  createdAt: new Date('2026-08-11T13:05:13.000Z'),
   headers: {},
   tags: [],
   hasAttachment: false,

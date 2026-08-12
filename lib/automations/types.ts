@@ -217,6 +217,7 @@ export type EmailAutomationInput = {
   subject: string
   bodyText: string
   bodyHtml: string
+  createdAt: Date
   headers: Record<string, string>
   tags: string[]
   hasAttachment: boolean

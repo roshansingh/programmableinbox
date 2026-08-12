@@ -14,6 +14,7 @@ const baseInput: EmailAutomationInput = {
   subject: '[support] Need help',
   bodyText: 'Please call me back',
   bodyHtml: '<p>Please call me back</p>',
+  createdAt: new Date('2026-08-11T13:05:13.000Z'),
   headers: {
     'x-priority': 'high',
   },
@@ -106,6 +107,7 @@ describe('evaluateCondition', () => {
         bcc: [],
         bodyText: '',
         bodyHtml: '',
+        createdAt: new Date('2026-08-11T13:05:13.000Z'),
         headers: {},
         tags: [],
         hasAttachment: false,

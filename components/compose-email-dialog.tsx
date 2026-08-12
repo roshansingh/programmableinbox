@@ -31,7 +31,15 @@ function buildForwardSubject(subject: string): string {
 }
 
 function buildQuotedText(msg: EmailMessage): string {
-  const date = new Date(msg.createdAt).toLocaleString()
+  const date = new Date(msg.createdAt).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  })
   return `\n\n---------- Original Message ----------\nFrom: ${msg.from}\nDate: ${date}\nSubject: ${msg.subject}\nTo: ${msg.to.join(", ")}\n\n${msg.text}`
 }
 
