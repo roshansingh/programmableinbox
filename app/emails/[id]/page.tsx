@@ -375,7 +375,7 @@ export default function InboxPage() {
                 <>
                   {/* Thread header */}
                   <div className="border-b border-border bg-card px-4 lg:px-6 py-4 flex-shrink-0">
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <h1 className="text-lg lg:text-xl font-semibold text-foreground mb-2 text-balance">
                           {selectedMessage.subject}
@@ -387,6 +387,28 @@ export default function InboxPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-1">
+                        {inbox?.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Reply"
+                            className="h-8 w-8"
+                            onClick={() => openCompose("reply", threadMessages[threadMessages.length - 1] || selectedMessage)}
+                          >
+                            <Reply className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {inbox?.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Forward"
+                            className="h-8 w-8"
+                            onClick={() => openCompose("forward", threadMessages[threadMessages.length - 1] || selectedMessage)}
+                          >
+                            <Forward className="h-4 w-4" />
+                          </Button>
+                        )}
                         {inbox?.isOwner && (
                         <Button
                           variant="ghost"
@@ -403,10 +425,10 @@ export default function InboxPage() {
                         </Button>
                         )}
                         {/*
-                          Owner-only, like the star above and Reply/Forward
-                          below. Reads are organization-wide so a colleague can
-                          open this inbox, but starring, deleting and sending
-                          all resolve through toOwnerScope and 404 for them.
+                          Owner-only, like the star above and Reply/Forward.
+                          Reads are organization-wide so a colleague can open
+                          this inbox, but starring, deleting and sending all
+                          resolve through toOwnerScope and 404 for them.
                         */}
                         {inbox?.isOwner && (
                           <Button
@@ -423,20 +445,6 @@ export default function InboxPage() {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                      {inbox?.isOwner && (
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto" onClick={() => openCompose("reply", threadMessages[threadMessages.length - 1] || selectedMessage)}>
-                          <Reply className="h-3 w-3 mr-2" />
-                          Reply
-                        </Button>
-                      )}
-                      {inbox?.isOwner && (
-                      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => openCompose("forward", threadMessages[threadMessages.length - 1] || selectedMessage)}>
-                        <Forward className="h-3 w-3 mr-2" />
-                        Forward
-                      </Button>
-                      )}
                     </div>
                   </div>
 
