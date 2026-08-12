@@ -531,6 +531,51 @@ const RateLimitSchema = z
     trustedProxyCount: v.TRUSTED_PROXY_COUNT ?? 1,
   }))
 
+/**
+ * EE-only observability: OpenTelemetry log export and tracing, shipped over
+ * OTLP directly from the running container. See docs/architecture/observability.md.
+ *
+ * Off by default even on an EE build — not tied to `USE_COMMERCIAL`, since a
+ * self-hosted EE deployment without Stripe billing should still be able to
+ * turn this on. Setting `ENABLE_OBSERVABILITY=true` on a Community build is
+ * inert: the code that reads `config.observability` lives entirely in
+ * `ee/observability/`, which `scripts/foss.mjs` deletes — same shape as
+ * `USE_COMMERCIAL` on a Community build.
+ *
+ * `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` are the
+ * standard OpenTelemetry SDK environment variable names, not
+ * Grafana-specific ones — any OTLP-compatible backend works. This schema
+ * exists purely so a set-but-incomplete configuration fails loudly at boot;
+ * `ee/observability/init.ts` never reads these two values back out of
+ * `config` — the OTel exporters read the same-named env vars directly.
+ */
+const ObservabilitySchema = z
+  .object({
+    ENABLE_OBSERVABILITY: zBool.optional(),
+    OTEL_EXPORTER_OTLP_ENDPOINT: zUrl(['http:', 'https:']).optional(),
+    OTEL_EXPORTER_OTLP_HEADERS: zSecret().optional(),
+    OTEL_SERVICE_NAME: zNonEmpty.optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.ENABLE_OBSERVABILITY) return
+
+    for (const name of ['OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_HEADERS'] as const) {
+      if (!v[name]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: 'is required when ENABLE_OBSERVABILITY is true',
+        })
+      }
+    }
+  })
+  .transform((v) => ({
+    enabled: v.ENABLE_OBSERVABILITY ?? false,
+    otlpEndpoint: v.OTEL_EXPORTER_OTLP_ENDPOINT ?? null,
+    otlpHeaders: v.OTEL_EXPORTER_OTLP_HEADERS ?? null,
+    serviceName: v.OTEL_SERVICE_NAME ?? 'inboxui',
+  }))
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -618,6 +663,15 @@ export const DOMAIN_SCHEMAS = {
       'RATE_LIMIT_TIMEOUT_MS',
       'RATE_LIMIT_FAIL_MODE',
       'TRUSTED_PROXY_COUNT',
+    ],
+  },
+  observability: {
+    schema: ObservabilitySchema,
+    vars: [
+      'ENABLE_OBSERVABILITY',
+      'OTEL_EXPORTER_OTLP_ENDPOINT',
+      'OTEL_EXPORTER_OTLP_HEADERS',
+      'OTEL_SERVICE_NAME',
     ],
   },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
