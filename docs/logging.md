@@ -224,6 +224,20 @@ All log lines from this component will carry `"component": "email-webhook-worker
 
 ---
 
+## Shipping logs externally (EE)
+
+Every log line carries `trace_id`/`span_id` fields whenever it's emitted during an active
+OpenTelemetry span. This correlation is unconditional and safe on every build — with no
+OpenTelemetry SDK registered (Community Edition, or an EE build with observability off) there is
+no active span, so the fields are simply absent and nothing else changes.
+
+Shipping those logs to an external backend, rather than just stdout, is an EE/SaaS feature
+controlled by `ENABLE_OBSERVABILITY`. See
+[`docs/observability-operator-guide.md`](observability-operator-guide.md) for setup — it isn't
+duplicated here.
+
+---
+
 ## Testing
 
 The logger does not need to be mocked in tests. Pino writes to stdout by default; in the test environment this output is suppressed by the test runner unless a test fails, at which point it appears in the failure output.

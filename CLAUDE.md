@@ -91,7 +91,7 @@ Four properties are load-bearing:
 
 **Required:** `DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`, `EMAIL_INBOX_DOMAINS`.
 
-**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `USE_COMMERCIAL` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (30), `PASSWORD_RESET_TOKEN_TTL_MINUTES` (30), `ENABLE_MCP` (false), `MCP_ALLOWED_ORIGINS` (empty), `MCP_RATE_LIMIT_MAX` (120), `MCP_RATE_LIMIT_WINDOW_S` (60), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
+**Optional, with defaults:** `LOG_LEVEL` (debug in dev, info in prod), `ENABLE_ASYNC_WEBHOOK_PROCESSING` (false), `WEBHOOK_QUEUE_MAX_RETRIES` (3), `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` (5), `USE_COMMERCIAL` (false), `WEBHOOK_ALLOW_PRIVATE_NETWORK` (false), `WEBHOOK_EGRESS_ALLOWLIST`, `HEALTHZ_SECRET`, `AUTOMATION_SWEEPER_SECRET`, `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` / `LLM_BASE_URL`, `ENABLE_EMAIL_VERIFICATION` (false), `EMAIL_VERIFICATION_TOKEN_TTL_MINUTES` (30), `PASSWORD_RESET_TOKEN_TTL_MINUTES` (30), `ENABLE_MCP` (false), `MCP_ALLOWED_ORIGINS` (empty), `MCP_RATE_LIMIT_MAX` (120), `MCP_RATE_LIMIT_WINDOW_S` (60), `ENABLE_OBSERVABILITY` (false), and the `AUTH_RATE_LIMIT_*` / `AUTH_LOCKOUT_*` / `RATE_LIMIT_*` / `TRUSTED_PROXY_COUNT` family (see *Auth rate limiting* below).
 
 **Conditionally required:** `REDIS_URL` has **no default** and is required whenever `ENABLE_ASYNC_WEBHOOK_PROCESSING=true` **or** `AUTH_RATE_LIMIT_ENABLED` is on (it defaults to on) — `assertConfig()` refuses to start without it, naming both reasons. A `redis://localhost:6379` fallback was removed deliberately: on a host where the variable was left unset it silently dialled a Redis that either did not exist, or belonged to another service on the same box, so two deployments shared a queue and a rate limiter. `config.redis.url` is therefore `string | null`, and every path that needs a connection goes through `requireRedisUrl()`, which throws naming the variable.
 
@@ -108,6 +108,8 @@ Four properties are load-bearing:
 **`DATABASE_URL` must carry `options=-c%20timezone%3DUTC`.** This is now enforced: the `db` schema parses the URL, reads its `options` parameter and requires a UTC session timezone, so a connection string without one fails at boot. The check is semantic rather than a substring match, because `URLSearchParams` serialises the space as `+` (`options=-c+timezone%3DUTC`) and that is the same option. Prisma sends timestamps as naive strings, so Postgres interprets them in the *session* timezone before storing them in `timestamptz` columns. A non-UTC session (a Mac inheriting `America/New_York`, say) stores every timestamp shifted by the local offset. Prisma reverses the shift on read, so the ORM looks correct while raw SQL sees the wrong instant — which silently broke the grouped-threads cursor pagination in `app/api/v1/emailInbox/[id]/messages/grouped-query.ts`. The deployed container also pins `timezone = 'UTC'` in `deploy/postgres/postgresql.conf`; the connection option is what covers local dev.
 
 **`EMAIL_INBOX_DOMAINS` is required and asserted at boot.** A comma-separated list of the domains an inbox may be created at, parsed by the `emailInbox` schema in `lib/config/schema.ts` into a validated, de-duplicated `string[]`. Every entry must be verified in Resend *and* have its inbound route pointed at `POST /api/webhooks/email`: mail only ever reaches us for those domains, so an inbox anywhere else is unroutable by construction — created, listed, looking live in the UI, and unable to receive a single message. `assertConfig()` refuses to start without at least one valid entry, so a misconfigured deployment fails loudly at boot rather than serving a creation form that cannot work. Matching is exact — `pibx.dev` does not admit `evil.pibx.dev`. Reaches the browser as `config.emailInboxDomains` on `GET /api/app/auth/me` (see Client-visible config below), never as a `NEXT_PUBLIC_*` var, which would need a rebuild rather than a restart to change.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME` follow the same conditional-requirement pattern as `EMAIL_LINK_SECRET`/`APP_BASE_URL`: `null`/default by default, and the first two are required and asserted at boot whenever `ENABLE_OBSERVABILITY=true`. Unlike most conditionally-required vars, `ee/observability/init.ts` never reads their *values* back out of `config` — the standard-named OTel env vars are read directly by the OTel exporters, so `config.observability`'s role is purely boot-time validation.
 
 ## Architecture
 
@@ -348,6 +350,42 @@ Rate limiting reuses `lib/security/rate-limit.ts` under a new `mcp` scope rather
 The route returns the JSON-RPC envelope **verbatim**, a deliberate exception to the `jsonSuccess` rule: wrapping it would make the response unparseable to every MCP client, and `lib/api-client.ts` (which auto-unwraps `data.data`) never calls this route. MCP paths must also stay out of `lib/openapi/email-inboxes.ts` — guard 6 requires every documented path to start with `/api/v1`.
 
 **Not in `AppConfig`.** Nothing in the dashboard branches on whether MCP is on, and `AppConfig` is an allowlist published to every authenticated user; adding a key there is a review gate, not a default.
+
+### Observability: log search & tracing (EE)
+
+EE/SaaS-only — build-time gated the same way as billing: the wiring lives in
+`ee/observability/`, stripped from Community builds by `scripts/foss.mjs`
+(covered by the existing `ee` entry in `COMMERCIAL_PATHS`, since it's nested
+under `ee/` — no separate entry was needed). A second, independent runtime
+flag, `ENABLE_OBSERVABILITY` (default `false`), means it's off even on an EE
+build until an operator turns it on — not tied to `USE_COMMERCIAL`, since a
+self-hosted EE deployment without Stripe billing should still be able to
+enable it.
+
+Ships logs and traces directly from the running container over OTLP — no
+bundled Grafana/Loki/Tempo, no sidecar container. `docs/architecture/observability.md`
+covers the design; `docs/observability-operator-guide.md` covers self-hosted
+setup (Grafana Cloud's free tier is the reference backend, but the code is
+vendor-neutral — any OTLP-compatible endpoint works, since
+`OTEL_EXPORTER_OTLP_ENDPOINT`/`OTEL_EXPORTER_OTLP_HEADERS` are standard
+OpenTelemetry SDK env vars, not Grafana-specific ones).
+
+Two independent pieces, split shared-vs-EE the same way commercial enforcement
+is: trace-log correlation (`lib/logger.config.ts`'s Pino `mixin`, using only
+`@opentelemetry/api`) is unconditional and inert without a registered SDK, so
+it's safe in Community code. Actually registering the SDK
+(`ee/observability/init.ts`'s `initializeObservability()`, called from the
+root `instrumentation.ts`) is EE-only. `registerExtraLogTransport()` in
+`lib/logger.config.ts` must be called before the first `getLogger()`/`logger.*`
+call in the process — Pino has no API to add a transport after construction —
+which is why `initializeObservability()` runs immediately after
+`assertConfig()`, before `initializeCommercialPlans()` (the first thing that
+would otherwise create the logger singleton).
+
+Manual spans cover the one execution path with no automatic tracing:
+`processEmailWebhookJob` in `lib/webhooks/worker.ts` (a BullMQ job, not an
+HTTP request). The synchronous webhook route and every other API route get
+tracing for free from `@vercel/otel`'s Next.js instrumentation.
 
 ### Prisma 7 (non-default setup)
 
