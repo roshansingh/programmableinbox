@@ -76,6 +76,19 @@ describe('enrichMessage', () => {
     expect(startActiveSpanMock).toHaveBeenCalledWith('llm.enrich_message', expect.any(Function))
   })
 
+  it('never throws, even when an unexpected error occurs outside enrichMessageInner\'s own catch-all', async () => {
+    // getProvider() runs before enrichMessageInner's try block, so a throw
+    // here reaches the span wrapper's catch — the one path that exercises
+    // it. enrichMessage's documented contract is to never throw; the span
+    // wrapper must preserve that rather than rethrowing.
+    mockGetProvider.mockImplementation(() => {
+      throw new Error('provider factory misconfigured')
+    })
+    const { enrichMessage } = await import('../enrichment')
+
+    await expect(enrichMessage('msg-1')).resolves.toBe(false)
+  })
+
   it('writes categories, extractedOtp, and metadata on success', async () => {
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
