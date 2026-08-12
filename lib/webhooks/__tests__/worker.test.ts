@@ -54,6 +54,23 @@ const MockRedis = vi.fn().mockImplementation(function () {
 vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
 
 // ---------------------------------------------------------------------------
+// @opentelemetry/api mock — captures the span the worker starts
+// ---------------------------------------------------------------------------
+
+const startActiveSpanMock = vi.fn((_name: string, fn: (span: unknown) => unknown) => {
+  const fakeSpan = { setAttribute: vi.fn(), setStatus: vi.fn(), recordException: vi.fn(), end: vi.fn() };
+  return fn(fakeSpan);
+});
+
+vi.mock('@opentelemetry/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@opentelemetry/api')>();
+  return {
+    ...actual,
+    trace: { ...actual.trace, getTracer: () => ({ startActiveSpan: startActiveSpanMock }) },
+  };
+});
+
+// ---------------------------------------------------------------------------
 // Prisma mock
 // ---------------------------------------------------------------------------
 
@@ -100,6 +117,13 @@ async function freshImport() {
   // Re-apply mocks for the fresh module graph after resetModules.
   vi.mock('bullmq', () => ({ Worker: MockWorker }));
   vi.mock('ioredis', () => ({ Redis: MockRedis, default: MockRedis }));
+  vi.mock('@opentelemetry/api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@opentelemetry/api')>();
+    return {
+      ...actual,
+      trace: { ...actual.trace, getTracer: () => ({ startActiveSpan: startActiveSpanMock }) },
+    };
+  });
   vi.mock('@/lib/db', () => ({
     prisma: {
       emailMessage: { findUnique: mockFindUnique, update: mockUpdate },
@@ -329,6 +353,27 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       getEmailWebhookWorker();
 
       await expect(capturedProcessor!(makeJob())).resolves.toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Job Processing — tracing
+  // -------------------------------------------------------------------------
+
+  describe('Job Processing — tracing', () => {
+    it('wraps job processing in an OTel span named webhook.process_email_job', async () => {
+      mockFindUnique.mockResolvedValueOnce(null);
+      mockStoreIncomingEmail.mockResolvedValueOnce([{ id: 'msg_1' }]);
+
+      const { getEmailWebhookWorker } = await freshImport();
+      getEmailWebhookWorker();
+
+      await capturedProcessor!(makeJob());
+
+      expect(startActiveSpanMock).toHaveBeenCalledWith(
+        'webhook.process_email_job',
+        expect.any(Function),
+      );
     });
   });
 
