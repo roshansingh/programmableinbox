@@ -23,9 +23,19 @@ const nextConfig = {
   // (Pino's worker-thread transport loader), not a static import, so Next's
   // output-file tracing for `standalone` misses it entirely — verified
   // empirically: `.next/standalone/**/node_modules/pino-opentelemetry-transport`
-  // does not exist after `npm run build` without this entry. It is therefore
-  // load-bearing, not defensive. Keyed on 'instrumentation' because that's the
-  // root-level file whose trace covers the whole server bundle.
+  // does not exist after `npm run build` without this entry.
+  //
+  // NOT load-bearing in the image we actually ship today: Dockerfile copies
+  // the full `node_modules` over the trimmed standalone copy (see the `COPY
+  // ... /app/node_modules ./node_modules` line), which overlays whatever this
+  // produced and is what actually makes the package available at runtime.
+  // This entry is defense-in-depth for a hypothetical future deployment path
+  // that trims node_modules down to the traced/standalone copy — and even
+  // then it's incomplete on its own, since the glob below doesn't cover
+  // pino-opentelemetry-transport's hoisted OTel exporter dependencies it
+  // requires at runtime (see docs/architecture/observability.md's "Build
+  // note"). Keyed on 'instrumentation' because that's the root-level file
+  // whose trace covers the whole server bundle.
   outputFileTracingIncludes: {
     'instrumentation': ['./node_modules/pino-opentelemetry-transport/**/*'],
   },

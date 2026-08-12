@@ -382,10 +382,14 @@ which is why `initializeObservability()` runs immediately after
 `assertConfig()`, before `initializeCommercialPlans()` (the first thing that
 would otherwise create the logger singleton).
 
-Manual spans cover the one execution path with no automatic tracing:
-`processEmailWebhookJob` in `lib/webhooks/worker.ts` (a BullMQ job, not an
-HTTP request). The synchronous webhook route and every other API route get
-tracing for free from `@vercel/otel`'s Next.js instrumentation.
+Two manual spans exist, for different reasons. `webhook.process_email_job`
+(`processEmailWebhookJob` in `lib/webhooks/worker.ts`) covers the one
+execution path with genuinely no automatic tracing — a BullMQ job is not an
+HTTP request, so `@vercel/otel`'s auto-instrumentation never sees it.
+`llm.enrich_message` (`lib/llm/enrichment.ts`) is a nested child span on both
+the synchronous webhook route, which *is* auto-traced by `@vercel/otel` (it's
+a child span there purely for visibility into that specific step), and the
+async worker path, which reaches it through `webhook.process_email_job`.
 
 ### Prisma 7 (non-default setup)
 

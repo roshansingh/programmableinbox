@@ -35,12 +35,17 @@ Tracing is `@vercel/otel`'s `registerOTel()`, called from `initializeObservabili
 `instrumentation.ts`. `registerOTel()` auto-instruments Next.js route handlers and outgoing
 `fetch` calls, so every API route gets a trace for free with no code changes.
 
-Two execution paths have no automatic HTTP-level tracing and get a manual span instead:
+Two manual spans exist, for two different reasons:
 
-- `llm.enrich_message` — `lib/llm/enrichment.ts`, wrapping the LLM enrichment call.
-- `webhook.process_email_job` — `lib/webhooks/worker.ts`, wrapping BullMQ job processing. A queued
-  job is not an HTTP request, so `@vercel/otel`'s auto-instrumentation never sees it; this is the
-  one path that needed an explicit span.
+- `webhook.process_email_job` — `lib/webhooks/worker.ts`, wrapping BullMQ job processing. This is
+  the one execution path with genuinely no automatic tracing: a queued job is not an HTTP request,
+  so `@vercel/otel`'s auto-instrumentation never sees it.
+- `llm.enrich_message` — `lib/llm/enrichment.ts`, wrapping the LLM enrichment call. This one is
+  called from two places, and only one of them lacks automatic tracing: the async worker path
+  (`processEmailWebhookJob`, above, which has no automatic tracing of its own) and the synchronous
+  webhook route (`app/api/webhooks/email/route.ts`), which *is* an HTTP route already auto-traced
+  by `@vercel/otel`. On the synchronous path this span is a nested child span for visibility into
+  that specific step, not a substitute for tracing the request.
 
 Both use `trace.getTracer(...).startActiveSpan(...)` from `@opentelemetry/api` directly, not a
 shared helper — there are only two call sites.
@@ -68,6 +73,17 @@ Two independent, additive pieces, both in `lib/logger.config.ts`:
 the process — Pino has no API to add a transport to an already-constructed logger. Calling it
 after that point throws, deliberately: a transport that silently fails to attach would look
 configured while shipping nothing.
+
+The registered-targets list and the "already built" flag both live on `globalThis` (via a
+`globalForLoggerConfig`-style cast, the same pattern `lib/db.ts` uses for its Prisma singleton),
+not module scope. This is process-global specifically because a module-scoped array would not
+survive webpack's per-chunk duplication in a production build: webpack can compile the same
+source module into multiple separate bundled copies across different entry points/chunks, so if
+`instrumentation.ts` and an API route resolved to two different compiled copies of
+`lib/logger.config.ts`, a module-scoped `registerExtraLogTransport()` would push into an array
+nobody else ever reads — the whole log-shipping feature would silently become a no-op with no
+error anywhere. `globalThis` is the one true JS global shared by the entire process no matter how
+webpack chunks the code.
 
 The call order in `instrumentation.ts`, inside the `NEXT_RUNTIME === 'nodejs'` branch, is:
 
@@ -113,14 +129,24 @@ alongside `pino`, `pino-pretty`, and `thread-stream`, for the same reason those 
 by Pino's worker-thread transport loader from a string target name, not a static import, so
 Turbopack and webpack must not try to bundle it.
 
-For the standalone production build, `outputFileTracingIncludes` turned out to be necessary — this
-was verified empirically with a controlled A/B build, not assumed. Removing the
-`outputFileTracingIncludes` entry and running `npm run build` left
+**What actually makes the package available in the deployed image is `Dockerfile`'s full
+`node_modules` copy** (the `COPY --from=builder --chown=nextjs:nodejs /app/node_modules
+./node_modules` line, currently line 41), which overlays the entire builder-stage `node_modules`
+on top of the trimmed `.next/standalone` copy. Since that overlay includes every package
+unconditionally, `pino-opentelemetry-transport` — and everything it requires at runtime — is
+present in the running container regardless of what Next's output-file tracing decided to
+include.
+
+`outputFileTracingIncludes` is a secondary, currently-incomplete safety net, not the primary
+mechanism. It was added because Next's output-file tracing for `standalone` follows static
+imports and does not see a runtime `require()` string — verified empirically with a controlled
+A/B build of `.next/standalone` in isolation (a different artifact from the Docker image that
+actually ships): removing the entry and running `npm run build` left
 `pino-opentelemetry-transport` genuinely absent from `.next/standalone/**/node_modules/`;
-restoring the entry made it present again. Next's output-file tracing for `standalone` follows
-static imports and does not see a runtime `require()` string, so without the explicit include the
-package would be missing from the production image and log shipping would fail at runtime with a
-module-not-found error. `next.config.mjs` now carries:
+restoring it made it present again. That test demonstrates the tracing gap in `.next/standalone`
+on its own — it does not prove anything about runtime correctness of the deployed Docker image,
+since the image never ships `.next/standalone`'s trimmed `node_modules` unmodified in the first
+place. `next.config.mjs` carries:
 
 ```js
 outputFileTracingIncludes: {
@@ -129,7 +155,13 @@ outputFileTracingIncludes: {
 ```
 
 keyed on `'instrumentation'` because that is the root-level file whose trace covers the whole
-server bundle.
+server bundle. Even as defense-in-depth, this entry is incomplete on its own: the glob only
+covers `pino-opentelemetry-transport` itself, not its hoisted sibling dependencies that it
+`require()`s at runtime — `@opentelemetry/exporter-logs-otlp-proto` (the default exporter when no
+explicit protocol env var is set), `exporter-logs-otlp-http`, `exporter-logs-otlp-grpc`,
+`otlp-exporter-base`, `otlp-grpc-exporter-base`, and `otlp-transformer`. So a future deployment
+path that trims `Dockerfile`'s full `node_modules` copy down to the traced/standalone set would
+need this include expanded before `outputFileTracingIncludes` alone could carry the feature.
 
 ## Out of scope
 
