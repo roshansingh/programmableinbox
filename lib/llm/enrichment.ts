@@ -1,6 +1,9 @@
+import { trace, SpanStatusCode } from '@opentelemetry/api'
 import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getProvider } from './factory'
+
+const tracer = trace.getTracer('inboxui.llm')
 
 /**
  * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
@@ -12,6 +15,22 @@ import { getProvider } from './factory'
  *              permanently skipped (F19).
  */
 export async function enrichMessage(messageId: string): Promise<boolean> {
+  return tracer.startActiveSpan('llm.enrich_message', async (span) => {
+    span.setAttribute('inboxui.message_id', messageId)
+    try {
+      const settled = await enrichMessageInner(messageId)
+      span.setAttribute('inboxui.enrichment.settled', settled)
+      if (!settled) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'enrichment failed transiently' })
+      }
+      return settled
+    } finally {
+      span.end()
+    }
+  })
+}
+
+async function enrichMessageInner(messageId: string): Promise<boolean> {
   const provider = getProvider()
   if (!provider) {
     console.log('[enrichMessage] skip: no provider (LLM_PROVIDER not set or unrecognised)')

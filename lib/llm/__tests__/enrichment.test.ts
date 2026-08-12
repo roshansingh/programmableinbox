@@ -34,6 +34,19 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+const startActiveSpanMock = vi.fn((_name: string, fn: (span: unknown) => unknown) => {
+  const fakeSpan = { setAttribute: vi.fn(), setStatus: vi.fn(), recordException: vi.fn(), end: vi.fn() }
+  return fn(fakeSpan)
+})
+
+vi.mock('@opentelemetry/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@opentelemetry/api')>()
+  return {
+    ...actual,
+    trace: { ...actual.trace, getTracer: () => ({ startActiveSpan: startActiveSpanMock }) },
+  }
+})
+
 const ENRICHMENT_RESULT: EnrichmentResult = {
   categories: ['Security'],
   extractedOtp: '654321',
@@ -54,6 +67,13 @@ describe('enrichMessage', () => {
       organizationId: 'org-1',
     })
     mockEnrich.mockResolvedValue(ENRICHMENT_RESULT)
+  })
+
+  it('wraps enrichment in an OTel span named llm.enrich_message', async () => {
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(startActiveSpanMock).toHaveBeenCalledWith('llm.enrich_message', expect.any(Function))
   })
 
   it('writes categories, extractedOtp, and metadata on success', async () => {
