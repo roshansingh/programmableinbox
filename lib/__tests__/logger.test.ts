@@ -109,26 +109,65 @@ describe('logger config', () => {
 
   it('mixin includes trace_id/span_id when a span is active', async () => {
     vi.resetModules()
-    const { context, trace } = await import('@opentelemetry/api')
+    const { context, trace, ROOT_CONTEXT } = await import('@opentelemetry/api')
     const { buildLoggerConfig } = await import('../logger.config')
     const config = buildLoggerConfig()
 
-    const fakeSpan = {
-      spanContext: () => ({
-        traceId: '0af7651916cd43dd8448eb211c80319c',
-        spanId: 'b7ad6b7169203331',
-        traceFlags: 1,
-      }),
-    } as unknown as import('@opentelemetry/api').Span
+    // @opentelemetry/api's default (no SDK registered) context manager does
+    // not actually propagate context through context.with() — trace.getSpan()
+    // inside the callback returns undefined. A minimal manual ContextManager,
+    // scoped to this test only, is enough to verify the mixin reads whatever
+    // context is active; production tracing gets a real one from
+    // @vercel/otel's registerOTel() (see ee/observability/init.ts, a later task).
+    class ManualContextManager {
+      private current = ROOT_CONTEXT
+      active() {
+        return this.current
+      }
+      with(ctx: typeof ROOT_CONTEXT, fn: () => unknown) {
+        const prev = this.current
+        this.current = ctx
+        try {
+          return fn()
+        } finally {
+          this.current = prev
+        }
+      }
+      bind<T>(_ctx: unknown, target: T) {
+        return target
+      }
+      enable() {
+        return this
+      }
+      disable() {
+        this.current = ROOT_CONTEXT
+        return this
+      }
+    }
 
-    const extra = context.with(trace.setSpan(context.active(), fakeSpan), () =>
-      (config.mixin as () => Record<string, unknown>)(),
-    )
+    const manager = new ManualContextManager()
+    context.setGlobalContextManager(manager as any)
 
-    expect(extra).toEqual({
-      trace_id: '0af7651916cd43dd8448eb211c80319c',
-      span_id: 'b7ad6b7169203331',
-    })
+    try {
+      const fakeSpan = {
+        spanContext: () => ({
+          traceId: '0af7651916cd43dd8448eb211c80319c',
+          spanId: 'b7ad6b7169203331',
+          traceFlags: 1,
+        }),
+      } as unknown as import('@opentelemetry/api').Span
+
+      const extra = context.with(trace.setSpan(context.active(), fakeSpan), () =>
+        (config.mixin as () => Record<string, unknown>)(),
+      )
+
+      expect(extra).toEqual({
+        trace_id: '0af7651916cd43dd8448eb211c80319c',
+        span_id: 'b7ad6b7169203331',
+      })
+    } finally {
+      context.disable()
+    }
   })
 
   it('adds a registered extra transport target alongside stdout in production', async () => {
