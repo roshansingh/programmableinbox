@@ -19,6 +19,7 @@ interface ComposeEmailDialogProps {
   inboxEmail: string
   mode: ComposeMode
   originalMessage: EmailMessage
+  composeSessionId: number
   onSent?: () => void
 }
 
@@ -44,12 +45,21 @@ function buildQuotedText(msg: EmailMessage): string {
 }
 
 function buildReferences(msg: EmailMessage): string {
-  const refs = msg.references?.length ? msg.references : []
+  const refs = [...(msg.references ?? [])]
   if (msg.messageId) refs.push(msg.messageId)
   return refs.join(" ")
 }
 
-export function ComposeEmailDialog({
+export function ComposeEmailDialog(props: ComposeEmailDialogProps) {
+  return (
+    <ComposeEmailDialogSession
+      key={props.composeSessionId}
+      {...props}
+    />
+  )
+}
+
+function ComposeEmailDialogSession({
   open,
   onOpenChange,
   inboxId,

@@ -36,9 +36,11 @@ export default function InboxPage() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeMode, setComposeMode] = useState<"reply" | "forward">("reply")
   const [composeTarget, setComposeTarget] = useState<EmailMessage | null>(null)
+  const [composeSessionId, setComposeSessionId] = useState(0)
   const openCompose = (mode: "reply" | "forward", message: EmailMessage) => {
     setComposeMode(mode)
     setComposeTarget(message)
+    setComposeSessionId((sessionId) => sessionId + 1)
     setComposeOpen(true)
   }
 
@@ -602,6 +604,7 @@ export default function InboxPage() {
           inboxEmail={inbox?.email || ""}
           mode={composeMode}
           originalMessage={composeTarget}
+          composeSessionId={composeSessionId}
           onSent={fetchData}
         />
       )}

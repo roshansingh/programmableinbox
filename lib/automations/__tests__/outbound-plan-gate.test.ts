@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import type { ActionNodeConfig, EmailAutomationInput } from '@/lib/automations/types'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { UNLIMITED, type PlanLimits } from '@/lib/commercial/plan-limits'
+import { formatOriginalMessageDate } from '@/lib/email/format-original-message-date'
 
 const sendMock = vi.fn()
 const ledgerFindUniqueMock = vi.fn()
@@ -136,6 +137,7 @@ describe('outbound email plan gate', () => {
       const [sentEmail] = sendMock.mock.calls[0]
       expect(sentEmail.text).toContain('---------- Original Message ----------')
       expect(sentEmail.text).toContain(`From: ${input.from}`)
+      expect(sentEmail.text).toContain(`Date: ${formatOriginalMessageDate(input.createdAt)}`)
       expect(sentEmail.text).toContain(`Subject: ${input.subject}`)
       expect(sentEmail.text).toContain(`To: ${input.to.join(', ')}`)
       expect(sentEmail.text.indexOf('---------- Original Message ----------'))

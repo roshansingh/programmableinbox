@@ -144,6 +144,11 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
 }
 
 export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmailAddressIds?: string[]) {
+  const receivedAt = new Date(resendEmail.created_at)
+  if (Number.isNaN(receivedAt.getTime())) {
+    throw new Error(`Invalid Resend created_at timestamp for email ${resendEmail.id}`)
+  }
+
   const allAddresses = [
     ...resendEmail.to,
     ...(resendEmail.cc || []),
@@ -253,6 +258,7 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           messageId: threading.messageId,
           inReplyTo: threading.inReplyTo,
           references: threading.references,
+          createdAt: receivedAt,
         },
       })
     } catch (error: any) {
@@ -371,6 +377,10 @@ export const POST = withPublic(async (request: NextRequest) => {
     }
 
     // Construct email data object from Resend API response
+    if (!email.created_at) {
+      throw new Error(`Resend email ${event.data.email_id} is missing created_at`)
+    }
+
     const resendEmail: ResendEmailData = {
       id: event.data.email_id,
       from: email.from,
@@ -381,7 +391,7 @@ export const POST = withPublic(async (request: NextRequest) => {
       text: email.text || '',
       html: email.html || '',
       headers: email.headers || {},
-      created_at: email.created_at || new Date().toISOString(),
+      created_at: email.created_at,
       message_id: (email as any).message_id,
       attachments: Array.isArray((email as any).attachments)
         ? (email as any).attachments
