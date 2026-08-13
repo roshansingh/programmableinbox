@@ -19,6 +19,7 @@ interface ComposeEmailDialogProps {
   inboxEmail: string
   mode: ComposeMode
   originalMessage: EmailMessage
+  composeSessionId: number
   onSent?: () => void
 }
 
@@ -50,11 +51,9 @@ function buildReferences(msg: EmailMessage): string {
 }
 
 export function ComposeEmailDialog(props: ComposeEmailDialogProps) {
-  const { open, mode, originalMessage } = props
-
   return (
     <ComposeEmailDialogSession
-      key={`${open ? "open" : "closed"}:${mode}:${originalMessage.id}`}
+      key={props.composeSessionId}
       {...props}
     />
   )

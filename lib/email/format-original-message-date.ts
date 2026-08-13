@@ -10,12 +10,6 @@ const originalMessageDateFormatter = new Intl.DateTimeFormat('en-US', {
   timeZoneName: 'short',
 })
 
-export function formatOriginalMessageDate(value: Date | string): string {
-  const date = typeof value === 'string' ? new Date(value) : value
-
-  if (Number.isNaN(date.getTime())) {
-    return 'Invalid Date'
-  }
-
-  return originalMessageDateFormatter.format(date)
+export function formatOriginalMessageDate(value: Date): string {
+  return originalMessageDateFormatter.format(value)
 }

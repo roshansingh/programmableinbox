@@ -44,7 +44,7 @@ describe('ComposeEmailDialog', () => {
     sendEmailMock.mockReset()
   })
 
-  it('starts a fresh draft when the compose target or mode changes', async () => {
+  it('starts a fresh draft for each compose session', () => {
     const onOpenChange = vi.fn()
     const firstMessage = message()
     const secondMessage = message({
@@ -63,6 +63,7 @@ describe('ComposeEmailDialog', () => {
         inboxEmail="inbox@example.com"
         mode="reply"
         originalMessage={firstMessage}
+        composeSessionId={1}
       />,
     )
 
@@ -77,6 +78,7 @@ describe('ComposeEmailDialog', () => {
         inboxEmail="inbox@example.com"
         mode="forward"
         originalMessage={secondMessage}
+        composeSessionId={2}
       />,
     )
 
@@ -100,6 +102,7 @@ describe('ComposeEmailDialog', () => {
         inboxEmail="inbox@example.com"
         mode="reply"
         originalMessage={originalMessage}
+        composeSessionId={1}
       />,
     )
 

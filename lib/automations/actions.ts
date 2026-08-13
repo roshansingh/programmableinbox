@@ -82,6 +82,7 @@ function buildOriginalMessageHeaderLines(input: EmailAutomationInput) {
 type WebhookMessagePayload = Omit<EmailAutomationInput, 'createdAt'>
 
 function buildWebhookMessagePayload(input: EmailAutomationInput): WebhookMessagePayload {
+  // Keep internal execution metadata from silently expanding the public default payload.
   return {
     messageId: input.messageId,
     inboxId: input.inboxId,
