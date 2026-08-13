@@ -78,10 +78,12 @@ verified rather than assumed.
 | [async-webhook-processing.md](async-webhook-processing.md) | The optional BullMQ/Redis async ingestion path |
 | [mcp-server.md](mcp-server.md) | The Model Context Protocol server for agent clients |
 | [commercial-layer.md](commercial-layer.md) | The `lib/commercial/` seam and the open-core (`ee/`) model |
+| [observability.md](observability.md) | EE/SaaS-only OpenTelemetry tracing and log shipping — the build/runtime gate, trace-log correlation, manual spans |
 | [configuration.md](configuration.md) | `lib/config/`, environment variables, Prisma 7 and Next.js 16 specifics |
 | [testing.md](testing.md) | Vitest + MSW setup, integration tests against real Postgres |
 
 For day-to-day commands (dev server, tests, migrations), see the root [README](../../README.md).
 For an operator's guide to running this in production, see
-[`docs/async-webhook-processing-operator-guide.md`](../async-webhook-processing-operator-guide.md)
+[`docs/async-webhook-processing-operator-guide.md`](../async-webhook-processing-operator-guide.md),
+[`docs/observability-operator-guide.md`](../observability-operator-guide.md),
 and [`docs/logging.md`](../logging.md).

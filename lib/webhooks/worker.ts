@@ -17,6 +17,7 @@
 
 import { Worker, Job } from "bullmq";
 import { Redis } from "ioredis";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 import {
   WEBHOOK_QUEUE_NAME,
   WEBHOOK_QUEUE_CONFIG,
@@ -30,6 +31,8 @@ import {
 import { dispatchAutomationsForEmail } from "@/lib/automations/dispatcher";
 import { enrichMessage } from "@/lib/llm/enrichment";
 import { prisma } from "@/lib/db";
+
+const tracer = trace.getTracer("inboxui.webhooks");
 
 // ---------------------------------------------------------------------------
 // Worker singleton
@@ -107,6 +110,25 @@ async function loadExistingMessage(
   return message ? [message] : [];
 }
 
+async function processEmailWebhookJob(
+  job: Job<EmailWebhookJobData>,
+): Promise<void> {
+  return tracer.startActiveSpan("webhook.process_email_job", async (span) => {
+    span.setAttribute("inboxui.job_id", job.id ?? "");
+    span.setAttribute("inboxui.external_id", job.data.externalId);
+    span.setAttribute("inboxui.inbox_email_address_id", job.data.inboxEmailAddressId);
+    try {
+      await processEmailWebhookJobInner(job);
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
+
 /**
  * Processes a single email webhook job.
  *
@@ -117,7 +139,7 @@ async function loadExistingMessage(
  *
  * @param job - BullMQ job containing the Resend email payload and inbox ID.
  */
-async function processEmailWebhookJob(
+async function processEmailWebhookJobInner(
   job: Job<EmailWebhookJobData>,
 ): Promise<void> {
   const { externalId, inboxEmailAddressId, payload } = job.data;

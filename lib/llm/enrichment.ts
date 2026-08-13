@@ -1,6 +1,9 @@
+import { trace, SpanStatusCode } from '@opentelemetry/api'
 import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getProvider } from './factory'
+
+const tracer = trace.getTracer('inboxui.llm')
 
 /**
  * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
@@ -12,6 +15,33 @@ import { getProvider } from './factory'
  *              permanently skipped (F19).
  */
 export async function enrichMessage(messageId: string): Promise<boolean> {
+  return tracer.startActiveSpan('llm.enrich_message', async (span) => {
+    span.setAttribute('inboxui.message_id', messageId)
+    try {
+      const settled = await enrichMessageInner(messageId)
+      span.setAttribute('inboxui.enrichment.settled', settled)
+      if (!settled) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'enrichment failed transiently' })
+      }
+      return settled
+    } catch (error) {
+      // Defensive: enrichMessageInner's own catch-all means this should never
+      // fire today, but if that contract ever changes silently, the span
+      // should record the exception rather than end with an UNSET status.
+      // Returns false rather than rethrowing — unlike
+      // lib/webhooks/worker.ts's processEmailWebhookJob, enrichMessage's
+      // contract (see doc comment above) is to never throw, so an
+      // unexpected error is treated the same as a transient failure.
+      span.recordException(error as Error)
+      span.setStatus({ code: SpanStatusCode.ERROR })
+      return false
+    } finally {
+      span.end()
+    }
+  })
+}
+
+async function enrichMessageInner(messageId: string): Promise<boolean> {
   const provider = getProvider()
   if (!provider) {
     console.log('[enrichMessage] skip: no provider (LLM_PROVIDER not set or unrecognised)')

@@ -279,6 +279,18 @@ curl -fsS https://$DOMAIN/api/internal/webhook-worker/health   # expect 200 / wo
 
 ---
 
+## Part 9 — Observability: log search & tracing (EE, optional)
+
+No new containers. Add the four vars from the "Observability" section of
+`.env.example` to `/srv/inboxui/secrets/app.env` from Part 3, then:
+
+    sudo -u deploy docker compose -f docker-compose.yml restart app
+
+Full setup (getting the endpoint/headers from Grafana Cloud's free tier) is in
+docs/observability-operator-guide.md.
+
+---
+
 ## Day-to-day deploys
 
 Pushing to `main` runs CI (lint + test + build) and, on green, SSHes to the box and runs the deploy steps inlined in `.github/workflows/deploy.yml`: it syncs the compose file, pulls `app`+`migrate`, runs `migrate`, rolls `app` + `caddy` behind a healthcheck gate (`--no-deps`, so postgres/redis are untouched), and prunes old images. No manual step.

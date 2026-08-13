@@ -1,8 +1,14 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 
 describe('logger config', () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs()
+    // Clears the globalThis-backed extra-transport list and built flag (see
+    // lib/logger.config.ts). vi.resetModules() alone gives the next test a
+    // pristine module instance, but does NOT clear globalThis, so without
+    // this explicit reset state would leak between tests in this file.
+    const { resetLoggerConfigStateForTests } = await import('../logger.config')
+    resetLoggerConfigStateForTests()
     vi.resetModules()
   })
 
@@ -96,6 +102,130 @@ describe('logger config', () => {
 
     expect(config).toHaveProperty('serializers')
     expect(typeof (config.serializers as Record<string, unknown>)?.err).toBe('function')
+  })
+
+  it('mixin omits trace_id/span_id when no span is active', async () => {
+    vi.resetModules()
+    const { buildLoggerConfig } = await import('../logger.config')
+    const config = buildLoggerConfig()
+    const extra = (config.mixin as () => Record<string, unknown>)()
+
+    expect(extra).toEqual({})
+  })
+
+  it('mixin includes trace_id/span_id when a span is active', async () => {
+    vi.resetModules()
+    const { context, trace, ROOT_CONTEXT } = await import('@opentelemetry/api')
+    const { buildLoggerConfig } = await import('../logger.config')
+    const config = buildLoggerConfig()
+
+    // @opentelemetry/api's default (no SDK registered) context manager does
+    // not actually propagate context through context.with() — trace.getSpan()
+    // inside the callback returns undefined. A minimal manual ContextManager,
+    // scoped to this test only, is enough to verify the mixin reads whatever
+    // context is active; production tracing gets a real one from
+    // @vercel/otel's registerOTel() (see ee/observability/init.ts, a later task).
+    class ManualContextManager {
+      private current = ROOT_CONTEXT
+      active() {
+        return this.current
+      }
+      with(ctx: typeof ROOT_CONTEXT, fn: () => unknown) {
+        const prev = this.current
+        this.current = ctx
+        try {
+          return fn()
+        } finally {
+          this.current = prev
+        }
+      }
+      bind<T>(_ctx: unknown, target: T) {
+        return target
+      }
+      enable() {
+        return this
+      }
+      disable() {
+        this.current = ROOT_CONTEXT
+        return this
+      }
+    }
+
+    const manager = new ManualContextManager()
+    context.setGlobalContextManager(manager as any)
+
+    try {
+      const fakeSpan = {
+        spanContext: () => ({
+          traceId: '0af7651916cd43dd8448eb211c80319c',
+          spanId: 'b7ad6b7169203331',
+          traceFlags: 1,
+        }),
+      } as unknown as import('@opentelemetry/api').Span
+
+      const extra = context.with(trace.setSpan(context.active(), fakeSpan), () =>
+        (config.mixin as () => Record<string, unknown>)(),
+      )
+
+      expect(extra).toEqual({
+        trace_id: '0af7651916cd43dd8448eb211c80319c',
+        span_id: 'b7ad6b7169203331',
+      })
+    } finally {
+      context.disable()
+    }
+  })
+
+  it('adds a registered extra transport target alongside stdout in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('LOG_LEVEL', '')
+    vi.resetModules()
+
+    const { buildLoggerConfig, registerExtraLogTransport } = await import('../logger.config')
+    registerExtraLogTransport({ target: 'pino-opentelemetry-transport', options: { resourceAttributes: {} } })
+    const config = buildLoggerConfig()
+
+    expect(config.transport).toMatchObject({
+      targets: [
+        { target: 'pino/file', options: { destination: 1 } },
+        { target: 'pino-opentelemetry-transport', options: { resourceAttributes: {} } },
+      ],
+    })
+  })
+
+  it('adds a registered extra transport target alongside pino-pretty in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('LOG_LEVEL', '')
+    vi.resetModules()
+
+    const { buildLoggerConfig, registerExtraLogTransport } = await import('../logger.config')
+    registerExtraLogTransport({ target: 'pino-opentelemetry-transport', options: {} })
+    const config = buildLoggerConfig()
+
+    expect(config.transport).toMatchObject({
+      targets: [{ target: 'pino-pretty' }, { target: 'pino-opentelemetry-transport' }],
+    })
+  })
+
+  it('throws if an extra transport is registered after the logger config was already built', async () => {
+    vi.resetModules()
+    const { buildLoggerConfig, registerExtraLogTransport } = await import('../logger.config')
+    buildLoggerConfig()
+
+    expect(() =>
+      registerExtraLogTransport({ target: 'pino-opentelemetry-transport', options: {} }),
+    ).toThrow(/already built/)
+  })
+
+  it('behaves exactly as before when no extra transport is registered', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('LOG_LEVEL', '')
+    vi.resetModules()
+
+    const { buildLoggerConfig } = await import('../logger.config')
+    const config = buildLoggerConfig()
+
+    expect(config).not.toHaveProperty('transport')
   })
 })
 

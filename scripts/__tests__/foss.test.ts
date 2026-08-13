@@ -33,14 +33,16 @@ describe.skipIf(ALREADY_STRIPPED)('FOSS entrypoint', () => {
   const main = () => read('instrumentation.ts')
   const foss = () => read('instrumentation.foss.ts')
 
-  it('imports the commercial init in the default entrypoint', () => {
+  it('imports the commercial and observability init in the default entrypoint', () => {
     expect(dynamicImports(main())).toContain('@/ee/init')
+    expect(dynamicImports(main())).toContain('@/ee/observability/init')
   })
 
   it('does not import anything commercial in the FOSS entrypoint', () => {
     const specifiers = dynamicImports(foss())
 
     expect(specifiers).not.toContain('@/ee/init')
+    expect(specifiers).not.toContain('@/ee/observability/init')
     for (const path of COMMERCIAL_PATHS) {
       expect(specifiers.some((s) => s.includes(`/${path}/`))).toBe(false)
     }
@@ -54,9 +56,14 @@ describe.skipIf(ALREADY_STRIPPED)('FOSS entrypoint', () => {
    * worker never starting, say, which no test would otherwise catch because the
    * FOSS build is not what the suite runs against. Comparing the import lists
    * makes that a failure here instead.
+   *
+   * Generalized to a prefix check rather than one literal string: any dynamic
+   * import under @/ee/ is a commercial boot step, and this guard exists
+   * precisely so adding a second one (as observability did) can't silently
+   * land in only one of the two entrypoints.
    */
-  it('is the default entrypoint minus exactly the commercial import', () => {
-    const expected = dynamicImports(main()).filter((s) => s !== '@/ee/init')
+  it('is the default entrypoint minus every @/ee/ import', () => {
+    const expected = dynamicImports(main()).filter((s) => !s.startsWith('@/ee/'))
 
     expect(dynamicImports(foss())).toEqual(expected)
   })

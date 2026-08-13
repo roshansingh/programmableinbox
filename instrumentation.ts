@@ -27,6 +27,13 @@ export async function register() {
     const { assertConfig } = await import('@/lib/config/assert')
     assertConfig()
 
+    // Observability (logs + traces, EE). Runs before initializeCommercialPlans
+    // below — and before anything else in this function that might create the
+    // Pino singleton — because registerExtraLogTransport() only works before
+    // the logger is first constructed. See ee/observability/init.ts.
+    const { initializeObservability } = await import('@/ee/observability/init')
+    initializeObservability()
+
     // Plan enforcement (issue #117). Runs once per process, here rather than in
     // `app/layout.tsx` where it previously sat — that is a React Server
     // Component render function, so it re-ran on every RSC render and was
