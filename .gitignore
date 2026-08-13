@@ -4,6 +4,7 @@ repo-info.md
 # Anchored: this ignores the root-level scratch `plans/` directory only. Left
 # unanchored it also swallowed `ee/plans/`, which silently shipped an `ee/init.ts`
 # importing two files that were never committed.
+/docs/superpowers/
 /plans/
 .worktrees/
 .superpowers/

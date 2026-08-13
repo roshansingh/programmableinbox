@@ -38,19 +38,19 @@ export function StatsCards() {
   }, [])
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {CARDS.map(({ key, label, icon: Icon }) => (
         <Card key={key} className="bg-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                <p className="text-3xl font-bold text-foreground">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-1 min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{label}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-foreground">
                   {stats === null ? '—' : stats[key]}
                 </p>
               </div>
-              <div className="rounded-full bg-primary/10 p-3">
-                <Icon className="h-5 w-5 text-primary" />
+              <div className="shrink-0 rounded-full bg-primary/10 p-2 sm:p-3">
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
             </div>
           </CardContent>
