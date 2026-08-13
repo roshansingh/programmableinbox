@@ -426,6 +426,19 @@ describe('Webhook Email Processing — Integration', () => {
   // -------------------------------------------------------------------------
 
   describe('Async mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=true)', () => {
+    it('returns 500 without enqueueing when Resend omits the received timestamp', async () => {
+      const { POST } = await loadRoute();
+      getEmailMock.mockResolvedValueOnce({
+        data: makeResendEmail({ created_at: undefined }),
+      });
+
+      const response = await POST(makeWebhookRequest(emailReceivedBody('em_missing_date')) as any);
+
+      expect(response.status).toBe(500);
+      expect(enqueueEmailWebhookJobMock).not.toHaveBeenCalled();
+      expect(messageCreateMock).not.toHaveBeenCalled();
+    });
+
     it('enqueues one job per matching inbox and returns 200', async () => {
       const { POST } = await loadRoute();
       inboxFindManyMock.mockResolvedValueOnce([
@@ -584,8 +597,9 @@ describe('Webhook Email Processing — Integration', () => {
       inboxFindManyMock.mockResolvedValueOnce([inbox]);
       // Second call: storeIncomingEmail internal lookup by ID.
       inboxFindManyMock.mockResolvedValueOnce([inbox]);
+      const receivedAt = '2026-08-11T13:05:13.000Z';
       getEmailMock.mockResolvedValueOnce({
-        data: makeResendEmail({ to: ['inbox@example.com'] }),
+        data: makeResendEmail({ to: ['inbox@example.com'], created_at: receivedAt }),
       });
       messageCreateMock.mockResolvedValueOnce({ id: 'msg_sync_1', organizationId: 'org_1' });
       dispatchAutomationsForEmailMock.mockResolvedValue([]);
@@ -597,6 +611,7 @@ describe('Webhook Email Processing — Integration', () => {
       expect(enqueueEmailWebhookJobMock).not.toHaveBeenCalled();
       // Sync path: storeIncomingEmail ran and wrote to the DB.
       expect(messageCreateMock).toHaveBeenCalledTimes(1);
+      expect(messageCreateMock.mock.calls[0][0].data.createdAt).toEqual(new Date(receivedAt));
     });
 
     it('dispatches automations for each stored message in sync mode', async () => {

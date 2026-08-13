@@ -136,6 +136,7 @@ describe('outbound email plan gate', () => {
       const [sentEmail] = sendMock.mock.calls[0]
       expect(sentEmail.text).toContain('---------- Original Message ----------')
       expect(sentEmail.text).toContain(`From: ${input.from}`)
+      expect(sentEmail.text).toContain('Date: Aug 11, 2026, 1:05:13 PM UTC')
       expect(sentEmail.text).toContain(`Subject: ${input.subject}`)
       expect(sentEmail.text).toContain(`To: ${input.to.join(', ')}`)
       expect(sentEmail.text.indexOf('---------- Original Message ----------'))

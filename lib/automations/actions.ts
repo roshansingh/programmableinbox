@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { getResend } from '@/lib/resend'
 import { SsrfBlockedError, safeFetch } from '@/lib/security/ssrf-guard'
+import { formatOriginalMessageDate } from '@/lib/email/format-original-message-date'
 import { claimAutoReplySlot, releaseAutoReplySlot } from './auto-reply-throttle'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
@@ -69,18 +70,6 @@ function escapeHtml(value: string) {
  * the inbox address, so without this the original sender is otherwise only
  * visible in raw headers.
  */
-function formatOriginalMessageDate(date: Date) {
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  })
-}
-
 function buildOriginalMessageHeaderLines(input: EmailAutomationInput) {
   return [
     `From: ${input.from}`,
@@ -88,6 +77,28 @@ function buildOriginalMessageHeaderLines(input: EmailAutomationInput) {
     `Subject: ${input.subject}`,
     `To: ${input.to.join(', ')}`,
   ]
+}
+
+type WebhookMessagePayload = Omit<EmailAutomationInput, 'createdAt'>
+
+function buildWebhookMessagePayload(input: EmailAutomationInput): WebhookMessagePayload {
+  return {
+    messageId: input.messageId,
+    inboxId: input.inboxId,
+    inboxEmail: input.inboxEmail,
+    organizationId: input.organizationId,
+    from: input.from,
+    to: input.to,
+    cc: input.cc,
+    bcc: input.bcc,
+    subject: input.subject,
+    bodyText: input.bodyText,
+    bodyHtml: input.bodyHtml,
+    headers: input.headers,
+    tags: input.tags,
+    hasAttachment: input.hasAttachment,
+    attachments: input.attachments,
+  }
 }
 
 function buildOriginalMessageHeaderText(input: EmailAutomationInput) {
@@ -166,7 +177,7 @@ async function executeSendWebhook(
     : JSON.stringify({
         automationId: context.automation.id,
         automationRevisionId: context.revision.id,
-        message: context.input,
+        message: buildWebhookMessagePayload(context.input),
       })
 
   if (context.isDryRun) {

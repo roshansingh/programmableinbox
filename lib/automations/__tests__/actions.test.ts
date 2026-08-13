@@ -118,6 +118,27 @@ describe('executeSendWebhook — SSRF guard (#39)', () => {
     expect(init.method).toBe('POST')
     expect(init.headers['content-type']).toBe('application/json')
     expect(init.headers['x-inboxui-signing-secret']).toBe('sig')
+    expect(JSON.parse(init.body)).toEqual({
+      automationId: context.automation.id,
+      automationRevisionId: context.revision.id,
+      message: {
+        messageId: input.messageId,
+        inboxId: input.inboxId,
+        inboxEmail: input.inboxEmail,
+        organizationId: input.organizationId,
+        from: input.from,
+        to: input.to,
+        cc: input.cc,
+        bcc: input.bcc,
+        subject: input.subject,
+        bodyText: input.bodyText,
+        bodyHtml: input.bodyHtml,
+        headers: input.headers,
+        tags: input.tags,
+        hasAttachment: input.hasAttachment,
+        attachments: input.attachments,
+      },
+    })
     vi.unstubAllGlobals()
   })
 
