@@ -282,12 +282,20 @@ curl -fsS https://$DOMAIN/api/internal/webhook-worker/health   # expect 200 / wo
 ## Part 9 — Observability: log search & tracing (EE, optional)
 
 One new container, `otel-collector`, gated behind the `observability` compose
-profile so it only runs when you ask for it. Add the vars from the
-"Observability" section of `.env.example` to `/srv/inboxui/secrets/app.env`
-from Part 3 — six now, not four: the app's own `OTEL_EXPORTER_OTLP_*` vars
-(pointed at the collector on the internal network, not at your OTLP backend
-directly) plus the collector's `OTEL_EXPORTER_ENDPOINT`/`OTEL_EXPORTER_AUTH`,
-which carry the real backend credentials. Then:
+profile so it only runs when you ask for it. Its secrets live in their own
+file, not `app.env` — it's a third-party image with a read-only mount over
+every container's log history, so it only gets the two vars it actually
+needs rather than `JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
+
+    sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/otel-collector.env <<'EOF'
+    OTEL_EXPORTER_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
+    OTEL_EXPORTER_AUTH=Basic <base64 of instanceID:apiToken>
+    OTEL_SERVICE_NAME=inboxui
+    EOF
+
+Then add the app's half — `ENABLE_OBSERVABILITY` and the `OTEL_EXPORTER_OTLP_*` vars (pointed at
+the collector on the internal network, not at your OTLP backend directly) — from the
+"Observability" section of `.env.example` to `/srv/inboxui/secrets/app.env` from Part 3. Then:
 
     sudo -u deploy docker compose -f docker-compose.yml --profile observability up -d
 

@@ -113,11 +113,13 @@ not just a `trace_id` string sitting in a JSON field — to match it against a t
 signals shared the app's own OTel SDK (the removed `pino-opentelemetry-transport` path), the SDK
 did this bookkeeping automatically. With logs now sourced from parsed stdout instead, nothing
 upstream of the collector knows about OTel's data model, so the collector's `transform/logs`
-processor does it explicitly: `ParseTraceID`/`ParseSpanID` OTTL statements read the `trace_id`/
-`span_id` attributes the Pino mixin already put on each JSON line and set them as the log record's
-real trace context, then delete the now-redundant attributes. This only fires for lines with those
-fields — i.e. app log lines with an active span — so it's a no-op for every other container's
-output.
+processor does it explicitly: `TraceID`/`SpanID` OTTL statements read the `trace_id`/`span_id`
+attributes the Pino mixin already put on each JSON line and set them as the log record's real
+trace context, then delete the now-redundant attributes. Both statements — and the `service.name`
+stamping described below — are guarded on `attributes["level"] != nil`, present only for lines the
+receiver's `json_parser`/`severity_parser` operators actually parsed as Pino JSON, so this is a
+no-op for every other container's output rather than something that needs a separate per-container
+filter.
 
 ## Ordering
 
@@ -147,9 +149,10 @@ OpenTelemetry SDK environment variables, but they don't all reach the exporter t
   if unset) *is* read back out of `config` and passed explicitly to
   `registerOTel(config.observability.serviceName)`. It is the one field in `config.observability`
   with a genuine runtime role beyond boot-time validation. `deploy/otel-collector.yaml`'s
-  `resource/logs` processor separately reads the same value from its own `OTEL_SERVICE_NAME`
-  (set in `app.env`, shared via `env_file`) so log records carry a matching `service.name` even
-  though they never pass through the app's OTel SDK.
+  `transform/logs` processor separately reads the same value from its own `OTEL_SERVICE_NAME`
+  (set in `otel-collector.env`, a file distinct from the app's `app.env` — see the compose file's
+  `env_file` comment on the `otel-collector` service for why) so log records carry a matching
+  `service.name` even though they never pass through the app's OTel SDK.
 
 None of this is Grafana-specific: the collector's own outbound exporter
 (`deploy/otel-collector.yaml`) speaks standard OTLP/HTTP, so any OTLP-compatible backend works.

@@ -49,9 +49,9 @@ services:
 
   # Ships traces (pushed by app over OTLP) and logs (tailed from this host's
   # Docker stdout files) to the OTLP backend an operator configures via
-  # OTEL_EXPORTER_ENDPOINT/OTEL_EXPORTER_AUTH in app.env. Opt-in via the
-  # `observability` profile — the app already no-ops all telemetry when
-  # ENABLE_OBSERVABILITY=false, but a container tailing every other
+  # OTEL_EXPORTER_ENDPOINT/OTEL_EXPORTER_AUTH in otel-collector.env. Opt-in
+  # via the `observability` profile — the app already no-ops all telemetry
+  # when ENABLE_OBSERVABILITY=false, but a container tailing every other
   # service's log files is its own thing to run only when wanted. Start it
   # alongside `docker compose up -d` with
   # `docker compose --profile observability up -d` whenever
@@ -60,9 +60,20 @@ services:
     image: otel/opentelemetry-collector-contrib:0.158.0
     profiles: ["observability"]
     restart: unless-stopped
+    # The upstream image runs as a non-root user by default, which cannot
+    # read /var/lib/docker/containers (root-owned on essentially every
+    # Linux host). Root here is a read-only-mount + own-storage-volume
+    # container, not a privilege boundary around app secrets — see the
+    # env_file note below for why it doesn't have any app secrets to lose.
+    user: "0:0"
     command:
       - "--config=/etc/otelcol-contrib/config.yaml"
-    env_file: /srv/inboxui/secrets/app.env
+    # Deliberately its OWN file, not app.env: this image is a third-party
+    # contrib build with a read-only mount over every container's log
+    # history, so it gets only what it needs (the real OTLP backend
+    # credentials) rather than app.env's full JWT_SECRET/WEBHOOK_SECRET/
+    # DATABASE_URL/AUTH_* set. See deploy/README.md Part 9.
+    env_file: /srv/inboxui/secrets/otel-collector.env
     volumes:
       - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
       - otel-collector-storage:/var/lib/otelcol/file_storage

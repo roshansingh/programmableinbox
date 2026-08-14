@@ -45,19 +45,24 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
    OTEL_EXPORTER_AUTH=Basic <that base64 string>
    ```
 
-5. Add all of the following to `/srv/inboxui/secrets/app.env` (see
-   [`deploy/README.md`](../deploy/README.md), Part 3). Both containers read the same file via
-   `env_file`, but each only uses its own half:
+5. These vars are split across **two** files — the collector gets its own
+   `/srv/inboxui/secrets/otel-collector.env`, deliberately separate from the app's
+   `/srv/inboxui/secrets/app.env` (see [`deploy/README.md`](../deploy/README.md), Part 3 and
+   Part 9), so a third-party image with a read-only mount over every container's log history never
+   sees `JWT_SECRET`, `DATABASE_URL`, or anything else it doesn't need:
 
-   | Variable | Read by | Value |
+   | Variable | File | Value |
    |---|---|---|
-   | `ENABLE_OBSERVABILITY` | app | `true` |
-   | `OTEL_EXPORTER_OTLP_ENDPOINT` | app | `http://otel-collector:4318` — the collector, on the internal docker network, **not** Grafana |
-   | `OTEL_EXPORTER_OTLP_PROTOCOL` | app | `http/protobuf` |
-   | `OTEL_EXPORTER_OTLP_HEADERS` | app | any non-empty value, e.g. `X-Local-Collector=unused` — required by `assertConfig()`, but carries no real secret since the app never talks to Grafana directly |
-   | `OTEL_SERVICE_NAME` | app + collector | `inboxui` (default) or your choice — keep it the same value for both, since the collector's log pipeline stamps it onto log records so they match the app's trace resource |
-   | `OTEL_EXPORTER_ENDPOINT` | collector | the Grafana OTLP gateway URL from step 2 |
-   | `OTEL_EXPORTER_AUTH` | collector | the `Basic ...` header value from step 4 |
+   | `ENABLE_OBSERVABILITY` | `app.env` | `true` |
+   | `OTEL_EXPORTER_OTLP_ENDPOINT` | `app.env` | `http://otel-collector:4318` — the collector, on the internal docker network, **not** Grafana |
+   | `OTEL_EXPORTER_OTLP_PROTOCOL` | `app.env` | `http/protobuf` |
+   | `OTEL_EXPORTER_OTLP_HEADERS` | `app.env` | any non-empty value, e.g. `X-Local-Collector=unused` — required by `assertConfig()`, but carries no real secret since the app never talks to Grafana directly |
+   | `OTEL_SERVICE_NAME` | **both** files | `inboxui` (default) or your choice — keep it the same value in both, since the collector's log pipeline stamps it onto log records so they match the app's trace resource |
+   | `OTEL_EXPORTER_ENDPOINT` | `otel-collector.env` | the Grafana OTLP gateway URL from step 2 |
+   | `OTEL_EXPORTER_AUTH` | `otel-collector.env` | the `Basic ...` header value from step 4 |
+
+   `/srv/inboxui/secrets/otel-collector.env` needs to exist (even if you later swap collector
+   credentials) — `docker-compose.yml`'s `otel-collector` service has no default for it.
 
 6. Bring up the app **and** the collector — the collector is gated behind the `observability`
    compose profile, so a plain `docker compose up -d`/`restart app` will not start it:
@@ -74,8 +79,8 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
 1. Make a request through the app (log in, load an inbox, send a message — anything that hits an
    API route).
 2. Check the collector isn't erroring: `docker compose logs otel-collector` — startup errors here
-   (bad OTTL statements, an unreachable `OTEL_EXPORTER_ENDPOINT`, permission denied reading
-   `/var/lib/docker/containers`) show up loudly, unlike an app-side exporter failure.
+   (bad OTTL statements, an unreachable `OTEL_EXPORTER_ENDPOINT`) show up loudly, unlike an
+   app-side exporter failure.
 3. In Grafana, open **Explore**, select the Tempo/Traces data source, and confirm a trace for that
    request appears.
 4. Select the Loki/Logs data source and confirm the corresponding log lines appear, carrying
@@ -99,14 +104,18 @@ the other:
 - No traces: check `OTEL_EXPORTER_OTLP_ENDPOINT`/`_PROTOCOL` on the **app** side, and confirm the
   collector container is actually running (`docker compose ps otel-collector` — remember it needs
   the `observability` profile to start at all).
-- No logs: check `docker compose logs otel-collector` for `filelog` receiver errors — the most
-  common one is permission denied reading `/var/lib/docker/containers`, since that directory is
-  usually root-only and the collector image runs as a non-root user by default. If you see that,
-  add `user: "0:0"` to the `otel-collector` service in `docker-compose.yml`. Also confirm the app
-  is actually writing JSON to stdout in this environment: `docker compose logs app | head -1`
-  should be a single-line JSON object, not colorized/multi-line text — if it isn't, `NODE_ENV`
-  probably isn't `production` in whatever is running the image (the shipped `Dockerfile` always
-  sets it, so this would mean a non-standard build).
+- No logs: check `docker compose logs otel-collector` for `filelog` receiver errors. The service
+  already runs as `user: "0:0"` in `docker-compose.yml` specifically so it can read the normally
+  root-only `/var/lib/docker/containers` — if you've overridden that in a compose override file,
+  a permission-denied error here is why. Also confirm the app is actually writing JSON to stdout
+  in this environment: `docker compose logs app | head -1` should be a single-line JSON object,
+  not colorized/multi-line text — if it isn't, `NODE_ENV` probably isn't `production` in whatever
+  is running the image (the shipped `Dockerfile` always sets it, so this would mean a
+  non-standard build).
+- Logs only just started working after weeks of the `observability` profile being on: this is
+  `start_at: end` in `deploy/otel-collector.yaml` — the collector only tails new lines from the
+  moment it starts, not a container's history from before it existed. This is deliberate (see the
+  comment there), not a bug.
 
 **Nothing appears in Grafana at all, from either signal.**
 The collector's own credentials are wrong — a typo in `OTEL_EXPORTER_ENDPOINT`, an expired

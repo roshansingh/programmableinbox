@@ -46,7 +46,15 @@ receivers:
   filelog/docker:
     include:
       - /var/lib/docker/containers/*/*-json.log
-    start_at: beginning
+    # Tailing from "end" costs nothing for ongoing logs — a container
+    # restart is a brand-new log file, so "end" and "beginning" are the
+    # same zero bytes for it. It matters only for files that already
+    # existed when the collector first sees them: "beginning" would burst
+    # every container's entire log history at the backend the first time
+    # the `observability` profile is ever activated on an already-running
+    # host, which is both slow and (against a metered endpoint like
+    # Grafana Cloud's free tier) potentially costly.
+    start_at: end
     storage: file_storage
     include_file_path: false
     include_file_name: false
@@ -103,26 +111,38 @@ receivers:
 processors:
   batch: {}
 
-  # Promotes the trace_id/span_id JSON fields injected by lib/logger.config.ts's
-  # Pino mixin into the log record's actual OTel trace context, so Grafana's
-  # Loki<->Tempo "jump from span to logs" correlation keeps working even
-  # though logs no longer travel through the same in-process OTel SDK as
-  # traces. Only applies to app log lines — other containers never set these
-  # attributes, so the `where` guards make both statements no-ops for them.
+  # Everything here is guarded on `attributes["level"] != nil` — present
+  # only for lines the json_parser/severity_parser above actually parsed as
+  # Pino JSON (severity_parser reads but does not remove its source field).
+  # That guard is what keeps this scoped to app log lines: without it,
+  # every other container's logs (postgres, caddy, redis, ...) would also
+  # get stamped `service.name=inboxui`, which would make e.g. a Postgres
+  # crash line indistinguishable from an app error in the backend.
+  #
+  # trace_id/span_id: promotes the JSON fields injected by
+  # lib/logger.config.ts's Pino mixin into the log record's actual OTel
+  # trace context, so Grafana's Loki<->Tempo "jump from span to logs"
+  # correlation keeps working even though logs no longer travel through the
+  # same in-process OTel SDK as traces. `TraceID`/`SpanID` (not
+  # `ParseTraceID`/`ParseSpanID`, which don't exist as OTTL functions) parse
+  # the hex string into the record's trace context.
+  #
+  # The trailing delete_keys drop attributes.level/time/trace_id/span_id
+  # once consumed — severity_parser and time_parser don't remove their
+  # source field on their own, so without this every app log record would
+  # carry redundant copies of data already promoted onto Severity/Timestamp/
+  # trace context.
   transform/logs:
     log_statements:
       - context: log
         statements:
-          - set(trace_id, ParseTraceID(attributes["trace_id"])) where attributes["trace_id"] != nil
-          - set(span_id, ParseSpanID(attributes["span_id"])) where attributes["span_id"] != nil
-          - delete_key(attributes, "trace_id") where attributes["trace_id"] != nil
-          - delete_key(attributes, "span_id") where attributes["span_id"] != nil
-
-  resource/logs:
-    attributes:
-      - key: service.name
-        value: ${env:OTEL_SERVICE_NAME}
-        action: upsert
+          - set(resource.attributes["service.name"], "${env:OTEL_SERVICE_NAME}") where attributes["level"] != nil
+          - set(trace_id, TraceID(attributes["trace_id"])) where attributes["trace_id"] != nil
+          - set(span_id, SpanID(attributes["span_id"])) where attributes["span_id"] != nil
+          - delete_key(attributes, "trace_id")
+          - delete_key(attributes, "span_id")
+          - delete_key(attributes, "level")
+          - delete_key(attributes, "time")
 
 exporters:
   # A single OTLP/HTTP exporter, shared by both pipelines: the collector
@@ -144,5 +164,5 @@ service:
       exporters: [otlphttp]
     logs:
       receivers: [filelog/docker]
-      processors: [resource/logs, transform/logs, batch]
+      processors: [transform/logs, batch]
       exporters: [otlphttp]
