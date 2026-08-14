@@ -9,6 +9,8 @@ volumes:
     name: caddy-data
   caddy-config:
     name: caddy-config
+  otel-collector-storage:
+    name: otel-collector-storage
 
 services:
   caddy:
@@ -44,6 +46,37 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # Ships traces (pushed by app over OTLP) and logs (tailed from this host's
+  # Docker stdout files) to the OTLP backend an operator configures via
+  # OTEL_EXPORTER_ENDPOINT/OTEL_EXPORTER_AUTH in app.env. Opt-in via the
+  # `observability` profile — the app already no-ops all telemetry when
+  # ENABLE_OBSERVABILITY=false, but a container tailing every other
+  # service's log files is its own thing to run only when wanted. Start it
+  # alongside `docker compose up -d` with
+  # `docker compose --profile observability up -d` whenever
+  # ENABLE_OBSERVABILITY=true is set. See docs/observability-operator-guide.md.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.158.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - "--config=/etc/otelcol-contrib/config.yaml"
+    env_file: /srv/inboxui/secrets/app.env
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - otel-collector-storage:/var/lib/otelcol/file_storage
+      # Read-only tail of every container's stdout (Docker's json-file log
+      # driver) — see deploy/otel-collector.yaml for why this is the log
+      # ingestion path instead of an in-process OTLP push from the app.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - inboxui-internal
+    # Not published to the host and not exposed to any other network — only
+    # reachable from `app`, over the internal bridge, by service name.
+    expose:
+      - "4317"
+      - "4318"
 
   migrate:
     image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}

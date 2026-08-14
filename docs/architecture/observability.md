@@ -8,9 +8,25 @@ between the two, not a how-to. For self-hosted setup, see
 
 This ships two things: OpenTelemetry distributed tracing across request handlers and background
 jobs, and log shipping to an external backend with trace/log correlation. Both are EE/SaaS-only.
-It exports directly over OTLP (OpenTelemetry Protocol) from the running container — there is no
-bundled Grafana, Loki, or Tempo, and no sidecar container. An operator points it at whatever
-OTLP-compatible backend they already run.
+
+Traces and logs reach the backend by two different paths that meet at one local
+`otel-collector` container (`deploy/otel-collector.yaml`), not by the app pushing both directly:
+
+- **Traces**: the app pushes OTLP straight to the collector (`@vercel/otel`, same as before —
+  only the destination changed, from the public backend to the local collector).
+- **Logs**: the collector's `filelog` receiver tails this host's Docker stdout files (the
+  `json-file` log driver's `*-json.log` output) and parses Pino's JSON lines. The app does not
+  push logs anywhere itself.
+
+The collector then re-exports both signals over OTLP to whatever backend an operator configures
+(`OTEL_EXPORTER_ENDPOINT`/`OTEL_EXPORTER_AUTH` on the collector, distinct from the app's own
+`OTEL_EXPORTER_OTLP_*` vars). There is still no bundled Grafana, Loki, or Tempo — the collector is
+a routing/parsing hop, not a backend.
+
+This is a deliberate change from an earlier version of this design, which had the app push logs
+directly over OTLP too (`pino-opentelemetry-transport`, removed). That worked, but tied log
+delivery to the app process getting a chance to flush an in-process batch exporter; tailing the
+container's own stdout — which `docker logs` already relies on for the exact same data — does not.
 
 ## The gate
 
@@ -54,114 +70,91 @@ There is no sampling in this phase: every trace is exported. Sampling is out of 
 
 ## Logs
 
-Two independent, additive pieces, both in `lib/logger.config.ts`:
+Two independent pieces, split between the app and the collector:
 
-1. **Trace-log correlation.** A Pino `mixin` reads the active OpenTelemetry span via
-   `@opentelemetry/api` (the API package only, never the SDK) and, when one exists, attaches
-   `trace_id`/`span_id` to the log line. This is unconditional and community-safe: with no SDK
-   registered — Community Edition, or an EE build with `ENABLE_OBSERVABILITY=false` —
-   `trace.getSpan(context.active())` returns `undefined` and the mixin is a no-op.
-2. **Log shipping.** `registerExtraLogTransport()`, called only from
-   `ee/observability/init.ts`, adds a `pino-opentelemetry-transport` target alongside the
-   existing stdout output. In production this now runs through a multi-target Pino config —
-   `pino/file` with destination `1` reproduces the plain JSON-to-stdout behavior prod already had,
-   so `docker logs` sees the exact same output whether or not shipping is enabled.
+1. **Trace-log correlation** (`lib/logger.config.ts`). A Pino `mixin` reads the active
+   OpenTelemetry span via `@opentelemetry/api` (the API package only, never the SDK) and, when one
+   exists, attaches `trace_id`/`span_id` to the log line. This is unconditional and
+   community-safe: with no SDK registered — Community Edition, or an EE build with
+   `ENABLE_OBSERVABILITY=false` — `trace.getSpan(context.active())` returns `undefined` and the
+   mixin is a no-op. This is still how logs and traces end up correlated even though they no
+   longer share an in-process exporter — see "Trace/log correlation without a shared exporter"
+   below.
+2. **Log shipping** (`deploy/otel-collector.yaml`, outside the app process entirely). The
+   collector's `filelog` receiver tails `/var/lib/docker/containers/*/*-json.log` — every
+   container's stdout, via Docker's `json-file` log driver — and parses each line as JSON.
+   Pino writing plain JSON to stdout in production (no `pino-pretty`) is what makes this parseable
+   at all; see "Why this depends on JSON stdout" below. Non-app containers (postgres, caddy,
+   redis, ...) don't write JSON, so those lines pass through with their raw text as the log body
+   instead of being dropped — the collector doesn't try to filter by container.
 
-## Ordering constraint
+`registerExtraLogTransport()` (`lib/logger.config.ts`) still exists as generic multi-target Pino
+infrastructure — it is what an in-process log-shipping transport would use, and is still exercised
+by `lib/__tests__/logger.test.ts` — but nothing in this codebase calls it today. Log shipping now
+happens entirely outside the app process.
 
-`registerExtraLogTransport()` must run before the first `getLogger()`/`logger.*` call anywhere in
-the process — Pino has no API to add a transport to an already-constructed logger. Calling it
-after that point throws, deliberately: a transport that silently fails to attach would look
-configured while shipping nothing.
+## Why this depends on JSON stdout
 
-The registered-targets list and the "already built" flag both live on `globalThis` (via a
-`globalForLoggerConfig`-style cast, the same pattern `lib/db.ts` uses for its Prisma singleton),
-not module scope. This is process-global specifically because a module-scoped array would not
-survive webpack's per-chunk duplication in a production build: webpack can compile the same
-source module into multiple separate bundled copies across different entry points/chunks, so if
-`instrumentation.ts` and an API route resolved to two different compiled copies of
-`lib/logger.config.ts`, a module-scoped `registerExtraLogTransport()` would push into an array
-nobody else ever reads — the whole log-shipping feature would silently become a no-op with no
-error anywhere. `globalThis` is the one true JS global shared by the entire process no matter how
-webpack chunks the code.
+`buildLoggerConfig()` (`lib/logger.config.ts`) only uses `pino-pretty` when
+`!config.runtime.isProduction`, i.e. `NODE_ENV !== 'production'`. `Dockerfile`'s runtime stage sets
+`NODE_ENV=production` unconditionally, so the deployed container already writes plain JSON lines
+to stdout regardless of this feature — that was true before this collector existed, for the
+ordinary "read `docker logs`" case. What changed is that this JSON now has a second consumer: the
+collector's `json_parser` operator needs every line to be a single JSON object to extract `level`,
+`msg`, `time`, `trace_id`, `span_id`, and any other fields onto the exported log record. A pretty,
+colorized line (ANSI escape codes and all) would fail to parse — the `on_error: send` setting on
+that operator means it wouldn't crash the pipeline, but the record would carry the whole raw pretty
+line as an unstructured body, with no severity, no timestamp fix-up, and no trace correlation.
 
-The call order in `instrumentation.ts`, inside the `NEXT_RUNTIME === 'nodejs'` branch, is:
+## Trace/log correlation without a shared exporter
 
-1. `assertConfig()` — validates all config domains, including `observability`, and fails boot on a
-   malformed value.
-2. `initializeObservability()` — registers tracing and, if enabled, the extra log transport.
-3. `initializeCommercialPlans()` — the first thing in the boot sequence that would otherwise
-   construct the shared logger singleton.
-4. Worker registration (`lib/instrumentation.ts`'s `register()`).
+Grafana's "jump from a span to its logs" feature needs a log record's actual OTel trace context —
+not just a `trace_id` string sitting in a JSON field — to match it against a trace. When both
+signals shared the app's own OTel SDK (the removed `pino-opentelemetry-transport` path), the SDK
+did this bookkeeping automatically. With logs now sourced from parsed stdout instead, nothing
+upstream of the collector knows about OTel's data model, so the collector's `transform/logs`
+processor does it explicitly: `ParseTraceID`/`ParseSpanID` OTTL statements read the `trace_id`/
+`span_id` attributes the Pino mixin already put on each JSON line and set them as the log record's
+real trace context, then delete the now-redundant attributes. This only fires for lines with those
+fields — i.e. app log lines with an active span — so it's a no-op for every other container's
+output.
 
-`initializeObservability()` running before `initializeCommercialPlans()` is the load-bearing part
-of this ordering — it is the last safe point to register a transport before something else in the
-boot sequence logs.
+## Ordering
+
+`instrumentation.ts`, inside the `NEXT_RUNTIME === 'nodejs'` branch, still calls
+`initializeObservability()` before `initializeCommercialPlans()`, but for a different reason than
+before: `registerOTel()`'s auto-instrumentation patches Node's module loader, which is only
+effective for modules not yet `require()`'d — so it needs to run as early in the boot sequence as
+possible, not specifically "before the Pino singleton exists" (that constraint applied to the
+now-removed log transport registration, not to tracing).
 
 ## Why generic OTel env vars, not Grafana-specific config
 
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME` are standard
-OpenTelemetry SDK environment variables, but they don't all reach the exporters the same way:
+OpenTelemetry SDK environment variables, but they don't all reach the exporter the same way:
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` are read directly from
-  `process.env` by `@vercel/otel` and `pino-opentelemetry-transport` themselves —
-  `ee/observability/init.ts` never reads `config.observability.otlpEndpoint` or `.otlpHeaders`
-  back out of `config` and passes neither to `registerOTel()` or the log transport. For these two,
-  `config.observability` exists purely so `assertConfig()` can validate them at boot (present,
-  non-empty, required together); at runtime they flow straight from the environment to the
-  libraries, bypassing `config` entirely.
+  `process.env` by `@vercel/otel` itself — `ee/observability/init.ts` never reads
+  `config.observability.otlpEndpoint`/`.otlpHeaders` back out of `config` and passes neither to
+  `registerOTel()`. For these two, `config.observability` exists purely so `assertConfig()` can
+  validate them at boot (present, non-empty, required together); at runtime they flow straight
+  from the environment to `@vercel/otel`, bypassing `config` entirely. As of the collector
+  architecture above, `OTEL_EXPORTER_OTLP_ENDPOINT` now points at the local `otel-collector`
+  service rather than a public OTLP gateway, and `OTEL_EXPORTER_OTLP_HEADERS` carries no real
+  secret — it's still required because `assertConfig()` has no way to know the endpoint is a
+  same-host collector rather than a public backend; any non-empty value satisfies it.
 - `OTEL_SERVICE_NAME` is different: `config.observability.serviceName` (defaulted to `'inboxui'`
-  if unset) *is* read back out of `config` and passed explicitly —
-  `registerOTel(config.observability.serviceName)` and
-  `resourceAttributes: { 'service.name': config.observability.serviceName }` on the log transport.
-  It is the one field in `config.observability` with a genuine runtime role beyond boot-time
-  validation.
+  if unset) *is* read back out of `config` and passed explicitly to
+  `registerOTel(config.observability.serviceName)`. It is the one field in `config.observability`
+  with a genuine runtime role beyond boot-time validation. `deploy/otel-collector.yaml`'s
+  `resource/logs` processor separately reads the same value from its own `OTEL_SERVICE_NAME`
+  (set in `app.env`, shared via `env_file`) so log records carry a matching `service.name` even
+  though they never pass through the app's OTel SDK.
 
-Either way, none of this is Grafana-specific: any OTLP-compatible backend works, since the
-libraries speak the standard OTel protocol regardless of where the endpoint points. Grafana Cloud
-is what the operator guide documents as a free reference backend, not something the code is
-coupled to.
-
-## Build note
-
-`pino-opentelemetry-transport` is externalized in `next.config.mjs`'s `serverExternalPackages`,
-alongside `pino`, `pino-pretty`, and `thread-stream`, for the same reason those are: it is loaded
-by Pino's worker-thread transport loader from a string target name, not a static import, so
-Turbopack and webpack must not try to bundle it.
-
-**What actually makes the package available in the deployed image is `Dockerfile`'s full
-`node_modules` copy** (the `COPY --from=builder --chown=nextjs:nodejs /app/node_modules
-./node_modules` line, currently line 41), which overlays the entire builder-stage `node_modules`
-on top of the trimmed `.next/standalone` copy. Since that overlay includes every package
-unconditionally, `pino-opentelemetry-transport` — and everything it requires at runtime — is
-present in the running container regardless of what Next's output-file tracing decided to
-include.
-
-`outputFileTracingIncludes` is a secondary, currently-incomplete safety net, not the primary
-mechanism. It was added because Next's output-file tracing for `standalone` follows static
-imports and does not see a runtime `require()` string — verified empirically with a controlled
-A/B build of `.next/standalone` in isolation (a different artifact from the Docker image that
-actually ships): removing the entry and running `npm run build` left
-`pino-opentelemetry-transport` genuinely absent from `.next/standalone/**/node_modules/`;
-restoring it made it present again. That test demonstrates the tracing gap in `.next/standalone`
-on its own — it does not prove anything about runtime correctness of the deployed Docker image,
-since the image never ships `.next/standalone`'s trimmed `node_modules` unmodified in the first
-place. `next.config.mjs` carries:
-
-```js
-outputFileTracingIncludes: {
-  'instrumentation': ['./node_modules/pino-opentelemetry-transport/**/*'],
-},
-```
-
-keyed on `'instrumentation'` because that is the root-level file whose trace covers the whole
-server bundle. Even as defense-in-depth, this entry is incomplete on its own: the glob only
-covers `pino-opentelemetry-transport` itself, not its hoisted sibling dependencies that it
-`require()`s at runtime — `@opentelemetry/exporter-logs-otlp-proto` (the default exporter when no
-explicit protocol env var is set), `exporter-logs-otlp-http`, `exporter-logs-otlp-grpc`,
-`otlp-exporter-base`, `otlp-grpc-exporter-base`, and `otlp-transformer`. So a future deployment
-path that trims `Dockerfile`'s full `node_modules` copy down to the traced/standalone set would
-need this include expanded before `outputFileTracingIncludes` alone could carry the feature.
+None of this is Grafana-specific: the collector's own outbound exporter
+(`deploy/otel-collector.yaml`) speaks standard OTLP/HTTP, so any OTLP-compatible backend works.
+Grafana Cloud is what the operator guide documents as a free reference backend, not something the
+code is coupled to.
 
 ## Out of scope
 

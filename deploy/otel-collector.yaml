@@ -1,0 +1,148 @@
+# OpenTelemetry Collector config for the `otel-collector` service in
+# docker-compose.yml. See docs/architecture/observability.md for the design
+# and docs/observability-operator-guide.md for setup.
+#
+# Two independent ingestion paths feed one export pipeline per signal:
+#
+#   traces: app (@vercel/otel, OTLP push)  -> otlp receiver -> otlphttp exporter
+#   logs:   this host's Docker stdout files -> filelog receiver -> otlphttp exporter
+#
+# Logs are NOT pushed over OTLP by the app. `pino-opentelemetry-transport`
+# was removed for that reason (ee/observability/init.ts only registers
+# traces now) — instead this collector tails every container's Docker
+# json-file log output, which requires the app to write plain JSON to
+# stdout (already true in production: lib/logger.config.ts only uses
+# pino-pretty when NODE_ENV != production, and Dockerfile always sets
+# NODE_ENV=production).
+#
+# ${env:OTEL_EXPORTER_ENDPOINT} / ${env:OTEL_EXPORTER_AUTH} are THIS
+# collector's own credentials for the real backend (e.g. Grafana Cloud's
+# OTLP gateway URL and a `Authorization=Basic <base64>` header) — distinct
+# from the app's OTEL_EXPORTER_OTLP_* vars, which now just point at this
+# collector over the private docker network and carry no real secret.
+
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol/file_storage
+    timeout: 10s
+
+receivers:
+  # Traces pushed directly by the app (@vercel/otel -> OTEL_EXPORTER_OTLP_ENDPOINT).
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Every container's stdout, via Docker's json-file log driver. Non-app
+  # containers (postgres, caddy, redis, ...) don't write JSON lines — the
+  # json_parser operator below is best-effort (on_error: send) so those
+  # entries pass through with their raw text as the log body instead of
+  # being dropped or crashing the pipeline. There is no per-container
+  # filter: doing that correctly needs the container name, which isn't
+  # recoverable from the log file path alone (Docker names the file by
+  # container ID) without also talking to the Docker API.
+  filelog/docker:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    start_at: beginning
+    storage: file_storage
+    include_file_path: false
+    include_file_name: false
+    operators:
+      # Un-wraps Docker's json-file envelope: {"log": "...", "stream":
+      # "stdout", "time": "..."} -> body becomes the raw line, and a
+      # `time` attribute carries Docker's own receive timestamp (used as a
+      # fallback below if the line isn't Pino JSON with its own `time`).
+      - type: container
+        format: docker
+
+      # Pino writes one JSON object per line in production (see header
+      # comment). on_error: send means a non-JSON line (any other
+      # service's stdout) just keeps its raw text as the body instead of
+      # failing the pipeline.
+      - type: json_parser
+        parse_from: body
+        parse_to: attributes
+        on_error: send
+
+      # Pino's numeric level (10/20/30/40/50/60) mapped to OTel's
+      # SeverityNumber scale. Consumes attributes.level on success; a
+      # non-Pino line has no `level` attribute, so this is a no-op there.
+      - type: severity_parser
+        parse_from: attributes.level
+        on_error: send
+        mapping:
+          trace: 10
+          debug: 20
+          info: 30
+          warn: 40
+          error: 50
+          fatal: 60
+
+      # Pino's message key is `msg` (lib/logger.config.ts uses the
+      # default). Promote it to the record body so Loki shows the message,
+      # not the whole JSON blob; leaves trace_id/span_id/time/etc in
+      # attributes for the steps below.
+      - type: move
+        from: attributes.msg
+        to: body
+        if: 'attributes.msg != nil'
+
+      # Pino's timestamp key is `time` (pino.stdTimeFunctions.isoTime),
+      # formatted like 2024-01-01T00:00:00.000Z. Falls back to Docker's own
+      # receive time (set by the `container` operator above) for non-Pino
+      # lines, via on_error.
+      - type: time_parser
+        parse_from: attributes.time
+        layout_type: gotime
+        layout: '2006-01-02T15:04:05.000Z'
+        on_error: send
+
+processors:
+  batch: {}
+
+  # Promotes the trace_id/span_id JSON fields injected by lib/logger.config.ts's
+  # Pino mixin into the log record's actual OTel trace context, so Grafana's
+  # Loki<->Tempo "jump from span to logs" correlation keeps working even
+  # though logs no longer travel through the same in-process OTel SDK as
+  # traces. Only applies to app log lines — other containers never set these
+  # attributes, so the `where` guards make both statements no-ops for them.
+  transform/logs:
+    log_statements:
+      - context: log
+        statements:
+          - set(trace_id, ParseTraceID(attributes["trace_id"])) where attributes["trace_id"] != nil
+          - set(span_id, ParseSpanID(attributes["span_id"])) where attributes["span_id"] != nil
+          - delete_key(attributes, "trace_id") where attributes["trace_id"] != nil
+          - delete_key(attributes, "span_id") where attributes["span_id"] != nil
+
+  resource/logs:
+    attributes:
+      - key: service.name
+        value: ${env:OTEL_SERVICE_NAME}
+        action: upsert
+
+exporters:
+  # A single OTLP/HTTP exporter, shared by both pipelines: the collector
+  # appends /v1/traces or /v1/logs to the same base endpoint per pipeline,
+  # same convention the app's own OTEL_EXPORTER_OTLP_ENDPOINT already
+  # follows. Vendor-neutral — any OTLP-compatible backend works, Grafana
+  # Cloud is just the documented reference (docs/observability-operator-guide.md).
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_ENDPOINT}
+    headers:
+      Authorization: ${env:OTEL_EXPORTER_AUTH}
+
+service:
+  extensions: [file_storage]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+    logs:
+      receivers: [filelog/docker]
+      processors: [resource/logs, transform/logs, batch]
+      exporters: [otlphttp]
