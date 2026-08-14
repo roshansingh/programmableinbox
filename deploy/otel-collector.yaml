@@ -111,13 +111,19 @@ receivers:
 processors:
   batch: {}
 
-  # Everything here is guarded on `attributes["level"] != nil` — present
-  # only for lines the json_parser/severity_parser above actually parsed as
-  # Pino JSON (severity_parser reads but does not remove its source field).
-  # That guard is what keeps this scoped to app log lines: without it,
-  # every other container's logs (postgres, caddy, redis, ...) would also
-  # get stamped `service.name=inboxui`, which would make e.g. a Postgres
-  # crash line indistinguishable from an app error in the backend.
+  # Everything here is guarded on `attributes["level"] != nil and
+  # attributes["pid"] != nil` — present only for lines actually written by
+  # this app's Pino logger. `level` alone is NOT enough: Caddy's own
+  # default JSON logging (zap, active for any container without a TTY —
+  # true for every container here) also includes a `level` key, so a
+  # level-only guard would still mislabel Caddy's logs as the app's. Pino's
+  # default base object (lib/logger.config.ts does not override `base`)
+  # always adds `pid`/`hostname`, and zap's default encoder does not use
+  # either of those key names, so the combination is what actually scopes
+  # this to app log lines — without it, every other container's logs
+  # (postgres, caddy, redis, ...) would also get stamped
+  # `service.name=inboxui`, making e.g. a Caddy TLS error indistinguishable
+  # from an app error in the backend.
   #
   # trace_id/span_id: promotes the JSON fields injected by
   # lib/logger.config.ts's Pino mixin into the log record's actual OTel
@@ -125,7 +131,9 @@ processors:
   # correlation keeps working even though logs no longer travel through the
   # same in-process OTel SDK as traces. `TraceID`/`SpanID` (not
   # `ParseTraceID`/`ParseSpanID`, which don't exist as OTTL functions) parse
-  # the hex string into the record's trace context.
+  # the hex string into the record's trace context. These two are only
+  # guarded on trace_id/span_id presence, not the Pino-line guard above —
+  # they're already no-ops for any line lacking those specific attributes.
   #
   # The trailing delete_keys drop attributes.level/time/trace_id/span_id
   # once consumed — severity_parser and time_parser don't remove their
@@ -136,7 +144,7 @@ processors:
     log_statements:
       - context: log
         statements:
-          - set(resource.attributes["service.name"], "${env:OTEL_SERVICE_NAME}") where attributes["level"] != nil
+          - set(resource.attributes["service.name"], "${env:OTEL_SERVICE_NAME}") where attributes["level"] != nil and attributes["pid"] != nil
           - set(trace_id, TraceID(attributes["trace_id"])) where attributes["trace_id"] != nil
           - set(span_id, SpanID(attributes["span_id"])) where attributes["span_id"] != nil
           - delete_key(attributes, "trace_id")

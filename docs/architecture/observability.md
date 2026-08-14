@@ -115,11 +115,17 @@ did this bookkeeping automatically. With logs now sourced from parsed stdout ins
 upstream of the collector knows about OTel's data model, so the collector's `transform/logs`
 processor does it explicitly: `TraceID`/`SpanID` OTTL statements read the `trace_id`/`span_id`
 attributes the Pino mixin already put on each JSON line and set them as the log record's real
-trace context, then delete the now-redundant attributes. Both statements — and the `service.name`
-stamping described below — are guarded on `attributes["level"] != nil`, present only for lines the
-receiver's `json_parser`/`severity_parser` operators actually parsed as Pino JSON, so this is a
-no-op for every other container's output rather than something that needs a separate per-container
-filter.
+trace context, then delete the now-redundant attributes — these two are self-scoping, since they
+only fire on lines that actually have `trace_id`/`span_id` attributes at all.
+
+The `service.name` stamping (below) needs an explicit guard instead, and it has to be more
+specific than "this line parsed as JSON": Caddy's own default logging is also JSON when its
+stderr isn't a TTY (true for every container here), and it also uses a `level` key, so
+`attributes["level"] != nil` alone still lets Caddy's log lines through and get mislabeled
+`service.name=inboxui`. The guard is `attributes["level"] != nil and attributes["pid"] != nil` —
+Pino's default base object always adds `pid`/`hostname` and Caddy's JSON encoder does not use
+either name, so the combination is what actually scopes this to app log lines rather than "any
+container whose stdout happens to be JSON."
 
 ## Ordering
 
