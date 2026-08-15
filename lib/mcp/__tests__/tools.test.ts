@@ -5,6 +5,7 @@ const listMessagesMock = vi.fn()
 const getMessageMock = vi.fn()
 const createInboxMock = vi.fn()
 const updateInboxForWriteMock = vi.fn()
+const findLatestOtpMock = vi.fn()
 
 vi.mock('@/lib/services/email-inbox', () => ({
   listInboxes: (...a: unknown[]) => listInboxesMock(...a),
@@ -12,6 +13,8 @@ vi.mock('@/lib/services/email-inbox', () => ({
   getMessage: (...a: unknown[]) => getMessageMock(...a),
   createInbox: (...a: unknown[]) => createInboxMock(...a),
   updateInboxForWrite: (...a: unknown[]) => updateInboxForWriteMock(...a),
+  findLatestOtp: (...a: unknown[]) => findLatestOtpMock(...a),
+  OTP_DEFAULT_WINDOW_MINUTES: 15,
 }))
 
 import { EMAIL_TOOLS } from '../tools'
@@ -502,22 +505,14 @@ describe('pibx_email_get_thread', () => {
 })
 
 describe('pibx_email_get_latest_otp', () => {
-  const now = new Date('2026-03-01T12:00:00.000Z')
+  // The scan/window/staleness logic itself is tested once, against the real
+  // implementation, in lib/services/__tests__/email-inbox.test.ts
+  // (findLatestOtp) — this tool is a thin mapper from that shared result onto
+  // the MCP response shape, so these tests only cover the mapping and the
+  // args the tool passes through.
 
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(now)
-  })
-
-  it('returns the newest code inside the freshness window', async () => {
-    listMessagesMock.mockResolvedValue({
-      messages: [
-        row({ id: 'msg_new', extractedOtp: '999111', createdAt: new Date(now.getTime() - 60_000) }),
-        row({ id: 'msg_old', extractedOtp: '111222', createdAt: new Date(now.getTime() - 120_000) }),
-      ],
-      nextCursor: null,
-      hasMore: false,
-    })
+  it('returns otp and the message it came from on a match', async () => {
+    findLatestOtpMock.mockResolvedValue({ found: true, message: row({ id: 'msg_new', extractedOtp: '999111' }) })
 
     const result = payload(await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' }))
 
@@ -525,59 +520,42 @@ describe('pibx_email_get_latest_otp', () => {
     expect(result.message.id).toBe('msg_new')
   })
 
-  it('skips messages with no code', async () => {
-    listMessagesMock.mockResolvedValue({
-      messages: [
-        row({ id: 'no_code', extractedOtp: null }),
-        row({ id: 'has_code', extractedOtp: '424242' }),
-      ],
-      nextCursor: null,
-      hasMore: false,
-    })
-
-    expect(payload(await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' })).otp).toBe(
-      '424242',
-    )
-  })
-
-  it('refuses a stale code and says so distinctly from finding none', async () => {
-    listMessagesMock.mockResolvedValue({
-      messages: [
-        row({ extractedOtp: '123456', createdAt: new Date(now.getTime() - 60 * 60_000) }),
-      ],
-      nextCursor: null,
-      hasMore: false,
-    })
-
+  it('reports a stale code distinctly from finding none', async () => {
+    findLatestOtpMock.mockResolvedValue({ found: false, stale: true })
     const stale = payload(await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' }))
     expect(stale.otp).toBeNull()
     expect(stale.reason).toContain('older than 15 minutes')
 
-    listMessagesMock.mockResolvedValue({ messages: [], nextCursor: null, hasMore: false })
+    findLatestOtpMock.mockResolvedValue({ found: false, stale: false })
     const none = payload(await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' }))
     expect(none.otp).toBeNull()
     expect(none.reason).toContain('wait and call again')
   })
 
-  it('honours a widened window', async () => {
-    listMessagesMock.mockResolvedValue({
-      messages: [
-        row({ extractedOtp: '123456', createdAt: new Date(now.getTime() - 30 * 60_000) }),
-      ],
-      nextCursor: null,
-      hasMore: false,
-    })
+  it('throws inbox-not-found when the inbox is not visible', async () => {
+    findLatestOtpMock.mockResolvedValue(null)
 
-    expect(
-      payload(await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1', withinMinutes: 60 }))
-        .otp,
-    ).toBe('123456')
+    const result = await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' })
+    expect(result.isError).toBe(true)
+  })
+
+  it('passes withinMinutes through to findLatestOtp', async () => {
+    findLatestOtpMock.mockResolvedValue({ found: false, stale: false })
+
+    await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1', withinMinutes: 60 })
+
+    expect(findLatestOtpMock).toHaveBeenCalledWith(ORG_SCOPE, 'inbox_1', {
+      search: null,
+      windowMinutes: 60,
+    })
   })
 
   it('applies a sender filter through the shared search parser', async () => {
+    findLatestOtpMock.mockResolvedValue({ found: false, stale: false })
+
     await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1', from: 'stripe.com' })
 
-    expect(listMessagesMock.mock.calls[0][2].search).toEqual({
+    expect(findLatestOtpMock.mock.calls[0][2].search).toEqual({
       q: null,
       from: 'stripe.com',
       tags: [],
@@ -586,8 +564,10 @@ describe('pibx_email_get_latest_otp', () => {
   })
 
   it('does not search when no sender filter was given', async () => {
+    findLatestOtpMock.mockResolvedValue({ found: false, stale: false })
+
     await call('pibx_email_get_latest_otp', { inboxId: 'inbox_1' })
-    expect(listMessagesMock.mock.calls[0][2].search).toBeNull()
+    expect(findLatestOtpMock.mock.calls[0][2].search).toBeNull()
   })
 })
 

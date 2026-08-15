@@ -393,8 +393,8 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     expect(res.status).toBe(200)
     const { data } = await res.json()
     expect(data.otp).toBe('222222')
-    expect(data.from).toBe('security@example.com')
-    expect(data.messageId).toBe(latest.id)
+    expect(data.message.from).toBe('security@example.com')
+    expect(data.message.id).toBe(latest.id)
   })
 
   it('404 when no message has an extractedOtp', async () => {
@@ -409,7 +409,58 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     )
     expect(res.status).toBe(404)
     const { message } = await res.json()
-    expect(message).toBe('No OTP found for this inbox')
+    expect(message).toContain('No message with a one-time code has arrived')
+  })
+
+  it('404s a stale code distinctly from finding none, and respects withinMinutes', async () => {
+    const { org, user } = await createOrgWithUser()
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
+    const inbox = await seedInbox(org.id, user.id)
+    const staleAt = new Date(Date.now() - 60 * 60_000)
+    await seedMessage(inbox.id, org.id, { extractedOtp: '444444', createdAt: staleAt })
+
+    const stale = await getOtp(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: key.rawKey }),
+      params({ id: inbox.id }),
+    )
+    expect(stale.status).toBe(404)
+    expect((await stale.json()).message).toContain('older than 15 minutes')
+
+    const widened = await getOtp(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp?withinMinutes=120`, {
+        credential: key.rawKey,
+      }),
+      params({ id: inbox.id }),
+    )
+    expect(widened.status).toBe(200)
+    expect((await widened.json()).data.otp).toBe('444444')
+  })
+
+  it('filters by from', async () => {
+    const { org, user } = await createOrgWithUser()
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
+    const inbox = await seedInbox(org.id, user.id)
+    await seedMessage(inbox.id, org.id, {
+      extractedOtp: '555555',
+      from: 'noreply@other.com',
+      createdAt: at(1),
+    })
+    const target = await seedMessage(inbox.id, org.id, {
+      extractedOtp: '666666',
+      from: 'noreply@stripe.com',
+      createdAt: at(2),
+    })
+
+    const res = await getOtp(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp?from=stripe.com`, {
+        credential: key.rawKey,
+      }),
+      params({ id: inbox.id }),
+    )
+    expect(res.status).toBe(200)
+    const { data } = await res.json()
+    expect(data.otp).toBe('666666')
+    expect(data.message.id).toBe(target.id)
   })
 
   it('404 for another org\'s inbox', async () => {
