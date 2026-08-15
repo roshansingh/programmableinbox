@@ -31,6 +31,7 @@ import {
 import { dispatchAutomationsForEmail } from "@/lib/automations/dispatcher";
 import { enrichMessage } from "@/lib/llm/enrichment";
 import { prisma } from "@/lib/db";
+import logger from "@/lib/logger";
 
 const tracer = trace.getTracer("inboxui.webhooks");
 
@@ -72,16 +73,22 @@ export function getEmailWebhookWorker(): Worker<EmailWebhookJobData> {
 
   _worker.on("failed", (job: Job<EmailWebhookJobData> | undefined, err: Error) => {
     if (job) {
-      console.error(
-        `[webhook-worker] job ${job.id} failed (attempt ${job.attemptsMade}/${WEBHOOK_QUEUE_CONFIG.maxRetries + 1}):`,
-        err.message,
+      logger.error(
+        {
+          jobId: job.id,
+          attempt: job.attemptsMade,
+          maxAttempts: WEBHOOK_QUEUE_CONFIG.maxRetries + 1,
+          error: err,
+        },
+        "[webhook-worker] job failed",
       );
     }
   });
 
   _worker.on("completed", (job: Job<EmailWebhookJobData>) => {
-    console.log(
-      `[webhook-worker] job ${job.id} completed (externalId=${job.data.externalId})`,
+    logger.info(
+      { jobId: job.id, externalId: job.data.externalId },
+      "[webhook-worker] job completed",
     );
   });
 
@@ -144,8 +151,9 @@ async function processEmailWebhookJobInner(
 ): Promise<void> {
   const { externalId, inboxEmailAddressId, payload } = job.data;
 
-  console.log(
-    `[webhook-worker] processing job ${job.id}: externalId=${externalId} inbox=${inboxEmailAddressId} attempt=${job.attemptsMade + 1}`,
+  logger.info(
+    { jobId: job.id, externalId, inboxEmailAddressId, attempt: job.attemptsMade + 1 },
+    "[webhook-worker] processing job",
   );
 
   try {
@@ -178,8 +186,9 @@ async function processEmailWebhookJobInner(
         // silently dropping it.
         messages = await loadExistingMessage(externalId, inboxEmailAddressId);
         if (messages.length === 0) {
-          console.log(
-            `[webhook-worker] storeIncomingEmail returned 0 messages for ${externalId}; inbox may have been removed`,
+          logger.info(
+            { externalId },
+            "[webhook-worker] storeIncomingEmail returned 0 messages; inbox may have been removed",
           );
           return;
         }
@@ -228,16 +237,17 @@ async function processEmailWebhookJobInner(
         }),
     );
 
-    console.log(
-      `[webhook-worker] email ${externalId} fully processed: ${messages.length} message(s), automations dispatched`,
+    logger.info(
+      { externalId, messageCount: messages.length },
+      "[webhook-worker] email fully processed, automations dispatched",
     );
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : String(error);
 
-    console.error(
-      `[webhook-worker] job ${job.id} error on attempt ${job.attemptsMade + 1}:`,
-      errorMessage,
+    logger.error(
+      { jobId: job.id, attempt: job.attemptsMade + 1, error },
+      "[webhook-worker] job error",
     );
 
     // ------------------------------------------------------------------
@@ -250,8 +260,9 @@ async function processEmailWebhookJobInner(
     const isFinalAttempt = job.attemptsMade + 1 >= maxAttempts;
 
     if (isFinalAttempt) {
-      console.log(
-        `[webhook-worker] writing dead-letter record for ${externalId} after ${job.attemptsMade + 1} attempt(s)`,
+      logger.info(
+        { externalId, attempts: job.attemptsMade + 1 },
+        "[webhook-worker] writing dead-letter record",
       );
 
       try {
@@ -281,9 +292,9 @@ async function processEmailWebhookJobInner(
       } catch (dlError) {
         // Log but don't suppress the original error — the job must still fail
         // so BullMQ records a terminal state.
-        console.error(
-          `[webhook-worker] failed to write dead-letter record for ${externalId}:`,
-          dlError,
+        logger.error(
+          { externalId, error: dlError },
+          "[webhook-worker] failed to write dead-letter record",
         );
       }
     }
@@ -308,7 +319,7 @@ async function processEmailWebhookJobInner(
 export async function startEmailWebhookWorker(): Promise<void> {
   const w = getEmailWebhookWorker();
   await w.waitUntilReady();
-  console.log("[webhook-worker] started");
+  logger.info("[webhook-worker] started");
 }
 
 /**
@@ -321,6 +332,6 @@ export async function closeEmailWebhookWorker(): Promise<void> {
   if (_worker) {
     await _worker.close();
     _worker = null;
-    console.log("[webhook-worker] closed");
+    logger.info("[webhook-worker] closed");
   }
 }

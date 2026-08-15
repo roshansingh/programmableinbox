@@ -101,6 +101,32 @@ jobs:
           target: /srv/inboxui/
           strip_components: 1
 
+      # otel-collector.yaml is bind-mounted by the (opt-in, profile-gated)
+      # otel-collector service — see docker-compose.yml. It must land next
+      # to docker-compose.yml on the server for that mount to resolve.
+      # Routine deploys never recreate otel-collector itself (same as
+      # postgres/redis, it's outside the --no-deps app+caddy roll below) —
+      # an operator who has already turned observability on picks up a
+      # changed config with `docker compose --profile observability up -d
+      # --no-deps --force-recreate otel-collector` (deploy/README.md Part 9).
+      # --force-recreate is required, not optional: Compose's
+      # recreate-detection hashes the resolved service definition in
+      # docker-compose.yml, not the contents of a file it bind-mounts, so a
+      # plain `up -d` (or `restart`) sees nothing changed and leaves the
+      # stale container running even after this step updates the file on
+      # disk. This step only keeps the file itself from silently drifting
+      # from what's in git.
+      - name: Sync otel-collector config to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          source: deploy/otel-collector.yaml
+          target: /srv/inboxui/
+          strip_components: 1
+
       # Keep the manual initial-deploy / rollback script fresh for the runbooks.
       # It is NOT used by this workflow — routine deploys are inlined below.
       - name: Sync initial-deploy script to server

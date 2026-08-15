@@ -17,12 +17,13 @@ export async function register() {
   }
 
   const { startEmailWebhookWorker } = await import('@/lib/webhooks/worker')
+  const logger = (await import('@/lib/logger')).default
 
   try {
     await startEmailWebhookWorker()
-    console.log('[instrumentation] Email webhook worker initialized')
+    logger.info('[instrumentation] Email webhook worker initialized')
   } catch (error) {
-    console.error('[instrumentation] Failed to initialize email webhook worker:', error)
+    logger.error({ error }, '[instrumentation] Failed to initialize email webhook worker')
     // Don't throw — allow the server to start even if worker initialization fails.
     // The worker will be retried on the first health check.
   }
