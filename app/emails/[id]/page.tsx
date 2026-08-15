@@ -266,8 +266,7 @@ export default function InboxPage() {
                 }}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <ArrowLeft className="h-4 w-4 mr-0 lg:mr-2" />
-                <span className="hidden lg:inline">Back</span>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-1.5 overflow-hidden">
                 <Mail className="h-4 w-4 text-primary shrink-0" />
