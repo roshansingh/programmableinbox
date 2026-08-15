@@ -147,6 +147,29 @@ namespace ProgrammableInbox.Sdk.Api
         Task<IGetEmailInboxMessagesApiResponse?> GetEmailInboxMessagesOrDefaultAsync(string id, Option<string> cursor = default, Option<int> limit = default, Option<string> threadId = default, Option<bool> grouped = default, Option<string> q = default, Option<string> from = default, Option<List<string>> tags = default, Option<List<string>> categories = default, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Get the latest one-time code for an inbox
+        /// </summary>
+        /// <remarks>
+        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// </remarks>
+        /// <exception cref="ApiException">Thrown when fails to make API call</exception>
+        /// <param name="id">The email inbox ID</param>
+        /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
+        /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
+        Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, System.Threading.CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Get the latest one-time code for an inbox
+        /// </summary>
+        /// <remarks>
+        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// </remarks>
+        /// <param name="id">The email inbox ID</param>
+        /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
+        /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>?&gt;</returns>
+        Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, System.Threading.CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Get a single message
         /// </summary>
         /// <remarks>
@@ -178,10 +201,9 @@ namespace ProgrammableInbox.Sdk.Api
         /// Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
         /// </remarks>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
-        /// <param name="organizationId">Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IListEmailInboxesApiResponse"/>&gt;</returns>
-        Task<IListEmailInboxesApiResponse> ListEmailInboxesAsync(Option<string> organizationId = default, System.Threading.CancellationToken cancellationToken = default);
+        Task<IListEmailInboxesApiResponse> ListEmailInboxesAsync(System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// List email inboxes
@@ -189,10 +211,9 @@ namespace ProgrammableInbox.Sdk.Api
         /// <remarks>
         /// Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
         /// </remarks>
-        /// <param name="organizationId">Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IListEmailInboxesApiResponse"/>?&gt;</returns>
-        Task<IListEmailInboxesApiResponse?> ListEmailInboxesOrDefaultAsync(Option<string> organizationId = default, System.Threading.CancellationToken cancellationToken = default);
+        Task<IListEmailInboxesApiResponse?> ListEmailInboxesOrDefaultAsync(System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Rename an email inbox
@@ -338,6 +359,36 @@ namespace ProgrammableInbox.Sdk.Api
         /// </summary>
         /// <returns></returns>
         bool IsBadRequest { get; }
+
+        /// <summary>
+        /// Returns true if the response is 401 Unauthorized
+        /// </summary>
+        /// <returns></returns>
+        bool IsUnauthorized { get; }
+
+        /// <summary>
+        /// Returns true if the response is 403 Forbidden
+        /// </summary>
+        /// <returns></returns>
+        bool IsForbidden { get; }
+
+        /// <summary>
+        /// Returns true if the response is 404 NotFound
+        /// </summary>
+        /// <returns></returns>
+        bool IsNotFound { get; }
+    }
+
+    /// <summary>
+    /// The <see cref="IGetEmailInboxOtpApiResponse"/>
+    /// </summary>
+    public interface IGetEmailInboxOtpApiResponse : ProgrammableInbox.Sdk.Client.IApiResponse, IOk<ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response?>, IUnauthorized<ProgrammableInbox.Sdk.Model.ErrorResponse?>, IForbidden<ProgrammableInbox.Sdk.Model.ErrorResponse?>, INotFound<ProgrammableInbox.Sdk.Model.ErrorResponse?>
+    {
+        /// <summary>
+        /// Returns true if the response is 200 Ok
+        /// </summary>
+        /// <returns></returns>
+        bool IsOk { get; }
 
         /// <summary>
         /// Returns true if the response is 401 Unauthorized
@@ -543,6 +594,26 @@ namespace ProgrammableInbox.Sdk.Api
         internal void ExecuteOnErrorGetEmailInboxMessages(Exception exception)
         {
             OnErrorGetEmailInboxMessages?.Invoke(this, new ExceptionEventArgs(exception));
+        }
+
+        /// <summary>
+        /// The event raised after the server response
+        /// </summary>
+        public event EventHandler<ApiResponseEventArgs>? OnGetEmailInboxOtp;
+
+        /// <summary>
+        /// The event raised after an error querying the server
+        /// </summary>
+        public event EventHandler<ExceptionEventArgs>? OnErrorGetEmailInboxOtp;
+
+        internal void ExecuteOnGetEmailInboxOtp(EmailInboxesApi.GetEmailInboxOtpApiResponse apiResponse)
+        {
+            OnGetEmailInboxOtp?.Invoke(this, new ApiResponseEventArgs(apiResponse));
+        }
+
+        internal void ExecuteOnErrorGetEmailInboxOtp(Exception exception)
+        {
+            OnErrorGetEmailInboxOtp?.Invoke(this, new ExceptionEventArgs(exception));
         }
 
         /// <summary>
@@ -2305,6 +2376,372 @@ namespace ProgrammableInbox.Sdk.Api
             partial void OnDeserializationError(ref bool suppressDefaultLog, Exception exception, HttpStatusCode httpStatusCode);
         }
 
+        partial void FormatGetEmailInboxOtp(ref string id);
+
+        /// <summary>
+        /// Validates the request parameters
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        private void ValidateGetEmailInboxOtp(string id)
+        {
+            if (id == null)
+                throw new ArgumentNullException(nameof(id));
+        }
+
+        /// <summary>
+        /// Processes the server response
+        /// </summary>
+        /// <param name="apiResponseLocalVar"></param>
+        /// <param name="id"></param>
+        private void AfterGetEmailInboxOtpDefaultImplementation(IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id)
+        {
+            bool suppressDefaultLog = false;
+            AfterGetEmailInboxOtp(ref suppressDefaultLog, apiResponseLocalVar, id);
+            if (!suppressDefaultLog)
+                Logger.LogInformation(RestLogEvents.ApiRequestCompleted, "{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+        }
+
+        /// <summary>
+        /// Processes the server response
+        /// </summary>
+        /// <param name="suppressDefaultLog"></param>
+        /// <param name="apiResponseLocalVar"></param>
+        /// <param name="id"></param>
+        partial void AfterGetEmailInboxOtp(ref bool suppressDefaultLog, IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id);
+
+        /// <summary>
+        /// Logs exceptions that occur while retrieving the server response
+        /// </summary>
+        /// <param name="exceptionLocalVar"></param>
+        /// <param name="pathFormatLocalVar"></param>
+        /// <param name="pathLocalVar"></param>
+        /// <param name="id"></param>
+        private void OnErrorGetEmailInboxOtpDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id)
+        {
+            bool suppressDefaultLogLocalVar = false;
+            OnErrorGetEmailInboxOtp(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar, id);
+            if (!suppressDefaultLogLocalVar)
+                Logger.LogError(RestLogEvents.ApiRequestFailed, exceptionLocalVar, "An error occurred while sending the request to the server.");
+        }
+
+        /// <summary>
+        /// A partial method that gives developers a way to provide customized exception handling
+        /// </summary>
+        /// <param name="suppressDefaultLogLocalVar"></param>
+        /// <param name="exceptionLocalVar"></param>
+        /// <param name="pathFormatLocalVar"></param>
+        /// <param name="pathLocalVar"></param>
+        /// <param name="id"></param>
+        partial void OnErrorGetEmailInboxOtp(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id);
+
+        /// <summary>
+        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// </summary>
+        /// <param name="id">The email inbox ID</param>
+        /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
+        /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
+        public async Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, System.Threading.CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await GetEmailInboxOtpAsync(id, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// </summary>
+        /// <exception cref="ApiException">Thrown when fails to make API call</exception>
+        /// <param name="id">The email inbox ID</param>
+        /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
+        /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
+        public async Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, System.Threading.CancellationToken cancellationToken = default)
+        {
+            UriBuilder uriBuilderLocalVar = new UriBuilder();
+
+            try
+            {
+                ValidateGetEmailInboxOtp(id);
+
+                FormatGetEmailInboxOtp(ref id);
+
+                using (HttpRequestMessage httpRequestMessageLocalVar = new HttpRequestMessage())
+                {
+                    uriBuilderLocalVar.Host = HttpClient.BaseAddress!.Host;
+                    uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
+                    uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/api/v1/emailInbox/{id}/otp"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/api/v1/emailInbox/{id}/otp");
+                    uriBuilderLocalVar.Path = uriBuilderLocalVar.Path.Replace("%7Bid%7D", Uri.EscapeDataString(id.ToString()));
+
+                    List<TokenBase> tokenBaseLocalVars = new List<TokenBase>();
+                    httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
+
+                    BearerToken bearerTokenLocalVar1 = (BearerToken) await BearerTokenProvider.GetAsync(cancellation: cancellationToken).ConfigureAwait(false);
+
+                    tokenBaseLocalVars.Add(bearerTokenLocalVar1);
+
+                    bearerTokenLocalVar1.UseInHeader(httpRequestMessageLocalVar, "");
+
+                    string[] acceptLocalVars = new string[] {
+                        "application/json"
+                    };
+
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
+
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
+
+                    httpRequestMessageLocalVar.Method = HttpMethod.Get;
+
+                    DateTime requestedAtLocalVar = DateTime.UtcNow;
+
+                    using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
+                    {
+                        GetEmailInboxOtpApiResponse apiResponseLocalVar;
+
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                                apiResponseLocalVar = new(Logger, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/api/v1/emailInbox/{id}/otp", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
+
+                        AfterGetEmailInboxOtpDefaultImplementation(apiResponseLocalVar, id);
+
+                        Events.ExecuteOnGetEmailInboxOtp(apiResponseLocalVar);
+
+                        if (apiResponseLocalVar.StatusCode == (HttpStatusCode) 429)
+                            foreach(TokenBase tokenBaseLocalVar in tokenBaseLocalVars)
+                                tokenBaseLocalVar.BeginRateLimit();
+
+                        return apiResponseLocalVar;
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                OnErrorGetEmailInboxOtpDefaultImplementation(e, "/api/v1/emailInbox/{id}/otp", uriBuilderLocalVar.Path, id);
+                Events.ExecuteOnErrorGetEmailInboxOtp(e);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// The <see cref="GetEmailInboxOtpApiResponse"/>
+        /// </summary>
+        public partial class GetEmailInboxOtpApiResponse : ProgrammableInbox.Sdk.Client.ApiResponse, IGetEmailInboxOtpApiResponse
+        {
+            /// <summary>
+            /// The logger
+            /// </summary>
+            public ILogger<EmailInboxesApi> Logger { get; }
+
+            /// <summary>
+            /// The <see cref="GetEmailInboxOtpApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="rawContent"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public GetEmailInboxOtpApiResponse(ILogger<EmailInboxesApi> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="GetEmailInboxOtpApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public GetEmailInboxOtpApiResponse(ILogger<EmailInboxesApi> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            partial void OnCreated(global::System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage);
+
+            /// <summary>
+            /// Returns true if the response is 200 Ok
+            /// </summary>
+            /// <returns></returns>
+            public bool IsOk => 200 == (int)StatusCode;
+
+            /// <summary>
+            /// Deserializes the response if the response is 200 Ok
+            /// </summary>
+            /// <returns></returns>
+            public ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response? Ok()
+            {
+                // This logic may be modified with the AsModel.mustache template
+                return IsOk
+                    ? System.Text.Json.JsonSerializer.Deserialize<ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response>(RawContent, _jsonSerializerOptions)
+                    : null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 200 Ok and the deserialized response is not null
+            /// </summary>
+            /// <param name="result"></param>
+            /// <returns></returns>
+            public bool TryOk([NotNullWhen(true)]out ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response? result)
+            {
+                result = null;
+
+                try
+                {
+                    result = Ok();
+                } catch (Exception e)
+                {
+                    OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)200);
+                }
+
+                return result != null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 401 Unauthorized
+            /// </summary>
+            /// <returns></returns>
+            public bool IsUnauthorized => 401 == (int)StatusCode;
+
+            /// <summary>
+            /// Deserializes the response if the response is 401 Unauthorized
+            /// </summary>
+            /// <returns></returns>
+            public ProgrammableInbox.Sdk.Model.ErrorResponse? Unauthorized()
+            {
+                // This logic may be modified with the AsModel.mustache template
+                return IsUnauthorized
+                    ? System.Text.Json.JsonSerializer.Deserialize<ProgrammableInbox.Sdk.Model.ErrorResponse>(RawContent, _jsonSerializerOptions)
+                    : null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 401 Unauthorized and the deserialized response is not null
+            /// </summary>
+            /// <param name="result"></param>
+            /// <returns></returns>
+            public bool TryUnauthorized([NotNullWhen(true)]out ProgrammableInbox.Sdk.Model.ErrorResponse? result)
+            {
+                result = null;
+
+                try
+                {
+                    result = Unauthorized();
+                } catch (Exception e)
+                {
+                    OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)401);
+                }
+
+                return result != null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 403 Forbidden
+            /// </summary>
+            /// <returns></returns>
+            public bool IsForbidden => 403 == (int)StatusCode;
+
+            /// <summary>
+            /// Deserializes the response if the response is 403 Forbidden
+            /// </summary>
+            /// <returns></returns>
+            public ProgrammableInbox.Sdk.Model.ErrorResponse? Forbidden()
+            {
+                // This logic may be modified with the AsModel.mustache template
+                return IsForbidden
+                    ? System.Text.Json.JsonSerializer.Deserialize<ProgrammableInbox.Sdk.Model.ErrorResponse>(RawContent, _jsonSerializerOptions)
+                    : null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 403 Forbidden and the deserialized response is not null
+            /// </summary>
+            /// <param name="result"></param>
+            /// <returns></returns>
+            public bool TryForbidden([NotNullWhen(true)]out ProgrammableInbox.Sdk.Model.ErrorResponse? result)
+            {
+                result = null;
+
+                try
+                {
+                    result = Forbidden();
+                } catch (Exception e)
+                {
+                    OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)403);
+                }
+
+                return result != null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 404 NotFound
+            /// </summary>
+            /// <returns></returns>
+            public bool IsNotFound => 404 == (int)StatusCode;
+
+            /// <summary>
+            /// Deserializes the response if the response is 404 NotFound
+            /// </summary>
+            /// <returns></returns>
+            public ProgrammableInbox.Sdk.Model.ErrorResponse? NotFound()
+            {
+                // This logic may be modified with the AsModel.mustache template
+                return IsNotFound
+                    ? System.Text.Json.JsonSerializer.Deserialize<ProgrammableInbox.Sdk.Model.ErrorResponse>(RawContent, _jsonSerializerOptions)
+                    : null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 404 NotFound and the deserialized response is not null
+            /// </summary>
+            /// <param name="result"></param>
+            /// <returns></returns>
+            public bool TryNotFound([NotNullWhen(true)]out ProgrammableInbox.Sdk.Model.ErrorResponse? result)
+            {
+                result = null;
+
+                try
+                {
+                    result = NotFound();
+                } catch (Exception e)
+                {
+                    OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)404);
+                }
+
+                return result != null;
+            }
+
+            private void OnDeserializationErrorDefaultImplementation(Exception exception, HttpStatusCode httpStatusCode)
+            {
+                bool suppressDefaultLog = false;
+                OnDeserializationError(ref suppressDefaultLog, exception, httpStatusCode);
+                if (!suppressDefaultLog)
+                    Logger.LogError(RestLogEvents.ApiDeserializationFailed, exception, "An error occurred while deserializing the {code} response.", httpStatusCode);
+            }
+
+            partial void OnDeserializationError(ref bool suppressDefaultLog, Exception exception, HttpStatusCode httpStatusCode);
+        }
+
         partial void FormatGetEmailMessage(ref string id, ref string messageId);
 
         /// <summary>
@@ -2682,28 +3119,14 @@ namespace ProgrammableInbox.Sdk.Api
             partial void OnDeserializationError(ref bool suppressDefaultLog, Exception exception, HttpStatusCode httpStatusCode);
         }
 
-        partial void FormatListEmailInboxes(ref Option<string> organizationId);
-
-        /// <summary>
-        /// Validates the request parameters
-        /// </summary>
-        /// <param name="organizationId"></param>
-        /// <returns></returns>
-        private void ValidateListEmailInboxes(Option<string> organizationId)
-        {
-            if (organizationId.IsSet && organizationId.Value == null)
-                throw new ArgumentNullException(nameof(organizationId));
-        }
-
         /// <summary>
         /// Processes the server response
         /// </summary>
         /// <param name="apiResponseLocalVar"></param>
-        /// <param name="organizationId"></param>
-        private void AfterListEmailInboxesDefaultImplementation(IListEmailInboxesApiResponse apiResponseLocalVar, Option<string> organizationId)
+        private void AfterListEmailInboxesDefaultImplementation(IListEmailInboxesApiResponse apiResponseLocalVar)
         {
             bool suppressDefaultLog = false;
-            AfterListEmailInboxes(ref suppressDefaultLog, apiResponseLocalVar, organizationId);
+            AfterListEmailInboxes(ref suppressDefaultLog, apiResponseLocalVar);
             if (!suppressDefaultLog)
                 Logger.LogInformation(RestLogEvents.ApiRequestCompleted, "{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
@@ -2713,8 +3136,7 @@ namespace ProgrammableInbox.Sdk.Api
         /// </summary>
         /// <param name="suppressDefaultLog"></param>
         /// <param name="apiResponseLocalVar"></param>
-        /// <param name="organizationId"></param>
-        partial void AfterListEmailInboxes(ref bool suppressDefaultLog, IListEmailInboxesApiResponse apiResponseLocalVar, Option<string> organizationId);
+        partial void AfterListEmailInboxes(ref bool suppressDefaultLog, IListEmailInboxesApiResponse apiResponseLocalVar);
 
         /// <summary>
         /// Logs exceptions that occur while retrieving the server response
@@ -2722,11 +3144,10 @@ namespace ProgrammableInbox.Sdk.Api
         /// <param name="exceptionLocalVar"></param>
         /// <param name="pathFormatLocalVar"></param>
         /// <param name="pathLocalVar"></param>
-        /// <param name="organizationId"></param>
-        private void OnErrorListEmailInboxesDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, Option<string> organizationId)
+        private void OnErrorListEmailInboxesDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar)
         {
             bool suppressDefaultLogLocalVar = false;
-            OnErrorListEmailInboxes(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar, organizationId);
+            OnErrorListEmailInboxes(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar);
             if (!suppressDefaultLogLocalVar)
                 Logger.LogError(RestLogEvents.ApiRequestFailed, exceptionLocalVar, "An error occurred while sending the request to the server.");
         }
@@ -2738,20 +3159,18 @@ namespace ProgrammableInbox.Sdk.Api
         /// <param name="exceptionLocalVar"></param>
         /// <param name="pathFormatLocalVar"></param>
         /// <param name="pathLocalVar"></param>
-        /// <param name="organizationId"></param>
-        partial void OnErrorListEmailInboxes(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, Option<string> organizationId);
+        partial void OnErrorListEmailInboxes(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar);
 
         /// <summary>
         /// List email inboxes Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
         /// </summary>
-        /// <param name="organizationId">Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IListEmailInboxesApiResponse"/>&gt;</returns>
-        public async Task<IListEmailInboxesApiResponse?> ListEmailInboxesOrDefaultAsync(Option<string> organizationId = default, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<IListEmailInboxesApiResponse?> ListEmailInboxesOrDefaultAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
-                return await ListEmailInboxesAsync(organizationId, cancellationToken).ConfigureAwait(false);
+                return await ListEmailInboxesAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -2763,19 +3182,14 @@ namespace ProgrammableInbox.Sdk.Api
         /// List email inboxes Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
         /// </summary>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
-        /// <param name="organizationId">Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IListEmailInboxesApiResponse"/>&gt;</returns>
-        public async Task<IListEmailInboxesApiResponse> ListEmailInboxesAsync(Option<string> organizationId = default, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<IListEmailInboxesApiResponse> ListEmailInboxesAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             UriBuilder uriBuilderLocalVar = new UriBuilder();
 
             try
             {
-                ValidateListEmailInboxes(organizationId);
-
-                FormatListEmailInboxes(ref organizationId);
-
                 using (HttpRequestMessage httpRequestMessageLocalVar = new HttpRequestMessage())
                 {
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress!.Host;
@@ -2784,13 +3198,6 @@ namespace ProgrammableInbox.Sdk.Api
                     uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
                         ? "/api/v1/emailInbox"
                         : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/api/v1/emailInbox");
-
-                    System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
-
-                    if (organizationId.IsSet)
-                        parseQueryStringLocalVar["organizationId"] = ClientUtils.ParameterToString(organizationId.Value);
-
-                    uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
                     List<TokenBase> tokenBaseLocalVars = new List<TokenBase>();
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -2827,7 +3234,7 @@ namespace ProgrammableInbox.Sdk.Api
                             }
                         }
 
-                        AfterListEmailInboxesDefaultImplementation(apiResponseLocalVar, organizationId);
+                        AfterListEmailInboxesDefaultImplementation(apiResponseLocalVar);
 
                         Events.ExecuteOnListEmailInboxes(apiResponseLocalVar);
 
@@ -2841,7 +3248,7 @@ namespace ProgrammableInbox.Sdk.Api
             }
             catch(Exception e)
             {
-                OnErrorListEmailInboxesDefaultImplementation(e, "/api/v1/emailInbox", uriBuilderLocalVar.Path, organizationId);
+                OnErrorListEmailInboxesDefaultImplementation(e, "/api/v1/emailInbox", uriBuilderLocalVar.Path);
                 Events.ExecuteOnErrorListEmailInboxes(e);
                 throw;
             }

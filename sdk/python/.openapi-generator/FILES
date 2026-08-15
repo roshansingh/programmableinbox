@@ -12,6 +12,8 @@ docs/GetEmailInbox200Response.md
 docs/GetEmailInboxMessages200Response.md
 docs/GetEmailInboxMessages200ResponseData.md
 docs/GetEmailInboxMessages200ResponseDataMessagesInner.md
+docs/GetEmailInboxOtp200Response.md
+docs/GetEmailInboxOtp200ResponseData.md
 docs/GetEmailMessage200Response.md
 docs/ListEmailInboxes200Response.md
 docs/UpdateEmailInboxRequest.md
@@ -33,6 +35,8 @@ programmableinbox/models/get_email_inbox200_response.py
 programmableinbox/models/get_email_inbox_messages200_response.py
 programmableinbox/models/get_email_inbox_messages200_response_data.py
 programmableinbox/models/get_email_inbox_messages200_response_data_messages_inner.py
+programmableinbox/models/get_email_inbox_otp200_response.py
+programmableinbox/models/get_email_inbox_otp200_response_data.py
 programmableinbox/models/get_email_message200_response.py
 programmableinbox/models/list_email_inboxes200_response.py
 programmableinbox/models/update_email_inbox_request.py
@@ -44,4 +48,6 @@ setup.cfg
 setup.py
 test-requirements.txt
 test/__init__.py
+test/test_get_email_inbox_otp200_response.py
+test/test_get_email_inbox_otp200_response_data.py
 tox.ini

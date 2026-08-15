@@ -17,16 +17,6 @@ paths:
       description: Returns a list of email inboxes for the organization. Requires
         API key with `email_inboxes:read` scope.
       operationId: listEmailInboxes
-      parameters:
-      - description: "Optional organization ID to filter inboxes. User must be a member\
-          \ of the organization, or API key must belong to this organization."
-        explode: true
-        in: query
-        name: organizationId
-        required: false
-        schema:
-          type: string
-        style: form
       responses:
         "200":
           content:
@@ -45,8 +35,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: Forbidden - user not member of organization or API key lacks
-            required scope (email_inboxes:read)
+          description: Forbidden - API key lacks required scope (email_inboxes:read)
       security:
       - ApiKeyAuth: []
       summary: List email inboxes
@@ -338,7 +327,6 @@ paths:
           \ The body searched is the plain-text `bodyText` field, which is extracted\
           \ from `html` for messages that carry no text part. Results stay in reverse-chronological\
           \ order — this filters, it does not rank."
-        example: '"order confirmed" -refund'
         explode: true
         in: query
         name: q
@@ -349,7 +337,6 @@ paths:
         style: form
       - description: "Case-insensitive substring match on the sender. Matches the\
           \ raw header, so it covers both the display name and the address."
-        example: billing@acme.com
         explode: true
         in: query
         name: from
@@ -475,6 +462,52 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Get a single message
+      tags:
+      - Email Inboxes
+  /api/v1/emailInbox/{id}/otp:
+    get:
+      description: "Returns the most recently extracted one-time passcode (OTP) for\
+        \ an email inbox, with the message it came from. Requires API key with `email_messages:read`\
+        \ scope — this is a read of extracted message content, not inbox metadata."
+      operationId: getEmailInboxOtp
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getEmailInboxOtp_200_response"
+          description: Successfully retrieved the latest OTP
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Forbidden - API key lacks required scope (email_messages:read)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Not found - no such inbox visible to this key, or no message\
+            \ with an extracted OTP has arrived for it yet"
+      security:
+      - ApiKeyAuth: []
+      summary: Get the latest one-time code for an inbox
       tags:
       - Email Inboxes
 components:
@@ -942,6 +975,44 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/EmailMessage"
+      required:
+      - data
+      type: object
+    getEmailInboxOtp_200_response_data:
+      example:
+        otp: "123456"
+        receivedAt: 2000-01-23T04:56:07.000+00:00
+        messageId: msg-1
+        from: noreply@example.com
+      properties:
+        otp:
+          example: "123456"
+          type: string
+        receivedAt:
+          format: date-time
+          type: string
+        messageId:
+          example: msg-1
+          type: string
+        from:
+          example: noreply@example.com
+          type: string
+      required:
+      - from
+      - messageId
+      - otp
+      - receivedAt
+      type: object
+    getEmailInboxOtp_200_response:
+      example:
+        data:
+          otp: "123456"
+          receivedAt: 2000-01-23T04:56:07.000+00:00
+          messageId: msg-1
+          from: noreply@example.com
+      properties:
+        data:
+          $ref: "#/components/schemas/getEmailInboxOtp_200_response_data"
       required:
       - data
       type: object

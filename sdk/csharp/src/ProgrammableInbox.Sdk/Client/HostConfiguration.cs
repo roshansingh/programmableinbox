@@ -52,6 +52,8 @@ namespace ProgrammableInbox.Sdk.Client
             _jsonOptions.Converters.Add(new GetEmailInboxMessages200ResponseJsonConverter());
             _jsonOptions.Converters.Add(new GetEmailInboxMessages200ResponseDataJsonConverter());
             _jsonOptions.Converters.Add(new GetEmailInboxMessages200ResponseDataMessagesInnerJsonConverter());
+            _jsonOptions.Converters.Add(new GetEmailInboxOtp200ResponseJsonConverter());
+            _jsonOptions.Converters.Add(new GetEmailInboxOtp200ResponseDataJsonConverter());
             _jsonOptions.Converters.Add(new GetEmailMessage200ResponseJsonConverter());
             _jsonOptions.Converters.Add(new ListEmailInboxes200ResponseJsonConverter());
             _jsonOptions.Converters.Add(new UpdateEmailInboxRequestJsonConverter());

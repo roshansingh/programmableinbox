@@ -8,6 +8,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 | [**DeleteEmailInbox**](EmailInboxesApi.md#deleteemailinbox) | **DELETE** /api/v1/emailInbox/{id} | Delete an email inbox |
 | [**GetEmailInbox**](EmailInboxesApi.md#getemailinbox) | **GET** /api/v1/emailInbox/{id} | Get an email inbox |
 | [**GetEmailInboxMessages**](EmailInboxesApi.md#getemailinboxmessages) | **GET** /api/v1/emailInbox/{id}/messages | Get messages from an email inbox |
+| [**GetEmailInboxOtp**](EmailInboxesApi.md#getemailinboxotp) | **GET** /api/v1/emailInbox/{id}/otp | Get the latest one-time code for an inbox |
 | [**GetEmailMessage**](EmailInboxesApi.md#getemailmessage) | **GET** /api/v1/emailInbox/{id}/messages/{messageId} | Get a single message |
 | [**ListEmailInboxes**](EmailInboxesApi.md#listemailinboxes) | **GET** /api/v1/emailInbox | List email inboxes |
 | [**UpdateEmailInbox**](EmailInboxesApi.md#updateemailinbox) | **PATCH** /api/v1/emailInbox/{id} | Rename an email inbox |
@@ -179,6 +180,45 @@ Returns messages for a specific email inbox with optional pagination and filteri
 
 [[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
 
+<a id="getemailinboxotp"></a>
+# **GetEmailInboxOtp**
+> GetEmailInboxOtp200Response GetEmailInboxOtp (string id)
+
+Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+
+
+### Parameters
+
+| Name | Type | Description | Notes |
+|------|------|-------------|-------|
+| **id** | **string** | The email inbox ID |  |
+
+### Return type
+
+[**GetEmailInboxOtp200Response**](GetEmailInboxOtp200Response.md)
+
+### Authorization
+
+[ApiKeyAuth](../README.md#ApiKeyAuth)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successfully retrieved the latest OTP |  -  |
+| **401** | Unauthorized - missing or invalid API key |  -  |
+| **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
+| **404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived for it yet |  -  |
+
+[[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
+
 <a id="getemailmessage"></a>
 # **GetEmailMessage**
 > GetEmailMessage200Response GetEmailMessage (string id, string messageId)
@@ -221,7 +261,7 @@ Returns a specific message from an email inbox. Requires API key with `email_mes
 
 <a id="listemailinboxes"></a>
 # **ListEmailInboxes**
-> ListEmailInboxes200Response ListEmailInboxes (string organizationId = null)
+> ListEmailInboxes200Response ListEmailInboxes ()
 
 List email inboxes
 
@@ -229,11 +269,7 @@ Returns a list of email inboxes for the organization. Requires API key with `ema
 
 
 ### Parameters
-
-| Name | Type | Description | Notes |
-|------|------|-------------|-------|
-| **organizationId** | **string** | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. | [optional]  |
-
+This endpoint does not need any parameter.
 ### Return type
 
 [**ListEmailInboxes200Response**](ListEmailInboxes200Response.md)
@@ -253,7 +289,7 @@ Returns a list of email inboxes for the organization. Requires API key with `ema
 |-------------|-------------|------------------|
 | **200** | Successfully retrieved email inboxes |  -  |
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
-| **403** | Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read) |  -  |
+| **403** | Forbidden - API key lacks required scope (email_inboxes:read) |  -  |
 
 [[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
 

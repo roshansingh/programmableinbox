@@ -9,6 +9,8 @@ export * from './GetEmailInbox200Response';
 export * from './GetEmailInboxMessages200Response';
 export * from './GetEmailInboxMessages200ResponseData';
 export * from './GetEmailInboxMessages200ResponseDataMessagesInner';
+export * from './GetEmailInboxOtp200Response';
+export * from './GetEmailInboxOtp200ResponseData';
 export * from './GetEmailMessage200Response';
 export * from './ListEmailInboxes200Response';
 export * from './UpdateEmailInboxRequest';

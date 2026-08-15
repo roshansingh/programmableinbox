@@ -12,12 +12,16 @@ docs/models/GetEmailInbox200Response.md
 docs/models/GetEmailInboxMessages200Response.md
 docs/models/GetEmailInboxMessages200ResponseData.md
 docs/models/GetEmailInboxMessages200ResponseDataMessagesInner.md
+docs/models/GetEmailInboxOtp200Response.md
+docs/models/GetEmailInboxOtp200ResponseData.md
 docs/models/GetEmailMessage200Response.md
 docs/models/ListEmailInboxes200Response.md
 docs/models/UpdateEmailInboxRequest.md
 docs/scripts/git_push.ps1
 docs/scripts/git_push.sh
 src/ProgrammableInbox.Sdk.Test/Api/DependencyInjectionTests.cs
+src/ProgrammableInbox.Sdk.Test/Model/GetEmailInboxOtp200ResponseDataTests.cs
+src/ProgrammableInbox.Sdk.Test/Model/GetEmailInboxOtp200ResponseTests.cs
 src/ProgrammableInbox.Sdk.Test/ProgrammableInbox.Sdk.Test.csproj
 src/ProgrammableInbox.Sdk.Test/README.md
 src/ProgrammableInbox.Sdk/Api/EmailInboxesApi.cs
@@ -55,6 +59,8 @@ src/ProgrammableInbox.Sdk/Model/GetEmailInbox200Response.cs
 src/ProgrammableInbox.Sdk/Model/GetEmailInboxMessages200Response.cs
 src/ProgrammableInbox.Sdk/Model/GetEmailInboxMessages200ResponseData.cs
 src/ProgrammableInbox.Sdk/Model/GetEmailInboxMessages200ResponseDataMessagesInner.cs
+src/ProgrammableInbox.Sdk/Model/GetEmailInboxOtp200Response.cs
+src/ProgrammableInbox.Sdk/Model/GetEmailInboxOtp200ResponseData.cs
 src/ProgrammableInbox.Sdk/Model/GetEmailMessage200Response.cs
 src/ProgrammableInbox.Sdk/Model/ListEmailInboxes200Response.cs
 src/ProgrammableInbox.Sdk/Model/UpdateEmailInboxRequest.cs

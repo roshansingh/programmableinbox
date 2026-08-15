@@ -37,6 +37,8 @@ __all__ = [
     "GetEmailInboxMessages200Response",
     "GetEmailInboxMessages200ResponseData",
     "GetEmailInboxMessages200ResponseDataMessagesInner",
+    "GetEmailInboxOtp200Response",
+    "GetEmailInboxOtp200ResponseData",
     "GetEmailMessage200Response",
     "ListEmailInboxes200Response",
     "UpdateEmailInboxRequest",
@@ -66,6 +68,8 @@ from programmableinbox.models.get_email_inbox200_response import GetEmailInbox20
 from programmableinbox.models.get_email_inbox_messages200_response import GetEmailInboxMessages200Response as GetEmailInboxMessages200Response
 from programmableinbox.models.get_email_inbox_messages200_response_data import GetEmailInboxMessages200ResponseData as GetEmailInboxMessages200ResponseData
 from programmableinbox.models.get_email_inbox_messages200_response_data_messages_inner import GetEmailInboxMessages200ResponseDataMessagesInner as GetEmailInboxMessages200ResponseDataMessagesInner
+from programmableinbox.models.get_email_inbox_otp200_response import GetEmailInboxOtp200Response as GetEmailInboxOtp200Response
+from programmableinbox.models.get_email_inbox_otp200_response_data import GetEmailInboxOtp200ResponseData as GetEmailInboxOtp200ResponseData
 from programmableinbox.models.get_email_message200_response import GetEmailMessage200Response as GetEmailMessage200Response
 from programmableinbox.models.list_email_inboxes200_response import ListEmailInboxes200Response as ListEmailInboxes200Response
 from programmableinbox.models.update_email_inbox_request import UpdateEmailInboxRequest as UpdateEmailInboxRequest
