@@ -125,8 +125,12 @@ never going to be Pino JSON in the first place (a Postgres or Redis log line, mo
 failed parse still passes the line through unmodified rather than dropping it, logged at Debug
 (suppressed at the collector's default log level) instead of Error. If you're seeing this at Error
 level specifically, you're on an older config that used `on_error: send` — pull the latest
-`deploy/otel-collector.yaml` and recreate the service (`docker compose --profile observability up
--d --no-deps otel-collector`; `restart` alone won't remount the changed config file).
+`deploy/otel-collector.yaml` and force-recreate the service:
+`docker compose --profile observability up -d --no-deps --force-recreate otel-collector`.
+Neither `restart` nor a plain `up -d` picks up a bind-mounted file's content change — Compose's
+recreate-detection only hashes `docker-compose.yml`'s own resolved service definition, not what's
+inside a file it mounts, so both leave the stale container running. `--force-recreate` is what
+actually gets the collector process to re-read the file.
 
 **Nothing appears in Grafana at all, from either signal.**
 The collector's own credentials are wrong — a typo in `OTEL_EXPORTER_ENDPOINT`, an expired

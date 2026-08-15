@@ -311,7 +311,7 @@ docs/observability-operator-guide.md.
 
 Pushing to `main` runs CI (lint + test + build) and, on green, SSHes to the box and runs the deploy steps inlined in `.github/workflows/deploy.yml`: it syncs the compose file and `otel-collector.yaml`, pulls `app`+`migrate`, runs `migrate`, rolls `app` + `caddy` behind a healthcheck gate (`--no-deps`, so postgres/redis — and `otel-collector`, if it's running — are untouched), and prunes old images. No manual step.
 
-If `otel-collector.yaml` itself changed and the `observability` profile is already active, the synced file alone isn't enough — like postgres/redis, `otel-collector` is deliberately outside the `--no-deps app caddy` roll, so it keeps running the config it started with until a human recreates it (Part 9).
+If `otel-collector.yaml` itself changed and the `observability` profile is already active, the synced file alone isn't enough — like postgres/redis, `otel-collector` is deliberately outside the `--no-deps app caddy` roll, so it keeps running the config it started with until a human recreates it. A plain `up -d` won't do that either: Compose's recreate-detection hashes `docker-compose.yml`'s resolved service definition, not the contents of a bind-mounted file, so it sees nothing changed and leaves the stale container running. `--force-recreate` is required (Part 9).
 
 **Rollback** to a known-good image (uses the manual `initial_deploy.sh`, kept in sync on the box by CI):
 
