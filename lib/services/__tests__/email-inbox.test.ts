@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const findManyMock = vi.fn()
 const findFirstMock = vi.fn()
@@ -159,5 +159,93 @@ describe('listMessages ordering', () => {
     expect(messageFindManyMock.mock.calls[0][0].where.OR[0]).toEqual({
       createdAt: { lt: cursor.createdAt },
     })
+  })
+})
+
+describe('findLatestOtp', () => {
+  const now = new Date('2026-03-01T12:00:00.000Z')
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    findFirstMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'org_1' })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function otpRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'msg_1',
+      extractedOtp: null,
+      createdAt: now,
+      ...overrides,
+    }
+  }
+
+  it('returns null when the inbox is not visible to scope', async () => {
+    findFirstMock.mockResolvedValue(null)
+    const { findLatestOtp } = await import('../email-inbox')
+
+    expect(await findLatestOtp(SCOPE, 'inbox_1')).toBeNull()
+  })
+
+  it('returns the newest code inside the freshness window', async () => {
+    messageFindManyMock.mockResolvedValue([
+      otpRow({ id: 'msg_new', extractedOtp: '999111', createdAt: new Date(now.getTime() - 60_000) }),
+      otpRow({ id: 'msg_old', extractedOtp: '111222', createdAt: new Date(now.getTime() - 120_000) }),
+    ])
+    const { findLatestOtp } = await import('../email-inbox')
+
+    const result = await findLatestOtp(SCOPE, 'inbox_1')
+
+    expect(result).toEqual({ found: true, message: expect.objectContaining({ id: 'msg_new' }) })
+  })
+
+  it('skips messages with no code', async () => {
+    messageFindManyMock.mockResolvedValue([
+      otpRow({ id: 'no_code', extractedOtp: null }),
+      otpRow({ id: 'has_code', extractedOtp: '424242' }),
+    ])
+    const { findLatestOtp } = await import('../email-inbox')
+
+    const result = await findLatestOtp(SCOPE, 'inbox_1')
+
+    expect(result).toEqual({ found: true, message: expect.objectContaining({ id: 'has_code' }) })
+  })
+
+  it('reports stale distinctly from finding nothing', async () => {
+    messageFindManyMock.mockResolvedValue([
+      otpRow({ extractedOtp: '123456', createdAt: new Date(now.getTime() - 60 * 60_000) }),
+    ])
+    const { findLatestOtp } = await import('../email-inbox')
+
+    expect(await findLatestOtp(SCOPE, 'inbox_1')).toEqual({ found: false, stale: true })
+
+    messageFindManyMock.mockResolvedValue([])
+    expect(await findLatestOtp(SCOPE, 'inbox_1')).toEqual({ found: false, stale: false })
+  })
+
+  it('honours a widened window', async () => {
+    messageFindManyMock.mockResolvedValue([
+      otpRow({ extractedOtp: '123456', createdAt: new Date(now.getTime() - 30 * 60_000) }),
+    ])
+    const { findLatestOtp } = await import('../email-inbox')
+
+    expect(await findLatestOtp(SCOPE, 'inbox_1')).toEqual({ found: false, stale: true })
+    expect(
+      await findLatestOtp(SCOPE, 'inbox_1', { windowMinutes: 60 }),
+    ).toEqual({ found: true, message: expect.objectContaining({ extractedOtp: '123456' }) })
+  })
+
+  it('scans at most OTP_SCAN_LIMIT messages', async () => {
+    messageFindManyMock.mockResolvedValue([])
+    const { findLatestOtp, OTP_SCAN_LIMIT } = await import('../email-inbox')
+
+    await findLatestOtp(SCOPE, 'inbox_1')
+
+    expect(messageFindManyMock.mock.calls[0][0].take).toBe(OTP_SCAN_LIMIT + 1)
   })
 })

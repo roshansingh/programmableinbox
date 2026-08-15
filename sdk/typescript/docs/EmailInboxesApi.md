@@ -8,6 +8,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 | [**deleteEmailInbox**](EmailInboxesApi.md#deleteemailinbox) | **DELETE** /api/v1/emailInbox/{id} | Delete an email inbox |
 | [**getEmailInbox**](EmailInboxesApi.md#getemailinbox) | **GET** /api/v1/emailInbox/{id} | Get an email inbox |
 | [**getEmailInboxMessages**](EmailInboxesApi.md#getemailinboxmessages) | **GET** /api/v1/emailInbox/{id}/messages | Get messages from an email inbox |
+| [**getEmailInboxOtp**](EmailInboxesApi.md#getemailinboxotp) | **GET** /api/v1/emailInbox/{id}/otp | Get the latest one-time code for an inbox |
 | [**getEmailMessage**](EmailInboxesApi.md#getemailmessage) | **GET** /api/v1/emailInbox/{id}/messages/{messageId} | Get a single message |
 | [**listEmailInboxes**](EmailInboxesApi.md#listemailinboxes) | **GET** /api/v1/emailInbox | List email inboxes |
 | [**updateEmailInbox**](EmailInboxesApi.md#updateemailinboxoperation) | **PATCH** /api/v1/emailInbox/{id} | Rename an email inbox |
@@ -20,7 +21,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 
 Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
 ### Example
 
@@ -83,7 +84,7 @@ example().catch(console.error);
 | **201** | Inbox created |  -  |
 | **400** | Bad request - malformed JSON, the address is not a valid email address, the domain is not one this account may create inboxes at, the local part is longer than 50 characters, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
-| **403** | Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization |  -  |
+| **403** | Forbidden - API key lacks the email_inboxes:create scope |  -  |
 | **409** | Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist. |  -  |
 | **422** | Unprocessable - the address or the name is on the impersonation blocklist, or the name contains characters outside printable ASCII. A disallowed domain is a 400, not this. |  -  |
 
@@ -275,9 +276,9 @@ async function example() {
     // boolean | If true, returns only the latest message per thread (grouped view). Cannot be combined with any search parameter — the combination returns 400. (optional)
     grouped: true,
     // string | Full-text search over the subject and the message body. Supports \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax). The body searched is the plain-text `bodyText` field, which is extracted from `html` for messages that carry no text part. Results stay in reverse-chronological order — this filters, it does not rank. (optional)
-    q: "order confirmed" -refund,
+    q: q_example,
     // string | Case-insensitive substring match on the sender. Matches the raw header, so it covers both the display name and the address. (optional)
-    from: billing@acme.com,
+    from: from_example,
     // Array<string> | Return messages carrying any of these tags (exact match, OR-combined). Repeat the parameter: tags=a&tags=b. A comma-separated single value (tags=a,b) is also accepted, but cannot express a tag that itself contains a comma. Max 20 values. (optional)
     tags: ...,
     // Array<string> | Return messages carrying any of these categories (exact match, OR-combined). Repeat the parameter: categories=a&categories=b. A comma-separated single value is also accepted, but cannot express a category that itself contains a comma. Max 20 values. (optional)
@@ -333,6 +334,87 @@ example().catch(console.error);
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
 | **403** | Forbidden - user does not own inbox, API key lacks required scope (email_messages:read), or API key not authorized for this organization |  -  |
 | **404** | Email inbox not found |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## getEmailInboxOtp
+
+> GetEmailInboxOtp200Response getEmailInboxOtp(id, from, withinMinutes)
+
+Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+### Example
+
+```ts
+import {
+  Configuration,
+  EmailInboxesApi,
+} from '@programmableinbox/sdk';
+import type { GetEmailInboxOtpRequest } from '@programmableinbox/sdk';
+
+async function example() {
+  console.log("🚀 Testing @programmableinbox/sdk SDK...");
+  const config = new Configuration({ 
+    // Configure HTTP bearer authorization: ApiKeyAuth
+    accessToken: "YOUR BEARER TOKEN",
+  });
+  const api = new EmailInboxesApi(config);
+
+  const body = {
+    // string | The email inbox ID
+    id: id_example,
+    // string | Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header. (optional)
+    from: from_example,
+    // number | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional)
+    withinMinutes: 56,
+  } satisfies GetEmailInboxOtpRequest;
+
+  try {
+    const data = await api.getEmailInboxOtp(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | `string` | The email inbox ID | [Defaults to `undefined`] |
+| **from** | `string` | Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | [Optional] [Defaults to `undefined`] |
+| **withinMinutes** | `number` | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [Optional] [Defaults to `15`] |
+
+### Return type
+
+[**GetEmailInboxOtp200Response**](GetEmailInboxOtp200Response.md)
+
+### Authorization
+
+[ApiKeyAuth](../README.md#ApiKeyAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successfully retrieved the latest OTP |  -  |
+| **400** | Bad request - withinMinutes out of range, or from over the length cap |  -  |
+| **401** | Unauthorized - missing or invalid API key |  -  |
+| **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
+| **404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived within withinMinutes. The message distinguishes a stale code (one exists but is older than the window) from none at all. |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
@@ -416,7 +498,7 @@ example().catch(console.error);
 
 ## listEmailInboxes
 
-> ListEmailInboxes200Response listEmailInboxes(organizationId)
+> ListEmailInboxes200Response listEmailInboxes()
 
 List email inboxes
 
@@ -439,13 +521,8 @@ async function example() {
   });
   const api = new EmailInboxesApi(config);
 
-  const body = {
-    // string | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)
-    organizationId: organizationId_example,
-  } satisfies ListEmailInboxesRequest;
-
   try {
-    const data = await api.listEmailInboxes(body);
+    const data = await api.listEmailInboxes();
     console.log(data);
   } catch (error) {
     console.error(error);
@@ -458,10 +535,7 @@ example().catch(console.error);
 
 ### Parameters
 
-
-| Name | Type | Description  | Notes |
-|------------- | ------------- | ------------- | -------------|
-| **organizationId** | `string` | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. | [Optional] [Defaults to `undefined`] |
+This endpoint does not need any parameter.
 
 ### Return type
 
@@ -482,7 +556,7 @@ example().catch(console.error);
 |-------------|-------------|------------------|
 | **200** | Successfully retrieved email inboxes |  -  |
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
-| **403** | Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read) |  -  |
+| **403** | Forbidden - API key lacks required scope (email_inboxes:read) |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
@@ -493,7 +567,7 @@ example().catch(console.error);
 
 Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
 
 ### Example
 
@@ -516,7 +590,7 @@ async function example() {
     // string | The email inbox ID
     id: id_example,
     // UpdateEmailInboxRequest
-    updateEmailInboxRequest: ...,
+    updateEmailInboxRequest: {"name":"Support Inbox"},
   } satisfies UpdateEmailInboxOperationRequest;
 
   try {
@@ -557,7 +631,7 @@ example().catch(console.error);
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | Inbox updated |  -  |
-| **400** | Bad request - malformed JSON, the name is not a string or is longer than 100 characters, or &#x60;email&#x60; was supplied and is not a valid email address. A well-formed address that differs from the current one is a 409 instead. |  -  |
+| **400** | Bad request - malformed JSON, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
 | **403** | Forbidden - API key lacks the email_inboxes:update scope |  -  |
 | **404** | Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable. |  -  |

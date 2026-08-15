@@ -71,17 +71,20 @@ describe('GET /api/v1/emailInbox', () => {
     expect(body.data[0].email).toBe('a@example.com')
   })
 
-  it('403s when the key requests a different organization', async () => {
+  it('ignores an organizationId query param and scopes to the key regardless', async () => {
+    // No filter param on this surface (see route.ts) — an API key is always
+    // bound to exactly one organization, so the result is the key's own
+    // inboxes whatever the query string says.
     resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
+    listInboxesMock.mockResolvedValue([])
     const { GET } = await import('../route')
 
-    const response = await GET(
+    await GET(
       keyRequest('http://localhost:4000/api/v1/emailInbox?organizationId=org_other'),
       { params: Promise.resolve({}) },
     )
 
-    expect(response.status).toBe(403)
-    expect(listInboxesMock).not.toHaveBeenCalled()
+    expect(listInboxesMock).toHaveBeenCalledWith({ organizationIds: ['org_1'] })
   })
 
   it('401s an unknown or revoked key', async () => {

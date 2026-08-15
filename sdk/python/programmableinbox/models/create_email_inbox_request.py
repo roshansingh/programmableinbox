@@ -29,8 +29,7 @@ class CreateEmailInboxRequest(BaseModel):
     """ # noqa: E501
     email: StrictStr = Field(description="The address to claim. Normalized to lowercase before storage, and permanent once created.")
     name: Optional[StrictStr] = Field(default=None, description="Optional display label. Subject to the same impersonation blocklist as the address.")
-    organization_id: Optional[StrictStr] = Field(default=None, description="Optional. Must match the organization the API key is bound to if supplied; the key's organization is used otherwise.", alias="organizationId")
-    __properties: ClassVar[List[str]] = ["email", "name", "organizationId"]
+    __properties: ClassVar[List[str]] = ["email", "name"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -89,8 +88,7 @@ class CreateEmailInboxRequest(BaseModel):
 
         _obj = cls.model_validate({
             "email": obj.get("email"),
-            "name": obj.get("name"),
-            "organizationId": obj.get("organizationId")
+            "name": obj.get("name")
         })
         return _obj
 

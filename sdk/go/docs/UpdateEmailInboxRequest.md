@@ -5,7 +5,6 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Name** | Pointer to **NullableString** | The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one. | [optional] 
-**Email** | Pointer to **string** | Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409. | [optional] 
 
 ## Methods
 
@@ -61,31 +60,6 @@ HasName returns a boolean if a field has been set.
 `func (o *UpdateEmailInboxRequest) UnsetName()`
 
 UnsetName ensures that no value is present for Name, not even an explicit nil
-### GetEmail
-
-`func (o *UpdateEmailInboxRequest) GetEmail() string`
-
-GetEmail returns the Email field if non-nil, zero value otherwise.
-
-### GetEmailOk
-
-`func (o *UpdateEmailInboxRequest) GetEmailOk() (*string, bool)`
-
-GetEmailOk returns a tuple with the Email field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetEmail
-
-`func (o *UpdateEmailInboxRequest) SetEmail(v string)`
-
-SetEmail sets Email field to given value.
-
-### HasEmail
-
-`func (o *UpdateEmailInboxRequest) HasEmail() bool`
-
-HasEmail returns a boolean if a field has been set.
-
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

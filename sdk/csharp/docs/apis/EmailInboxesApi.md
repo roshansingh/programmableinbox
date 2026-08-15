@@ -8,6 +8,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 | [**DeleteEmailInbox**](EmailInboxesApi.md#deleteemailinbox) | **DELETE** /api/v1/emailInbox/{id} | Delete an email inbox |
 | [**GetEmailInbox**](EmailInboxesApi.md#getemailinbox) | **GET** /api/v1/emailInbox/{id} | Get an email inbox |
 | [**GetEmailInboxMessages**](EmailInboxesApi.md#getemailinboxmessages) | **GET** /api/v1/emailInbox/{id}/messages | Get messages from an email inbox |
+| [**GetEmailInboxOtp**](EmailInboxesApi.md#getemailinboxotp) | **GET** /api/v1/emailInbox/{id}/otp | Get the latest one-time code for an inbox |
 | [**GetEmailMessage**](EmailInboxesApi.md#getemailmessage) | **GET** /api/v1/emailInbox/{id}/messages/{messageId} | Get a single message |
 | [**ListEmailInboxes**](EmailInboxesApi.md#listemailinboxes) | **GET** /api/v1/emailInbox | List email inboxes |
 | [**UpdateEmailInbox**](EmailInboxesApi.md#updateemailinbox) | **PATCH** /api/v1/emailInbox/{id} | Rename an email inbox |
@@ -18,7 +19,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 
 Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
 
 ### Parameters
@@ -47,7 +48,7 @@ Claims a new email address and returns the inbox. The address must be on a domai
 | **201** | Inbox created |  -  |
 | **400** | Bad request - malformed JSON, the address is not a valid email address, the domain is not one this account may create inboxes at, the local part is longer than 50 characters, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
-| **403** | Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization |  -  |
+| **403** | Forbidden - API key lacks the email_inboxes:create scope |  -  |
 | **409** | Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist. |  -  |
 | **422** | Unprocessable - the address or the name is on the impersonation blocklist, or the name contains characters outside printable ASCII. A disallowed domain is a 400, not this. |  -  |
 
@@ -179,6 +180,48 @@ Returns messages for a specific email inbox with optional pagination and filteri
 
 [[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
 
+<a id="getemailinboxotp"></a>
+# **GetEmailInboxOtp**
+> GetEmailInboxOtp200Response GetEmailInboxOtp (string id, string from = null, int withinMinutes = null)
+
+Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+
+### Parameters
+
+| Name | Type | Description | Notes |
+|------|------|-------------|-------|
+| **id** | **string** | The email inbox ID |  |
+| **from** | **string** | Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | [optional]  |
+| **withinMinutes** | **int** | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [optional] [default to 15] |
+
+### Return type
+
+[**GetEmailInboxOtp200Response**](GetEmailInboxOtp200Response.md)
+
+### Authorization
+
+[ApiKeyAuth](../README.md#ApiKeyAuth)
+
+### HTTP request headers
+
+ - **Content-Type**: Not defined
+ - **Accept**: application/json
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successfully retrieved the latest OTP |  -  |
+| **400** | Bad request - withinMinutes out of range, or from over the length cap |  -  |
+| **401** | Unauthorized - missing or invalid API key |  -  |
+| **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
+| **404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived within withinMinutes. The message distinguishes a stale code (one exists but is older than the window) from none at all. |  -  |
+
+[[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
+
 <a id="getemailmessage"></a>
 # **GetEmailMessage**
 > GetEmailMessage200Response GetEmailMessage (string id, string messageId)
@@ -221,7 +264,7 @@ Returns a specific message from an email inbox. Requires API key with `email_mes
 
 <a id="listemailinboxes"></a>
 # **ListEmailInboxes**
-> ListEmailInboxes200Response ListEmailInboxes (string organizationId = null)
+> ListEmailInboxes200Response ListEmailInboxes ()
 
 List email inboxes
 
@@ -229,11 +272,7 @@ Returns a list of email inboxes for the organization. Requires API key with `ema
 
 
 ### Parameters
-
-| Name | Type | Description | Notes |
-|------|------|-------------|-------|
-| **organizationId** | **string** | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. | [optional]  |
-
+This endpoint does not need any parameter.
 ### Return type
 
 [**ListEmailInboxes200Response**](ListEmailInboxes200Response.md)
@@ -253,7 +292,7 @@ Returns a list of email inboxes for the organization. Requires API key with `ema
 |-------------|-------------|------------------|
 | **200** | Successfully retrieved email inboxes |  -  |
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
-| **403** | Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read) |  -  |
+| **403** | Forbidden - API key lacks required scope (email_inboxes:read) |  -  |
 
 [[Back to top]](#) [[Back to API list]](../../README.md#documentation-for-api-endpoints) [[Back to Model list]](../../README.md#documentation-for-models) [[Back to README]](../../README.md)
 
@@ -263,7 +302,7 @@ Returns a list of email inboxes for the organization. Requires API key with `ema
 
 Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
 
 ### Parameters
@@ -291,7 +330,7 @@ Updates an inbox display name. The address is immutable — submitting a differe
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | Inbox updated |  -  |
-| **400** | Bad request - malformed JSON, the name is not a string or is longer than 100 characters, or &#x60;email&#x60; was supplied and is not a valid email address. A well-formed address that differs from the current one is a 409 instead. |  -  |
+| **400** | Bad request - malformed JSON, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
 | **403** | Forbidden - API key lacks the email_inboxes:update scope |  -  |
 | **404** | Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable. |  -  |

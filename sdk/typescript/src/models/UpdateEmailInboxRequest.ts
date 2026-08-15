@@ -25,12 +25,6 @@ export interface UpdateEmailInboxRequest {
      * @memberof UpdateEmailInboxRequest
      */
     name?: string | null;
-    /**
-     * Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.
-     * @type {string}
-     * @memberof UpdateEmailInboxRequest
-     */
-    email?: string;
 }
 
 /**
@@ -51,7 +45,6 @@ export function UpdateEmailInboxRequestFromJSONTyped(json: any, ignoreDiscrimina
     return {
         
         'name': json['name'] === undefined ? undefined : json['name'] === null ? null : json['name'],
-        'email': json['email'] == null ? undefined : json['email'],
     };
 }
 
@@ -67,7 +60,6 @@ export function UpdateEmailInboxRequestToJSONTyped(value?: UpdateEmailInboxReque
     return {
         
         'name': value['name'],
-        'email': value['email'],
     };
 }
 

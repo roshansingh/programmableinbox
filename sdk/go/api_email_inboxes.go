@@ -42,7 +42,7 @@ func (r ApiCreateEmailInboxRequest) Execute() (*CreateEmailInbox201Response, *ht
 /*
 CreateEmailInbox Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
  @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
  @return ApiCreateEmailInboxRequest
@@ -689,6 +689,176 @@ func (a *EmailInboxesAPIService) GetEmailInboxMessagesExecute(r ApiGetEmailInbox
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiGetEmailInboxOtpRequest struct {
+	ctx context.Context
+	ApiService *EmailInboxesAPIService
+	id string
+	from *string
+	withinMinutes *int32
+}
+
+// Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header.
+func (r ApiGetEmailInboxOtpRequest) From(from string) ApiGetEmailInboxOtpRequest {
+	r.from = &from
+	return r
+}
+
+// How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+func (r ApiGetEmailInboxOtpRequest) WithinMinutes(withinMinutes int32) ApiGetEmailInboxOtpRequest {
+	r.withinMinutes = &withinMinutes
+	return r
+}
+
+func (r ApiGetEmailInboxOtpRequest) Execute() (*GetEmailInboxOtp200Response, *http.Response, error) {
+	return r.ApiService.GetEmailInboxOtpExecute(r)
+}
+
+/*
+GetEmailInboxOtp Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+ @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+ @param id The email inbox ID
+ @return ApiGetEmailInboxOtpRequest
+*/
+func (a *EmailInboxesAPIService) GetEmailInboxOtp(ctx context.Context, id string) ApiGetEmailInboxOtpRequest {
+	return ApiGetEmailInboxOtpRequest{
+		ApiService: a,
+		ctx: ctx,
+		id: id,
+	}
+}
+
+// Execute executes the request
+//  @return GetEmailInboxOtp200Response
+func (a *EmailInboxesAPIService) GetEmailInboxOtpExecute(r ApiGetEmailInboxOtpRequest) (*GetEmailInboxOtp200Response, *http.Response, error) {
+	var (
+		localVarHTTPMethod   = http.MethodGet
+		localVarPostBody     interface{}
+		formFiles            []formFile
+		localVarReturnValue  *GetEmailInboxOtp200Response
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "EmailInboxesAPIService.GetEmailInboxOtp")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/api/v1/emailInbox/{id}/otp"
+	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+
+	if r.from != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "from", r.from, "form", "")
+	}
+	if r.withinMinutes != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "withinMinutes", r.withinMinutes, "form", "")
+	} else {
+		var defaultValue int32 = 15
+		parameterAddToHeaderOrQuery(localVarQueryParams, "withinMinutes", defaultValue, "form", "")
+		r.withinMinutes = &defaultValue
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+					newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+					newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+					newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+					newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+					newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+					newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+					newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+					newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiGetEmailMessageRequest struct {
 	ctx context.Context
 	ApiService *EmailInboxesAPIService
@@ -831,13 +1001,6 @@ func (a *EmailInboxesAPIService) GetEmailMessageExecute(r ApiGetEmailMessageRequ
 type ApiListEmailInboxesRequest struct {
 	ctx context.Context
 	ApiService *EmailInboxesAPIService
-	organizationId *string
-}
-
-// Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
-func (r ApiListEmailInboxesRequest) OrganizationId(organizationId string) ApiListEmailInboxesRequest {
-	r.organizationId = &organizationId
-	return r
 }
 
 func (r ApiListEmailInboxesRequest) Execute() (*ListEmailInboxes200Response, *http.Response, error) {
@@ -880,9 +1043,6 @@ func (a *EmailInboxesAPIService) ListEmailInboxesExecute(r ApiListEmailInboxesRe
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
-	if r.organizationId != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "organizationId", r.organizationId, "form", "")
-	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -977,7 +1137,7 @@ func (r ApiUpdateEmailInboxRequest) Execute() (*CreateEmailInbox201Response, *ht
 /*
 UpdateEmailInbox Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
  @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
  @param id The email inbox ID

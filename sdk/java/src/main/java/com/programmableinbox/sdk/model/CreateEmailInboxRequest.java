@@ -38,8 +38,7 @@ import com.programmableinbox.sdk.ApiClient;
  */
 @JsonPropertyOrder({
   CreateEmailInboxRequest.JSON_PROPERTY_EMAIL,
-  CreateEmailInboxRequest.JSON_PROPERTY_NAME,
-  CreateEmailInboxRequest.JSON_PROPERTY_ORGANIZATION_ID
+  CreateEmailInboxRequest.JSON_PROPERTY_NAME
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.24.0")
 public class CreateEmailInboxRequest {
@@ -49,10 +48,6 @@ public class CreateEmailInboxRequest {
 
   public static final String JSON_PROPERTY_NAME = "name";
   private JsonNullable<String> name = JsonNullable.<String>undefined();
-
-  public static final String JSON_PROPERTY_ORGANIZATION_ID = "organizationId";
-  @javax.annotation.Nullable
-  private String organizationId;
 
   public CreateEmailInboxRequest() { 
   }
@@ -113,30 +108,6 @@ public class CreateEmailInboxRequest {
   }
 
 
-  public CreateEmailInboxRequest organizationId(@javax.annotation.Nullable String organizationId) {
-    this.organizationId = organizationId;
-    return this;
-  }
-
-  /**
-   * Optional. Must match the organization the API key is bound to if supplied; the key&#39;s organization is used otherwise.
-   * @return organizationId
-   */
-  @javax.annotation.Nullable
-  @JsonProperty(value = JSON_PROPERTY_ORGANIZATION_ID, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public String getOrganizationId() {
-    return organizationId;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_ORGANIZATION_ID, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public void setOrganizationId(@javax.annotation.Nullable String organizationId) {
-    this.organizationId = organizationId;
-  }
-
-
   /**
    * Return true if this createEmailInbox_request object is equal to o.
    */
@@ -150,8 +121,7 @@ public class CreateEmailInboxRequest {
     }
     CreateEmailInboxRequest createEmailInboxRequest = (CreateEmailInboxRequest) o;
     return Objects.equals(this.email, createEmailInboxRequest.email) &&
-        equalsNullable(this.name, createEmailInboxRequest.name) &&
-        Objects.equals(this.organizationId, createEmailInboxRequest.organizationId);
+        equalsNullable(this.name, createEmailInboxRequest.name);
   }
 
   private static <T> boolean equalsNullable(JsonNullable<T> a, JsonNullable<T> b) {
@@ -160,7 +130,7 @@ public class CreateEmailInboxRequest {
 
   @Override
   public int hashCode() {
-    return Objects.hash(email, hashCodeNullable(name), organizationId);
+    return Objects.hash(email, hashCodeNullable(name));
   }
 
   private static <T> int hashCodeNullable(JsonNullable<T> a) {
@@ -176,7 +146,6 @@ public class CreateEmailInboxRequest {
     sb.append("class CreateEmailInboxRequest {\n");
     sb.append("    email: ").append(toIndentedString(email)).append("\n");
     sb.append("    name: ").append(toIndentedString(name)).append("\n");
-    sb.append("    organizationId: ").append(toIndentedString(organizationId)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -229,11 +198,6 @@ public class CreateEmailInboxRequest {
     // add `name` to the URL query string
     if (getName() != null) {
       joiner.add(String.format(java.util.Locale.ROOT, "%sname%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getName()))));
-    }
-
-    // add `organizationId` to the URL query string
-    if (getOrganizationId() != null) {
-      joiner.add(String.format(java.util.Locale.ROOT, "%sorganizationId%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getOrganizationId()))));
     }
 
     return joiner.toString();

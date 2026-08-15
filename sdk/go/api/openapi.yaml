@@ -17,16 +17,6 @@ paths:
       description: Returns a list of email inboxes for the organization. Requires
         API key with `email_inboxes:read` scope.
       operationId: listEmailInboxes
-      parameters:
-      - description: "Optional organization ID to filter inboxes. User must be a member\
-          \ of the organization, or API key must belong to this organization."
-        explode: true
-        in: query
-        name: organizationId
-        required: false
-        schema:
-          type: string
-        style: form
       responses:
         "200":
           content:
@@ -45,8 +35,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: Forbidden - user not member of organization or API key lacks
-            required scope (email_inboxes:read)
+          description: Forbidden - API key lacks required scope (email_inboxes:read)
       security:
       - ApiKeyAuth: []
       summary: List email inboxes
@@ -55,9 +44,9 @@ paths:
     post:
       description: "Claims a new email address and returns the inbox. The address\
         \ must be on a domain this account can receive at, and is immutable once created.\
-        \ Requires API key with `email_inboxes:create` scope. The inbox is created\
-        \ in the organization the key is bound to; supplying a different `organizationId`\
-        \ is a 403 rather than a silently ignored field."
+        \ Requires API key with `email_inboxes:create` scope. The inbox is always\
+        \ created in the organization the key is bound to — there is no way to name\
+        \ a different one."
       operationId: createEmailInbox
       requestBody:
         content:
@@ -92,8 +81,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: "Forbidden - API key lacks the email_inboxes:create scope,\
-            \ or the body names a different organization"
+          description: Forbidden - API key lacks the email_inboxes:create scope
         "409":
           content:
             application/json:
@@ -207,10 +195,8 @@ paths:
       tags:
       - Email Inboxes
     patch:
-      description: "Updates an inbox display name. The address is immutable — submitting\
-        \ a different one is a 409; submitting the current one (after normalization)\
-        \ is an allowed no-op, so a client can PATCH a whole record back. Requires\
-        \ API key with `email_inboxes:update` scope."
+      description: Updates an inbox display name. The address is immutable and is
+        not part of this request. Requires API key with `email_inboxes:update` scope.
       operationId: updateEmailInbox
       parameters:
       - description: The email inbox ID
@@ -224,6 +210,8 @@ paths:
       requestBody:
         content:
           application/json:
+            example:
+              name: Support Inbox
             schema:
               $ref: "#/components/schemas/updateEmailInbox_request"
         required: true
@@ -239,10 +227,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: "Bad request - malformed JSON, the name is not a string or\
-            \ is longer than 100 characters, or `email` was supplied and is not a\
-            \ valid email address. A well-formed address that differs from the current\
-            \ one is a 409 instead."
+          description: "Bad request - malformed JSON, or the name is not a string\
+            \ or is longer than 100 characters."
         "401":
           content:
             application/json:
@@ -338,7 +324,6 @@ paths:
           \ The body searched is the plain-text `bodyText` field, which is extracted\
           \ from `html` for messages that carry no text part. Results stay in reverse-chronological\
           \ order — this filters, it does not rank."
-        example: '"order confirmed" -refund'
         explode: true
         in: query
         name: q
@@ -349,7 +334,6 @@ paths:
         style: form
       - description: "Case-insensitive substring match on the sender. Matches the\
           \ raw header, so it covers both the display name and the address."
-        example: billing@acme.com
         explode: true
         in: query
         name: from
@@ -475,6 +459,85 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Get a single message
+      tags:
+      - Email Inboxes
+  /api/v1/emailInbox/{id}/otp:
+    get:
+      description: "Returns the most recently extracted one-time passcode (OTP) for\
+        \ an email inbox, with the message it came from. Requires API key with `email_messages:read`\
+        \ scope — this is a read of extracted message content, not inbox metadata.\
+        \ Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool."
+      operationId: getEmailInboxOtp
+      parameters:
+      - description: The email inbox ID
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      - description: "Only consider messages whose From header contains this substring,\
+          \ e.g. \"stripe.com\". Case-insensitive, matches the raw header."
+        explode: true
+        in: query
+        name: from
+        required: false
+        schema:
+          maxLength: 200
+          type: string
+        style: form
+      - description: "How recent the code must be. Defaults to 15 minutes, because\
+          \ a stale code looks identical to a fresh one and will silently fail wherever\
+          \ it is used."
+        explode: true
+        in: query
+        name: withinMinutes
+        required: false
+        schema:
+          default: 15
+          maximum: 1440
+          minimum: 1
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getEmailInboxOtp_200_response"
+          description: Successfully retrieved the latest OTP
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Bad request - withinMinutes out of range, or from over the\
+            \ length cap"
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Unauthorized - missing or invalid API key
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Forbidden - API key lacks required scope (email_messages:read)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Not found - no such inbox visible to this key, or no message\
+            \ with an extracted OTP has arrived within withinMinutes. The message\
+            \ distinguishes a stale code (one exists but is older than the window)\
+            \ from none at all."
+      security:
+      - ApiKeyAuth: []
+      summary: Get the latest one-time code for an inbox
       tags:
       - Email Inboxes
 components:
@@ -682,10 +745,6 @@ components:
             as the address.
           nullable: true
           type: string
-        organizationId:
-          description: Optional. Must match the organization the API key is bound
-            to if supplied; the key's organization is used otherwise.
-          type: string
       required:
       - email
       type: object
@@ -723,11 +782,6 @@ components:
           description: "The new display label. Subject to the impersonation blocklist,\
             \ so an inbox cannot be renamed into one."
           nullable: true
-          type: string
-        email:
-          description: Accepted only when it matches the current address. Present
-            so a client can round-trip a full record; any other value is a 409.
-          format: email
           type: string
       type: object
     getEmailInboxMessages_200_response_data_messages_inner:
@@ -942,6 +996,85 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/EmailMessage"
+      required:
+      - data
+      type: object
+    getEmailInboxOtp_200_response_data:
+      example:
+        otp: "123456"
+        message:
+          id: msg-1
+          threadId: thread-1
+          parentMessageId: msg-0
+          subject: Support Request
+          from: customer@example.com
+          to:
+          - to
+          - to
+          cc:
+          - cc
+          - cc
+          bcc:
+          - bcc
+          - bcc
+          text: "Hello, I need help with..."
+          html: "<p>Hello, I need help with...</p>"
+          bodyText: "Hello, I need help with..."
+          isStarred: false
+          tags:
+          - tags
+          - tags
+          categories:
+          - categories
+          - categories
+          extractedOtp: "123456"
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          threadCount: 0
+      properties:
+        otp:
+          example: "123456"
+          type: string
+        message:
+          $ref: "#/components/schemas/EmailMessage"
+      required:
+      - message
+      - otp
+      type: object
+    getEmailInboxOtp_200_response:
+      example:
+        data:
+          otp: "123456"
+          message:
+            id: msg-1
+            threadId: thread-1
+            parentMessageId: msg-0
+            subject: Support Request
+            from: customer@example.com
+            to:
+            - to
+            - to
+            cc:
+            - cc
+            - cc
+            bcc:
+            - bcc
+            - bcc
+            text: "Hello, I need help with..."
+            html: "<p>Hello, I need help with...</p>"
+            bodyText: "Hello, I need help with..."
+            isStarred: false
+            tags:
+            - tags
+            - tags
+            categories:
+            - categories
+            - categories
+            extractedOtp: "123456"
+            createdAt: 2000-01-23T04:56:07.000+00:00
+            threadCount: 0
+      properties:
+        data:
+          $ref: "#/components/schemas/getEmailInboxOtp_200_response_data"
       required:
       - data
       type: object

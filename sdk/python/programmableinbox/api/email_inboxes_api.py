@@ -22,6 +22,7 @@ from programmableinbox.models.create_email_inbox201_response import CreateEmailI
 from programmableinbox.models.create_email_inbox_request import CreateEmailInboxRequest
 from programmableinbox.models.get_email_inbox200_response import GetEmailInbox200Response
 from programmableinbox.models.get_email_inbox_messages200_response import GetEmailInboxMessages200Response
+from programmableinbox.models.get_email_inbox_otp200_response import GetEmailInboxOtp200Response
 from programmableinbox.models.get_email_message200_response import GetEmailMessage200Response
 from programmableinbox.models.list_email_inboxes200_response import ListEmailInboxes200Response
 from programmableinbox.models.update_email_inbox_request import UpdateEmailInboxRequest
@@ -63,7 +64,7 @@ class EmailInboxesApi:
     ) -> CreateEmailInbox201Response:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -135,7 +136,7 @@ class EmailInboxesApi:
     ) -> ApiResponse[CreateEmailInbox201Response]:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -207,7 +208,7 @@ class EmailInboxesApi:
     ) -> RESTResponseType:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -1285,6 +1286,313 @@ class EmailInboxesApi:
 
 
     @validate_call
+    def get_email_inbox_otp(
+        self,
+        id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> GetEmailInboxOtp200Response:
+        """Get the latest one-time code for an inbox
+
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+        :param id: The email inbox ID (required)
+        :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """ # noqa: E501
+
+        _param = self._get_email_inbox_otp_serialize(
+            id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
+            '401': "ErrorResponse",
+            '403': "ErrorResponse",
+            '404': "ErrorResponse",
+        }
+        response_data = self.api_client.call_api(
+            *_param,
+            _request_timeout=_request_timeout
+        )
+        response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+
+    @validate_call
+    def get_email_inbox_otp_with_http_info(
+        self,
+        id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[GetEmailInboxOtp200Response]:
+        """Get the latest one-time code for an inbox
+
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+        :param id: The email inbox ID (required)
+        :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """ # noqa: E501
+
+        _param = self._get_email_inbox_otp_serialize(
+            id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
+            '401': "ErrorResponse",
+            '403': "ErrorResponse",
+            '404': "ErrorResponse",
+        }
+        response_data = self.api_client.call_api(
+            *_param,
+            _request_timeout=_request_timeout
+        )
+        response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+
+    @validate_call
+    def get_email_inbox_otp_without_preload_content(
+        self,
+        id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Get the latest one-time code for an inbox
+
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+        :param id: The email inbox ID (required)
+        :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """ # noqa: E501
+
+        _param = self._get_email_inbox_otp_serialize(
+            id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
+            '401': "ErrorResponse",
+            '403': "ErrorResponse",
+            '404': "ErrorResponse",
+        }
+        response_data = self.api_client.call_api(
+            *_param,
+            _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+
+    def _get_email_inbox_otp_serialize(
+        self,
+        id,
+        var_from,
+        within_minutes,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {
+        }
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if id is not None:
+            _path_params['id'] = id
+        # process the query parameters
+        if var_from is not None:
+            
+            _query_params.append(('from', var_from))
+            
+        if within_minutes is not None:
+            
+            _query_params.append(('withinMinutes', within_minutes))
+            
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+
+        # set the HTTP header `Accept`
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
+            )
+
+
+        # authentication setting
+        _auth_settings: List[str] = [
+            'ApiKeyAuth'
+        ]
+
+        return self.api_client.param_serialize(
+            method='GET',
+            resource_path='/api/v1/emailInbox/{id}/otp',
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth
+        )
+
+
+
+
+    @validate_call
     def get_email_message(
         self,
         id: Annotated[StrictStr, Field(description="The email inbox ID")],
@@ -1572,7 +1880,6 @@ class EmailInboxesApi:
     @validate_call
     def list_email_inboxes(
         self,
-        organization_id: Annotated[Optional[StrictStr], Field(description="Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1590,8 +1897,6 @@ class EmailInboxesApi:
 
         Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.
 
-        :param organization_id: Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
-        :type organization_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1615,7 +1920,6 @@ class EmailInboxesApi:
         """ # noqa: E501
 
         _param = self._list_email_inboxes_serialize(
-            organization_id=organization_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1641,7 +1945,6 @@ class EmailInboxesApi:
     @validate_call
     def list_email_inboxes_with_http_info(
         self,
-        organization_id: Annotated[Optional[StrictStr], Field(description="Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1659,8 +1962,6 @@ class EmailInboxesApi:
 
         Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.
 
-        :param organization_id: Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
-        :type organization_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1684,7 +1985,6 @@ class EmailInboxesApi:
         """ # noqa: E501
 
         _param = self._list_email_inboxes_serialize(
-            organization_id=organization_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1710,7 +2010,6 @@ class EmailInboxesApi:
     @validate_call
     def list_email_inboxes_without_preload_content(
         self,
-        organization_id: Annotated[Optional[StrictStr], Field(description="Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1728,8 +2027,6 @@ class EmailInboxesApi:
 
         Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.
 
-        :param organization_id: Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
-        :type organization_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1753,7 +2050,6 @@ class EmailInboxesApi:
         """ # noqa: E501
 
         _param = self._list_email_inboxes_serialize(
-            organization_id=organization_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1774,7 +2070,6 @@ class EmailInboxesApi:
 
     def _list_email_inboxes_serialize(
         self,
-        organization_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1797,10 +2092,6 @@ class EmailInboxesApi:
 
         # process the path parameters
         # process the query parameters
-        if organization_id is not None:
-            
-            _query_params.append(('organizationId', organization_id))
-            
         # process the header parameters
         # process the form parameters
         # process the body parameter
@@ -1858,7 +2149,7 @@ class EmailInboxesApi:
     ) -> CreateEmailInbox201Response:
         """Rename an email inbox
 
-        Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+        Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
         :param id: The email inbox ID (required)
         :type id: str
@@ -1935,7 +2226,7 @@ class EmailInboxesApi:
     ) -> ApiResponse[CreateEmailInbox201Response]:
         """Rename an email inbox
 
-        Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+        Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
         :param id: The email inbox ID (required)
         :type id: str
@@ -2012,7 +2303,7 @@ class EmailInboxesApi:
     ) -> RESTResponseType:
         """Rename an email inbox
 
-        Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+        Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
         :param id: The email inbox ID (required)
         :type id: str

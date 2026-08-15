@@ -39,6 +39,11 @@ import {
     GetEmailInboxMessages200ResponseToJSON,
 } from '../models/GetEmailInboxMessages200Response';
 import {
+    type GetEmailInboxOtp200Response,
+    GetEmailInboxOtp200ResponseFromJSON,
+    GetEmailInboxOtp200ResponseToJSON,
+} from '../models/GetEmailInboxOtp200Response';
+import {
     type GetEmailMessage200Response,
     GetEmailMessage200ResponseFromJSON,
     GetEmailMessage200ResponseToJSON,
@@ -78,13 +83,15 @@ export interface GetEmailInboxMessagesRequest {
     categories?: Array<string>;
 }
 
+export interface GetEmailInboxOtpRequest {
+    id: string;
+    from?: string;
+    withinMinutes?: number;
+}
+
 export interface GetEmailMessageRequest {
     id: string;
     messageId: string;
-}
-
-export interface ListEmailInboxesRequest {
-    organizationId?: string;
 }
 
 export interface UpdateEmailInboxOperationRequest {
@@ -135,7 +142,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
      * Create an email inbox
      */
     async createEmailInboxRaw(requestParameters: CreateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateEmailInbox201Response>> {
@@ -146,7 +153,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
      * Create an email inbox
      */
     async createEmailInbox(requestParameters: CreateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateEmailInbox201Response> {
@@ -351,6 +358,69 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for getEmailInboxOtp without sending the request
+     */
+    async getEmailInboxOtpRequestOpts(requestParameters: GetEmailInboxOtpRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling getEmailInboxOtp().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['from'] != null) {
+            queryParameters['from'] = requestParameters['from'];
+        }
+
+        if (requestParameters['withinMinutes'] != null) {
+            queryParameters['withinMinutes'] = requestParameters['withinMinutes'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("ApiKeyAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/api/v1/emailInbox/{id}/otp`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+     * Get the latest one-time code for an inbox
+     */
+    async getEmailInboxOtpRaw(requestParameters: GetEmailInboxOtpRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetEmailInboxOtp200Response>> {
+        const requestOptions = await this.getEmailInboxOtpRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => GetEmailInboxOtp200ResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+     * Get the latest one-time code for an inbox
+     */
+    async getEmailInboxOtp(requestParameters: GetEmailInboxOtpRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetEmailInboxOtp200Response> {
+        const response = await this.getEmailInboxOtpRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Creates request options for getEmailMessage without sending the request
      */
     async getEmailMessageRequestOpts(requestParameters: GetEmailMessageRequest): Promise<runtime.RequestOpts> {
@@ -416,12 +486,8 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     /**
      * Creates request options for listEmailInboxes without sending the request
      */
-    async listEmailInboxesRequestOpts(requestParameters: ListEmailInboxesRequest): Promise<runtime.RequestOpts> {
+    async listEmailInboxesRequestOpts(): Promise<runtime.RequestOpts> {
         const queryParameters: any = {};
-
-        if (requestParameters['organizationId'] != null) {
-            queryParameters['organizationId'] = requestParameters['organizationId'];
-        }
 
         const headerParameters: runtime.HTTPHeaders = {};
 
@@ -448,8 +514,8 @@ export class EmailInboxesApi extends runtime.BaseAPI {
      * Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.
      * List email inboxes
      */
-    async listEmailInboxesRaw(requestParameters: ListEmailInboxesRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ListEmailInboxes200Response>> {
-        const requestOptions = await this.listEmailInboxesRequestOpts(requestParameters);
+    async listEmailInboxesRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ListEmailInboxes200Response>> {
+        const requestOptions = await this.listEmailInboxesRequestOpts();
         const response = await this.request(requestOptions, initOverrides);
 
         return new runtime.JSONApiResponse(response, (jsonValue) => ListEmailInboxes200ResponseFromJSON(jsonValue));
@@ -459,8 +525,8 @@ export class EmailInboxesApi extends runtime.BaseAPI {
      * Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.
      * List email inboxes
      */
-    async listEmailInboxes(requestParameters: ListEmailInboxesRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ListEmailInboxes200Response> {
-        const response = await this.listEmailInboxesRaw(requestParameters, initOverrides);
+    async listEmailInboxes(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ListEmailInboxes200Response> {
+        const response = await this.listEmailInboxesRaw(initOverrides);
         return await response.value();
     }
 
@@ -510,7 +576,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+     * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
      * Rename an email inbox
      */
     async updateEmailInboxRaw(requestParameters: UpdateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateEmailInbox201Response>> {
@@ -521,7 +587,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+     * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
      * Rename an email inbox
      */
     async updateEmailInbox(requestParameters: UpdateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateEmailInbox201Response> {

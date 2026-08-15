@@ -28,8 +28,7 @@ class UpdateEmailInboxRequest(BaseModel):
     UpdateEmailInboxRequest
     """ # noqa: E501
     name: Optional[StrictStr] = Field(default=None, description="The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one.")
-    email: Optional[StrictStr] = Field(default=None, description="Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.")
-    __properties: ClassVar[List[str]] = ["name", "email"]
+    __properties: ClassVar[List[str]] = ["name"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -87,8 +86,7 @@ class UpdateEmailInboxRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "email": obj.get("email")
+            "name": obj.get("name")
         })
         return _obj
 

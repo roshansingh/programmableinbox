@@ -10,6 +10,8 @@ docs/GetEmailInbox200Response.md
 docs/GetEmailInboxMessages200Response.md
 docs/GetEmailInboxMessages200ResponseData.md
 docs/GetEmailInboxMessages200ResponseDataMessagesInner.md
+docs/GetEmailInboxOtp200Response.md
+docs/GetEmailInboxOtp200ResponseData.md
 docs/GetEmailMessage200Response.md
 docs/ListEmailInboxes200Response.md
 docs/UpdateEmailInboxRequest.md
@@ -26,6 +28,8 @@ src/models/GetEmailInbox200Response.ts
 src/models/GetEmailInboxMessages200Response.ts
 src/models/GetEmailInboxMessages200ResponseData.ts
 src/models/GetEmailInboxMessages200ResponseDataMessagesInner.ts
+src/models/GetEmailInboxOtp200Response.ts
+src/models/GetEmailInboxOtp200ResponseData.ts
 src/models/GetEmailMessage200Response.ts
 src/models/ListEmailInboxes200Response.ts
 src/models/UpdateEmailInboxRequest.ts

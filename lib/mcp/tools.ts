@@ -10,9 +10,11 @@ import {
 } from '@/lib/services/scope'
 import {
   createInbox,
+  findLatestOtp,
   getMessage,
   listInboxes,
   listMessages,
+  OTP_DEFAULT_WINDOW_MINUTES,
   updateInboxForWrite,
 } from '@/lib/services/email-inbox'
 import { decodeCursor, type DecodedCursor } from '@/lib/pagination/cursor'
@@ -72,12 +74,6 @@ import type { ApiKeyPrincipal } from '@/lib/auth/principals'
  * thousand inboxes passes every per-request check there is. A per-key creation
  * quota is the open item.
  */
-
-/** Scan depth for `pibx_email_get_latest_otp`. */
-const OTP_SCAN_LIMIT = 25
-
-/** Default freshness window for an OTP, in minutes. */
-const OTP_DEFAULT_WINDOW_MINUTES = 15
 
 /**
  * Rows reaching a serializer.
@@ -633,37 +629,27 @@ const getLatestOtpTool: ToolDefinition = {
       // the HTTP routes.
       const search = typed.from ? buildSearch({ from: typed.from }) : null
 
-      const result = await listMessages(scope, typed.inboxId, {
-        limit: OTP_SCAN_LIMIT,
-        cursor: null,
-        threadId: null,
-        grouped: false,
-        search,
-      })
+      // Shared with GET /api/v1/emailInbox/{id}/otp (lib/services/email-inbox.ts)
+      // so the scan depth, freshness window and staleness distinction below
+      // live in one place rather than two copies that can drift.
+      const result = await findLatestOtp(scope, typed.inboxId, { search, windowMinutes })
 
       if (!result) throw inboxNotFound(typed.inboxId)
 
-      const cutoff = Date.now() - windowMinutes * 60_000
-      const rows = result.messages as SerializableRow[]
-      const match = rows.find(
-        (row) => row.extractedOtp !== null && row.createdAt.getTime() >= cutoff,
-      )
-
-      if (!match) {
+      if (!result.found) {
         // Distinguishes "nothing arrived" from "something arrived but is stale",
         // because the fix differs: wait and retry, versus request a new code.
-        const stale = rows.some((row) => row.extractedOtp !== null)
         return toolResult({
           otp: null,
-          reason: stale
+          reason: result.stale
             ? `A one-time code was found but it is older than ${windowMinutes} minutes. Request a new one, or raise withinMinutes if an older code is acceptable.`
             : `No message with a one-time code has arrived in the last ${windowMinutes} minutes. If one is expected, wait and call again.`,
         })
       }
 
       return toolResult({
-        otp: match.extractedOtp,
-        message: serializeMcpMessageConcise(match),
+        otp: result.message.extractedOtp,
+        message: serializeMcpMessageConcise(result.message as SerializableRow),
       })
     }),
 }

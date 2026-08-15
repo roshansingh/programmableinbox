@@ -14,6 +14,37 @@ import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, 
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
 import { EmailHtmlViewer } from "@/components/email-html-viewer"
 import { toast } from 'sonner'
+import { cn } from "@/lib/utils"
+import { EMAIL_CATEGORIES, type EmailCategory } from "@/lib/llm/types"
+
+const CATEGORY_TINTS = [
+  'border-chart-1/40 bg-chart-1/10 text-chart-1',
+  'border-chart-2/40 bg-chart-2/10 text-chart-2',
+  'border-chart-3/40 bg-chart-3/10 text-chart-3',
+  'border-chart-4/40 bg-chart-4/10 text-chart-4',
+  'border-chart-5/40 bg-chart-5/10 text-chart-5',
+] as const
+
+/**
+ * Urgent and Security are the two categories worth a signal beyond identity,
+ * so they get the same warning/destructive tints as everywhere else in the
+ * app rather than a slot in the rotation. Every other category gets a stable
+ * slot in the chart palette, fixed by its position in EMAIL_CATEGORIES so a
+ * given category is always the same color regardless of what else is on
+ * screen. `variant="secondary"` alone is invisible in dark mode, since
+ * --secondary and --card resolve to the same value there.
+ */
+const CATEGORY_OVERRIDES: Partial<Record<string, string>> = {
+  Urgent: 'border-destructive/40 bg-destructive/10 text-destructive',
+  Security: 'border-warning/40 bg-warning/10 text-warning',
+}
+
+function categoryBadgeClassName(category: string): string {
+  const override = CATEGORY_OVERRIDES[category]
+  if (override) return override
+  const index = EMAIL_CATEGORIES.indexOf(category as EmailCategory)
+  return CATEGORY_TINTS[(index < 0 ? 0 : index) % CATEGORY_TINTS.length]
+}
 
 export default function InboxPage() {
   const router = useRouter()
@@ -226,6 +257,7 @@ export default function InboxPage() {
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Back"
                 onClick={() => {
                   if (showMessageDetail) {
                     setShowMessageDetail(false)
@@ -235,8 +267,7 @@ export default function InboxPage() {
                 }}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <ArrowLeft className="h-4 w-4 mr-0 lg:mr-2" />
-                <span className="hidden lg:inline">Back</span>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-1.5 overflow-hidden">
                 <Mail className="h-4 w-4 text-primary shrink-0" />
@@ -341,7 +372,11 @@ export default function InboxPage() {
                         {message.categories && message.categories.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {message.categories.slice(0, 3).map((cat) => (
-                              <Badge key={cat} variant="secondary" className="text-xs px-1.5 py-0 font-normal">
+                              <Badge
+                                key={cat}
+                                variant="outline"
+                                className={cn('text-xs px-1.5 py-0 font-normal', categoryBadgeClassName(cat))}
+                              >
                                 {cat}
                               </Badge>
                             ))}
@@ -542,7 +577,13 @@ export default function InboxPage() {
                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Categories</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {selectedMessage.categories.map((cat) => (
-                                  <Badge key={cat} variant="secondary" className="text-xs font-normal">{cat}</Badge>
+                                  <Badge
+                                    key={cat}
+                                    variant="outline"
+                                    className={cn('text-xs font-normal', categoryBadgeClassName(cat))}
+                                  >
+                                    {cat}
+                                  </Badge>
                                 ))}
                               </div>
                             </div>

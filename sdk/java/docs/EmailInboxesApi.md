@@ -12,6 +12,8 @@ All URIs are relative to *https://app.programmableinbox.com*
 | [**getEmailInboxWithHttpInfo**](EmailInboxesApi.md#getEmailInboxWithHttpInfo) | **GET** /api/v1/emailInbox/{id} | Get an email inbox |
 | [**getEmailInboxMessages**](EmailInboxesApi.md#getEmailInboxMessages) | **GET** /api/v1/emailInbox/{id}/messages | Get messages from an email inbox |
 | [**getEmailInboxMessagesWithHttpInfo**](EmailInboxesApi.md#getEmailInboxMessagesWithHttpInfo) | **GET** /api/v1/emailInbox/{id}/messages | Get messages from an email inbox |
+| [**getEmailInboxOtp**](EmailInboxesApi.md#getEmailInboxOtp) | **GET** /api/v1/emailInbox/{id}/otp | Get the latest one-time code for an inbox |
+| [**getEmailInboxOtpWithHttpInfo**](EmailInboxesApi.md#getEmailInboxOtpWithHttpInfo) | **GET** /api/v1/emailInbox/{id}/otp | Get the latest one-time code for an inbox |
 | [**getEmailMessage**](EmailInboxesApi.md#getEmailMessage) | **GET** /api/v1/emailInbox/{id}/messages/{messageId} | Get a single message |
 | [**getEmailMessageWithHttpInfo**](EmailInboxesApi.md#getEmailMessageWithHttpInfo) | **GET** /api/v1/emailInbox/{id}/messages/{messageId} | Get a single message |
 | [**listEmailInboxes**](EmailInboxesApi.md#listEmailInboxes) | **GET** /api/v1/emailInbox | List email inboxes |
@@ -27,7 +29,7 @@ All URIs are relative to *https://app.programmableinbox.com*
 
 Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
 ### Example
 
@@ -92,7 +94,7 @@ public class Example {
 | **201** | Inbox created |  -  |
 | **400** | Bad request - malformed JSON, the address is not a valid email address, the domain is not one this account may create inboxes at, the local part is longer than 50 characters, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
-| **403** | Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization |  -  |
+| **403** | Forbidden - API key lacks the email_inboxes:create scope |  -  |
 | **409** | Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist. |  -  |
 | **422** | Unprocessable - the address or the name is on the impersonation blocklist, or the name contains characters outside printable ASCII. A disallowed domain is a 400, not this. |  -  |
 
@@ -102,7 +104,7 @@ public class Example {
 
 Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
 ### Example
 
@@ -170,7 +172,7 @@ ApiResponse<[**CreateEmailInbox201Response**](CreateEmailInbox201Response.md)>
 | **201** | Inbox created |  -  |
 | **400** | Bad request - malformed JSON, the address is not a valid email address, the domain is not one this account may create inboxes at, the local part is longer than 50 characters, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
-| **403** | Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization |  -  |
+| **403** | Forbidden - API key lacks the email_inboxes:create scope |  -  |
 | **409** | Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist. |  -  |
 | **422** | Unprocessable - the address or the name is on the impersonation blocklist, or the name contains characters outside printable ASCII. A disallowed domain is a 400, not this. |  -  |
 
@@ -507,8 +509,8 @@ public class Example {
         Integer limit = 56; // Integer | Number of messages per page (default: 50, max: 100)
         String threadId = "threadId_example"; // String | Optional thread ID to filter messages to a specific thread
         Boolean grouped = true; // Boolean | If true, returns only the latest message per thread (grouped view). Cannot be combined with any search parameter — the combination returns 400.
-        String q = "\"order confirmed\" -refund"; // String | Full-text search over the subject and the message body. Supports \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax). The body searched is the plain-text `bodyText` field, which is extracted from `html` for messages that carry no text part. Results stay in reverse-chronological order — this filters, it does not rank.
-        String from = "billing@acme.com"; // String | Case-insensitive substring match on the sender. Matches the raw header, so it covers both the display name and the address.
+        String q = "q_example"; // String | Full-text search over the subject and the message body. Supports \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax). The body searched is the plain-text `bodyText` field, which is extracted from `html` for messages that carry no text part. Results stay in reverse-chronological order — this filters, it does not rank.
+        String from = "from_example"; // String | Case-insensitive substring match on the sender. Matches the raw header, so it covers both the display name and the address.
         List<String> tags = Arrays.asList(); // List<String> | Return messages carrying any of these tags (exact match, OR-combined). Repeat the parameter: tags=a&tags=b. A comma-separated single value (tags=a,b) is also accepted, but cannot express a tag that itself contains a comma. Max 20 values.
         List<String> categories = Arrays.asList(); // List<String> | Return messages carrying any of these categories (exact match, OR-combined). Repeat the parameter: categories=a&categories=b. A comma-separated single value is also accepted, but cannot express a category that itself contains a comma. Max 20 values.
         try {
@@ -598,8 +600,8 @@ public class Example {
         Integer limit = 56; // Integer | Number of messages per page (default: 50, max: 100)
         String threadId = "threadId_example"; // String | Optional thread ID to filter messages to a specific thread
         Boolean grouped = true; // Boolean | If true, returns only the latest message per thread (grouped view). Cannot be combined with any search parameter — the combination returns 400.
-        String q = "\"order confirmed\" -refund"; // String | Full-text search over the subject and the message body. Supports \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax). The body searched is the plain-text `bodyText` field, which is extracted from `html` for messages that carry no text part. Results stay in reverse-chronological order — this filters, it does not rank.
-        String from = "billing@acme.com"; // String | Case-insensitive substring match on the sender. Matches the raw header, so it covers both the display name and the address.
+        String q = "q_example"; // String | Full-text search over the subject and the message body. Supports \"quoted phrases\", `or`, and `-negation` (Postgres websearch syntax). The body searched is the plain-text `bodyText` field, which is extracted from `html` for messages that carry no text part. Results stay in reverse-chronological order — this filters, it does not rank.
+        String from = "from_example"; // String | Case-insensitive substring match on the sender. Matches the raw header, so it covers both the display name and the address.
         List<String> tags = Arrays.asList(); // List<String> | Return messages carrying any of these tags (exact match, OR-combined). Repeat the parameter: tags=a&tags=b. A comma-separated single value (tags=a,b) is also accepted, but cannot express a tag that itself contains a comma. Max 20 values.
         List<String> categories = Arrays.asList(); // List<String> | Return messages carrying any of these categories (exact match, OR-combined). Repeat the parameter: categories=a&categories=b. A comma-separated single value is also accepted, but cannot express a category that itself contains a comma. Max 20 values.
         try {
@@ -655,6 +657,166 @@ ApiResponse<[**GetEmailInboxMessages200Response**](GetEmailInboxMessages200Respo
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
 | **403** | Forbidden - user does not own inbox, API key lacks required scope (email_messages:read), or API key not authorized for this organization |  -  |
 | **404** | Email inbox not found |  -  |
+
+
+## getEmailInboxOtp
+
+> GetEmailInboxOtp200Response getEmailInboxOtp(id, from, withinMinutes)
+
+Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+### Example
+
+```java
+// Import classes:
+import com.programmableinbox.sdk.ApiClient;
+import com.programmableinbox.sdk.ApiException;
+import com.programmableinbox.sdk.Configuration;
+import com.programmableinbox.sdk.auth.*;
+import com.programmableinbox.sdk.models.*;
+import com.programmableinbox.sdk.api.EmailInboxesApi;
+
+public class Example {
+    public static void main(String[] args) {
+        ApiClient defaultClient = Configuration.getDefaultApiClient();
+        defaultClient.setBasePath("https://app.programmableinbox.com");
+        
+        // Configure HTTP bearer authorization: ApiKeyAuth
+        HttpBearerAuth ApiKeyAuth = (HttpBearerAuth) defaultClient.getAuthentication("ApiKeyAuth");
+        ApiKeyAuth.setBearerToken("BEARER TOKEN");
+
+        EmailInboxesApi apiInstance = new EmailInboxesApi(defaultClient);
+        String id = "id_example"; // String | The email inbox ID
+        String from = "from_example"; // String | Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        Integer withinMinutes = 15; // Integer | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        try {
+            GetEmailInboxOtp200Response result = apiInstance.getEmailInboxOtp(id, from, withinMinutes);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling EmailInboxesApi#getEmailInboxOtp");
+            System.err.println("Status code: " + e.getCode());
+            System.err.println("Reason: " + e.getResponseBody());
+            System.err.println("Response headers: " + e.getResponseHeaders());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | **String**| The email inbox ID | |
+| **from** | **String**| Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | [optional] |
+| **withinMinutes** | **Integer**| How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [optional] [default to 15] |
+
+### Return type
+
+[**GetEmailInboxOtp200Response**](GetEmailInboxOtp200Response.md)
+
+
+### Authorization
+
+[ApiKeyAuth](../README.md#ApiKeyAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successfully retrieved the latest OTP |  -  |
+| **400** | Bad request - withinMinutes out of range, or from over the length cap |  -  |
+| **401** | Unauthorized - missing or invalid API key |  -  |
+| **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
+| **404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived within withinMinutes. The message distinguishes a stale code (one exists but is older than the window) from none at all. |  -  |
+
+## getEmailInboxOtpWithHttpInfo
+
+> ApiResponse<GetEmailInboxOtp200Response> getEmailInboxOtpWithHttpInfo(id, from, withinMinutes)
+
+Get the latest one-time code for an inbox
+
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+
+### Example
+
+```java
+// Import classes:
+import com.programmableinbox.sdk.ApiClient;
+import com.programmableinbox.sdk.ApiException;
+import com.programmableinbox.sdk.ApiResponse;
+import com.programmableinbox.sdk.Configuration;
+import com.programmableinbox.sdk.auth.*;
+import com.programmableinbox.sdk.models.*;
+import com.programmableinbox.sdk.api.EmailInboxesApi;
+
+public class Example {
+    public static void main(String[] args) {
+        ApiClient defaultClient = Configuration.getDefaultApiClient();
+        defaultClient.setBasePath("https://app.programmableinbox.com");
+        
+        // Configure HTTP bearer authorization: ApiKeyAuth
+        HttpBearerAuth ApiKeyAuth = (HttpBearerAuth) defaultClient.getAuthentication("ApiKeyAuth");
+        ApiKeyAuth.setBearerToken("BEARER TOKEN");
+
+        EmailInboxesApi apiInstance = new EmailInboxesApi(defaultClient);
+        String id = "id_example"; // String | The email inbox ID
+        String from = "from_example"; // String | Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        Integer withinMinutes = 15; // Integer | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        try {
+            ApiResponse<GetEmailInboxOtp200Response> response = apiInstance.getEmailInboxOtpWithHttpInfo(id, from, withinMinutes);
+            System.out.println("Status code: " + response.getStatusCode());
+            System.out.println("Response headers: " + response.getHeaders());
+            System.out.println("Response body: " + response.getData());
+        } catch (ApiException e) {
+            System.err.println("Exception when calling EmailInboxesApi#getEmailInboxOtp");
+            System.err.println("Status code: " + e.getCode());
+            System.err.println("Response headers: " + e.getResponseHeaders());
+            System.err.println("Reason: " + e.getResponseBody());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | **String**| The email inbox ID | |
+| **from** | **String**| Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | [optional] |
+| **withinMinutes** | **Integer**| How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [optional] [default to 15] |
+
+### Return type
+
+ApiResponse<[**GetEmailInboxOtp200Response**](GetEmailInboxOtp200Response.md)>
+
+
+### Authorization
+
+[ApiKeyAuth](../README.md#ApiKeyAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | Successfully retrieved the latest OTP |  -  |
+| **400** | Bad request - withinMinutes out of range, or from over the length cap |  -  |
+| **401** | Unauthorized - missing or invalid API key |  -  |
+| **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
+| **404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived within withinMinutes. The message distinguishes a stale code (one exists but is older than the window) from none at all. |  -  |
 
 
 ## getEmailMessage
@@ -813,7 +975,7 @@ ApiResponse<[**GetEmailMessage200Response**](GetEmailMessage200Response.md)>
 
 ## listEmailInboxes
 
-> ListEmailInboxes200Response listEmailInboxes(organizationId)
+> ListEmailInboxes200Response listEmailInboxes()
 
 List email inboxes
 
@@ -840,9 +1002,8 @@ public class Example {
         ApiKeyAuth.setBearerToken("BEARER TOKEN");
 
         EmailInboxesApi apiInstance = new EmailInboxesApi(defaultClient);
-        String organizationId = "organizationId_example"; // String | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
         try {
-            ListEmailInboxes200Response result = apiInstance.listEmailInboxes(organizationId);
+            ListEmailInboxes200Response result = apiInstance.listEmailInboxes();
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EmailInboxesApi#listEmailInboxes");
@@ -857,10 +1018,7 @@ public class Example {
 
 ### Parameters
 
-
-| Name | Type | Description  | Notes |
-|------------- | ------------- | ------------- | -------------|
-| **organizationId** | **String**| Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. | [optional] |
+This endpoint does not need any parameter.
 
 ### Return type
 
@@ -881,11 +1039,11 @@ public class Example {
 |-------------|-------------|------------------|
 | **200** | Successfully retrieved email inboxes |  -  |
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
-| **403** | Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read) |  -  |
+| **403** | Forbidden - API key lacks required scope (email_inboxes:read) |  -  |
 
 ## listEmailInboxesWithHttpInfo
 
-> ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo(organizationId)
+> ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo()
 
 List email inboxes
 
@@ -913,9 +1071,8 @@ public class Example {
         ApiKeyAuth.setBearerToken("BEARER TOKEN");
 
         EmailInboxesApi apiInstance = new EmailInboxesApi(defaultClient);
-        String organizationId = "organizationId_example"; // String | Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.
         try {
-            ApiResponse<ListEmailInboxes200Response> response = apiInstance.listEmailInboxesWithHttpInfo(organizationId);
+            ApiResponse<ListEmailInboxes200Response> response = apiInstance.listEmailInboxesWithHttpInfo();
             System.out.println("Status code: " + response.getStatusCode());
             System.out.println("Response headers: " + response.getHeaders());
             System.out.println("Response body: " + response.getData());
@@ -932,10 +1089,7 @@ public class Example {
 
 ### Parameters
 
-
-| Name | Type | Description  | Notes |
-|------------- | ------------- | ------------- | -------------|
-| **organizationId** | **String**| Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. | [optional] |
+This endpoint does not need any parameter.
 
 ### Return type
 
@@ -956,7 +1110,7 @@ ApiResponse<[**ListEmailInboxes200Response**](ListEmailInboxes200Response.md)>
 |-------------|-------------|------------------|
 | **200** | Successfully retrieved email inboxes |  -  |
 | **401** | Unauthorized - missing or invalid token/API key |  -  |
-| **403** | Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read) |  -  |
+| **403** | Forbidden - API key lacks required scope (email_inboxes:read) |  -  |
 
 
 ## updateEmailInbox
@@ -965,7 +1119,7 @@ ApiResponse<[**ListEmailInboxes200Response**](ListEmailInboxes200Response.md)>
 
 Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
 
 ### Example
 
@@ -1030,7 +1184,7 @@ public class Example {
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | Inbox updated |  -  |
-| **400** | Bad request - malformed JSON, the name is not a string or is longer than 100 characters, or &#x60;email&#x60; was supplied and is not a valid email address. A well-formed address that differs from the current one is a 409 instead. |  -  |
+| **400** | Bad request - malformed JSON, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
 | **403** | Forbidden - API key lacks the email_inboxes:update scope |  -  |
 | **404** | Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable. |  -  |
@@ -1043,7 +1197,7 @@ public class Example {
 
 Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
 
 ### Example
 
@@ -1111,7 +1265,7 @@ ApiResponse<[**CreateEmailInbox201Response**](CreateEmailInbox201Response.md)>
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | Inbox updated |  -  |
-| **400** | Bad request - malformed JSON, the name is not a string or is longer than 100 characters, or &#x60;email&#x60; was supplied and is not a valid email address. A well-formed address that differs from the current one is a 409 instead. |  -  |
+| **400** | Bad request - malformed JSON, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
 | **403** | Forbidden - API key lacks the email_inboxes:update scope |  -  |
 | **404** | Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable. |  -  |

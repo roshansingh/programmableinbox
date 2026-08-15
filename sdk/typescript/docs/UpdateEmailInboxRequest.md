@@ -7,7 +7,6 @@
 Name | Type
 ------------ | -------------
 `name` | string
-`email` | string
 
 ## Example
 
@@ -17,7 +16,6 @@ import type { UpdateEmailInboxRequest } from '@programmableinbox/sdk'
 // TODO: Update the object below with actual values
 const example = {
   "name": null,
-  "email": null,
 } satisfies UpdateEmailInboxRequest
 
 console.log(example)

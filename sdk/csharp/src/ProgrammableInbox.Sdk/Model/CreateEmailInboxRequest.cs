@@ -35,13 +35,11 @@ namespace ProgrammableInbox.Sdk.Model
         /// </summary>
         /// <param name="email">The address to claim. Normalized to lowercase before storage, and permanent once created.</param>
         /// <param name="name">Optional display label. Subject to the same impersonation blocklist as the address.</param>
-        /// <param name="organizationId">Optional. Must match the organization the API key is bound to if supplied; the key&#39;s organization is used otherwise.</param>
         [JsonConstructor]
-        public CreateEmailInboxRequest(string email, Option<string?> name = default, Option<string?> organizationId = default)
+        public CreateEmailInboxRequest(string email, Option<string?> name = default)
         {
             Email = email;
             NameOption = name;
-            OrganizationIdOption = organizationId;
             OnCreated();
         }
 
@@ -69,20 +67,6 @@ namespace ProgrammableInbox.Sdk.Model
         public string? Name { get { return this.NameOption.Value; } set { this.NameOption = new(value); } }
 
         /// <summary>
-        /// Used to track the state of OrganizationId
-        /// </summary>
-        [JsonIgnore]
-        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public Option<string?> OrganizationIdOption { get; private set; }
-
-        /// <summary>
-        /// Optional. Must match the organization the API key is bound to if supplied; the key&#39;s organization is used otherwise.
-        /// </summary>
-        /// <value>Optional. Must match the organization the API key is bound to if supplied; the key&#39;s organization is used otherwise.</value>
-        [JsonPropertyName("organizationId")]
-        public string? OrganizationId { get { return this.OrganizationIdOption.Value; } set { this.OrganizationIdOption = new(value); } }
-
-        /// <summary>
         /// Returns the string presentation of the object
         /// </summary>
         /// <returns>String presentation of the object</returns>
@@ -92,7 +76,6 @@ namespace ProgrammableInbox.Sdk.Model
             sb.Append("class CreateEmailInboxRequest {\n");
             sb.Append("  Email: ").Append(Email).Append("\n");
             sb.Append("  Name: ").Append(Name).Append("\n");
-            sb.Append("  OrganizationId: ").Append(OrganizationId).Append("\n");
             sb.Append("}\n");
             return sb.ToString();
         }
@@ -142,7 +125,6 @@ namespace ProgrammableInbox.Sdk.Model
 
             Option<string?> email = default;
             Option<string?> name = default;
-            Option<string?> organizationId = default;
 
             while (utf8JsonReader.Read())
             {
@@ -165,9 +147,6 @@ namespace ProgrammableInbox.Sdk.Model
                         case "name":
                             name = new Option<string?>(utf8JsonReader.GetString());
                             break;
-                        case "organizationId":
-                            organizationId = new Option<string?>(utf8JsonReader.GetString()!);
-                            break;
                         default:
                             break;
                     }
@@ -180,10 +159,7 @@ namespace ProgrammableInbox.Sdk.Model
             if (email.IsSet && email.Value == null)
                 throw new ArgumentNullException(nameof(email), "Property is not nullable for class CreateEmailInboxRequest.");
 
-            if (organizationId.IsSet && organizationId.Value == null)
-                throw new ArgumentNullException(nameof(organizationId), "Property is not nullable for class CreateEmailInboxRequest.");
-
-            return new CreateEmailInboxRequest(email.Value!, name, organizationId);
+            return new CreateEmailInboxRequest(email.Value!, name);
         }
 
         /// <summary>
@@ -213,9 +189,6 @@ namespace ProgrammableInbox.Sdk.Model
             if (createEmailInboxRequest.Email == null)
                 throw new ArgumentNullException(nameof(createEmailInboxRequest.Email), "Property is required for class CreateEmailInboxRequest.");
 
-            if (createEmailInboxRequest.OrganizationIdOption.IsSet && createEmailInboxRequest.OrganizationId == null)
-                throw new ArgumentNullException(nameof(createEmailInboxRequest.OrganizationId), "Property is required for class CreateEmailInboxRequest.");
-
             writer.WriteString("email", createEmailInboxRequest.Email);
 
             if (createEmailInboxRequest.NameOption.IsSet)
@@ -223,9 +196,6 @@ namespace ProgrammableInbox.Sdk.Model
                     writer.WriteString("name", createEmailInboxRequest.Name);
                 else
                     writer.WriteNull("name");
-
-            if (createEmailInboxRequest.OrganizationIdOption.IsSet)
-                writer.WriteString("organizationId", createEmailInboxRequest.OrganizationId);
         }
     }
 }

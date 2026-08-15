@@ -6,7 +6,6 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Email** | **string** | The address to claim. Normalized to lowercase before storage, and permanent once created. | 
 **Name** | Pointer to **NullableString** | Optional display label. Subject to the same impersonation blocklist as the address. | [optional] 
-**OrganizationId** | Pointer to **string** | Optional. Must match the organization the API key is bound to if supplied; the key&#39;s organization is used otherwise. | [optional] 
 
 ## Methods
 
@@ -82,31 +81,6 @@ HasName returns a boolean if a field has been set.
 `func (o *CreateEmailInboxRequest) UnsetName()`
 
 UnsetName ensures that no value is present for Name, not even an explicit nil
-### GetOrganizationId
-
-`func (o *CreateEmailInboxRequest) GetOrganizationId() string`
-
-GetOrganizationId returns the OrganizationId field if non-nil, zero value otherwise.
-
-### GetOrganizationIdOk
-
-`func (o *CreateEmailInboxRequest) GetOrganizationIdOk() (*string, bool)`
-
-GetOrganizationIdOk returns a tuple with the OrganizationId field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetOrganizationId
-
-`func (o *CreateEmailInboxRequest) SetOrganizationId(v string)`
-
-SetOrganizationId sets OrganizationId field to given value.
-
-### HasOrganizationId
-
-`func (o *CreateEmailInboxRequest) HasOrganizationId() bool`
-
-HasOrganizationId returns a boolean if a field has been set.
-
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

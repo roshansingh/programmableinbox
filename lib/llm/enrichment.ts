@@ -52,7 +52,7 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
   try {
     const message = await prisma.emailMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, subject: true, text: true, metadata: true, organizationId: true },
+      select: { id: true, subject: true, text: true, bodyText: true, metadata: true, organizationId: true },
     })
     if (!message) {
       logger.info({ messageId }, '[enrichMessage] skip: message not found')
@@ -97,7 +97,11 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
 
     logger.info({ messageId }, '[enrichMessage] calling provider.enrich')
     try {
-      const result = await provider.enrich(message.subject, message.text)
+      // `text` is the raw sender-provided plain-text MIME part and is empty
+      // for HTML-only mail; `bodyText` is derived at ingestion (route.ts) and
+      // falls back to HTML-extracted text in that case, so it's what actually
+      // contains content like an OTP for those messages.
+      const result = await provider.enrich(message.subject, message.bodyText ?? message.text)
       logger.info(
         { messageId, categories: result.categories, otp: result.extractedOtp },
         '[enrichMessage] done',

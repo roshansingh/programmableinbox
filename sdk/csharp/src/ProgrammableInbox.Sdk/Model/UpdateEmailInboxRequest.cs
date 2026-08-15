@@ -34,12 +34,10 @@ namespace ProgrammableInbox.Sdk.Model
         /// Initializes a new instance of the <see cref="UpdateEmailInboxRequest" /> class.
         /// </summary>
         /// <param name="name">The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one.</param>
-        /// <param name="email">Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.</param>
         [JsonConstructor]
-        public UpdateEmailInboxRequest(Option<string?> name = default, Option<string?> email = default)
+        public UpdateEmailInboxRequest(Option<string?> name = default)
         {
             NameOption = name;
-            EmailOption = email;
             OnCreated();
         }
 
@@ -60,20 +58,6 @@ namespace ProgrammableInbox.Sdk.Model
         public string? Name { get { return this.NameOption.Value; } set { this.NameOption = new(value); } }
 
         /// <summary>
-        /// Used to track the state of Email
-        /// </summary>
-        [JsonIgnore]
-        [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-        public Option<string?> EmailOption { get; private set; }
-
-        /// <summary>
-        /// Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.
-        /// </summary>
-        /// <value>Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.</value>
-        [JsonPropertyName("email")]
-        public string? Email { get { return this.EmailOption.Value; } set { this.EmailOption = new(value); } }
-
-        /// <summary>
         /// Returns the string presentation of the object
         /// </summary>
         /// <returns>String presentation of the object</returns>
@@ -82,7 +66,6 @@ namespace ProgrammableInbox.Sdk.Model
             StringBuilder sb = new StringBuilder();
             sb.Append("class UpdateEmailInboxRequest {\n");
             sb.Append("  Name: ").Append(Name).Append("\n");
-            sb.Append("  Email: ").Append(Email).Append("\n");
             sb.Append("}\n");
             return sb.ToString();
         }
@@ -131,7 +114,6 @@ namespace ProgrammableInbox.Sdk.Model
             JsonTokenType startingTokenType = utf8JsonReader.TokenType;
 
             Option<string?> name = default;
-            Option<string?> email = default;
 
             while (utf8JsonReader.Read())
             {
@@ -151,19 +133,13 @@ namespace ProgrammableInbox.Sdk.Model
                         case "name":
                             name = new Option<string?>(utf8JsonReader.GetString());
                             break;
-                        case "email":
-                            email = new Option<string?>(utf8JsonReader.GetString()!);
-                            break;
                         default:
                             break;
                     }
                 }
             }
 
-            if (email.IsSet && email.Value == null)
-                throw new ArgumentNullException(nameof(email), "Property is not nullable for class UpdateEmailInboxRequest.");
-
-            return new UpdateEmailInboxRequest(name, email);
+            return new UpdateEmailInboxRequest(name);
         }
 
         /// <summary>
@@ -190,17 +166,11 @@ namespace ProgrammableInbox.Sdk.Model
         /// <exception cref="NotImplementedException"></exception>
         public void WriteProperties(Utf8JsonWriter writer, UpdateEmailInboxRequest updateEmailInboxRequest, JsonSerializerOptions jsonSerializerOptions)
         {
-            if (updateEmailInboxRequest.EmailOption.IsSet && updateEmailInboxRequest.Email == null)
-                throw new ArgumentNullException(nameof(updateEmailInboxRequest.Email), "Property is required for class UpdateEmailInboxRequest.");
-
             if (updateEmailInboxRequest.NameOption.IsSet)
                 if (updateEmailInboxRequest.NameOption.Value != null)
                     writer.WriteString("name", updateEmailInboxRequest.Name);
                 else
                     writer.WriteNull("name");
-
-            if (updateEmailInboxRequest.EmailOption.IsSet)
-                writer.WriteString("email", updateEmailInboxRequest.Email);
         }
     }
 }

@@ -103,6 +103,30 @@ describe('enrichMessage', () => {
     })
   })
 
+  /**
+   * `text` is empty for HTML-only mail (webhook route sets `text: resendEmail.text || ''`);
+   * `bodyText` is derived at ingestion and falls back to HTML-extracted text in that case.
+   * Enrichment must read from `bodyText` or an OTP embedded only in the HTML part is invisible
+   * to the LLM.
+   */
+  it('enriches from bodyText, not the raw text field, when text is empty (HTML-only mail)', async () => {
+    mockFindUnique.mockResolvedValue({
+      id: 'msg-1',
+      subject: 'Your ChatGPT code',
+      text: '',
+      bodyText: 'Enter this temporary verification code to continue: 851079',
+      metadata: null,
+      organizationId: 'org-1',
+    })
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockEnrich).toHaveBeenCalledWith(
+      'Your ChatGPT code',
+      'Enter this temporary verification code to continue: 851079',
+    )
+  })
+
   it('skips when LLM_PROVIDER is not configured (getProvider returns null)', async () => {
     mockGetProvider.mockReturnValue(null)
     const { enrichMessage } = await import('../enrichment')

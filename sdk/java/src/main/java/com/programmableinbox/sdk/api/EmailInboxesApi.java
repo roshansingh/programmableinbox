@@ -23,6 +23,7 @@ import com.programmableinbox.sdk.model.CreateEmailInboxRequest;
 import com.programmableinbox.sdk.model.ErrorResponse;
 import com.programmableinbox.sdk.model.GetEmailInbox200Response;
 import com.programmableinbox.sdk.model.GetEmailInboxMessages200Response;
+import com.programmableinbox.sdk.model.GetEmailInboxOtp200Response;
 import com.programmableinbox.sdk.model.GetEmailMessage200Response;
 import com.programmableinbox.sdk.model.ListEmailInboxes200Response;
 import com.programmableinbox.sdk.model.UpdateEmailInboxRequest;
@@ -171,7 +172,7 @@ public class EmailInboxesApi {
 
   /**
    * Create an email inbox
-   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
    * @param createEmailInboxRequest  (required)
    * @return CreateEmailInbox201Response
    * @throws ApiException if fails to make API call
@@ -182,7 +183,7 @@ public class EmailInboxesApi {
 
   /**
    * Create an email inbox
-   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
    * @param createEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request
    * @return CreateEmailInbox201Response
@@ -195,7 +196,7 @@ public class EmailInboxesApi {
 
   /**
    * Create an email inbox
-   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
    * @param createEmailInboxRequest  (required)
    * @return ApiResponse&lt;CreateEmailInbox201Response&gt;
    * @throws ApiException if fails to make API call
@@ -206,7 +207,7 @@ public class EmailInboxesApi {
 
   /**
    * Create an email inbox
-   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+   * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
    * @param createEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;CreateEmailInbox201Response&gt;
@@ -694,6 +695,149 @@ public class EmailInboxesApi {
   }
 
   /**
+   * Get the latest one-time code for an inbox
+   * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+   * @param id The email inbox ID (required)
+   * @param from Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)
+   * @param withinMinutes How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)
+   * @return GetEmailInboxOtp200Response
+   * @throws ApiException if fails to make API call
+   */
+  public GetEmailInboxOtp200Response getEmailInboxOtp(@javax.annotation.Nonnull String id, @javax.annotation.Nullable String from, @javax.annotation.Nullable Integer withinMinutes) throws ApiException {
+    return getEmailInboxOtp(id, from, withinMinutes, null);
+  }
+
+  /**
+   * Get the latest one-time code for an inbox
+   * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+   * @param id The email inbox ID (required)
+   * @param from Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)
+   * @param withinMinutes How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)
+   * @param headers Optional headers to include in the request
+   * @return GetEmailInboxOtp200Response
+   * @throws ApiException if fails to make API call
+   */
+  public GetEmailInboxOtp200Response getEmailInboxOtp(@javax.annotation.Nonnull String id, @javax.annotation.Nullable String from, @javax.annotation.Nullable Integer withinMinutes, Map<String, String> headers) throws ApiException {
+    ApiResponse<GetEmailInboxOtp200Response> localVarResponse = getEmailInboxOtpWithHttpInfo(id, from, withinMinutes, headers);
+    return localVarResponse.getData();
+  }
+
+  /**
+   * Get the latest one-time code for an inbox
+   * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+   * @param id The email inbox ID (required)
+   * @param from Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)
+   * @param withinMinutes How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)
+   * @return ApiResponse&lt;GetEmailInboxOtp200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<GetEmailInboxOtp200Response> getEmailInboxOtpWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nullable String from, @javax.annotation.Nullable Integer withinMinutes) throws ApiException {
+    return getEmailInboxOtpWithHttpInfo(id, from, withinMinutes, null);
+  }
+
+  /**
+   * Get the latest one-time code for an inbox
+   * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
+   * @param id The email inbox ID (required)
+   * @param from Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)
+   * @param withinMinutes How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)
+   * @param headers Optional headers to include in the request
+   * @return ApiResponse&lt;GetEmailInboxOtp200Response&gt;
+   * @throws ApiException if fails to make API call
+   */
+  public ApiResponse<GetEmailInboxOtp200Response> getEmailInboxOtpWithHttpInfo(@javax.annotation.Nonnull String id, @javax.annotation.Nullable String from, @javax.annotation.Nullable Integer withinMinutes, Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = getEmailInboxOtpRequestBuilder(id, from, withinMinutes, headers);
+    try {
+      HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
+          localVarRequestBuilder.build(),
+          HttpResponse.BodyHandlers.ofInputStream());
+      if (memberVarResponseInterceptor != null) {
+        memberVarResponseInterceptor.accept(localVarResponse);
+      }
+      InputStream localVarResponseBody = null;
+      try {
+        if (localVarResponse.statusCode()/ 100 != 2) {
+          throw getApiException("getEmailInboxOtp", localVarResponse);
+        }
+        localVarResponseBody = ApiClient.getResponseBody(localVarResponse);
+        if (localVarResponseBody == null) {
+          return new ApiResponse<GetEmailInboxOtp200Response>(
+              localVarResponse.statusCode(),
+              localVarResponse.headers().map(),
+              null
+          );
+        }
+
+        
+        
+        String responseBody = new String(localVarResponseBody.readAllBytes());
+        GetEmailInboxOtp200Response responseValue = responseBody.isBlank()? null: memberVarObjectMapper.readValue(responseBody, new TypeReference<GetEmailInboxOtp200Response>() {});
+        
+
+        return new ApiResponse<GetEmailInboxOtp200Response>(
+            localVarResponse.statusCode(),
+            localVarResponse.headers().map(),
+            responseValue
+        );
+      } finally {
+        if (localVarResponseBody != null) {
+          localVarResponseBody.close();
+        }
+      }
+    } catch (IOException e) {
+      throw new ApiException(e);
+    }
+    catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ApiException(e);
+    }
+  }
+
+  private HttpRequest.Builder getEmailInboxOtpRequestBuilder(@javax.annotation.Nonnull String id, @javax.annotation.Nullable String from, @javax.annotation.Nullable Integer withinMinutes, Map<String, String> headers) throws ApiException {
+    // verify the required parameter 'id' is set
+    if (id == null) {
+      throw new ApiException(400, "Missing the required parameter 'id' when calling getEmailInboxOtp");
+    }
+
+    HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
+
+    String localVarPath = "/api/v1/emailInbox/{id}/otp"
+        .replace("{id}", ApiClient.urlEncode(id.toString()));
+
+    List<Pair> localVarQueryParams = new ArrayList<>();
+    StringJoiner localVarQueryStringJoiner = new StringJoiner("&");
+    String localVarQueryParameterBaseName;
+    localVarQueryParameterBaseName = "from";
+    localVarQueryParams.addAll(ApiClient.parameterToPairs("from", from));
+    localVarQueryParameterBaseName = "withinMinutes";
+    localVarQueryParams.addAll(ApiClient.parameterToPairs("withinMinutes", withinMinutes));
+
+    if (!localVarQueryParams.isEmpty() || localVarQueryStringJoiner.length() != 0) {
+      StringJoiner queryJoiner = new StringJoiner("&");
+      localVarQueryParams.forEach(p -> queryJoiner.add(p.getName() + '=' + p.getValue()));
+      if (localVarQueryStringJoiner.length() != 0) {
+        queryJoiner.add(localVarQueryStringJoiner.toString());
+      }
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath + '?' + queryJoiner.toString()));
+    } else {
+      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
+    }
+
+    localVarRequestBuilder.header("Accept", "application/json");
+
+    localVarRequestBuilder.method("GET", HttpRequest.BodyPublishers.noBody());
+    if (memberVarReadTimeout != null) {
+      localVarRequestBuilder.timeout(memberVarReadTimeout);
+    }
+    // Add custom headers if provided
+    localVarRequestBuilder = HttpRequestBuilderExtensions.withAdditionalHeaders(localVarRequestBuilder, headers);
+    if (memberVarInterceptor != null) {
+      memberVarInterceptor.accept(localVarRequestBuilder);
+    }
+    return localVarRequestBuilder;
+  }
+
+  /**
    * Get a single message
    * Returns a specific message from an email inbox. Requires API key with &#x60;email_messages:read&#x60; scope.
    * @param id The email inbox ID (required)
@@ -823,48 +967,44 @@ public class EmailInboxesApi {
   /**
    * List email inboxes
    * Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
-   * @param organizationId Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)
    * @return ListEmailInboxes200Response
    * @throws ApiException if fails to make API call
    */
-  public ListEmailInboxes200Response listEmailInboxes(@javax.annotation.Nullable String organizationId) throws ApiException {
-    return listEmailInboxes(organizationId, null);
+  public ListEmailInboxes200Response listEmailInboxes() throws ApiException {
+    return listEmailInboxes(null);
   }
 
   /**
    * List email inboxes
    * Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
-   * @param organizationId Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)
    * @param headers Optional headers to include in the request
    * @return ListEmailInboxes200Response
    * @throws ApiException if fails to make API call
    */
-  public ListEmailInboxes200Response listEmailInboxes(@javax.annotation.Nullable String organizationId, Map<String, String> headers) throws ApiException {
-    ApiResponse<ListEmailInboxes200Response> localVarResponse = listEmailInboxesWithHttpInfo(organizationId, headers);
+  public ListEmailInboxes200Response listEmailInboxes(Map<String, String> headers) throws ApiException {
+    ApiResponse<ListEmailInboxes200Response> localVarResponse = listEmailInboxesWithHttpInfo(headers);
     return localVarResponse.getData();
   }
 
   /**
    * List email inboxes
    * Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
-   * @param organizationId Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)
    * @return ApiResponse&lt;ListEmailInboxes200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo(@javax.annotation.Nullable String organizationId) throws ApiException {
-    return listEmailInboxesWithHttpInfo(organizationId, null);
+  public ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo() throws ApiException {
+    return listEmailInboxesWithHttpInfo(null);
   }
 
   /**
    * List email inboxes
    * Returns a list of email inboxes for the organization. Requires API key with &#x60;email_inboxes:read&#x60; scope.
-   * @param organizationId Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization. (optional)
    * @param headers Optional headers to include in the request
    * @return ApiResponse&lt;ListEmailInboxes200Response&gt;
    * @throws ApiException if fails to make API call
    */
-  public ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo(@javax.annotation.Nullable String organizationId, Map<String, String> headers) throws ApiException {
-    HttpRequest.Builder localVarRequestBuilder = listEmailInboxesRequestBuilder(organizationId, headers);
+  public ApiResponse<ListEmailInboxes200Response> listEmailInboxesWithHttpInfo(Map<String, String> headers) throws ApiException {
+    HttpRequest.Builder localVarRequestBuilder = listEmailInboxesRequestBuilder(headers);
     try {
       HttpResponse<InputStream> localVarResponse = memberVarHttpClient.send(
           localVarRequestBuilder.build(),
@@ -911,28 +1051,13 @@ public class EmailInboxesApi {
     }
   }
 
-  private HttpRequest.Builder listEmailInboxesRequestBuilder(@javax.annotation.Nullable String organizationId, Map<String, String> headers) throws ApiException {
+  private HttpRequest.Builder listEmailInboxesRequestBuilder(Map<String, String> headers) throws ApiException {
 
     HttpRequest.Builder localVarRequestBuilder = HttpRequest.newBuilder();
 
     String localVarPath = "/api/v1/emailInbox";
 
-    List<Pair> localVarQueryParams = new ArrayList<>();
-    StringJoiner localVarQueryStringJoiner = new StringJoiner("&");
-    String localVarQueryParameterBaseName;
-    localVarQueryParameterBaseName = "organizationId";
-    localVarQueryParams.addAll(ApiClient.parameterToPairs("organizationId", organizationId));
-
-    if (!localVarQueryParams.isEmpty() || localVarQueryStringJoiner.length() != 0) {
-      StringJoiner queryJoiner = new StringJoiner("&");
-      localVarQueryParams.forEach(p -> queryJoiner.add(p.getName() + '=' + p.getValue()));
-      if (localVarQueryStringJoiner.length() != 0) {
-        queryJoiner.add(localVarQueryStringJoiner.toString());
-      }
-      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath + '?' + queryJoiner.toString()));
-    } else {
-      localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
-    }
+    localVarRequestBuilder.uri(URI.create(memberVarBaseUri + localVarPath));
 
     localVarRequestBuilder.header("Accept", "application/json");
 
@@ -950,7 +1075,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @return CreateEmailInbox201Response
@@ -962,7 +1087,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request
@@ -976,7 +1101,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @return ApiResponse&lt;CreateEmailInbox201Response&gt;
@@ -988,7 +1113,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request
