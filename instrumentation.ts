@@ -27,10 +27,9 @@ export async function register() {
     const { assertConfig } = await import('@/lib/config/assert')
     assertConfig()
 
-    // Observability (logs + traces, EE). Runs before initializeCommercialPlans
-    // below — and before anything else in this function that might create the
-    // Pino singleton — because registerExtraLogTransport() only works before
-    // the logger is first constructed. See ee/observability/init.ts.
+    // Observability (traces, EE). Log shipping is not initialized here — it
+    // happens outside the process, via the collector tailing this
+    // container's Docker stdout. See ee/observability/init.ts.
     const { initializeObservability } = await import('@/ee/observability/init')
     initializeObservability()
 

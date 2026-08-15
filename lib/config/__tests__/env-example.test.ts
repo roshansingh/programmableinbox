@@ -31,6 +31,15 @@ describe('.env.example', () => {
       // Read outside the app's config layer, so absent from DOMAIN_SCHEMAS:
       // consumed by the deploy stack's one-shot migrate container.
       'MIGRATE_DATABASE_URL',
+      // Consumed by the otel-collector container (deploy/otel-collector.yaml),
+      // not the app — real OTLP backend credentials, distinct from the app's
+      // own OTEL_EXPORTER_OTLP_* vars which now just point at the collector.
+      'OTEL_EXPORTER_ENDPOINT',
+      'OTEL_EXPORTER_AUTH',
+      // Read directly by @vercel/otel via the standard OTel SDK env var
+      // convention, same as OTEL_EXPORTER_OTLP_ENDPOINT/_HEADERS — never
+      // funneled through lib/config, so it has no schema entry either.
+      'OTEL_EXPORTER_OTLP_PROTOCOL',
       // Client-side only — lives in lib/config/client.ts, which cannot import
       // the server-only schema registry.
       'NEXT_PUBLIC_API_MODE',

@@ -281,10 +281,26 @@ curl -fsS https://$DOMAIN/api/internal/webhook-worker/health   # expect 200 / wo
 
 ## Part 9 — Observability: log search & tracing (EE, optional)
 
-No new containers. Add the four vars from the "Observability" section of
-`.env.example` to `/srv/inboxui/secrets/app.env` from Part 3, then:
+One new container, `otel-collector`, gated behind the `observability` compose
+profile so it only runs when you ask for it. Its secrets live in their own
+file, not `app.env` — it's a third-party image with a read-only mount over
+every container's log history, so it only gets the two vars it actually
+needs rather than `JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
 
-    sudo -u deploy docker compose -f docker-compose.yml restart app
+    sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/otel-collector.env <<'EOF'
+    OTEL_EXPORTER_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
+    OTEL_EXPORTER_AUTH=Basic <base64 of instanceID:apiToken>
+    OTEL_SERVICE_NAME=inboxui
+    EOF
+
+Then add the app's half — `ENABLE_OBSERVABILITY` and the `OTEL_EXPORTER_OTLP_*` vars (pointed at
+the collector on the internal network, not at your OTLP backend directly) — from the
+"Observability" section of `.env.example` to `/srv/inboxui/secrets/app.env` from Part 3. Then:
+
+    sudo -u deploy docker compose -f docker-compose.yml --profile observability up -d
+
+Restarting just `app` (`docker compose restart app`) is not enough by itself —
+the collector has to actually be running for either signal to leave the box.
 
 Full setup (getting the endpoint/headers from Grafana Cloud's free tier) is in
 docs/observability-operator-guide.md.
