@@ -117,6 +117,17 @@ the other:
   moment it starts, not a container's history from before it existed. This is deliberate (see the
   comment there), not a bug.
 
+**`docker compose logs otel-collector` shows a stream of `Failed to process entry` / `severity_parser`
+or `json_parser` errors, but logs and traces both show up fine in Grafana.**
+Expected and harmless — this is the collector logging its own parse attempts on lines that were
+never going to be Pino JSON in the first place (a Postgres or Redis log line, mostly). Every
+`filelog/docker` parser operator in `deploy/otel-collector.yaml` runs `on_error: send_quiet` so a
+failed parse still passes the line through unmodified rather than dropping it, logged at Debug
+(suppressed at the collector's default log level) instead of Error. If you're seeing this at Error
+level specifically, you're on an older config that used `on_error: send` — pull the latest
+`deploy/otel-collector.yaml` and recreate the service (`docker compose --profile observability up
+-d --no-deps otel-collector`; `restart` alone won't remount the changed config file).
+
 **Nothing appears in Grafana at all, from either signal.**
 The collector's own credentials are wrong — a typo in `OTEL_EXPORTER_ENDPOINT`, an expired
 `OTEL_EXPORTER_AUTH` token, or the wrong region's gateway URL. Unlike the old direct-push design,

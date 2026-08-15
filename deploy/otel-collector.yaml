@@ -39,7 +39,7 @@ receivers:
   # non-app container's output is JSON — Postgres and Redis write plain
   # text — but some are: Caddy defaults to JSON logging on stderr whenever
   # it isn't attached to a TTY, which is always true here. The json_parser
-  # operator below is best-effort (on_error: send) either way, so plain-text
+  # operator below is best-effort (on_error: send_quiet) either way, so plain-text
   # lines pass through with their raw text as the log body instead of being
   # dropped or crashing the pipeline, and Caddy's JSON lines parse
   # successfully but are kept out of the app-only processing below (see the
@@ -71,20 +71,27 @@ receivers:
         format: docker
 
       # Pino writes one JSON object per line in production (see header
-      # comment). on_error: send means a non-JSON line (any other
-      # service's stdout) just keeps its raw text as the body instead of
-      # failing the pipeline.
+      # comment). on_error: send_quiet means a non-JSON line (Postgres,
+      # Redis, and anything else that isn't JSON at all) just keeps its raw
+      # text as the body instead of failing the pipeline — `send_quiet`
+      # rather than `send` because this is the EXPECTED, common case
+      # (most containers here aren't Pino), and `send` logs at Error level
+      # on every single failure: with Postgres/Redis writing plain text
+      # continuously, that would flood the collector's own logs with a
+      # false-alarm error per line. `send_quiet` does the identical
+      # pass-through, just logged at Debug instead.
       - type: json_parser
         parse_from: body
         parse_to: attributes
-        on_error: send
+        on_error: send_quiet
 
       # Pino's numeric level (10/20/30/40/50/60) mapped to OTel's
       # SeverityNumber scale. Consumes attributes.level on success; a
-      # non-Pino line has no `level` attribute, so this is a no-op there.
+      # non-Pino line has no `level` attribute, so this is a no-op there —
+      # see the json_parser comment above for why on_error is send_quiet.
       - type: severity_parser
         parse_from: attributes.level
-        on_error: send
+        on_error: send_quiet
         mapping:
           trace: 10
           debug: 20
@@ -110,12 +117,13 @@ receivers:
       # Pino's timestamp key is `time` (pino.stdTimeFunctions.isoTime),
       # formatted like 2024-01-01T00:00:00.000Z. Falls back to Docker's own
       # receive time (set by the `container` operator above) for non-Pino
-      # lines, via on_error.
+      # lines — see the json_parser comment above for why on_error is
+      # send_quiet rather than send.
       - type: time_parser
         parse_from: attributes.time
         layout_type: gotime
         layout: '2006-01-02T15:04:05.000Z'
-        on_error: send
+        on_error: send_quiet
 
 processors:
   batch: {}
