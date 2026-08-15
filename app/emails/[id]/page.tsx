@@ -257,6 +257,7 @@ export default function InboxPage() {
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Back"
                 onClick={() => {
                   if (showMessageDetail) {
                     setShowMessageDetail(false)
