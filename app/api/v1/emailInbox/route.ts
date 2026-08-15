@@ -33,7 +33,7 @@ export const GET = withApiKey({ scopes: ['email_inboxes:read'] }, async (_reques
  * organization holds, and every one of those addresses is retired permanently.
  */
 export const POST = withApiKey({ scopes: ['email_inboxes:create'] }, async (request, principal) => {
-  let body: { email?: unknown; name?: unknown; organizationId?: unknown }
+  let body: { email?: unknown; name?: unknown }
 
   try {
     body = await request.json()
@@ -42,13 +42,10 @@ export const POST = withApiKey({ scopes: ['email_inboxes:create'] }, async (requ
   }
 
   try {
-    // The organization comes from the key, never from the body. A supplied
-    // value is only ever checked against the binding, so naming another org is
-    // a 403 rather than a silently ignored field.
-    const { scope, error } = toInboxWriteScope(
-      principal,
-      typeof body.organizationId === 'string' ? body.organizationId : null,
-    )
+    // No organizationId to read from the body: an API key is bound to exactly
+    // one organization, so there is nothing to resolve beyond it (see the GET
+    // handler above for the same reasoning on the list endpoint).
+    const { scope, error } = toInboxWriteScope(principal)
     if (error) return error
 
     const result = await createInbox(scope, { email: body.email, name: body.name })

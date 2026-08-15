@@ -69,7 +69,7 @@ export const spec = {
       post: {
         summary: 'Create an email inbox',
         description:
-          'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.',
+          'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.',
         operationId: 'createEmailInbox',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -91,11 +91,6 @@ export const spec = {
                     nullable: true,
                     description:
                       'Optional display label. Subject to the same impersonation blocklist as the address.',
-                  },
-                  organizationId: {
-                    type: 'string',
-                    description:
-                      'Optional. Must match the organization the API key is bound to if supplied; the key\'s organization is used otherwise.',
                   },
                 },
                 required: ['email'],
@@ -137,8 +132,7 @@ export const spec = {
             },
           },
           '403': {
-            description:
-              'Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization',
+            description: 'Forbidden - API key lacks the email_inboxes:create scope',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -638,7 +632,8 @@ export const spec = {
         description:
           'Returns the most recently extracted one-time passcode (OTP) for an email inbox, '
           + 'with the message it came from. Requires API key with `email_messages:read` scope — '
-          + 'this is a read of extracted message content, not inbox metadata.',
+          + 'this is a read of extracted message content, not inbox metadata. Shares its lookup '
+          + 'and arguments with the pibx_email_get_latest_otp MCP tool.',
         operationId: 'getEmailInboxOtp',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -649,6 +644,24 @@ export const spec = {
             description: 'The email inbox ID',
             required: true,
             schema: { type: 'string' },
+          },
+          {
+            name: 'from',
+            in: 'query',
+            description:
+              'Only consider messages whose From header contains this substring, e.g. '
+              + '"stripe.com". Case-insensitive, matches the raw header.',
+            required: false,
+            schema: { type: 'string', maxLength: 200 },
+          },
+          {
+            name: 'withinMinutes',
+            in: 'query',
+            description:
+              'How recent the code must be. Defaults to 15 minutes, because a stale code '
+              + 'looks identical to a fresh one and will silently fail wherever it is used.',
+            required: false,
+            schema: { type: 'integer', minimum: 1, maximum: 1440, default: 15 },
           },
         ],
         responses: {
@@ -663,15 +676,21 @@ export const spec = {
                       type: 'object',
                       properties: {
                         otp: { type: 'string', example: '123456' },
-                        receivedAt: { type: 'string', format: 'date-time' },
-                        messageId: { type: 'string', example: 'msg-1' },
-                        from: { type: 'string', example: 'noreply@example.com' },
+                        message: { $ref: '#/components/schemas/EmailMessage' },
                       },
-                      required: ['otp', 'receivedAt', 'messageId', 'from'],
+                      required: ['otp', 'message'],
                     },
                   },
                   required: ['data'],
                 },
+              },
+            },
+          },
+          '400': {
+            description: 'Bad request - withinMinutes out of range, or from over the length cap',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
               },
             },
           },
@@ -694,7 +713,8 @@ export const spec = {
           '404': {
             description:
               'Not found - no such inbox visible to this key, or no message with an '
-              + 'extracted OTP has arrived for it yet',
+              + 'extracted OTP has arrived within withinMinutes. The message distinguishes '
+              + 'a stale code (one exists but is older than the window) from none at all.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

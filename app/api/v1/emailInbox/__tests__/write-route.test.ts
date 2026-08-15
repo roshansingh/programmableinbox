@@ -121,24 +121,12 @@ describe('POST /api/v1/emailInbox', () => {
     expect(createInboxMock.mock.calls[0][0].organizationId).toBe('org_1')
   })
 
-  it('ignores a non-string organizationId rather than 403ing on it', async () => {
-    // A junk value is not an attempt to reach another tenant; treating it as
-    // one would reject a caller who sent `organizationId: null`.
+  it('ignores an organizationId in the body, whatever its value', async () => {
+    // Not read at all — an API key is bound to exactly one organization, so
+    // there is nothing to resolve from the body, matching the GET listing
+    // endpoint's organizationId-less contract.
     resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
     createInboxMock.mockResolvedValue({ inbox: INBOX })
-    const { POST } = await import('../route')
-
-    const response = await POST(
-      postRequest({ email: INBOX.email, organizationId: null }),
-      ctx,
-    )
-
-    expect(response.status).toBe(201)
-    expect(createInboxMock.mock.calls[0][0].organizationId).toBe('org_1')
-  })
-
-  it('403s when the body names a different organization', async () => {
-    resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
     const { POST } = await import('../route')
 
     const response = await POST(
@@ -146,8 +134,8 @@ describe('POST /api/v1/emailInbox', () => {
       ctx,
     )
 
-    expect(response.status).toBe(403)
-    expect(createInboxMock).not.toHaveBeenCalled()
+    expect(response.status).toBe(201)
+    expect(createInboxMock.mock.calls[0][0].organizationId).toBe('org_1')
   })
 
   it('passes the service rejection through with its own status', async () => {
