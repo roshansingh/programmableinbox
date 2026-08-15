@@ -39,6 +39,24 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
+import { cn } from "@/lib/utils"
+
+/**
+ * Colors a scope pill by what it actually risks, not decoratively: read is
+ * safe, create/update are mutating but recoverable, delete permanently
+ * retires the address (see lib/api-key-scopes.ts). `variant="secondary"`
+ * alone is indistinguishable from the surrounding card in dark mode, since
+ * --secondary and --card share the same value there.
+ */
+function scopeBadgeClassName(scope: string): string {
+  if (scope.endsWith(':delete')) {
+    return 'border-destructive/40 bg-destructive/10 text-destructive'
+  }
+  if (scope.endsWith(':create') || scope.endsWith(':update')) {
+    return 'border-warning/40 bg-warning/10 text-warning'
+  }
+  return 'border-primary/30 bg-primary/10 text-primary'
+}
 
 export default function ApiKeysPage() {
   const { organizationId } = useAuth()
@@ -267,7 +285,11 @@ export default function ApiKeysPage() {
                         <Label>Scopes</Label>
                         <div className="flex flex-wrap gap-2">
                           {createdKey.scopes.map((scope) => (
-                            <Badge key={scope} variant="secondary">
+                            <Badge
+                              key={scope}
+                              variant="outline"
+                              className={cn('font-mono', scopeBadgeClassName(scope))}
+                            >
                               {scope}
                             </Badge>
                           ))}
@@ -341,7 +363,11 @@ export default function ApiKeysPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {apiKey.scopes.map((scope) => (
-                          <Badge key={scope} variant="secondary">
+                          <Badge
+                            key={scope}
+                            variant="outline"
+                            className={cn('font-mono', scopeBadgeClassName(scope))}
+                          >
                             {scope}
                           </Badge>
                         ))}
