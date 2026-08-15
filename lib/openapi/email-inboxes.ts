@@ -30,16 +30,6 @@ export const spec = {
         operationId: 'listEmailInboxes',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
-        parameters: [
-          {
-            name: 'organizationId',
-            in: 'query',
-            description:
-              'Optional organization ID to filter inboxes. User must be a member of the organization, or API key must belong to this organization.',
-            required: false,
-            schema: { type: 'string' },
-          },
-        ],
         responses: {
           '200': {
             description: 'Successfully retrieved email inboxes',
@@ -67,8 +57,7 @@ export const spec = {
             },
           },
           '403': {
-            description:
-              'Forbidden - user not member of organization or API key lacks required scope (email_inboxes:read)',
+            description: 'Forbidden - API key lacks required scope (email_inboxes:read)',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -451,7 +440,6 @@ export const spec = {
               + 'reverse-chronological order — this filters, it does not rank.',
             required: false,
             schema: { type: 'string', maxLength: 200 },
-            example: '"order confirmed" -refund',
           },
           {
             name: 'from',
@@ -461,7 +449,6 @@ export const spec = {
               + 'so it covers both the display name and the address.',
             required: false,
             schema: { type: 'string', maxLength: 200 },
-            example: 'billing@acme.com',
           },
           {
             name: 'tags',
@@ -636,6 +623,77 @@ export const spec = {
           },
           '404': {
             description: 'Message or inbox not found',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/v1/emailInbox/{id}/otp': {
+      get: {
+        summary: 'Get the latest one-time code for an inbox',
+        description:
+          'Returns the most recently extracted one-time passcode (OTP) for an email inbox, '
+          + 'with the message it came from. Requires API key with `email_messages:read` scope — '
+          + 'this is a read of extracted message content, not inbox metadata.',
+        operationId: 'getEmailInboxOtp',
+        tags: ['Email Inboxes'],
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            description: 'The email inbox ID',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': {
+            description: 'Successfully retrieved the latest OTP',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: {
+                      type: 'object',
+                      properties: {
+                        otp: { type: 'string', example: '123456' },
+                        receivedAt: { type: 'string', format: 'date-time' },
+                        messageId: { type: 'string', example: 'msg-1' },
+                      },
+                      required: ['otp', 'receivedAt', 'messageId'],
+                    },
+                  },
+                  required: ['data'],
+                },
+              },
+            },
+          },
+          '401': {
+            description: 'Unauthorized - missing or invalid API key',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '403': {
+            description: 'Forbidden - API key lacks required scope (email_messages:read)',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          '404': {
+            description:
+              'Not found - no such inbox visible to this key, or no message with an '
+              + 'extracted OTP has arrived for it yet',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

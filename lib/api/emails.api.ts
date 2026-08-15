@@ -183,17 +183,3 @@ export async function starEmailMessage(
     isStarred,
   })
 }
-
-export interface OtpResult {
-  otp: string
-  receivedAt: string
-  messageId: string
-}
-
-/**
- * Get the most recently received OTP for an inbox
- * GET /app/emailInbox/{id}/otp
- */
-export async function getLatestOtp(inboxId: string): Promise<OtpResult> {
-  return apiClient.get<OtpResult>(`/app/emailInbox/${inboxId}/otp`)
-}

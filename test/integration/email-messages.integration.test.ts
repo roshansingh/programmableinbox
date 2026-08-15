@@ -5,9 +5,9 @@ import {
   PATCH as patchMessage,
   DELETE as deleteMessage,
 } from '@/app/api/app/emailInbox/[id]/messages/[messageId]/route'
-import { GET as getOtp } from '@/app/api/app/emailInbox/[id]/otp/route'
+import { GET as getOtp } from '@/app/api/v1/emailInbox/[id]/otp/route'
 import { prisma } from '@/lib/db'
-import { createOrgWithUser, createSecondOrg } from './helpers/auth'
+import { createOrgWithUser, createSecondOrg, createApiKey } from './helpers/auth'
 import { seedInbox, seedMessage } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 
@@ -354,23 +354,36 @@ describe('DELETE /api/app/emailInbox/[id]/messages/[messageId]', () => {
   })
 })
 
-describe('GET /api/app/emailInbox/[id]/otp', () => {
-  it('401 without a token', async () => {
+describe('GET /api/v1/emailInbox/[id]/otp', () => {
+  it('401 without a key', async () => {
     const res = await getOtp(
-      jsonRequest('http://localhost/api/app/emailInbox/some-id/otp'),
+      jsonRequest('http://localhost/api/v1/emailInbox/some-id/otp'),
       params({ id: 'some-id' }),
     )
     expect(res.status).toBe(401)
   })
 
+  it('403s a key lacking email_messages:read', async () => {
+    const { org, user } = await createOrgWithUser()
+    const key = await createApiKey(org.id, user.id, ['email_inboxes:read'])
+    const inbox = await seedInbox(org.id, user.id)
+
+    const res = await getOtp(
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: key.rawKey }),
+      params({ id: inbox.id }),
+    )
+    expect(res.status).toBe(403)
+  })
+
   it('returns the latest extractedOtp for the inbox', async () => {
-    const { org, user, token } = await createOrgWithUser()
+    const { org, user } = await createOrgWithUser()
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
     const inbox = await seedInbox(org.id, user.id)
     await seedMessage(inbox.id, org.id, { extractedOtp: '111111', createdAt: at(1) })
     const latest = await seedMessage(inbox.id, org.id, { extractedOtp: '222222', createdAt: at(2) })
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: token }),
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: key.rawKey }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(200)
@@ -380,12 +393,13 @@ describe('GET /api/app/emailInbox/[id]/otp', () => {
   })
 
   it('404 when no message has an extractedOtp', async () => {
-    const { org, user, token } = await createOrgWithUser()
+    const { org, user } = await createOrgWithUser()
+    const key = await createApiKey(org.id, user.id, ['email_messages:read'])
     const inbox = await seedInbox(org.id, user.id)
     await seedMessage(inbox.id, org.id, { extractedOtp: null })
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: token }),
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: key.rawKey }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(404)
@@ -398,10 +412,11 @@ describe('GET /api/app/emailInbox/[id]/otp', () => {
     const inbox = await seedInbox(org.id, user.id)
     await seedMessage(inbox.id, org.id, { extractedOtp: '333333' })
 
-    const { token: otherToken } = await createSecondOrg()
+    const { org: otherOrg, user: otherUser } = await createSecondOrg()
+    const otherKey = await createApiKey(otherOrg.id, otherUser.id, ['email_messages:read'])
 
     const res = await getOtp(
-      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/otp`, { credential: otherToken }),
+      jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: otherKey.rawKey }),
       params({ id: inbox.id }),
     )
     expect(res.status).toBe(404)

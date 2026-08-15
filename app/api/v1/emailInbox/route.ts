@@ -5,10 +5,12 @@ import { serializePublicInbox } from '@/lib/serializers/public/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import logger from '@/lib/logger'
 
-export const GET = withApiKey({ scopes: ['email_inboxes:read'] }, async (request, principal) => {
-  const requested = request.nextUrl.searchParams.get('organizationId')
-
-  const { scope, error } = toOrgScope(principal, requested)
+// No organizationId query filter here: an API key is bound to exactly one
+// organization (toOrgScope resolves it from the key alone), so a filter
+// parameter would either be redundant or a request to see another
+// organization's inboxes — neither is a real use case for this surface.
+export const GET = withApiKey({ scopes: ['email_inboxes:read'] }, async (_request, principal) => {
+  const { scope, error } = toOrgScope(principal)
   if (error) return error
 
   const inboxes = await listInboxes(scope)
