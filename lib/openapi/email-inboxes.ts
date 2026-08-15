@@ -221,7 +221,8 @@ export const spec = {
       patch: {
         summary: 'Rename an email inbox',
         description:
-          'Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.',
+          'Updates an inbox display name. The address is immutable and is not part of this '
+          + 'request. Requires API key with `email_inboxes:update` scope.',
         operationId: 'updateEmailInbox',
         tags: ['Email Inboxes'],
         security: [{ ApiKeyAuth: [] }],
@@ -247,14 +248,9 @@ export const spec = {
                     description:
                       'The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one.',
                   },
-                  email: {
-                    type: 'string',
-                    format: 'email',
-                    description:
-                      'Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.',
-                  },
                 },
               },
+              example: { name: 'Support Inbox' },
             },
           },
         },
@@ -273,9 +269,8 @@ export const spec = {
           },
           '400': {
             description:
-              'Bad request - malformed JSON, the name is not a string or is longer than '
-              + '100 characters, or `email` was supplied and is not a valid email address. '
-              + 'A well-formed address that differs from the current one is a 409 instead.',
+              'Bad request - malformed JSON, or the name is not a string or is longer than '
+              + '100 characters.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

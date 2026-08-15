@@ -376,13 +376,19 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
   })
 
   it('returns the latest extractedOtp for the inbox', async () => {
+    // Real, Date.now()-relative timestamps rather than the fixed at() helper:
+    // findLatestOtp applies a real freshness window (default 15 minutes)
+    // against the actual clock, and this suite does not fake timers.
     const { org, user } = await createOrgWithUser()
     const key = await createApiKey(org.id, user.id, ['email_messages:read'])
     const inbox = await seedInbox(org.id, user.id)
-    await seedMessage(inbox.id, org.id, { extractedOtp: '111111', createdAt: at(1) })
+    await seedMessage(inbox.id, org.id, {
+      extractedOtp: '111111',
+      createdAt: new Date(Date.now() - 2 * 60_000),
+    })
     const latest = await seedMessage(inbox.id, org.id, {
       extractedOtp: '222222',
-      createdAt: at(2),
+      createdAt: new Date(Date.now() - 60_000),
       from: 'security@example.com',
     })
 
@@ -437,18 +443,19 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
   })
 
   it('filters by from', async () => {
+    // Real, Date.now()-relative timestamps — see the note in the previous test.
     const { org, user } = await createOrgWithUser()
     const key = await createApiKey(org.id, user.id, ['email_messages:read'])
     const inbox = await seedInbox(org.id, user.id)
     await seedMessage(inbox.id, org.id, {
       extractedOtp: '555555',
       from: 'noreply@other.com',
-      createdAt: at(1),
+      createdAt: new Date(Date.now() - 2 * 60_000),
     })
     const target = await seedMessage(inbox.id, org.id, {
       extractedOtp: '666666',
       from: 'noreply@stripe.com',
-      createdAt: at(2),
+      createdAt: new Date(Date.now() - 60_000),
     })
 
     const res = await getOtp(
