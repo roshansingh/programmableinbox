@@ -6,9 +6,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **otp** | **str** |  | 
-**received_at** | **datetime** |  | 
-**message_id** | **str** |  | 
-**var_from** | **str** |  | 
+**message** | [**EmailMessage**](EmailMessage.md) |  | 
 
 ## Example
 

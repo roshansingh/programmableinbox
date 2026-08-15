@@ -34,16 +34,12 @@ namespace ProgrammableInbox.Sdk.Model
         /// Initializes a new instance of the <see cref="GetEmailInboxOtp200ResponseData" /> class.
         /// </summary>
         /// <param name="otp">otp</param>
-        /// <param name="receivedAt">receivedAt</param>
-        /// <param name="messageId">messageId</param>
-        /// <param name="from">from</param>
+        /// <param name="message">message</param>
         [JsonConstructor]
-        public GetEmailInboxOtp200ResponseData(string otp, DateTime receivedAt, string messageId, string from)
+        public GetEmailInboxOtp200ResponseData(string otp, EmailMessage message)
         {
             Otp = otp;
-            ReceivedAt = receivedAt;
-            MessageId = messageId;
-            From = from;
+            Message = message;
             OnCreated();
         }
 
@@ -57,24 +53,10 @@ namespace ProgrammableInbox.Sdk.Model
         public string Otp { get; set; }
 
         /// <summary>
-        /// Gets or Sets ReceivedAt
+        /// Gets or Sets Message
         /// </summary>
-        [JsonPropertyName("receivedAt")]
-        public DateTime ReceivedAt { get; set; }
-
-        /// <summary>
-        /// Gets or Sets MessageId
-        /// </summary>
-        /* <example>msg-1</example> */
-        [JsonPropertyName("messageId")]
-        public string MessageId { get; set; }
-
-        /// <summary>
-        /// Gets or Sets From
-        /// </summary>
-        /* <example>noreply@example.com</example> */
-        [JsonPropertyName("from")]
-        public string From { get; set; }
+        [JsonPropertyName("message")]
+        public EmailMessage Message { get; set; }
 
         /// <summary>
         /// Returns the string presentation of the object
@@ -85,9 +67,7 @@ namespace ProgrammableInbox.Sdk.Model
             StringBuilder sb = new StringBuilder();
             sb.Append("class GetEmailInboxOtp200ResponseData {\n");
             sb.Append("  Otp: ").Append(Otp).Append("\n");
-            sb.Append("  ReceivedAt: ").Append(ReceivedAt).Append("\n");
-            sb.Append("  MessageId: ").Append(MessageId).Append("\n");
-            sb.Append("  From: ").Append(From).Append("\n");
+            sb.Append("  Message: ").Append(Message).Append("\n");
             sb.Append("}\n");
             return sb.ToString();
         }
@@ -119,11 +99,6 @@ namespace ProgrammableInbox.Sdk.Model
         }
 
         /// <summary>
-        /// The format to use to serialize ReceivedAt
-        /// </summary>
-        public string ReceivedAtFormat { get; private set; } = "yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fffffffK";
-
-        /// <summary>
         /// Deserializes json to <see cref="GetEmailInboxOtp200ResponseData" />
         /// </summary>
         /// <param name="utf8JsonReader"></param>
@@ -141,9 +116,7 @@ namespace ProgrammableInbox.Sdk.Model
             JsonTokenType startingTokenType = utf8JsonReader.TokenType;
 
             Option<string?> otp = default;
-            Option<DateTime?> receivedAt = default;
-            Option<string?> messageId = default;
-            Option<string?> from = default;
+            Option<EmailMessage?> message = default;
 
             while (utf8JsonReader.Read())
             {
@@ -163,14 +136,8 @@ namespace ProgrammableInbox.Sdk.Model
                         case "otp":
                             otp = new Option<string?>(utf8JsonReader.GetString()!);
                             break;
-                        case "receivedAt":
-                            receivedAt = new Option<DateTime?>(JsonSerializer.Deserialize<DateTime>(ref utf8JsonReader, jsonSerializerOptions));
-                            break;
-                        case "messageId":
-                            messageId = new Option<string?>(utf8JsonReader.GetString()!);
-                            break;
-                        case "from":
-                            from = new Option<string?>(utf8JsonReader.GetString()!);
+                        case "message":
+                            message = new Option<EmailMessage?>(JsonSerializer.Deserialize<EmailMessage>(ref utf8JsonReader, jsonSerializerOptions)!);
                             break;
                         default:
                             break;
@@ -181,28 +148,16 @@ namespace ProgrammableInbox.Sdk.Model
             if (!otp.IsSet)
                 throw new ArgumentException("Property is required for class GetEmailInboxOtp200ResponseData.", nameof(otp));
 
-            if (!receivedAt.IsSet)
-                throw new ArgumentException("Property is required for class GetEmailInboxOtp200ResponseData.", nameof(receivedAt));
-
-            if (!messageId.IsSet)
-                throw new ArgumentException("Property is required for class GetEmailInboxOtp200ResponseData.", nameof(messageId));
-
-            if (!from.IsSet)
-                throw new ArgumentException("Property is required for class GetEmailInboxOtp200ResponseData.", nameof(from));
+            if (!message.IsSet)
+                throw new ArgumentException("Property is required for class GetEmailInboxOtp200ResponseData.", nameof(message));
 
             if (otp.IsSet && otp.Value == null)
                 throw new ArgumentNullException(nameof(otp), "Property is not nullable for class GetEmailInboxOtp200ResponseData.");
 
-            if (receivedAt.IsSet && receivedAt.Value == null)
-                throw new ArgumentNullException(nameof(receivedAt), "Property is not nullable for class GetEmailInboxOtp200ResponseData.");
+            if (message.IsSet && message.Value == null)
+                throw new ArgumentNullException(nameof(message), "Property is not nullable for class GetEmailInboxOtp200ResponseData.");
 
-            if (messageId.IsSet && messageId.Value == null)
-                throw new ArgumentNullException(nameof(messageId), "Property is not nullable for class GetEmailInboxOtp200ResponseData.");
-
-            if (from.IsSet && from.Value == null)
-                throw new ArgumentNullException(nameof(from), "Property is not nullable for class GetEmailInboxOtp200ResponseData.");
-
-            return new GetEmailInboxOtp200ResponseData(otp.Value!, receivedAt.Value!.Value!, messageId.Value!, from.Value!);
+            return new GetEmailInboxOtp200ResponseData(otp.Value!, message.Value!);
         }
 
         /// <summary>
@@ -232,19 +187,13 @@ namespace ProgrammableInbox.Sdk.Model
             if (getEmailInboxOtp200ResponseData.Otp == null)
                 throw new ArgumentNullException(nameof(getEmailInboxOtp200ResponseData.Otp), "Property is required for class GetEmailInboxOtp200ResponseData.");
 
-            if (getEmailInboxOtp200ResponseData.MessageId == null)
-                throw new ArgumentNullException(nameof(getEmailInboxOtp200ResponseData.MessageId), "Property is required for class GetEmailInboxOtp200ResponseData.");
-
-            if (getEmailInboxOtp200ResponseData.From == null)
-                throw new ArgumentNullException(nameof(getEmailInboxOtp200ResponseData.From), "Property is required for class GetEmailInboxOtp200ResponseData.");
+            if (getEmailInboxOtp200ResponseData.Message == null)
+                throw new ArgumentNullException(nameof(getEmailInboxOtp200ResponseData.Message), "Property is required for class GetEmailInboxOtp200ResponseData.");
 
             writer.WriteString("otp", getEmailInboxOtp200ResponseData.Otp);
 
-            writer.WriteString("receivedAt", getEmailInboxOtp200ResponseData.ReceivedAt.ToString(ReceivedAtFormat));
-
-            writer.WriteString("messageId", getEmailInboxOtp200ResponseData.MessageId);
-
-            writer.WriteString("from", getEmailInboxOtp200ResponseData.From);
+            writer.WritePropertyName("message");
+            JsonSerializer.Serialize(writer, getEmailInboxOtp200ResponseData.Message, jsonSerializerOptions);
         }
     }
 }

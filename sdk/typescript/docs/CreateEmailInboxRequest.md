@@ -8,7 +8,6 @@ Name | Type
 ------------ | -------------
 `email` | string
 `name` | string
-`organizationId` | string
 
 ## Example
 
@@ -19,7 +18,6 @@ import type { CreateEmailInboxRequest } from '@programmableinbox/sdk'
 const example = {
   "email": null,
   "name": null,
-  "organizationId": null,
 } satisfies CreateEmailInboxRequest
 
 console.log(example)

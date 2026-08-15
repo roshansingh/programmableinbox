@@ -55,5 +55,3 @@ src/main/java/com/programmableinbox/sdk/model/GetEmailInboxOtp200ResponseData.ja
 src/main/java/com/programmableinbox/sdk/model/GetEmailMessage200Response.java
 src/main/java/com/programmableinbox/sdk/model/ListEmailInboxes200Response.java
 src/main/java/com/programmableinbox/sdk/model/UpdateEmailInboxRequest.java
-src/test/java/com/programmableinbox/sdk/model/GetEmailInboxOtp200ResponseDataTest.java
-src/test/java/com/programmableinbox/sdk/model/GetEmailInboxOtp200ResponseTest.java

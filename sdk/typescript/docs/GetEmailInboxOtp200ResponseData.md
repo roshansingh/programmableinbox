@@ -7,9 +7,7 @@
 Name | Type
 ------------ | -------------
 `otp` | string
-`receivedAt` | Date
-`messageId` | string
-`from` | string
+`message` | [EmailMessage](EmailMessage.md)
 
 ## Example
 
@@ -19,9 +17,7 @@ import type { GetEmailInboxOtp200ResponseData } from '@programmableinbox/sdk'
 // TODO: Update the object below with actual values
 const example = {
   "otp": 123456,
-  "receivedAt": null,
-  "messageId": msg-1,
-  "from": noreply@example.com,
+  "message": null,
 } satisfies GetEmailInboxOtp200ResponseData
 
 console.log(example)

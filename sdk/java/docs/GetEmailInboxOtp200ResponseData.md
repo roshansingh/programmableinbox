@@ -8,9 +8,7 @@
 | Name | Type | Description | Notes |
 |------------ | ------------- | ------------- | -------------|
 |**otp** | **String** |  |  |
-|**receivedAt** | **OffsetDateTime** |  |  |
-|**messageId** | **String** |  |  |
-|**from** | **String** |  |  |
+|**message** | [**EmailMessage**](EmailMessage.md) |  |  |
 
 
 

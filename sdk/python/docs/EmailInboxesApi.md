@@ -19,7 +19,7 @@ Method | HTTP request | Description
 
 Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
 ### Example
 
@@ -92,7 +92,7 @@ Name | Type | Description  | Notes
 **201** | Inbox created |  -  |
 **400** | Bad request - malformed JSON, the address is not a valid email address, the domain is not one this account may create inboxes at, the local part is longer than 50 characters, or the name is not a string or is longer than 100 characters. |  -  |
 **401** | Unauthorized - missing or invalid API key |  -  |
-**403** | Forbidden - API key lacks the email_inboxes:create scope, or the body names a different organization |  -  |
+**403** | Forbidden - API key lacks the email_inboxes:create scope |  -  |
 **409** | Conflict - the address is not available. Returned identically whether it is held by another organization or by a deleted inbox, so this endpoint cannot be used to probe which addresses exist. |  -  |
 **422** | Unprocessable - the address or the name is on the impersonation blocklist, or the name contains characters outside printable ASCII. A disallowed domain is a 400, not this. |  -  |
 
@@ -356,11 +356,11 @@ Name | Type | Description  | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 # **get_email_inbox_otp**
-> GetEmailInboxOtp200Response get_email_inbox_otp(id)
+> GetEmailInboxOtp200Response get_email_inbox_otp(id, var_from=var_from, within_minutes=within_minutes)
 
 Get the latest one-time code for an inbox
 
-Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
 
 ### Example
 
@@ -393,10 +393,12 @@ with programmableinbox.ApiClient(configuration) as api_client:
     # Create an instance of the API class
     api_instance = programmableinbox.EmailInboxesApi(api_client)
     id = 'id_example' # str | The email inbox ID
+    var_from = 'var_from_example' # str | Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header. (optional)
+    within_minutes = 15 # int | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional) (default to 15)
 
     try:
         # Get the latest one-time code for an inbox
-        api_response = api_instance.get_email_inbox_otp(id)
+        api_response = api_instance.get_email_inbox_otp(id, var_from=var_from, within_minutes=within_minutes)
         print("The response of EmailInboxesApi->get_email_inbox_otp:\n")
         pprint(api_response)
     except Exception as e:
@@ -411,6 +413,8 @@ with programmableinbox.ApiClient(configuration) as api_client:
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
  **id** | **str**| The email inbox ID | 
+ **var_from** | **str**| Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | [optional] 
+ **within_minutes** | **int**| How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [optional] [default to 15]
 
 ### Return type
 
@@ -430,9 +434,10 @@ Name | Type | Description  | Notes
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 **200** | Successfully retrieved the latest OTP |  -  |
+**400** | Bad request - withinMinutes out of range, or from over the length cap |  -  |
 **401** | Unauthorized - missing or invalid API key |  -  |
 **403** | Forbidden - API key lacks required scope (email_messages:read) |  -  |
-**404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived for it yet |  -  |
+**404** | Not found - no such inbox visible to this key, or no message with an extracted OTP has arrived within withinMinutes. The message distinguishes a stale code (one exists but is older than the window) from none at all. |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

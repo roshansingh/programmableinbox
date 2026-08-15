@@ -17,9 +17,9 @@ import pprint
 import re  # noqa: F401
 import json
 
-from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List
+from programmableinbox.models.email_message import EmailMessage
 from typing import Optional, Set
 from typing_extensions import Self
 from pydantic_core import to_jsonable_python
@@ -29,10 +29,8 @@ class GetEmailInboxOtp200ResponseData(BaseModel):
     GetEmailInboxOtp200ResponseData
     """ # noqa: E501
     otp: StrictStr = Field(json_schema_extra={"examples": ["123456"]})
-    received_at: datetime = Field(alias="receivedAt")
-    message_id: StrictStr = Field(alias="messageId", json_schema_extra={"examples": ["msg-1"]})
-    var_from: StrictStr = Field(alias="from", json_schema_extra={"examples": ["noreply@example.com"]})
-    __properties: ClassVar[List[str]] = ["otp", "receivedAt", "messageId", "from"]
+    message: EmailMessage
+    __properties: ClassVar[List[str]] = ["otp", "message"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -73,6 +71,9 @@ class GetEmailInboxOtp200ResponseData(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of message
+        if self.message:
+            _dict['message'] = self.message.to_dict()
         return _dict
 
     @classmethod
@@ -86,9 +87,7 @@ class GetEmailInboxOtp200ResponseData(BaseModel):
 
         _obj = cls.model_validate({
             "otp": obj.get("otp"),
-            "receivedAt": obj.get("receivedAt"),
-            "messageId": obj.get("messageId"),
-            "from": obj.get("from")
+            "message": EmailMessage.from_dict(obj["message"]) if obj.get("message") is not None else None
         })
         return _obj
 

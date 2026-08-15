@@ -12,7 +12,6 @@ package programmableinbox
 
 import (
 	"encoding/json"
-	"time"
 	"bytes"
 	"fmt"
 )
@@ -23,9 +22,7 @@ var _ MappedNullable = &GetEmailInboxOtp200ResponseData{}
 // GetEmailInboxOtp200ResponseData struct for GetEmailInboxOtp200ResponseData
 type GetEmailInboxOtp200ResponseData struct {
 	Otp string `json:"otp"`
-	ReceivedAt time.Time `json:"receivedAt"`
-	MessageId string `json:"messageId"`
-	From string `json:"from"`
+	Message EmailMessage `json:"message"`
 }
 
 type _GetEmailInboxOtp200ResponseData GetEmailInboxOtp200ResponseData
@@ -34,12 +31,10 @@ type _GetEmailInboxOtp200ResponseData GetEmailInboxOtp200ResponseData
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGetEmailInboxOtp200ResponseData(otp string, receivedAt time.Time, messageId string, from string) *GetEmailInboxOtp200ResponseData {
+func NewGetEmailInboxOtp200ResponseData(otp string, message EmailMessage) *GetEmailInboxOtp200ResponseData {
 	this := GetEmailInboxOtp200ResponseData{}
 	this.Otp = otp
-	this.ReceivedAt = receivedAt
-	this.MessageId = messageId
-	this.From = from
+	this.Message = message
 	return &this
 }
 
@@ -75,76 +70,28 @@ func (o *GetEmailInboxOtp200ResponseData) SetOtp(v string) {
 	o.Otp = v
 }
 
-// GetReceivedAt returns the ReceivedAt field value
-func (o *GetEmailInboxOtp200ResponseData) GetReceivedAt() time.Time {
+// GetMessage returns the Message field value
+func (o *GetEmailInboxOtp200ResponseData) GetMessage() EmailMessage {
 	if o == nil {
-		var ret time.Time
+		var ret EmailMessage
 		return ret
 	}
 
-	return o.ReceivedAt
+	return o.Message
 }
 
-// GetReceivedAtOk returns a tuple with the ReceivedAt field value
+// GetMessageOk returns a tuple with the Message field value
 // and a boolean to check if the value has been set.
-func (o *GetEmailInboxOtp200ResponseData) GetReceivedAtOk() (*time.Time, bool) {
+func (o *GetEmailInboxOtp200ResponseData) GetMessageOk() (*EmailMessage, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.ReceivedAt, true
+	return &o.Message, true
 }
 
-// SetReceivedAt sets field value
-func (o *GetEmailInboxOtp200ResponseData) SetReceivedAt(v time.Time) {
-	o.ReceivedAt = v
-}
-
-// GetMessageId returns the MessageId field value
-func (o *GetEmailInboxOtp200ResponseData) GetMessageId() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.MessageId
-}
-
-// GetMessageIdOk returns a tuple with the MessageId field value
-// and a boolean to check if the value has been set.
-func (o *GetEmailInboxOtp200ResponseData) GetMessageIdOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.MessageId, true
-}
-
-// SetMessageId sets field value
-func (o *GetEmailInboxOtp200ResponseData) SetMessageId(v string) {
-	o.MessageId = v
-}
-
-// GetFrom returns the From field value
-func (o *GetEmailInboxOtp200ResponseData) GetFrom() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.From
-}
-
-// GetFromOk returns a tuple with the From field value
-// and a boolean to check if the value has been set.
-func (o *GetEmailInboxOtp200ResponseData) GetFromOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.From, true
-}
-
-// SetFrom sets field value
-func (o *GetEmailInboxOtp200ResponseData) SetFrom(v string) {
-	o.From = v
+// SetMessage sets field value
+func (o *GetEmailInboxOtp200ResponseData) SetMessage(v EmailMessage) {
+	o.Message = v
 }
 
 func (o GetEmailInboxOtp200ResponseData) MarshalJSON() ([]byte, error) {
@@ -158,9 +105,7 @@ func (o GetEmailInboxOtp200ResponseData) MarshalJSON() ([]byte, error) {
 func (o GetEmailInboxOtp200ResponseData) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["otp"] = o.Otp
-	toSerialize["receivedAt"] = o.ReceivedAt
-	toSerialize["messageId"] = o.MessageId
-	toSerialize["from"] = o.From
+	toSerialize["message"] = o.Message
 	return toSerialize, nil
 }
 
@@ -170,9 +115,7 @@ func (o *GetEmailInboxOtp200ResponseData) UnmarshalJSON(data []byte) (err error)
 	// that every required field exists as a key in the generic map.
 	requiredProperties := []string{
 		"otp",
-		"receivedAt",
-		"messageId",
-		"from",
+		"message",
 	}
 
 	allProperties := make(map[string]interface{})

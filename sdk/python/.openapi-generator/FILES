@@ -48,6 +48,4 @@ setup.cfg
 setup.py
 test-requirements.txt
 test/__init__.py
-test/test_get_email_inbox_otp200_response.py
-test/test_get_email_inbox_otp200_response_data.py
 tox.ini

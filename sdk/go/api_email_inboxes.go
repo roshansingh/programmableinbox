@@ -42,7 +42,7 @@ func (r ApiCreateEmailInboxRequest) Execute() (*CreateEmailInbox201Response, *ht
 /*
 CreateEmailInbox Create an email inbox
 
-Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
  @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
  @return ApiCreateEmailInboxRequest
@@ -693,6 +693,20 @@ type ApiGetEmailInboxOtpRequest struct {
 	ctx context.Context
 	ApiService *EmailInboxesAPIService
 	id string
+	from *string
+	withinMinutes *int32
+}
+
+// Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header.
+func (r ApiGetEmailInboxOtpRequest) From(from string) ApiGetEmailInboxOtpRequest {
+	r.from = &from
+	return r
+}
+
+// How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+func (r ApiGetEmailInboxOtpRequest) WithinMinutes(withinMinutes int32) ApiGetEmailInboxOtpRequest {
+	r.withinMinutes = &withinMinutes
+	return r
 }
 
 func (r ApiGetEmailInboxOtpRequest) Execute() (*GetEmailInboxOtp200Response, *http.Response, error) {
@@ -702,7 +716,7 @@ func (r ApiGetEmailInboxOtpRequest) Execute() (*GetEmailInboxOtp200Response, *ht
 /*
 GetEmailInboxOtp Get the latest one-time code for an inbox
 
-Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
 
  @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
  @param id The email inbox ID
@@ -738,6 +752,16 @@ func (a *EmailInboxesAPIService) GetEmailInboxOtpExecute(r ApiGetEmailInboxOtpRe
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.from != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "from", r.from, "form", "")
+	}
+	if r.withinMinutes != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "withinMinutes", r.withinMinutes, "form", "")
+	} else {
+		var defaultValue int32 = 15
+		parameterAddToHeaderOrQuery(localVarQueryParams, "withinMinutes", defaultValue, "form", "")
+		r.withinMinutes = &defaultValue
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -776,6 +800,17 @@ func (a *EmailInboxesAPIService) GetEmailInboxOtpExecute(r ApiGetEmailInboxOtpRe
 		newErr := &GenericOpenAPIError{
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+					newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+					newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
 			var v ErrorResponse

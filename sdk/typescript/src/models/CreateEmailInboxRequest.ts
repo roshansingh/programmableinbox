@@ -31,12 +31,6 @@ export interface CreateEmailInboxRequest {
      * @memberof CreateEmailInboxRequest
      */
     name?: string | null;
-    /**
-     * Optional. Must match the organization the API key is bound to if supplied; the key's organization is used otherwise.
-     * @type {string}
-     * @memberof CreateEmailInboxRequest
-     */
-    organizationId?: string;
 }
 
 /**
@@ -59,7 +53,6 @@ export function CreateEmailInboxRequestFromJSONTyped(json: any, ignoreDiscrimina
         
         'email': json['email'],
         'name': json['name'] === undefined ? undefined : json['name'] === null ? null : json['name'],
-        'organizationId': json['organizationId'] == null ? undefined : json['organizationId'],
     };
 }
 
@@ -76,7 +69,6 @@ export function CreateEmailInboxRequestToJSONTyped(value?: CreateEmailInboxReque
         
         'email': value['email'],
         'name': value['name'],
-        'organizationId': value['organizationId'],
     };
 }
 

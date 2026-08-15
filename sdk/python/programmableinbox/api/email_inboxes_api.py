@@ -64,7 +64,7 @@ class EmailInboxesApi:
     ) -> CreateEmailInbox201Response:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -136,7 +136,7 @@ class EmailInboxesApi:
     ) -> ApiResponse[CreateEmailInbox201Response]:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -208,7 +208,7 @@ class EmailInboxesApi:
     ) -> RESTResponseType:
         """Create an email inbox
 
-        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+        Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
 
         :param create_email_inbox_request: (required)
         :type create_email_inbox_request: CreateEmailInboxRequest
@@ -1289,6 +1289,8 @@ class EmailInboxesApi:
     def get_email_inbox_otp(
         self,
         id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1304,10 +1306,14 @@ class EmailInboxesApi:
     ) -> GetEmailInboxOtp200Response:
         """Get the latest one-time code for an inbox
 
-        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
 
         :param id: The email inbox ID (required)
         :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1332,6 +1338,8 @@ class EmailInboxesApi:
 
         _param = self._get_email_inbox_otp_serialize(
             id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1340,6 +1348,7 @@ class EmailInboxesApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
             '401': "ErrorResponse",
             '403': "ErrorResponse",
             '404': "ErrorResponse",
@@ -1359,6 +1368,8 @@ class EmailInboxesApi:
     def get_email_inbox_otp_with_http_info(
         self,
         id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1374,10 +1385,14 @@ class EmailInboxesApi:
     ) -> ApiResponse[GetEmailInboxOtp200Response]:
         """Get the latest one-time code for an inbox
 
-        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
 
         :param id: The email inbox ID (required)
         :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1402,6 +1417,8 @@ class EmailInboxesApi:
 
         _param = self._get_email_inbox_otp_serialize(
             id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1410,6 +1427,7 @@ class EmailInboxesApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
             '401': "ErrorResponse",
             '403': "ErrorResponse",
             '404': "ErrorResponse",
@@ -1429,6 +1447,8 @@ class EmailInboxesApi:
     def get_email_inbox_otp_without_preload_content(
         self,
         id: Annotated[StrictStr, Field(description="The email inbox ID")],
+        var_from: Annotated[Optional[Annotated[str, Field(strict=True, max_length=200)]], Field(description="Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.")] = None,
+        within_minutes: Annotated[Optional[Annotated[int, Field(le=1440, strict=True, ge=1)]], Field(description="How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.")] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1444,10 +1464,14 @@ class EmailInboxesApi:
     ) -> RESTResponseType:
         """Get the latest one-time code for an inbox
 
-        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+        Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
 
         :param id: The email inbox ID (required)
         :type id: str
+        :param var_from: Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header.
+        :type var_from: str
+        :param within_minutes: How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used.
+        :type within_minutes: int
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1472,6 +1496,8 @@ class EmailInboxesApi:
 
         _param = self._get_email_inbox_otp_serialize(
             id=id,
+            var_from=var_from,
+            within_minutes=within_minutes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1480,6 +1506,7 @@ class EmailInboxesApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             '200': "GetEmailInboxOtp200Response",
+            '400': "ErrorResponse",
             '401': "ErrorResponse",
             '403': "ErrorResponse",
             '404': "ErrorResponse",
@@ -1494,6 +1521,8 @@ class EmailInboxesApi:
     def _get_email_inbox_otp_serialize(
         self,
         id,
+        var_from,
+        within_minutes,
         _request_auth,
         _content_type,
         _headers,
@@ -1518,6 +1547,14 @@ class EmailInboxesApi:
         if id is not None:
             _path_params['id'] = id
         # process the query parameters
+        if var_from is not None:
+            
+            _query_params.append(('from', var_from))
+            
+        if within_minutes is not None:
+            
+            _query_params.append(('withinMinutes', within_minutes))
+            
         # process the header parameters
         # process the form parameters
         # process the body parameter

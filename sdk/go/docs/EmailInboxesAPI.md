@@ -307,7 +307,7 @@ Name | Type | Description  | Notes
 
 ## GetEmailInboxOtp
 
-> GetEmailInboxOtp200Response GetEmailInboxOtp(ctx, id).Execute()
+> GetEmailInboxOtp200Response GetEmailInboxOtp(ctx, id).From(from).WithinMinutes(withinMinutes).Execute()
 
 Get the latest one-time code for an inbox
 
@@ -327,10 +327,12 @@ import (
 
 func main() {
 	id := "id_example" // string | The email inbox ID
+	from := "from_example" // string | Only consider messages whose From header contains this substring, e.g. \"stripe.com\". Case-insensitive, matches the raw header. (optional)
+	withinMinutes := int32(56) // int32 | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional) (default to 15)
 
 	configuration := openapiclient.NewConfiguration()
 	apiClient := openapiclient.NewAPIClient(configuration)
-	resp, r, err := apiClient.EmailInboxesAPI.GetEmailInboxOtp(context.Background(), id).Execute()
+	resp, r, err := apiClient.EmailInboxesAPI.GetEmailInboxOtp(context.Background(), id).From(from).WithinMinutes(withinMinutes).Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error when calling `EmailInboxesAPI.GetEmailInboxOtp``: %v\n", err)
 		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
@@ -356,6 +358,8 @@ Other parameters are passed through a pointer to a apiGetEmailInboxOtpRequest st
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
 
+ **from** | **string** | Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. | 
+ **withinMinutes** | **int32** | How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. | [default to 15]
 
 ### Return type
 

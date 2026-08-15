@@ -46,9 +46,9 @@ paths:
     post:
       description: "Claims a new email address and returns the inbox. The address\
         \ must be on a domain this account can receive at, and is immutable once created.\
-        \ Requires API key with `email_inboxes:create` scope. The inbox is created\
-        \ in the organization the key is bound to; supplying a different `organizationId`\
-        \ is a 403 rather than a silently ignored field."
+        \ Requires API key with `email_inboxes:create` scope. The inbox is always\
+        \ created in the organization the key is bound to — there is no way to name\
+        \ a different one."
       operationId: createEmailInbox
       requestBody:
         content:
@@ -83,8 +83,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-          description: "Forbidden - API key lacks the email_inboxes:create scope,\
-            \ or the body names a different organization"
+          description: Forbidden - API key lacks the email_inboxes:create scope
         "409":
           content:
             application/json:
@@ -484,7 +483,8 @@ paths:
     get:
       description: "Returns the most recently extracted one-time passcode (OTP) for\
         \ an email inbox, with the message it came from. Requires API key with `email_messages:read`\
-        \ scope — this is a read of extracted message content, not inbox metadata."
+        \ scope — this is a read of extracted message content, not inbox metadata.\
+        \ Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool."
       operationId: getEmailInboxOtp
       parameters:
       - description: The email inbox ID
@@ -495,6 +495,29 @@ paths:
         schema:
           type: string
         style: simple
+      - description: "Only consider messages whose From header contains this substring,\
+          \ e.g. \"stripe.com\". Case-insensitive, matches the raw header."
+        explode: true
+        in: query
+        name: from
+        required: false
+        schema:
+          maxLength: 200
+          type: string
+        style: form
+      - description: "How recent the code must be. Defaults to 15 minutes, because\
+          \ a stale code looks identical to a fresh one and will silently fail wherever\
+          \ it is used."
+        explode: true
+        in: query
+        name: withinMinutes
+        required: false
+        schema:
+          default: 15
+          maximum: 1440
+          minimum: 1
+          type: integer
+        style: form
       responses:
         "200":
           content:
@@ -502,6 +525,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/getEmailInboxOtp_200_response"
           description: Successfully retrieved the latest OTP
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: "Bad request - withinMinutes out of range, or from over the\
+            \ length cap"
         "401":
           content:
             application/json:
@@ -520,7 +550,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
           description: "Not found - no such inbox visible to this key, or no message\
-            \ with an extracted OTP has arrived for it yet"
+            \ with an extracted OTP has arrived within withinMinutes. The message\
+            \ distinguishes a stale code (one exists but is older than the window)\
+            \ from none at all."
       security:
       - ApiKeyAuth: []
       summary: Get the latest one-time code for an inbox
@@ -732,10 +764,6 @@ components:
           description: Optional display label. Subject to the same impersonation blocklist
             as the address.
           nullable: true
-          type: string
-        organizationId:
-          description: Optional. Must match the organization the API key is bound
-            to if supplied; the key's organization is used otherwise.
           type: string
       required:
       - email
@@ -999,35 +1027,76 @@ components:
     getEmailInboxOtp_200_response_data:
       example:
         otp: "123456"
-        receivedAt: 2000-01-23T04:56:07.000+00:00
-        messageId: msg-1
-        from: noreply@example.com
+        message:
+          id: msg-1
+          threadId: thread-1
+          parentMessageId: msg-0
+          subject: Support Request
+          from: customer@example.com
+          to:
+          - to
+          - to
+          cc:
+          - cc
+          - cc
+          bcc:
+          - bcc
+          - bcc
+          text: "Hello, I need help with..."
+          html: "<p>Hello, I need help with...</p>"
+          bodyText: "Hello, I need help with..."
+          isStarred: false
+          tags:
+          - tags
+          - tags
+          categories:
+          - categories
+          - categories
+          extractedOtp: "123456"
+          createdAt: 2000-01-23T04:56:07.000+00:00
+          threadCount: 0
       properties:
         otp:
           example: "123456"
           type: string
-        receivedAt:
-          format: date-time
-          type: string
-        messageId:
-          example: msg-1
-          type: string
-        from:
-          example: noreply@example.com
-          type: string
+        message:
+          $ref: "#/components/schemas/EmailMessage"
       required:
-      - from
-      - messageId
+      - message
       - otp
-      - receivedAt
       type: object
     getEmailInboxOtp_200_response:
       example:
         data:
           otp: "123456"
-          receivedAt: 2000-01-23T04:56:07.000+00:00
-          messageId: msg-1
-          from: noreply@example.com
+          message:
+            id: msg-1
+            threadId: thread-1
+            parentMessageId: msg-0
+            subject: Support Request
+            from: customer@example.com
+            to:
+            - to
+            - to
+            cc:
+            - cc
+            - cc
+            bcc:
+            - bcc
+            - bcc
+            text: "Hello, I need help with..."
+            html: "<p>Hello, I need help with...</p>"
+            bodyText: "Hello, I need help with..."
+            isStarred: false
+            tags:
+            - tags
+            - tags
+            categories:
+            - categories
+            - categories
+            extractedOtp: "123456"
+            createdAt: 2000-01-23T04:56:07.000+00:00
+            threadCount: 0
       properties:
         data:
           $ref: "#/components/schemas/getEmailInboxOtp_200_response_data"

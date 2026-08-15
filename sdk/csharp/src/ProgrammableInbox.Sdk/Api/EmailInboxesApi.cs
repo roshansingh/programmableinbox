@@ -42,7 +42,7 @@ namespace ProgrammableInbox.Sdk.Api
         /// Create an email inbox
         /// </summary>
         /// <remarks>
-        /// Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+        /// Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
         /// </remarks>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="createEmailInboxRequest"></param>
@@ -54,7 +54,7 @@ namespace ProgrammableInbox.Sdk.Api
         /// Create an email inbox
         /// </summary>
         /// <remarks>
-        /// Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+        /// Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
         /// </remarks>
         /// <param name="createEmailInboxRequest"></param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
@@ -150,24 +150,28 @@ namespace ProgrammableInbox.Sdk.Api
         /// Get the latest one-time code for an inbox
         /// </summary>
         /// <remarks>
-        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
         /// </remarks>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="id">The email inbox ID</param>
+        /// <param name="from">Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)</param>
+        /// <param name="withinMinutes">How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
-        Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, System.Threading.CancellationToken cancellationToken = default);
+        Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, Option<string> from = default, Option<int> withinMinutes = default, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get the latest one-time code for an inbox
         /// </summary>
         /// <remarks>
-        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
         /// </remarks>
         /// <param name="id">The email inbox ID</param>
+        /// <param name="from">Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)</param>
+        /// <param name="withinMinutes">How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>?&gt;</returns>
-        Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, System.Threading.CancellationToken cancellationToken = default);
+        Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, Option<string> from = default, Option<int> withinMinutes = default, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get a single message
@@ -382,13 +386,19 @@ namespace ProgrammableInbox.Sdk.Api
     /// <summary>
     /// The <see cref="IGetEmailInboxOtpApiResponse"/>
     /// </summary>
-    public interface IGetEmailInboxOtpApiResponse : ProgrammableInbox.Sdk.Client.IApiResponse, IOk<ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response?>, IUnauthorized<ProgrammableInbox.Sdk.Model.ErrorResponse?>, IForbidden<ProgrammableInbox.Sdk.Model.ErrorResponse?>, INotFound<ProgrammableInbox.Sdk.Model.ErrorResponse?>
+    public interface IGetEmailInboxOtpApiResponse : ProgrammableInbox.Sdk.Client.IApiResponse, IOk<ProgrammableInbox.Sdk.Model.GetEmailInboxOtp200Response?>, IBadRequest<ProgrammableInbox.Sdk.Model.ErrorResponse?>, IUnauthorized<ProgrammableInbox.Sdk.Model.ErrorResponse?>, IForbidden<ProgrammableInbox.Sdk.Model.ErrorResponse?>, INotFound<ProgrammableInbox.Sdk.Model.ErrorResponse?>
     {
         /// <summary>
         /// Returns true if the response is 200 Ok
         /// </summary>
         /// <returns></returns>
         bool IsOk { get; }
+
+        /// <summary>
+        /// Returns true if the response is 400 BadRequest
+        /// </summary>
+        /// <returns></returns>
+        bool IsBadRequest { get; }
 
         /// <summary>
         /// Returns true if the response is 401 Unauthorized
@@ -778,7 +788,7 @@ namespace ProgrammableInbox.Sdk.Api
         partial void OnErrorCreateEmailInbox(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, CreateEmailInboxRequest createEmailInboxRequest);
 
         /// <summary>
-        /// Create an email inbox Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+        /// Create an email inbox Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
         /// </summary>
         /// <param name="createEmailInboxRequest"></param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
@@ -796,7 +806,7 @@ namespace ProgrammableInbox.Sdk.Api
         }
 
         /// <summary>
-        /// Create an email inbox Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is created in the organization the key is bound to; supplying a different &#x60;organizationId&#x60; is a 403 rather than a silently ignored field.
+        /// Create an email inbox Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with &#x60;email_inboxes:create&#x60; scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
         /// </summary>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="createEmailInboxRequest"></param>
@@ -2376,17 +2386,21 @@ namespace ProgrammableInbox.Sdk.Api
             partial void OnDeserializationError(ref bool suppressDefaultLog, Exception exception, HttpStatusCode httpStatusCode);
         }
 
-        partial void FormatGetEmailInboxOtp(ref string id);
+        partial void FormatGetEmailInboxOtp(ref string id, ref Option<string> from, ref Option<int> withinMinutes);
 
         /// <summary>
         /// Validates the request parameters
         /// </summary>
         /// <param name="id"></param>
+        /// <param name="from"></param>
         /// <returns></returns>
-        private void ValidateGetEmailInboxOtp(string id)
+        private void ValidateGetEmailInboxOtp(string id, Option<string> from)
         {
             if (id == null)
                 throw new ArgumentNullException(nameof(id));
+
+            if (from.IsSet && from.Value == null)
+                throw new ArgumentNullException(nameof(from));
         }
 
         /// <summary>
@@ -2394,10 +2408,12 @@ namespace ProgrammableInbox.Sdk.Api
         /// </summary>
         /// <param name="apiResponseLocalVar"></param>
         /// <param name="id"></param>
-        private void AfterGetEmailInboxOtpDefaultImplementation(IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id)
+        /// <param name="from"></param>
+        /// <param name="withinMinutes"></param>
+        private void AfterGetEmailInboxOtpDefaultImplementation(IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id, Option<string> from, Option<int> withinMinutes)
         {
             bool suppressDefaultLog = false;
-            AfterGetEmailInboxOtp(ref suppressDefaultLog, apiResponseLocalVar, id);
+            AfterGetEmailInboxOtp(ref suppressDefaultLog, apiResponseLocalVar, id, from, withinMinutes);
             if (!suppressDefaultLog)
                 Logger.LogInformation(RestLogEvents.ApiRequestCompleted, "{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
@@ -2408,7 +2424,9 @@ namespace ProgrammableInbox.Sdk.Api
         /// <param name="suppressDefaultLog"></param>
         /// <param name="apiResponseLocalVar"></param>
         /// <param name="id"></param>
-        partial void AfterGetEmailInboxOtp(ref bool suppressDefaultLog, IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id);
+        /// <param name="from"></param>
+        /// <param name="withinMinutes"></param>
+        partial void AfterGetEmailInboxOtp(ref bool suppressDefaultLog, IGetEmailInboxOtpApiResponse apiResponseLocalVar, string id, Option<string> from, Option<int> withinMinutes);
 
         /// <summary>
         /// Logs exceptions that occur while retrieving the server response
@@ -2417,10 +2435,12 @@ namespace ProgrammableInbox.Sdk.Api
         /// <param name="pathFormatLocalVar"></param>
         /// <param name="pathLocalVar"></param>
         /// <param name="id"></param>
-        private void OnErrorGetEmailInboxOtpDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id)
+        /// <param name="from"></param>
+        /// <param name="withinMinutes"></param>
+        private void OnErrorGetEmailInboxOtpDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id, Option<string> from, Option<int> withinMinutes)
         {
             bool suppressDefaultLogLocalVar = false;
-            OnErrorGetEmailInboxOtp(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar, id);
+            OnErrorGetEmailInboxOtp(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar, id, from, withinMinutes);
             if (!suppressDefaultLogLocalVar)
                 Logger.LogError(RestLogEvents.ApiRequestFailed, exceptionLocalVar, "An error occurred while sending the request to the server.");
         }
@@ -2433,19 +2453,23 @@ namespace ProgrammableInbox.Sdk.Api
         /// <param name="pathFormatLocalVar"></param>
         /// <param name="pathLocalVar"></param>
         /// <param name="id"></param>
-        partial void OnErrorGetEmailInboxOtp(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id);
+        /// <param name="from"></param>
+        /// <param name="withinMinutes"></param>
+        partial void OnErrorGetEmailInboxOtp(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id, Option<string> from, Option<int> withinMinutes);
 
         /// <summary>
-        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
         /// </summary>
         /// <param name="id">The email inbox ID</param>
+        /// <param name="from">Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)</param>
+        /// <param name="withinMinutes">How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
-        public async Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<IGetEmailInboxOtpApiResponse?> GetEmailInboxOtpOrDefaultAsync(string id, Option<string> from = default, Option<int> withinMinutes = default, System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
-                return await GetEmailInboxOtpAsync(id, cancellationToken).ConfigureAwait(false);
+                return await GetEmailInboxOtpAsync(id, from, withinMinutes, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -2454,21 +2478,23 @@ namespace ProgrammableInbox.Sdk.Api
         }
 
         /// <summary>
-        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata.
+        /// Get the latest one-time code for an inbox Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with &#x60;email_messages:read&#x60; scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
         /// </summary>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="id">The email inbox ID</param>
+        /// <param name="from">Only consider messages whose From header contains this substring, e.g. \&quot;stripe.com\&quot;. Case-insensitive, matches the raw header. (optional)</param>
+        /// <param name="withinMinutes">How recent the code must be. Defaults to 15 minutes, because a stale code looks identical to a fresh one and will silently fail wherever it is used. (optional, default to 15)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="IGetEmailInboxOtpApiResponse"/>&gt;</returns>
-        public async Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<IGetEmailInboxOtpApiResponse> GetEmailInboxOtpAsync(string id, Option<string> from = default, Option<int> withinMinutes = default, System.Threading.CancellationToken cancellationToken = default)
         {
             UriBuilder uriBuilderLocalVar = new UriBuilder();
 
             try
             {
-                ValidateGetEmailInboxOtp(id);
+                ValidateGetEmailInboxOtp(id, from);
 
-                FormatGetEmailInboxOtp(ref id);
+                FormatGetEmailInboxOtp(ref id, ref from, ref withinMinutes);
 
                 using (HttpRequestMessage httpRequestMessageLocalVar = new HttpRequestMessage())
                 {
@@ -2479,6 +2505,16 @@ namespace ProgrammableInbox.Sdk.Api
                         ? "/api/v1/emailInbox/{id}/otp"
                         : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/api/v1/emailInbox/{id}/otp");
                     uriBuilderLocalVar.Path = uriBuilderLocalVar.Path.Replace("%7Bid%7D", Uri.EscapeDataString(id.ToString()));
+
+                    System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
+
+                    if (from.IsSet)
+                        parseQueryStringLocalVar["from"] = ClientUtils.ParameterToString(from.Value);
+
+                    if (withinMinutes.IsSet)
+                        parseQueryStringLocalVar["withinMinutes"] = ClientUtils.ParameterToString(withinMinutes.Value);
+
+                    uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
                     List<TokenBase> tokenBaseLocalVars = new List<TokenBase>();
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -2515,7 +2551,7 @@ namespace ProgrammableInbox.Sdk.Api
                             }
                         }
 
-                        AfterGetEmailInboxOtpDefaultImplementation(apiResponseLocalVar, id);
+                        AfterGetEmailInboxOtpDefaultImplementation(apiResponseLocalVar, id, from, withinMinutes);
 
                         Events.ExecuteOnGetEmailInboxOtp(apiResponseLocalVar);
 
@@ -2529,7 +2565,7 @@ namespace ProgrammableInbox.Sdk.Api
             }
             catch(Exception e)
             {
-                OnErrorGetEmailInboxOtpDefaultImplementation(e, "/api/v1/emailInbox/{id}/otp", uriBuilderLocalVar.Path, id);
+                OnErrorGetEmailInboxOtpDefaultImplementation(e, "/api/v1/emailInbox/{id}/otp", uriBuilderLocalVar.Path, id, from, withinMinutes);
                 Events.ExecuteOnErrorGetEmailInboxOtp(e);
                 throw;
             }
@@ -2612,6 +2648,44 @@ namespace ProgrammableInbox.Sdk.Api
                 } catch (Exception e)
                 {
                     OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)200);
+                }
+
+                return result != null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 400 BadRequest
+            /// </summary>
+            /// <returns></returns>
+            public bool IsBadRequest => 400 == (int)StatusCode;
+
+            /// <summary>
+            /// Deserializes the response if the response is 400 BadRequest
+            /// </summary>
+            /// <returns></returns>
+            public ProgrammableInbox.Sdk.Model.ErrorResponse? BadRequest()
+            {
+                // This logic may be modified with the AsModel.mustache template
+                return IsBadRequest
+                    ? System.Text.Json.JsonSerializer.Deserialize<ProgrammableInbox.Sdk.Model.ErrorResponse>(RawContent, _jsonSerializerOptions)
+                    : null;
+            }
+
+            /// <summary>
+            /// Returns true if the response is 400 BadRequest and the deserialized response is not null
+            /// </summary>
+            /// <param name="result"></param>
+            /// <returns></returns>
+            public bool TryBadRequest([NotNullWhen(true)]out ProgrammableInbox.Sdk.Model.ErrorResponse? result)
+            {
+                result = null;
+
+                try
+                {
+                    result = BadRequest();
+                } catch (Exception e)
+                {
+                    OnDeserializationErrorDefaultImplementation(e, (HttpStatusCode)400);
                 }
 
                 return result != null;

@@ -20,8 +20,6 @@ docs/models/UpdateEmailInboxRequest.md
 docs/scripts/git_push.ps1
 docs/scripts/git_push.sh
 src/ProgrammableInbox.Sdk.Test/Api/DependencyInjectionTests.cs
-src/ProgrammableInbox.Sdk.Test/Model/GetEmailInboxOtp200ResponseDataTests.cs
-src/ProgrammableInbox.Sdk.Test/Model/GetEmailInboxOtp200ResponseTests.cs
 src/ProgrammableInbox.Sdk.Test/ProgrammableInbox.Sdk.Test.csproj
 src/ProgrammableInbox.Sdk.Test/README.md
 src/ProgrammableInbox.Sdk/Api/EmailInboxesApi.cs

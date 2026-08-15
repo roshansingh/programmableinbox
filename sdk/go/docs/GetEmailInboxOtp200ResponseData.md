@@ -5,15 +5,13 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Otp** | **string** |  | 
-**ReceivedAt** | **time.Time** |  | 
-**MessageId** | **string** |  | 
-**From** | **string** |  | 
+**Message** | [**EmailMessage**](EmailMessage.md) |  | 
 
 ## Methods
 
 ### NewGetEmailInboxOtp200ResponseData
 
-`func NewGetEmailInboxOtp200ResponseData(otp string, receivedAt time.Time, messageId string, from string, ) *GetEmailInboxOtp200ResponseData`
+`func NewGetEmailInboxOtp200ResponseData(otp string, message EmailMessage, ) *GetEmailInboxOtp200ResponseData`
 
 NewGetEmailInboxOtp200ResponseData instantiates a new GetEmailInboxOtp200ResponseData object
 This constructor will assign default values to properties that have it defined,
@@ -48,64 +46,24 @@ and a boolean to check if the value has been set.
 SetOtp sets Otp field to given value.
 
 
-### GetReceivedAt
+### GetMessage
 
-`func (o *GetEmailInboxOtp200ResponseData) GetReceivedAt() time.Time`
+`func (o *GetEmailInboxOtp200ResponseData) GetMessage() EmailMessage`
 
-GetReceivedAt returns the ReceivedAt field if non-nil, zero value otherwise.
+GetMessage returns the Message field if non-nil, zero value otherwise.
 
-### GetReceivedAtOk
+### GetMessageOk
 
-`func (o *GetEmailInboxOtp200ResponseData) GetReceivedAtOk() (*time.Time, bool)`
+`func (o *GetEmailInboxOtp200ResponseData) GetMessageOk() (*EmailMessage, bool)`
 
-GetReceivedAtOk returns a tuple with the ReceivedAt field if it's non-nil, zero value otherwise
+GetMessageOk returns a tuple with the Message field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetReceivedAt
+### SetMessage
 
-`func (o *GetEmailInboxOtp200ResponseData) SetReceivedAt(v time.Time)`
+`func (o *GetEmailInboxOtp200ResponseData) SetMessage(v EmailMessage)`
 
-SetReceivedAt sets ReceivedAt field to given value.
-
-
-### GetMessageId
-
-`func (o *GetEmailInboxOtp200ResponseData) GetMessageId() string`
-
-GetMessageId returns the MessageId field if non-nil, zero value otherwise.
-
-### GetMessageIdOk
-
-`func (o *GetEmailInboxOtp200ResponseData) GetMessageIdOk() (*string, bool)`
-
-GetMessageIdOk returns a tuple with the MessageId field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetMessageId
-
-`func (o *GetEmailInboxOtp200ResponseData) SetMessageId(v string)`
-
-SetMessageId sets MessageId field to given value.
-
-
-### GetFrom
-
-`func (o *GetEmailInboxOtp200ResponseData) GetFrom() string`
-
-GetFrom returns the From field if non-nil, zero value otherwise.
-
-### GetFromOk
-
-`func (o *GetEmailInboxOtp200ResponseData) GetFromOk() (*string, bool)`
-
-GetFromOk returns a tuple with the From field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetFrom
-
-`func (o *GetEmailInboxOtp200ResponseData) SetFrom(v string)`
-
-SetFrom sets From field to given value.
+SetMessage sets Message field to given value.
 
 
 

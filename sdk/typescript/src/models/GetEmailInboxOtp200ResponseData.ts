@@ -13,6 +13,14 @@
  */
 
 import { mapValues } from '../runtime';
+import type { EmailMessage } from './EmailMessage';
+import {
+    EmailMessageFromJSON,
+    EmailMessageFromJSONTyped,
+    EmailMessageToJSON,
+    EmailMessageToJSONTyped,
+} from './EmailMessage';
+
 /**
  * 
  * @export
@@ -27,22 +35,10 @@ export interface GetEmailInboxOtp200ResponseData {
     otp: string;
     /**
      * 
-     * @type {Date}
+     * @type {EmailMessage}
      * @memberof GetEmailInboxOtp200ResponseData
      */
-    receivedAt: Date;
-    /**
-     * 
-     * @type {string}
-     * @memberof GetEmailInboxOtp200ResponseData
-     */
-    messageId: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof GetEmailInboxOtp200ResponseData
-     */
-    from: string;
+    message: EmailMessage;
 }
 
 /**
@@ -50,9 +46,7 @@ export interface GetEmailInboxOtp200ResponseData {
  */
 export function instanceOfGetEmailInboxOtp200ResponseData(value: object): value is GetEmailInboxOtp200ResponseData {
     if (!('otp' in value) || value['otp'] === undefined) return false;
-    if (!('receivedAt' in value) || value['receivedAt'] === undefined) return false;
-    if (!('messageId' in value) || value['messageId'] === undefined) return false;
-    if (!('from' in value) || value['from'] === undefined) return false;
+    if (!('message' in value) || value['message'] === undefined) return false;
     return true;
 }
 
@@ -67,9 +61,7 @@ export function GetEmailInboxOtp200ResponseDataFromJSONTyped(json: any, ignoreDi
     return {
         
         'otp': json['otp'],
-        'receivedAt': (new Date(json['receivedAt'])),
-        'messageId': json['messageId'],
-        'from': json['from'],
+        'message': EmailMessageFromJSON(json['message']),
     };
 }
 
@@ -85,9 +77,7 @@ export function GetEmailInboxOtp200ResponseDataToJSONTyped(value?: GetEmailInbox
     return {
         
         'otp': value['otp'],
-        'receivedAt': value['receivedAt'].toISOString(),
-        'messageId': value['messageId'],
-        'from': value['from'],
+        'message': EmailMessageToJSON(value['message']),
     };
 }
 

@@ -85,6 +85,8 @@ export interface GetEmailInboxMessagesRequest {
 
 export interface GetEmailInboxOtpRequest {
     id: string;
+    from?: string;
+    withinMinutes?: number;
 }
 
 export interface GetEmailMessageRequest {
@@ -140,7 +142,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
      * Create an email inbox
      */
     async createEmailInboxRaw(requestParameters: CreateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateEmailInbox201Response>> {
@@ -151,7 +153,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is created in the organization the key is bound to; supplying a different `organizationId` is a 403 rather than a silently ignored field.
+     * Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.
      * Create an email inbox
      */
     async createEmailInbox(requestParameters: CreateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateEmailInbox201Response> {
@@ -368,6 +370,14 @@ export class EmailInboxesApi extends runtime.BaseAPI {
 
         const queryParameters: any = {};
 
+        if (requestParameters['from'] != null) {
+            queryParameters['from'] = requestParameters['from'];
+        }
+
+        if (requestParameters['withinMinutes'] != null) {
+            queryParameters['withinMinutes'] = requestParameters['withinMinutes'];
+        }
+
         const headerParameters: runtime.HTTPHeaders = {};
 
         if (this.configuration && this.configuration.accessToken) {
@@ -391,7 +401,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
      * Get the latest one-time code for an inbox
      */
     async getEmailInboxOtpRaw(requestParameters: GetEmailInboxOtpRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<GetEmailInboxOtp200Response>> {
@@ -402,7 +412,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata.
+     * Returns the most recently extracted one-time passcode (OTP) for an email inbox, with the message it came from. Requires API key with `email_messages:read` scope — this is a read of extracted message content, not inbox metadata. Shares its lookup and arguments with the pibx_email_get_latest_otp MCP tool.
      * Get the latest one-time code for an inbox
      */
     async getEmailInboxOtp(requestParameters: GetEmailInboxOtpRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<GetEmailInboxOtp200Response> {

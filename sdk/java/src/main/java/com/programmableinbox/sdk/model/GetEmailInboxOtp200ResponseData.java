@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonValue;
-import java.time.OffsetDateTime;
+import com.programmableinbox.sdk.model.EmailMessage;
 import java.util.Arrays;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
@@ -35,9 +35,7 @@ import com.programmableinbox.sdk.ApiClient;
  */
 @JsonPropertyOrder({
   GetEmailInboxOtp200ResponseData.JSON_PROPERTY_OTP,
-  GetEmailInboxOtp200ResponseData.JSON_PROPERTY_RECEIVED_AT,
-  GetEmailInboxOtp200ResponseData.JSON_PROPERTY_MESSAGE_ID,
-  GetEmailInboxOtp200ResponseData.JSON_PROPERTY_FROM
+  GetEmailInboxOtp200ResponseData.JSON_PROPERTY_MESSAGE
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.24.0")
 public class GetEmailInboxOtp200ResponseData {
@@ -45,17 +43,9 @@ public class GetEmailInboxOtp200ResponseData {
   @javax.annotation.Nonnull
   private String otp;
 
-  public static final String JSON_PROPERTY_RECEIVED_AT = "receivedAt";
+  public static final String JSON_PROPERTY_MESSAGE = "message";
   @javax.annotation.Nonnull
-  private OffsetDateTime receivedAt;
-
-  public static final String JSON_PROPERTY_MESSAGE_ID = "messageId";
-  @javax.annotation.Nonnull
-  private String messageId;
-
-  public static final String JSON_PROPERTY_FROM = "from";
-  @javax.annotation.Nonnull
-  private String from;
+  private EmailMessage message;
 
   public GetEmailInboxOtp200ResponseData() { 
   }
@@ -84,75 +74,27 @@ public class GetEmailInboxOtp200ResponseData {
   }
 
 
-  public GetEmailInboxOtp200ResponseData receivedAt(@javax.annotation.Nonnull OffsetDateTime receivedAt) {
-    this.receivedAt = receivedAt;
+  public GetEmailInboxOtp200ResponseData message(@javax.annotation.Nonnull EmailMessage message) {
+    this.message = message;
     return this;
   }
 
   /**
-   * Get receivedAt
-   * @return receivedAt
+   * Get message
+   * @return message
    */
   @javax.annotation.Nonnull
-  @JsonProperty(value = JSON_PROPERTY_RECEIVED_AT, required = true)
+  @JsonProperty(value = JSON_PROPERTY_MESSAGE, required = true)
   @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public OffsetDateTime getReceivedAt() {
-    return receivedAt;
+  public EmailMessage getMessage() {
+    return message;
   }
 
 
-  @JsonProperty(value = JSON_PROPERTY_RECEIVED_AT, required = true)
+  @JsonProperty(value = JSON_PROPERTY_MESSAGE, required = true)
   @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public void setReceivedAt(@javax.annotation.Nonnull OffsetDateTime receivedAt) {
-    this.receivedAt = receivedAt;
-  }
-
-
-  public GetEmailInboxOtp200ResponseData messageId(@javax.annotation.Nonnull String messageId) {
-    this.messageId = messageId;
-    return this;
-  }
-
-  /**
-   * Get messageId
-   * @return messageId
-   */
-  @javax.annotation.Nonnull
-  @JsonProperty(value = JSON_PROPERTY_MESSAGE_ID, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public String getMessageId() {
-    return messageId;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_MESSAGE_ID, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public void setMessageId(@javax.annotation.Nonnull String messageId) {
-    this.messageId = messageId;
-  }
-
-
-  public GetEmailInboxOtp200ResponseData from(@javax.annotation.Nonnull String from) {
-    this.from = from;
-    return this;
-  }
-
-  /**
-   * Get from
-   * @return from
-   */
-  @javax.annotation.Nonnull
-  @JsonProperty(value = JSON_PROPERTY_FROM, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public String getFrom() {
-    return from;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_FROM, required = true)
-  @JsonInclude(value = JsonInclude.Include.ALWAYS)
-  public void setFrom(@javax.annotation.Nonnull String from) {
-    this.from = from;
+  public void setMessage(@javax.annotation.Nonnull EmailMessage message) {
+    this.message = message;
   }
 
 
@@ -169,14 +111,12 @@ public class GetEmailInboxOtp200ResponseData {
     }
     GetEmailInboxOtp200ResponseData getEmailInboxOtp200ResponseData = (GetEmailInboxOtp200ResponseData) o;
     return Objects.equals(this.otp, getEmailInboxOtp200ResponseData.otp) &&
-        Objects.equals(this.receivedAt, getEmailInboxOtp200ResponseData.receivedAt) &&
-        Objects.equals(this.messageId, getEmailInboxOtp200ResponseData.messageId) &&
-        Objects.equals(this.from, getEmailInboxOtp200ResponseData.from);
+        Objects.equals(this.message, getEmailInboxOtp200ResponseData.message);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(otp, receivedAt, messageId, from);
+    return Objects.hash(otp, message);
   }
 
   @Override
@@ -184,9 +124,7 @@ public class GetEmailInboxOtp200ResponseData {
     StringBuilder sb = new StringBuilder();
     sb.append("class GetEmailInboxOtp200ResponseData {\n");
     sb.append("    otp: ").append(toIndentedString(otp)).append("\n");
-    sb.append("    receivedAt: ").append(toIndentedString(receivedAt)).append("\n");
-    sb.append("    messageId: ").append(toIndentedString(messageId)).append("\n");
-    sb.append("    from: ").append(toIndentedString(from)).append("\n");
+    sb.append("    message: ").append(toIndentedString(message)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -236,19 +174,9 @@ public class GetEmailInboxOtp200ResponseData {
       joiner.add(String.format(java.util.Locale.ROOT, "%sotp%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getOtp()))));
     }
 
-    // add `receivedAt` to the URL query string
-    if (getReceivedAt() != null) {
-      joiner.add(String.format(java.util.Locale.ROOT, "%sreceivedAt%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getReceivedAt()))));
-    }
-
-    // add `messageId` to the URL query string
-    if (getMessageId() != null) {
-      joiner.add(String.format(java.util.Locale.ROOT, "%smessageId%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getMessageId()))));
-    }
-
-    // add `from` to the URL query string
-    if (getFrom() != null) {
-      joiner.add(String.format(java.util.Locale.ROOT, "%sfrom%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getFrom()))));
+    // add `message` to the URL query string
+    if (getMessage() != null) {
+      joiner.add(getMessage().toUrlQueryString(prefix + "message" + suffix));
     }
 
     return joiner.toString();
