@@ -380,7 +380,11 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     const key = await createApiKey(org.id, user.id, ['email_messages:read'])
     const inbox = await seedInbox(org.id, user.id)
     await seedMessage(inbox.id, org.id, { extractedOtp: '111111', createdAt: at(1) })
-    const latest = await seedMessage(inbox.id, org.id, { extractedOtp: '222222', createdAt: at(2) })
+    const latest = await seedMessage(inbox.id, org.id, {
+      extractedOtp: '222222',
+      createdAt: at(2),
+      from: 'security@example.com',
+    })
 
     const res = await getOtp(
       jsonRequest(`http://localhost/api/v1/emailInbox/${inbox.id}/otp`, { credential: key.rawKey }),
@@ -389,6 +393,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     expect(res.status).toBe(200)
     const { data } = await res.json()
     expect(data.otp).toBe('222222')
+    expect(data.from).toBe('security@example.com')
     expect(data.messageId).toBe(latest.id)
   })
 

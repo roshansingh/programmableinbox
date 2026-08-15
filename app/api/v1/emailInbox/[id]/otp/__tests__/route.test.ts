@@ -96,7 +96,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     expect((await response.json()).message).toBe('No OTP found for this inbox')
   })
 
-  it('returns otp, receivedAt, messageId when found', async () => {
+  it('returns otp, receivedAt, messageId, from when found', async () => {
     const createdAt = new Date('2026-01-03T00:00:00.000Z')
     resolveApiKeyPrincipalMock.mockResolvedValue(KEY)
     getInboxMock.mockResolvedValue({ id: 'inbox_1', organizationId: 'org_1' })
@@ -104,6 +104,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
       extractedOtp: '123456',
       createdAt,
       id: 'msg_1',
+      from: 'noreply@example.com',
     })
     const { GET } = await import('../route')
 
@@ -113,6 +114,7 @@ describe('GET /api/v1/emailInbox/[id]/otp', () => {
     expect(response.status).toBe(200)
     expect(body.data.otp).toBe('123456')
     expect(body.data.messageId).toBe('msg_1')
+    expect(body.data.from).toBe('noreply@example.com')
     expect(new Date(body.data.receivedAt)).toEqual(createdAt)
   })
 

@@ -24,7 +24,7 @@ export const GET = withApiKey<{ id: string }>(
         extractedOtp: { not: null },
       },
       orderBy: { createdAt: 'desc' },
-      select: { extractedOtp: true, createdAt: true, id: true },
+      select: { extractedOtp: true, createdAt: true, id: true, from: true },
     })
 
     if (!message) return jsonError('No OTP found for this inbox', 404)
@@ -33,6 +33,7 @@ export const GET = withApiKey<{ id: string }>(
       otp: message.extractedOtp as string,
       receivedAt: message.createdAt,
       messageId: message.id,
+      from: message.from,
     })
   },
 )
