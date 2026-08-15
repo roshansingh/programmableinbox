@@ -35,14 +35,18 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
-  # Every container's stdout, via Docker's json-file log driver. Non-app
-  # containers (postgres, caddy, redis, ...) don't write JSON lines — the
-  # json_parser operator below is best-effort (on_error: send) so those
-  # entries pass through with their raw text as the log body instead of
-  # being dropped or crashing the pipeline. There is no per-container
-  # filter: doing that correctly needs the container name, which isn't
-  # recoverable from the log file path alone (Docker names the file by
-  # container ID) without also talking to the Docker API.
+  # Every container's stdout, via Docker's json-file log driver. Not every
+  # non-app container's output is JSON — Postgres and Redis write plain
+  # text — but some are: Caddy defaults to JSON logging on stderr whenever
+  # it isn't attached to a TTY, which is always true here. The json_parser
+  # operator below is best-effort (on_error: send) either way, so plain-text
+  # lines pass through with their raw text as the log body instead of being
+  # dropped or crashing the pipeline, and Caddy's JSON lines parse
+  # successfully but are kept out of the app-only processing below (see the
+  # `transform/logs` processor's guard). There is no per-container filter:
+  # doing that correctly needs the container name, which isn't recoverable
+  # from the log file path alone (Docker names the file by container ID)
+  # without also talking to the Docker API.
   filelog/docker:
     include:
       - /var/lib/docker/containers/*/*-json.log
@@ -90,13 +94,18 @@ receivers:
           fatal: 60
 
       # Pino's message key is `msg` (lib/logger.config.ts uses the
-      # default). Promote it to the record body so Loki shows the message,
-      # not the whole JSON blob; leaves trace_id/span_id/time/etc in
-      # attributes for the steps below.
+      # default) — but Caddy's default JSON logging also has a `msg` key
+      # (always "handled request"), so `attributes.msg != nil` alone isn't
+      # Pino-specific. Also require `attributes.pid`, which Pino's base
+      # object always adds (lib/logger.config.ts does not override `base`)
+      # and Caddy's zap-based encoder does not use — same discriminator the
+      # `transform/logs` processor uses below. Without it, this would
+      # overwrite Caddy's structured request-log body with the literal
+      # string "handled request", discarding the rest of that line.
       - type: move
         from: attributes.msg
         to: body
-        if: 'attributes.msg != nil'
+        if: 'attributes.msg != nil && attributes.pid != nil'
 
       # Pino's timestamp key is `time` (pino.stdTimeFunctions.isoTime),
       # formatted like 2024-01-01T00:00:00.000Z. Falls back to Docker's own
@@ -139,7 +148,13 @@ processors:
   # once consumed — severity_parser and time_parser don't remove their
   # source field on their own, so without this every app log record would
   # carry redundant copies of data already promoted onto Severity/Timestamp/
-  # trace context.
+  # trace context. attributes.level/time are guarded on the same Pino-line
+  # check as the service.name stamp above: Caddy's JSON logs also carry a
+  # `level` key (though its timestamp key is `ts`, not `time` — see
+  # https://caddyserver.com — so `time` specifically wouldn't collide
+  # today, but the guard is here on principle rather than relying on that).
+  # trace_id/span_id need no such guard — only lines the promotion above
+  # actually matched ever have those keys at all, Pino or not.
   transform/logs:
     log_statements:
       - context: log
@@ -149,8 +164,8 @@ processors:
           - set(span_id, SpanID(attributes["span_id"])) where attributes["span_id"] != nil
           - delete_key(attributes, "trace_id")
           - delete_key(attributes, "span_id")
-          - delete_key(attributes, "level")
-          - delete_key(attributes, "time")
+          - delete_key(attributes, "level") where attributes["pid"] != nil
+          - delete_key(attributes, "time") where attributes["pid"] != nil
 
 exporters:
   # A single OTLP/HTTP exporter, shared by both pipelines: the collector

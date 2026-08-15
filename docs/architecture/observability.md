@@ -84,9 +84,13 @@ Two independent pieces, split between the app and the collector:
    collector's `filelog` receiver tails `/var/lib/docker/containers/*/*-json.log` — every
    container's stdout, via Docker's `json-file` log driver — and parses each line as JSON.
    Pino writing plain JSON to stdout in production (no `pino-pretty`) is what makes this parseable
-   at all; see "Why this depends on JSON stdout" below. Non-app containers (postgres, caddy,
-   redis, ...) don't write JSON, so those lines pass through with their raw text as the log body
-   instead of being dropped — the collector doesn't try to filter by container.
+   at all; see "Why this depends on JSON stdout" below. Not every non-app container's output is
+   JSON — Postgres and Redis write plain text, and those lines pass through with their raw text as
+   the log body instead of being dropped. Caddy's is JSON too (its default logging format
+   whenever stderr isn't a TTY, which is always true in a container), so it also parses
+   successfully — the collector doesn't try to filter by container at the receiver level at all.
+   What keeps Caddy's parsed lines from being treated as the app's is the guard on the
+   `transform/logs` processor described below, not anything at the receiver.
 
 `registerExtraLogTransport()` (`lib/logger.config.ts`) still exists as generic multi-target Pino
 infrastructure — it is what an in-process log-shipping transport would use, and is still exercised
