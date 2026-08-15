@@ -67,8 +67,21 @@ receivers:
       # "stdout", "time": "..."} -> body becomes the raw line, and a
       # `time` attribute carries Docker's own receive timestamp (used as a
       # fallback below if the line isn't Pino JSON with its own `time`).
+      #
+      # add_metadata_from_filepath is explicitly off: it defaults to true
+      # and extracts Kubernetes pod/namespace/container metadata from the
+      # file path, which is meaningless here (plain Docker Compose, no
+      # k8s) — and it requires `include_file_path: true` on the receiver
+      # to have the attribute it reads from, which this config deliberately
+      # doesn't set. Left at its default, every single entry failed this
+      # operator with "log record attribute 'log.file.path' is missing",
+      # and per pkg/stanza/fileconsumer's reader loop, an operator error on
+      # a batch does not just log and retry — the read offset advances past
+      # it regardless, so the batch is dropped for good. Confirmed live:
+      # this caused actual log loss, not just log noise, until fixed here.
       - type: container
         format: docker
+        add_metadata_from_filepath: false
 
       # Pino writes one JSON object per line in production (see header
       # comment). on_error: send_quiet means a non-JSON line (Postgres,

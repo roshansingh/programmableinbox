@@ -132,6 +132,17 @@ recreate-detection only hashes `docker-compose.yml`'s own resolved service defin
 inside a file it mounts, so both leave the stale container running. `--force-recreate` is what
 actually gets the collector process to re-read the file.
 
+**`docker compose logs otel-collector` shows `reader/reader.go` errors — "failed to emit token" /
+"log record attribute 'log.file.path' is missing".** Unlike the entry above, this one is real data
+loss, not just noise: per `pkg/stanza/fileconsumer`'s reader loop, when an operator in the pipeline
+returns an error for a batch, the collector logs it, advances the read offset past that batch
+anyway, and does not retry — those log lines are gone. This was a real bug (fixed): the `container`
+operator's `add_metadata_from_filepath` defaulted to `true` while `include_file_path: false` on the
+receiver meant it never had the attribute it needed, so every single entry failed this operator.
+Fixed by setting `add_metadata_from_filepath: false` explicitly — same force-recreate as above to
+pick it up. If you saw this before upgrading, some logs from the affected window were dropped and
+aren't recoverable; traces were unaffected (separate OTLP-push pipeline, not filelog).
+
 **Nothing appears in Grafana at all, from either signal.**
 The collector's own credentials are wrong — a typo in `OTEL_EXPORTER_ENDPOINT`, an expired
 `OTEL_EXPORTER_AUTH` token, or the wrong region's gateway URL. Unlike the old direct-push design,
