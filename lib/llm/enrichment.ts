@@ -1,6 +1,7 @@
 import { trace, SpanStatusCode } from '@opentelemetry/api'
 import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
+import logger from '@/lib/logger'
 import { getProvider } from './factory'
 
 const tracer = trace.getTracer('inboxui.llm')
@@ -44,7 +45,7 @@ export async function enrichMessage(messageId: string): Promise<boolean> {
 async function enrichMessageInner(messageId: string): Promise<boolean> {
   const provider = getProvider()
   if (!provider) {
-    console.log('[enrichMessage] skip: no provider (LLM_PROVIDER not set or unrecognised)')
+    logger.info('[enrichMessage] skip: no provider (LLM_PROVIDER not set or unrecognised)')
     return true
   }
 
@@ -54,7 +55,7 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       select: { id: true, subject: true, text: true, metadata: true, organizationId: true },
     })
     if (!message) {
-      console.log('[enrichMessage] skip: message not found', messageId)
+      logger.info({ messageId }, '[enrichMessage] skip: message not found')
       return true
     }
 
@@ -63,15 +64,15 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
     // never mark the step complete.
     const plan = await CommercialProvider.plans.resolve(message.organizationId)
     if (!plan.limits.llmEnrichment) {
-      console.log('[enrichMessage] skip: plan excludes llm enrichment', {
-        organizationId: message.organizationId,
-        planCode: plan.planCode,
-      })
+      logger.info(
+        { organizationId: message.organizationId, planCode: plan.planCode },
+        '[enrichMessage] skip: plan excludes llm enrichment',
+      )
       return true
     }
 
     if (message.metadata !== null) {
-      console.log('[enrichMessage] skip: already enriched', messageId)
+      logger.info({ messageId }, '[enrichMessage] skip: already enriched')
       return true
     }
 
@@ -87,18 +88,20 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       plan,
     )
     if (!quota.allowed) {
-      console.log('[enrichMessage] skip: enrichment quota exhausted', {
-        organizationId: message.organizationId,
-        limit: quota.limit,
-        used: quota.used,
-      })
+      logger.info(
+        { organizationId: message.organizationId, limit: quota.limit, used: quota.used },
+        '[enrichMessage] skip: enrichment quota exhausted',
+      )
       return true
     }
 
-    console.log('[enrichMessage] calling provider.enrich', messageId)
+    logger.info({ messageId }, '[enrichMessage] calling provider.enrich')
     try {
       const result = await provider.enrich(message.subject, message.text)
-      console.log('[enrichMessage] done', { messageId, categories: result.categories, otp: result.extractedOtp })
+      logger.info(
+        { messageId, categories: result.categories, otp: result.extractedOtp },
+        '[enrichMessage] done',
+      )
       await prisma.emailMessage.update({
         where: { id: messageId },
         data: {
@@ -117,8 +120,7 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
     }
     return true
   } catch (error) {
-    // console.error intentional: pino transport may be unavailable when this fires
-    console.error('[enrichMessage] LLM enrichment failed', { messageId, error })
+    logger.error({ messageId, error }, '[enrichMessage] LLM enrichment failed')
     return false
   }
 }
