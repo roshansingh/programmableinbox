@@ -576,7 +576,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+     * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
      * Rename an email inbox
      */
     async updateEmailInboxRaw(requestParameters: UpdateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<CreateEmailInbox201Response>> {
@@ -587,7 +587,7 @@ export class EmailInboxesApi extends runtime.BaseAPI {
     }
 
     /**
-     * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+     * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
      * Rename an email inbox
      */
     async updateEmailInbox(requestParameters: UpdateEmailInboxOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<CreateEmailInbox201Response> {

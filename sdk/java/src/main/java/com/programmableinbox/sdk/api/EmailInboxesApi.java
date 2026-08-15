@@ -1075,7 +1075,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @return CreateEmailInbox201Response
@@ -1087,7 +1087,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request
@@ -1101,7 +1101,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @return ApiResponse&lt;CreateEmailInbox201Response&gt;
@@ -1113,7 +1113,7 @@ public class EmailInboxesApi {
 
   /**
    * Rename an email inbox
-   * Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+   * Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
    * @param id The email inbox ID (required)
    * @param updateEmailInboxRequest  (required)
    * @param headers Optional headers to include in the request

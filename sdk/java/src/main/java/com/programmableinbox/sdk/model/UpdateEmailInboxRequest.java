@@ -37,17 +37,12 @@ import com.programmableinbox.sdk.ApiClient;
  * UpdateEmailInboxRequest
  */
 @JsonPropertyOrder({
-  UpdateEmailInboxRequest.JSON_PROPERTY_NAME,
-  UpdateEmailInboxRequest.JSON_PROPERTY_EMAIL
+  UpdateEmailInboxRequest.JSON_PROPERTY_NAME
 })
 @javax.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.24.0")
 public class UpdateEmailInboxRequest {
   public static final String JSON_PROPERTY_NAME = "name";
   private JsonNullable<String> name = JsonNullable.<String>undefined();
-
-  public static final String JSON_PROPERTY_EMAIL = "email";
-  @javax.annotation.Nullable
-  private String email;
 
   public UpdateEmailInboxRequest() { 
   }
@@ -84,30 +79,6 @@ public class UpdateEmailInboxRequest {
   }
 
 
-  public UpdateEmailInboxRequest email(@javax.annotation.Nullable String email) {
-    this.email = email;
-    return this;
-  }
-
-  /**
-   * Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.
-   * @return email
-   */
-  @javax.annotation.Nullable
-  @JsonProperty(value = JSON_PROPERTY_EMAIL, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public String getEmail() {
-    return email;
-  }
-
-
-  @JsonProperty(value = JSON_PROPERTY_EMAIL, required = false)
-  @JsonInclude(value = JsonInclude.Include.USE_DEFAULTS)
-  public void setEmail(@javax.annotation.Nullable String email) {
-    this.email = email;
-  }
-
-
   /**
    * Return true if this updateEmailInbox_request object is equal to o.
    */
@@ -120,8 +91,7 @@ public class UpdateEmailInboxRequest {
       return false;
     }
     UpdateEmailInboxRequest updateEmailInboxRequest = (UpdateEmailInboxRequest) o;
-    return equalsNullable(this.name, updateEmailInboxRequest.name) &&
-        Objects.equals(this.email, updateEmailInboxRequest.email);
+    return equalsNullable(this.name, updateEmailInboxRequest.name);
   }
 
   private static <T> boolean equalsNullable(JsonNullable<T> a, JsonNullable<T> b) {
@@ -130,7 +100,7 @@ public class UpdateEmailInboxRequest {
 
   @Override
   public int hashCode() {
-    return Objects.hash(hashCodeNullable(name), email);
+    return Objects.hash(hashCodeNullable(name));
   }
 
   private static <T> int hashCodeNullable(JsonNullable<T> a) {
@@ -145,7 +115,6 @@ public class UpdateEmailInboxRequest {
     StringBuilder sb = new StringBuilder();
     sb.append("class UpdateEmailInboxRequest {\n");
     sb.append("    name: ").append(toIndentedString(name)).append("\n");
-    sb.append("    email: ").append(toIndentedString(email)).append("\n");
     sb.append("}");
     return sb.toString();
   }
@@ -193,11 +162,6 @@ public class UpdateEmailInboxRequest {
     // add `name` to the URL query string
     if (getName() != null) {
       joiner.add(String.format(java.util.Locale.ROOT, "%sname%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getName()))));
-    }
-
-    // add `email` to the URL query string
-    if (getEmail() != null) {
-      joiner.add(String.format(java.util.Locale.ROOT, "%semail%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getEmail()))));
     }
 
     return joiner.toString();

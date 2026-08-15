@@ -21,8 +21,6 @@ var _ MappedNullable = &UpdateEmailInboxRequest{}
 type UpdateEmailInboxRequest struct {
 	// The new display label. Subject to the impersonation blocklist, so an inbox cannot be renamed into one.
 	Name NullableString `json:"name,omitempty"`
-	// Accepted only when it matches the current address. Present so a client can round-trip a full record; any other value is a 409.
-	Email *string `json:"email,omitempty"`
 }
 
 // NewUpdateEmailInboxRequest instantiates a new UpdateEmailInboxRequest object
@@ -84,38 +82,6 @@ func (o *UpdateEmailInboxRequest) UnsetName() {
 	o.Name.Unset()
 }
 
-// GetEmail returns the Email field value if set, zero value otherwise.
-func (o *UpdateEmailInboxRequest) GetEmail() string {
-	if o == nil || IsNil(o.Email) {
-		var ret string
-		return ret
-	}
-	return *o.Email
-}
-
-// GetEmailOk returns a tuple with the Email field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *UpdateEmailInboxRequest) GetEmailOk() (*string, bool) {
-	if o == nil || IsNil(o.Email) {
-		return nil, false
-	}
-	return o.Email, true
-}
-
-// HasEmail returns a boolean if a field has been set.
-func (o *UpdateEmailInboxRequest) HasEmail() bool {
-	if o != nil && !IsNil(o.Email) {
-		return true
-	}
-
-	return false
-}
-
-// SetEmail gets a reference to the given string and assigns it to the Email field.
-func (o *UpdateEmailInboxRequest) SetEmail(v string) {
-	o.Email = &v
-}
-
 func (o UpdateEmailInboxRequest) MarshalJSON() ([]byte, error) {
 	toSerialize,err := o.ToMap()
 	if err != nil {
@@ -128,9 +94,6 @@ func (o UpdateEmailInboxRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if o.Name.IsSet() {
 		toSerialize["name"] = o.Name.Get()
-	}
-	if !IsNil(o.Email) {
-		toSerialize["email"] = o.Email
 	}
 	return toSerialize, nil
 }

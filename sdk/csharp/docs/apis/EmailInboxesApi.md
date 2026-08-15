@@ -302,7 +302,7 @@ This endpoint does not need any parameter.
 
 Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
 
 ### Parameters
@@ -330,7 +330,7 @@ Updates an inbox display name. The address is immutable — submitting a differe
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | Inbox updated |  -  |
-| **400** | Bad request - malformed JSON, the name is not a string or is longer than 100 characters, or &#x60;email&#x60; was supplied and is not a valid email address. A well-formed address that differs from the current one is a 409 instead. |  -  |
+| **400** | Bad request - malformed JSON, or the name is not a string or is longer than 100 characters. |  -  |
 | **401** | Unauthorized - missing or invalid API key |  -  |
 | **403** | Forbidden - API key lacks the email_inboxes:update scope |  -  |
 | **404** | Not found - no such inbox, or it is not one this key may modify. Deliberately indistinguishable. |  -  |

@@ -223,7 +223,7 @@ namespace ProgrammableInbox.Sdk.Api
         /// Rename an email inbox
         /// </summary>
         /// <remarks>
-        /// Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+        /// Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
         /// </remarks>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="id">The email inbox ID</param>
@@ -236,7 +236,7 @@ namespace ProgrammableInbox.Sdk.Api
         /// Rename an email inbox
         /// </summary>
         /// <remarks>
-        /// Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+        /// Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
         /// </remarks>
         /// <param name="id">The email inbox ID</param>
         /// <param name="updateEmailInboxRequest"></param>
@@ -3565,7 +3565,7 @@ namespace ProgrammableInbox.Sdk.Api
         partial void OnErrorUpdateEmailInbox(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, string id, UpdateEmailInboxRequest updateEmailInboxRequest);
 
         /// <summary>
-        /// Rename an email inbox Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+        /// Rename an email inbox Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
         /// </summary>
         /// <param name="id">The email inbox ID</param>
         /// <param name="updateEmailInboxRequest"></param>
@@ -3584,7 +3584,7 @@ namespace ProgrammableInbox.Sdk.Api
         }
 
         /// <summary>
-        /// Rename an email inbox Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with &#x60;email_inboxes:update&#x60; scope.
+        /// Rename an email inbox Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with &#x60;email_inboxes:update&#x60; scope.
         /// </summary>
         /// <exception cref="ApiException">Thrown when fails to make API call</exception>
         /// <param name="id">The email inbox ID</param>

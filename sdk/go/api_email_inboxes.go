@@ -1137,7 +1137,7 @@ func (r ApiUpdateEmailInboxRequest) Execute() (*CreateEmailInbox201Response, *ht
 /*
 UpdateEmailInbox Rename an email inbox
 
-Updates an inbox display name. The address is immutable — submitting a different one is a 409; submitting the current one (after normalization) is an allowed no-op, so a client can PATCH a whole record back. Requires API key with `email_inboxes:update` scope.
+Updates an inbox display name. The address is immutable and is not part of this request. Requires API key with `email_inboxes:update` scope.
 
  @param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
  @param id The email inbox ID
