@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import type { LLMProvider, EnrichmentResult } from '../types'
 import { parseEnrichmentResult } from '../types'
 import { buildSystemPrompt } from '../prompt'
+import logger from '@/lib/logger'
 
 export class OpenAICompatAdapter implements LLMProvider {
   private client: OpenAI
@@ -27,12 +28,34 @@ export class OpenAICompatAdapter implements LLMProvider {
       ...this.extraBody,
     } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming)
 
-    const content = response.choices[0]?.message?.content ?? ''
+    const choice = response.choices[0]
+    const content = choice?.message?.content ?? ''
+    const finishReason = choice?.finish_reason
+    const refusal = choice?.message?.refusal
+
+    // A non-'stop' finish or an explicit refusal both silently degrade to an
+    // empty EnrichmentResult below (same shape as "nothing to extract"), so
+    // without this the two are indistinguishable in the data. Reasoning
+    // models in particular can spend the whole max_completion_tokens budget
+    // on hidden reasoning and return empty content with finish_reason:
+    // 'length' — that looks identical to a well-formed "nothing found"
+    // answer unless it's logged here.
+    if ((finishReason && finishReason !== 'stop') || refusal) {
+      logger.warn(
+        { model: this.model, finishReason, refusal, contentLength: content.length },
+        '[OpenAICompatAdapter] enrich response was not a clean stop — enrichment result may be empty',
+      )
+    }
+
     // Strip <think>…</think> blocks emitted by reasoning models before JSON parsing
     const stripped = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
     try {
       return parseEnrichmentResult(JSON.parse(stripped))
-    } catch {
+    } catch (error) {
+      logger.warn(
+        { model: this.model, finishReason, contentLength: content.length, error },
+        '[OpenAICompatAdapter] failed to parse enrichment JSON from response',
+      )
       return parseEnrichmentResult(null)
     }
   }
