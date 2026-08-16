@@ -106,6 +106,9 @@ describe('OpenAICompatAdapter', () => {
       expect.objectContaining({ model: 'gpt-5.4-mini', finishReason: 'length' }),
       expect.stringContaining('not a clean stop'),
     )
+    // Empty content after a truncated/refused response would also fail JSON.parse('') —
+    // that's not a second, distinct failure worth a second warning.
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
   })
 
   it('logs a warning with the refusal message when the model declines to answer', async () => {
@@ -131,6 +134,27 @@ describe('OpenAICompatAdapter', () => {
       }),
       expect.stringContaining('not a clean stop'),
     )
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
+  })
+
+  it('still logs the parse failure when a non-clean-stop response has non-empty unparseable content', async () => {
+    mockCreate.mockResolvedValue({
+      choices: [{ finish_reason: 'length', message: { content: '{"categ', refusal: null } }],
+    })
+
+    const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+    const adapter = new OpenAICompatAdapter('test-key', 'gpt-5.4-mini')
+    await adapter.enrich('Hi', 'Hello')
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ finishReason: 'length' }),
+      expect.stringContaining('not a clean stop'),
+    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ finishReason: 'length' }),
+      expect.stringContaining('failed to parse'),
+    )
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(2)
   })
 
   it('does not warn on a clean successful response', async () => {

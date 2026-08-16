@@ -40,7 +40,8 @@ export class OpenAICompatAdapter implements LLMProvider {
     // on hidden reasoning and return empty content with finish_reason:
     // 'length' — that looks identical to a well-formed "nothing found"
     // answer unless it's logged here.
-    if ((finishReason && finishReason !== 'stop') || refusal) {
+    const warnedNonCleanStop = (finishReason && finishReason !== 'stop') || !!refusal
+    if (warnedNonCleanStop) {
       logger.warn(
         { model: this.model, finishReason, refusal, contentLength: content.length },
         '[OpenAICompatAdapter] enrich response was not a clean stop — enrichment result may be empty',
@@ -52,10 +53,14 @@ export class OpenAICompatAdapter implements LLMProvider {
     try {
       return parseEnrichmentResult(JSON.parse(stripped))
     } catch (error) {
-      logger.warn(
-        { model: this.model, finishReason, contentLength: content.length, error },
-        '[OpenAICompatAdapter] failed to parse enrichment JSON from response',
-      )
+      // Empty content after a non-clean-stop/refusal always fails JSON.parse('') —
+      // that's the same failure already warned about above, not a second one.
+      if (!warnedNonCleanStop || stripped) {
+        logger.warn(
+          { model: this.model, finishReason, contentLength: content.length, error },
+          '[OpenAICompatAdapter] failed to parse enrichment JSON from response',
+        )
+      }
       return parseEnrichmentResult(null)
     }
   }
