@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Loader2, RotateCcw, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { ExternalLink, Loader2, RotateCcw, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,13 @@ import {
   type AutomationReplayMode,
   type AutomationRunRecord,
 } from '@/lib/api/automations.api'
+
+const SUBJECT_PREVIEW_LENGTH = 60
+
+function truncateSubject(subject: string): string {
+  if (subject.length <= SUBJECT_PREVIEW_LENGTH) return subject
+  return `${subject.slice(0, SUBJECT_PREVIEW_LENGTH).trimEnd()}…`
+}
 
 export function RunHistoryPanel({ automationId }: { automationId: string }) {
   const [runs, setRuns] = useState<AutomationRunRecord[]>([])
@@ -74,11 +82,22 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
           runs.map((run) => (
             <div key={run.id} className="rounded-lg border p-3">
               <div className="flex items-center justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                   <div className="text-sm font-medium">{run.triggerType}</div>
                   <div className="text-xs text-muted-foreground">
                     {new Date(run.startedAt).toLocaleString()}
                   </div>
+                  {run.emailMessage && (
+                    <Link
+                      href={`/emails/${run.emailMessage.inboxEmailAddressId}?threadId=${run.emailMessage.threadId}&messageId=${run.emailMessage.id}`}
+                      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <span className="truncate">
+                        From {run.emailMessage.from} · {truncateSubject(run.emailMessage.subject)}
+                      </span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </Link>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{run.status}</Badge>

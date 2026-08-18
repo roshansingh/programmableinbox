@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@/test/test-utils'
 import { AutomationEditor } from '@/components/automations/automation-editor'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
-import { updateAutomation } from '@/lib/api/automations.api'
+import { dryRunAutomation, updateAutomation } from '@/lib/api/automations.api'
 
 let latestReactFlowProps: Record<string, unknown> | null = null
 
@@ -117,6 +117,7 @@ function makeDataTransfer(payload: Record<string, string>) {
 describe('AutomationEditor', () => {
   beforeEach(() => {
     vi.mocked(updateAutomation).mockReset()
+    vi.mocked(dryRunAutomation).mockReset()
     latestReactFlowProps = null
   })
 
@@ -178,9 +179,7 @@ describe('AutomationEditor', () => {
     const automation = makeAutomation()
     const triggerId = automation.config.trigger.id
 
-    const { user } = render(
-      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
-    )
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
     const dropZone = screen.getByTestId('canvas-drop-zone')
     const triggerEl = screen.getByTestId('react-flow').querySelector(`[data-id="${triggerId}"]`)!
@@ -189,8 +188,10 @@ describe('AutomationEditor', () => {
     fireEvent.dragOver(dropZone, { dataTransfer })
     fireEvent.drop(triggerEl, { dataTransfer })
 
-    await user.click(screen.getByRole('tab', { name: 'Config' }))
-    expect(screen.getByDisplayValue(/"actionType": "auto_reply"/)).toBeInTheDocument()
+    await waitFor(() => {
+      const reactFlowNodes = latestReactFlowProps?.nodes as Array<{ data: { configNode: any } }>
+      expect(reactFlowNodes.some((n) => n.data.configNode.actionType === 'auto_reply')).toBe(true)
+    })
   })
 
   it('rejects a palette drop onto an action node with a toast and no state change', async () => {
@@ -214,9 +215,7 @@ describe('AutomationEditor', () => {
   it('drops a palette item onto empty canvas to create a free-floating node', async () => {
     const automation = makeAutomation()
 
-    const { user } = render(
-      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
-    )
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
     const dropZone = screen.getByTestId('canvas-drop-zone')
     const dataTransfer = makeDataTransfer({ 'application/x-automation-block': 'send_webhook' })
@@ -227,14 +226,18 @@ describe('AutomationEditor', () => {
 
     // A free-floating send_webhook node was added without a parent edge
     // The config now contains a second send_webhook action node (action_2)
-    await user.click(screen.getByRole('tab', { name: 'Config' }))
-    const configTextarea = screen.getByDisplayValue(/"action_2"/)
-    expect(configTextarea).toBeInTheDocument()
-    expect((configTextarea as HTMLTextAreaElement).value).toContain('"actionType": "send_webhook"')
-
-    // The layout contains a position entry for the new node
-    await user.click(screen.getByRole('tab', { name: 'Layout' }))
-    expect(screen.getByDisplayValue(/"action_2"/)).toBeInTheDocument()
+    await waitFor(() => {
+      const reactFlowNodes = latestReactFlowProps?.nodes as Array<{
+        id: string
+        position: { x: number; y: number }
+        data: { configNode: any }
+      }>
+      const newNode = reactFlowNodes.find((n) => n.id === 'action_2')
+      expect(newNode).toBeDefined()
+      expect(newNode?.data.configNode.actionType).toBe('send_webhook')
+      // The layout contains a position entry for the new node
+      expect(newNode).toHaveProperty('position')
+    })
   })
 
   it('keeps node-connection validity rules from the previous editor', async () => {
@@ -357,9 +360,7 @@ describe('AutomationEditor', () => {
       (e: any) => e.sourceNodeId === automation.config.trigger.id
     )!
 
-    const { user } = render(
-      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
-    )
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
     const onEdgesDelete = latestReactFlowProps?.onEdgesDelete as
       | ((deleted: Array<{ id: string }>) => void)
@@ -370,19 +371,17 @@ describe('AutomationEditor', () => {
       onEdgesDelete?.([{ id: triggerToConditionEdge.id }])
     })
 
-    await user.click(screen.getByRole('tab', { name: 'Config' }))
-    expect(
-      screen.queryByDisplayValue(new RegExp(`"id": "${triggerToConditionEdge.id}"`))
-    ).not.toBeInTheDocument()
+    await waitFor(() => {
+      const currentEdges = latestReactFlowProps?.edges as Array<{ id: string }>
+      expect(currentEdges.some((e) => e.id === triggerToConditionEdge.id)).toBe(false)
+    })
   })
 
   it('removes a node and its connected edges via onNodesDelete', async () => {
     const automation = makeAutomation()
     const conditionId = automation.config.nodes.find((n) => n.type === 'condition')!.id
 
-    const { user } = render(
-      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
-    )
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
     const onNodesDelete = latestReactFlowProps?.onNodesDelete as
       | ((deleted: Array<{ id: string }>) => void)
@@ -393,10 +392,10 @@ describe('AutomationEditor', () => {
       onNodesDelete?.([{ id: conditionId }])
     })
 
-    await user.click(screen.getByRole('tab', { name: 'Config' }))
-    expect(
-      screen.queryByDisplayValue(new RegExp(`"id": "${conditionId}"`))
-    ).not.toBeInTheDocument()
+    await waitFor(() => {
+      const currentNodes = latestReactFlowProps?.nodes as Array<{ id: string }>
+      expect(currentNodes.some((n) => n.id === conditionId)).toBe(false)
+    })
   })
 
   it('cascades multi-node delete and ignores already-pruned ids', async () => {
@@ -404,9 +403,7 @@ describe('AutomationEditor', () => {
     const conditionId = automation.config.nodes.find((n) => n.type === 'condition')!.id
     const actionId = automation.config.nodes.find((n) => n.type === 'action')!.id
 
-    const { user } = render(
-      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
-    )
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
 
     const onNodesDelete = latestReactFlowProps?.onNodesDelete as
       | ((deleted: Array<{ id: string }>) => void)
@@ -420,17 +417,13 @@ describe('AutomationEditor', () => {
       onNodesDelete?.([{ id: conditionId }, { id: actionId }])
     })
 
-    await user.click(screen.getByRole('tab', { name: 'Config' }))
-    expect(
-      screen.queryByDisplayValue(new RegExp(`"id": "${conditionId}"`))
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByDisplayValue(new RegExp(`"id": "${actionId}"`))
-    ).not.toBeInTheDocument()
-    // Trigger survives.
-    expect(
-      screen.getByDisplayValue(new RegExp(`"id": "${automation.config.trigger.id}"`))
-    ).toBeInTheDocument()
+    await waitFor(() => {
+      const currentNodes = latestReactFlowProps?.nodes as Array<{ id: string }>
+      expect(currentNodes.some((n) => n.id === conditionId)).toBe(false)
+      expect(currentNodes.some((n) => n.id === actionId)).toBe(false)
+      // Trigger survives.
+      expect(currentNodes.some((n) => n.id === automation.config.trigger.id)).toBe(true)
+    })
   })
 
   it('marks the trigger node as deletable=false in the props passed to ReactFlow', () => {
@@ -472,5 +465,102 @@ describe('AutomationEditor', () => {
     // Validation prevents starting until recipients are configured.
     const saveButton = await screen.findByRole('button', { name: /Save Automation/ })
     expect(saveButton).toBeDisabled()
+  })
+
+  it('saves unsaved changes before dry-running and switches to the Runs tab', async () => {
+    const automation = makeAutomation()
+    const triggerId = automation.config.trigger.id
+
+    vi.mocked(updateAutomation).mockResolvedValue({
+      ...automation,
+      updatedAt: '2026-05-11T00:00:00.000Z',
+    })
+    vi.mocked(dryRunAutomation).mockResolvedValue([
+      { matched: true, status: 'succeeded', runId: 'run_1' },
+      { matched: false, status: 'skipped', runId: 'run_2' },
+    ])
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    // Make the graph dirty without touching node config: a position change
+    // marks the layout dirty while the (already-valid) default config is
+    // untouched, so this exercises the save-then-dry-run path without
+    // tripping the separate "unsaved changes are invalid" path.
+    const onNodesChange = latestReactFlowProps?.onNodesChange as
+      | ((changes: Array<Record<string, unknown>>) => void)
+      | undefined
+    act(() => {
+      onNodesChange?.([
+        { id: triggerId, type: 'position', position: { x: 10, y: 10 } },
+      ])
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Dry Run' }))
+
+    await waitFor(() => {
+      expect(updateAutomation).toHaveBeenCalledWith(
+        automation.id,
+        expect.objectContaining({ config: expect.any(Object), layout: expect.any(Object) })
+      )
+    })
+    expect(dryRunAutomation).toHaveBeenCalledWith(automation.id, 10)
+
+    expect(
+      await screen.findByText('Dry run complete: 1/2 message(s) would trigger an action')
+    ).toBeInTheDocument()
+
+    expect(screen.getByRole('tab', { name: 'Runs' })).toHaveAttribute('data-state', 'active')
+  })
+
+  it('warns and skips saving when the unsaved graph is invalid', async () => {
+    const automation = makeAutomation()
+    const actionId = automation.config.nodes.find((n) => n.type === 'action')!.id
+
+    vi.mocked(dryRunAutomation).mockResolvedValue([
+      { matched: false, status: 'skipped', runId: 'run_1' },
+    ])
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    // Delete the only action node: the graph is now dirty and has no
+    // reachable action, so validation.canStart is false.
+    const onNodesDelete = latestReactFlowProps?.onNodesDelete as
+      | ((deleted: Array<{ id: string }>) => void)
+      | undefined
+    act(() => {
+      onNodesDelete?.([{ id: actionId }])
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Dry Run' }))
+
+    expect(
+      await screen.findByText(
+        'Unsaved changes are invalid — dry run is previewing the last saved version.'
+      )
+    ).toBeInTheDocument()
+    expect(updateAutomation).not.toHaveBeenCalled()
+    expect(dryRunAutomation).toHaveBeenCalledWith(automation.id, 10)
+  })
+
+  it('flags failed messages in the dry run summary', async () => {
+    const automation = makeAutomation()
+    vi.mocked(dryRunAutomation).mockResolvedValue([
+      { matched: true, status: 'failed', runId: 'run_1' },
+      { matched: true, status: 'succeeded', runId: 'run_2' },
+    ])
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Dry Run' }))
+
+    expect(
+      await screen.findByText('Dry run complete: 2/2 message(s) would trigger an action, 1 failed')
+    ).toBeInTheDocument()
   })
 })

@@ -44,11 +44,11 @@ export default function AutomationDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Back"
                 onClick={() => router.push('/automations')}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <ArrowLeft className="mr-0 h-4 w-4 lg:mr-2" />
-                <span className="hidden lg:inline">Back</span>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center gap-2 overflow-hidden">
                 <Workflow className="h-4 w-4 shrink-0 text-primary" />

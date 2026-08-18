@@ -36,6 +36,13 @@ export interface AutomationRunRecord {
   triggerType: string
   isDryRun: boolean
   emailMessageId: string | null
+  emailMessage: {
+    id: string
+    from: string
+    subject: string
+    inboxEmailAddressId: string
+    threadId: string
+  } | null
   startedAt: string
   finishedAt: string | null
   nodeRuns: Array<{

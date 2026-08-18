@@ -19,6 +19,15 @@ export const GET = withUser(async (request, principal, { params }: RouteContext)
     where: { automationId: automation.id },
     include: {
       nodeRuns: true,
+      emailMessage: {
+        select: {
+          id: true,
+          from: true,
+          subject: true,
+          inboxEmailAddressId: true,
+          threadId: true,
+        },
+      },
     },
     orderBy: { startedAt: 'desc' },
     take: 50,
@@ -31,6 +40,15 @@ export const GET = withUser(async (request, principal, { params }: RouteContext)
       triggerType: run.triggerType,
       isDryRun: run.isDryRun,
       emailMessageId: run.emailMessageId,
+      emailMessage: run.emailMessage
+        ? {
+            id: run.emailMessage.id,
+            from: run.emailMessage.from,
+            subject: run.emailMessage.subject,
+            inboxEmailAddressId: run.emailMessage.inboxEmailAddressId,
+            threadId: run.emailMessage.threadId,
+          }
+        : null,
       startedAt: run.startedAt.toISOString(),
       finishedAt: run.finishedAt?.toISOString() ?? null,
       nodeRuns: run.nodeRuns.map((nodeRun) => ({
