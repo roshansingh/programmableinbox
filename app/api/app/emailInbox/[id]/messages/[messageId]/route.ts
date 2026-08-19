@@ -25,6 +25,14 @@ export const PATCH = withUser<Params>(async (request, principal, { params }) => 
   try {
     const body = await request.json()
 
+    // Rejected rather than silently honoring one and dropping the other —
+    // the isStarred branch below returns before the isRead branch would run,
+    // so a request naming both would otherwise apply isStarred only with no
+    // signal to the caller that isRead was ignored.
+    if ('isStarred' in body && 'isRead' in body) {
+      return jsonError('Provide only one of isStarred or isRead per request', 400)
+    }
+
     if ('isStarred' in body) {
       const { isStarred } = body
       if (typeof isStarred !== 'boolean') {

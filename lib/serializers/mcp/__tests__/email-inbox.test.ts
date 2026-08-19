@@ -100,6 +100,11 @@ describe('serializeMcpMessageConcise', () => {
     expect(serializeMcpMessageConcise(message()).extractedOtp).toBe('123456')
   })
 
+  it('includes isRead, so MCP callers can see unread state', () => {
+    expect(serializeMcpMessageConcise(message({ isRead: true })).isRead).toBe(true)
+    expect(serializeMcpMessageConcise(message({ isRead: false })).isRead).toBe(false)
+  })
+
   it('caps the snippet and flags that more body exists', () => {
     const body = 'x'.repeat(SNIPPET_LENGTH + 500)
     const result = serializeMcpMessageConcise(message({ bodyText: body }))
@@ -151,6 +156,10 @@ describe('serializeMcpMessageDetailed', () => {
     const result = serializeMcpMessageDetailed(message()) as Record<string, unknown>
     expect(result).not.toHaveProperty('html')
     expect(JSON.stringify(result)).not.toContain('<style>')
+  })
+
+  it('still includes isRead, inherited from the concise shape', () => {
+    expect(serializeMcpMessageDetailed(message({ isRead: true })).isRead).toBe(true)
   })
 
   it('bounds even the detailed body, with no misleading recovery hint', () => {

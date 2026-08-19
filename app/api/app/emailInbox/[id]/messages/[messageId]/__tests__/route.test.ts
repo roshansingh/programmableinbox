@@ -188,6 +188,15 @@ describe('PATCH /api/app/emailInbox/[id]/messages/[messageId]', () => {
     expect(emailMessageUpdateMock).not.toHaveBeenCalled()
   })
 
+  it('400s when both isStarred and isRead are provided, rather than silently applying only isStarred', async () => {
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isStarred: true, isRead: true }), { params })
+
+    expect(response.status).toBe(400)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('rejects an API key', async () => {
     const { PATCH } = await import('../route')
 
