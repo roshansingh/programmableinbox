@@ -39,6 +39,7 @@ const MESSAGE = {
   text: 'body',
   html: '<p>body</p>',
   isStarred: false,
+  isRead: false,
   tags: [],
   extractedOtp: '123456',
   createdAt: new Date('2026-01-03T00:00:00.000Z'),

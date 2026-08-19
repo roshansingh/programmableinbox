@@ -44,6 +44,7 @@ type MessageRow = {
   html: string
   bodyText: string | null
   isStarred: boolean
+  isRead: boolean
   tags: string[]
   categories: string[]
   extractedOtp: string | null
@@ -93,6 +94,7 @@ export function serializeAppMessage(message: MessageRow) {
     // The searchable plain text of the body (issue #106).
     bodyText: message.bodyText,
     isStarred: message.isStarred,
+    isRead: message.isRead,
     tags: message.tags,
     categories: message.categories,
     extractedOtp: message.extractedOtp,

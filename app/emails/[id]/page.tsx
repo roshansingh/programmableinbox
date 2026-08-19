@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
-import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
+import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, setEmailMessageRead, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
 import { EmailHtmlViewer } from "@/components/email-html-viewer"
 import { toast } from 'sonner'
@@ -101,6 +101,41 @@ function InboxPageContent() {
         setSelectedMessage((prev) => prev ? { ...prev, isStarred: message.isStarred } : prev)
       }
       toast.error('Failed to update star')
+    }
+  }
+
+  // Shared by markAsRead/toggleRead: unlike toggleStar, this also touches
+  // threadMessages, since the unread indicator renders inside an expanded
+  // thread, not just the message list.
+  const applyReadState = (messageId: string, isRead: boolean) => {
+    setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, isRead } : m))
+    setSelectedMessage((prev) => prev && prev.id === messageId ? { ...prev, isRead } : prev)
+    setThreadMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, isRead } : m))
+  }
+
+  // Auto-mark on open: fire-and-forget, one-way (unread -> read only), and
+  // quiet on failure — an unread dot that fails to clear once is not worth a
+  // toast for a background side effect of viewing a message.
+  const markAsRead = async (message: EmailMessage) => {
+    if (message.isRead) return
+    applyReadState(message.id, true)
+    try {
+      await setEmailMessageRead(inboxId, message.id, true)
+    } catch {
+      applyReadState(message.id, false)
+    }
+  }
+
+  // The manual affordance: any org member can flip this in either direction
+  // (see MessageReadScope), so unlike markAsRead this surfaces failures.
+  const toggleRead = async (message: EmailMessage) => {
+    const newValue = !message.isRead
+    applyReadState(message.id, newValue)
+    try {
+      await setEmailMessageRead(inboxId, message.id, newValue)
+    } catch {
+      applyReadState(message.id, !newValue)
+      toast.error('Failed to update read status')
     }
   }
 
@@ -209,9 +244,12 @@ function InboxPageContent() {
           cursor = data.nextCursor ?? undefined
         } while (cursor)
         if (!cancelled) {
-          setThreadMessages(
-            collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-          )
+          const sorted = collected.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          setThreadMessages(sorted)
+          // The latest message renders auto-expanded (isLatest below), so
+          // opening a thread reads it immediately without a further click.
+          const latest = sorted[sorted.length - 1]
+          if (latest) markAsRead(latest)
         }
       } catch {
         if (!cancelled) setThreadMessages([])
@@ -252,6 +290,7 @@ function InboxPageContent() {
         if (match) {
           setSelectedMessage(match)
           setShowMessageDetail(true)
+          markAsRead(match)
         }
       } catch {
         // Deep link target could not be resolved; leave the inbox view as-is.
@@ -270,6 +309,8 @@ function InboxPageContent() {
       newExpanded.delete(messageId)
     } else {
       newExpanded.add(messageId)
+      const message = threadMessages.find((m) => m.id === messageId)
+      if (message) markAsRead(message)
     }
     setExpandedThreadMessages(newExpanded)
   }
@@ -388,6 +429,7 @@ function InboxPageContent() {
                         onClick={() => {
                           setSelectedMessage(message)
                           setShowMessageDetail(true)
+                          markAsRead(message)
                         }}
                         className={`p-4 cursor-pointer transition-colors hover:bg-muted/50 ${
                           selectedMessage?.id === message.id ? "bg-muted/50 border-l-2 border-primary" : ""
@@ -405,7 +447,16 @@ function InboxPageContent() {
                                 stroke={message.isStarred ? '#eab308' : '#6b7280'}
                               />
                             </button>
-                            <p className="text-sm font-medium truncate text-foreground">
+                            {!message.isRead && (
+                              <span
+                                className="h-1.5 w-1.5 rounded-full bg-destructive shrink-0"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <p className={cn(
+                              "text-sm truncate",
+                              message.isRead ? "font-normal text-muted-foreground" : "font-semibold text-foreground"
+                            )}>
                               {message.from}
                             </p>
                           </div>
@@ -413,7 +464,10 @@ function InboxPageContent() {
                             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                           </span>
                         </div>
-                        <p className="text-sm truncate mb-1 text-muted-foreground">
+                        <p className={cn(
+                          "text-sm truncate mb-1",
+                          message.isRead ? "text-muted-foreground font-normal" : "text-foreground font-semibold"
+                        )}>
                           {message.subject}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
@@ -512,6 +566,25 @@ function InboxPageContent() {
                         </Button>
                         )}
                         {/*
+                          Not owner-gated, unlike the buttons around it —
+                          MessageReadScope is organization-wide on purpose, so
+                          any teammate viewing a shared inbox can progress its
+                          read state (issue #138), not just its creator.
+                        */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={selectedMessage.isRead ? 'Mark as unread' : 'Mark as read'}
+                          className="h-8 w-8 hidden sm:flex"
+                          onClick={() => toggleRead(selectedMessage)}
+                        >
+                          {selectedMessage.isRead ? (
+                            <MailOpen className="h-4 w-4" />
+                          ) : (
+                            <Mail className="h-4 w-4" />
+                          )}
+                        </Button>
+                        {/*
                           Owner-only, like the star above and Reply/Forward.
                           Reads are organization-wide so a colleague can open
                           this inbox, but starring, deleting and sending all
@@ -559,11 +632,25 @@ function InboxPageContent() {
                                       </span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-foreground truncate">
-                                        {msg.from === inbox?.email ? 'You' : msg.from}
-                                      </p>
+                                      <div className="flex items-center gap-1.5">
+                                        {!msg.isRead && (
+                                          <span
+                                            className="h-1.5 w-1.5 rounded-full bg-destructive shrink-0"
+                                            aria-hidden="true"
+                                          />
+                                        )}
+                                        <p className={cn(
+                                          "text-sm truncate",
+                                          msg.isRead ? "font-medium text-foreground" : "font-semibold text-foreground"
+                                        )}>
+                                          {msg.from === inbox?.email ? 'You' : msg.from}
+                                        </p>
+                                      </div>
                                       {!isExpanded && (
-                                        <p className="text-xs text-muted-foreground truncate">
+                                        <p className={cn(
+                                          "text-xs truncate",
+                                          msg.isRead ? "text-muted-foreground font-normal" : "text-foreground font-semibold"
+                                        )}>
                                           {msg.text?.slice(0, 80) || msg.subject}
                                         </p>
                                       )}

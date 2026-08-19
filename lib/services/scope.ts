@@ -70,6 +70,48 @@ export function toOwnerScope(principal: UserPrincipal): OwnerScope {
 }
 
 /**
+ * Who can mark a message read/unread (issue #138). Organization-wide, unlike
+ * `OwnerScope` — the whole point of auto-marking on open is that any teammate
+ * who can see a shared inbox can progress its read state, not just its
+ * creator. Read state is inbox-wide for v1 (one shared `isRead` per message,
+ * like `isStarred`), so this only decides who may flip it, not whose view it
+ * reflects.
+ *
+ * Deliberately not `OrgScope` reused directly, even though the two have the
+ * same `organizationIds` shape: `OrgScope` is producible from an
+ * `ApiKeyPrincipal`, and this must not be — the messages PATCH route lives
+ * under `app/api/app`, reachable only by `withUser`, but a scope an API key
+ * could also construct would leave that a route-tree convention rather than a
+ * compiler-checked guarantee. `__scope` is required, not optional like the
+ * other scopes' phantoms, specifically so a value produced by `toOrgScope`
+ * (which carries no `__scope` at all) cannot satisfy this type structurally —
+ * an optional discriminant does not exclude an object that simply lacks the
+ * property.
+ */
+export type MessageReadScope = { organizationIds: string[]; readonly __scope: 'messageRead' }
+
+export type MessageReadScopeResult =
+  | { scope: MessageReadScope; error?: never }
+  | { scope?: never; error: Response }
+
+/**
+ * The single place a `UserPrincipal` becomes a message-read scope. No
+ * `ApiKeyPrincipal` overload exists — see the type doc above.
+ *
+ * Mirrors `toOrgScope`'s no-requested-organization branch: every organization
+ * the user belongs to, denied only when they belong to none.
+ */
+export function toMessageReadScope(principal: UserPrincipal): MessageReadScopeResult {
+  const organizationIds = principal.memberships.map((m) => m.organizationId)
+
+  if (organizationIds.length === 0) {
+    return { error: jsonError('Not authorized for this organization', 403) }
+  }
+
+  return { scope: { organizationIds, __scope: 'messageRead' } }
+}
+
+/**
  * Who can CREATE or UPDATE an inbox. A third type, deliberately.
  *
  * Covers `email_inboxes:create` and `email_inboxes:update`, and deliberately

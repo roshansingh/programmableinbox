@@ -31,6 +31,7 @@ function message(overrides: Partial<EmailMessage> = {}): EmailMessage {
     references: ['<root@example.com>'],
     tags: [],
     isStarred: false,
+    isRead: false,
     categories: [],
     extractedOtp: null,
     metadata: null,

@@ -103,6 +103,7 @@ function row(overrides: Record<string, unknown> = {}) {
     html: '<style>.x{}</style><b>hi</b>',
     bodyText: 'Your code is 123456',
     isStarred: false,
+    isRead: false,
     tags: [],
     categories: [],
     extractedOtp: null,

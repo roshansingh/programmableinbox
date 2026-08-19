@@ -48,6 +48,7 @@ type MessageRow = {
   bodyText: string | null
   text: string
   isStarred: boolean
+  isRead: boolean
   tags: string[]
   categories: string[]
   extractedOtp: string | null
@@ -110,6 +111,7 @@ export function serializeMcpMessageConcise(message: MessageRow) {
     to: message.to,
     createdAt: message.createdAt.toISOString(),
     isStarred: message.isStarred,
+    isRead: message.isRead,
     tags: message.tags,
     categories: message.categories,
     // Surfaced in the list shape on purpose: the whole point of

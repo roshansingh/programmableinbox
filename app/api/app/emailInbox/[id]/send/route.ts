@@ -143,6 +143,9 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
         messageId: sentMessageId,
         inReplyTo: inReplyTo || null,
         references: refsArray,
+        // The sender has necessarily seen mail they just sent (issue #138) —
+        // without this every outbound reply would render as unread.
+        isRead: true,
       },
     })
 

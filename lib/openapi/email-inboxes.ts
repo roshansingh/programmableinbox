@@ -766,6 +766,13 @@ export const spec = {
               + '`html`. Null for messages stored before this field existed.',
           },
           isStarred: { type: 'boolean', example: false },
+          isRead: {
+            type: 'boolean',
+            example: false,
+            description:
+              'Inbox-wide, not per-user: one shared flag reflecting whether any '
+              + 'viewer has opened this message.',
+          },
           tags: { type: 'array', items: { type: 'string' } },
           categories: {
             type: 'array',
@@ -798,6 +805,7 @@ export const spec = {
           'html',
           'bodyText',
           'isStarred',
+          'isRead',
           'tags',
           'categories',
           'extractedOtp',

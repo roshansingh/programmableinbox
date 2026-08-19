@@ -1,14 +1,18 @@
 import { expectTypeOf, test } from 'vitest'
 import {
   toOwnerScope,
+  toMessageReadScope,
   type InboxDeleteScope,
   type InboxWriteScope,
+  type MessageReadScope,
+  type OrgScope,
   type OwnerScope,
 } from '../scope'
 import {
   createInbox,
   deleteInbox,
   deleteMessage,
+  setMessageRead,
   setMessageStarred,
   updateInboxForWrite,
 } from '../email-inbox'
@@ -79,4 +83,43 @@ test('an inbox delete scope still cannot touch messages', () => {
 
 test('an inbox delete scope is not an owner scope', () => {
   expectTypeOf<InboxDeleteScope>().not.toExtend<OwnerScope>()
+})
+
+/**
+ * `MessageReadScope` (issue #138) is organization-wide, like `OrgScope` — but
+ * unlike `OrgScope`, an `ApiKeyPrincipal` must never be able to produce one,
+ * since the messages PATCH route it feeds is dashboard-only. These pin both
+ * halves of that guarantee: the constructor's parameter type, and that the
+ * two same-shaped scopes cannot stand in for each other.
+ */
+test('toMessageReadScope accepts a user principal', () => {
+  expectTypeOf(toMessageReadScope).parameter(0).toEqualTypeOf<UserPrincipal>()
+})
+
+test('toMessageReadScope does not accept an api key principal', () => {
+  expectTypeOf(toMessageReadScope).parameter(0).not.toEqualTypeOf<ApiKeyPrincipal>()
+})
+
+test('an api key principal is not assignable to the toMessageReadScope parameter', () => {
+  expectTypeOf<ApiKeyPrincipal>().not.toExtend<Parameters<typeof toMessageReadScope>[0]>()
+})
+
+test('an org scope cannot stand in for a message read scope, despite the identical organizationIds field', () => {
+  // OrgScope is producible from an ApiKeyPrincipal; MessageReadScope must not
+  // be reachable that way even structurally. The required (non-optional)
+  // `__scope` discriminant is what keeps OrgScope — which carries no
+  // `__scope` at all — from satisfying this type.
+  expectTypeOf<OrgScope>().not.toExtend<MessageReadScope>()
+})
+
+test('setMessageRead is unreachable with an owner scope', () => {
+  expectTypeOf<OwnerScope>().not.toExtend<Parameters<typeof setMessageRead>[0]>()
+})
+
+test('setMessageStarred is unreachable with a message read scope', () => {
+  expectTypeOf<MessageReadScope>().not.toExtend<Parameters<typeof setMessageStarred>[0]>()
+})
+
+test('deleteMessage is unreachable with a message read scope', () => {
+  expectTypeOf<MessageReadScope>().not.toExtend<Parameters<typeof deleteMessage>[0]>()
 })

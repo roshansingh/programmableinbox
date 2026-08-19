@@ -29,6 +29,7 @@ type MessageRow = {
   html: string
   bodyText: string | null
   isStarred: boolean
+  isRead: boolean
   tags: string[]
   categories: string[]
   extractedOtp: string | null
@@ -70,6 +71,7 @@ export function serializePublicMessage(message: MessageRow) {
     // `text`/`html`, which this scope already returns in full.
     bodyText: message.bodyText,
     isStarred: message.isStarred,
+    isRead: message.isRead,
     tags: message.tags,
     // Published alongside the `categories` filter (issue #106). Previously
     // omitted as worker-internal state, but shipping a filter for a field the
