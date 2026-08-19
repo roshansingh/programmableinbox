@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **Html** | **string** |  | 
 **BodyText** | **NullableString** | Plain text of the body, and the field the &#x60;q&#x60; parameter searches. Equal to &#x60;text&#x60; when the sender supplied a text part, otherwise extracted from &#x60;html&#x60;. Null for messages stored before this field existed. | 
 **IsStarred** | **bool** |  | 
+**IsRead** | **bool** | Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message. | 
 **Tags** | **[]string** |  | 
 **Categories** | **[]string** | Categories assigned to the message. Matched by the &#x60;categories&#x60; parameter. | 
 **ExtractedOtp** | **NullableString** | One-time code parsed from the message body. Derived from text/html, which the same email_messages:read scope already returns. | 
@@ -26,7 +27,7 @@ Name | Type | Description | Notes
 
 ### NewEmailMessage
 
-`func NewEmailMessage(id string, threadId string, parentMessageId NullableString, subject string, from string, to []string, cc []string, bcc []string, text string, html string, bodyText NullableString, isStarred bool, tags []string, categories []string, extractedOtp NullableString, createdAt time.Time, ) *EmailMessage`
+`func NewEmailMessage(id string, threadId string, parentMessageId NullableString, subject string, from string, to []string, cc []string, bcc []string, text string, html string, bodyText NullableString, isStarred bool, isRead bool, tags []string, categories []string, extractedOtp NullableString, createdAt time.Time, ) *EmailMessage`
 
 NewEmailMessage instantiates a new EmailMessage object
 This constructor will assign default values to properties that have it defined,
@@ -299,6 +300,26 @@ and a boolean to check if the value has been set.
 `func (o *EmailMessage) SetIsStarred(v bool)`
 
 SetIsStarred sets IsStarred field to given value.
+
+
+### GetIsRead
+
+`func (o *EmailMessage) GetIsRead() bool`
+
+GetIsRead returns the IsRead field if non-nil, zero value otherwise.
+
+### GetIsReadOk
+
+`func (o *EmailMessage) GetIsReadOk() (*bool, bool)`
+
+GetIsReadOk returns a tuple with the IsRead field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetIsRead
+
+`func (o *EmailMessage) SetIsRead(v bool)`
+
+SetIsRead sets IsRead field to given value.
 
 
 ### GetTags

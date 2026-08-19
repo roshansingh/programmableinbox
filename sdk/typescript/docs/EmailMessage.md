@@ -19,6 +19,7 @@ Name | Type
 `html` | string
 `bodyText` | string
 `isStarred` | boolean
+`isRead` | boolean
 `tags` | Array&lt;string&gt;
 `categories` | Array&lt;string&gt;
 `extractedOtp` | string
@@ -44,6 +45,7 @@ const example = {
   "html": <p>Hello, I need help with...</p>,
   "bodyText": Hello, I need help with...,
   "isStarred": false,
+  "isRead": false,
   "tags": null,
   "categories": null,
   "extractedOtp": 123456,

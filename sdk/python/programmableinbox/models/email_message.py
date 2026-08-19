@@ -40,12 +40,13 @@ class EmailMessage(BaseModel):
     html: StrictStr = Field(json_schema_extra={"examples": ["<p>Hello, I need help with...</p>"]})
     body_text: Optional[StrictStr] = Field(description="Plain text of the body, and the field the `q` parameter searches. Equal to `text` when the sender supplied a text part, otherwise extracted from `html`. Null for messages stored before this field existed.", alias="bodyText", json_schema_extra={"examples": ["Hello, I need help with..."]})
     is_starred: StrictBool = Field(alias="isStarred", json_schema_extra={"examples": [False]})
+    is_read: StrictBool = Field(description="Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.", alias="isRead", json_schema_extra={"examples": [False]})
     tags: List[StrictStr]
     categories: List[StrictStr] = Field(description="Categories assigned to the message. Matched by the `categories` parameter.")
     extracted_otp: Optional[StrictStr] = Field(description="One-time code parsed from the message body. Derived from text/html, which the same email_messages:read scope already returns.", alias="extractedOtp", json_schema_extra={"examples": ["123456"]})
     created_at: datetime = Field(alias="createdAt")
     thread_count: Optional[StrictInt] = Field(default=None, description="Number of messages in the thread (present only in grouped mode)", alias="threadCount")
-    __properties: ClassVar[List[str]] = ["id", "threadId", "parentMessageId", "subject", "from", "to", "cc", "bcc", "text", "html", "bodyText", "isStarred", "tags", "categories", "extractedOtp", "createdAt", "threadCount"]
+    __properties: ClassVar[List[str]] = ["id", "threadId", "parentMessageId", "subject", "from", "to", "cc", "bcc", "text", "html", "bodyText", "isStarred", "isRead", "tags", "categories", "extractedOtp", "createdAt", "threadCount"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -125,6 +126,7 @@ class EmailMessage(BaseModel):
             "html": obj.get("html"),
             "bodyText": obj.get("bodyText"),
             "isStarred": obj.get("isStarred"),
+            "isRead": obj.get("isRead"),
             "tags": obj.get("tags"),
             "categories": obj.get("categories"),
             "extractedOtp": obj.get("extractedOtp"),

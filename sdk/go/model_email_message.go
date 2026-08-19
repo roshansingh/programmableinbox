@@ -35,6 +35,8 @@ type EmailMessage struct {
 	// Plain text of the body, and the field the `q` parameter searches. Equal to `text` when the sender supplied a text part, otherwise extracted from `html`. Null for messages stored before this field existed.
 	BodyText NullableString `json:"bodyText"`
 	IsStarred bool `json:"isStarred"`
+	// Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.
+	IsRead bool `json:"isRead"`
 	Tags []string `json:"tags"`
 	// Categories assigned to the message. Matched by the `categories` parameter.
 	Categories []string `json:"categories"`
@@ -51,7 +53,7 @@ type _EmailMessage EmailMessage
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEmailMessage(id string, threadId string, parentMessageId NullableString, subject string, from string, to []string, cc []string, bcc []string, text string, html string, bodyText NullableString, isStarred bool, tags []string, categories []string, extractedOtp NullableString, createdAt time.Time) *EmailMessage {
+func NewEmailMessage(id string, threadId string, parentMessageId NullableString, subject string, from string, to []string, cc []string, bcc []string, text string, html string, bodyText NullableString, isStarred bool, isRead bool, tags []string, categories []string, extractedOtp NullableString, createdAt time.Time) *EmailMessage {
 	this := EmailMessage{}
 	this.Id = id
 	this.ThreadId = threadId
@@ -65,6 +67,7 @@ func NewEmailMessage(id string, threadId string, parentMessageId NullableString,
 	this.Html = html
 	this.BodyText = bodyText
 	this.IsStarred = isStarred
+	this.IsRead = isRead
 	this.Tags = tags
 	this.Categories = categories
 	this.ExtractedOtp = extractedOtp
@@ -372,6 +375,30 @@ func (o *EmailMessage) SetIsStarred(v bool) {
 	o.IsStarred = v
 }
 
+// GetIsRead returns the IsRead field value
+func (o *EmailMessage) GetIsRead() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.IsRead
+}
+
+// GetIsReadOk returns a tuple with the IsRead field value
+// and a boolean to check if the value has been set.
+func (o *EmailMessage) GetIsReadOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.IsRead, true
+}
+
+// SetIsRead sets field value
+func (o *EmailMessage) SetIsRead(v bool) {
+	o.IsRead = v
+}
+
 // GetTags returns the Tags field value
 func (o *EmailMessage) GetTags() []string {
 	if o == nil {
@@ -524,6 +551,7 @@ func (o EmailMessage) ToMap() (map[string]interface{}, error) {
 	toSerialize["html"] = o.Html
 	toSerialize["bodyText"] = o.BodyText.Get()
 	toSerialize["isStarred"] = o.IsStarred
+	toSerialize["isRead"] = o.IsRead
 	toSerialize["tags"] = o.Tags
 	toSerialize["categories"] = o.Categories
 	toSerialize["extractedOtp"] = o.ExtractedOtp.Get()
@@ -551,6 +579,7 @@ func (o *EmailMessage) UnmarshalJSON(data []byte) (err error) {
 		"html",
 		"bodyText",
 		"isStarred",
+		"isRead",
 		"tags",
 		"categories",
 		"extractedOtp",
