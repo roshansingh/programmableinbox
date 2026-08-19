@@ -22,7 +22,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
 import {
   dryRunAutomation,
   duplicateAutomation,
@@ -83,6 +82,8 @@ function AutomationEditorInner({
   const [isSavingLayout, setIsSavingLayout] = useState(false)
   const [isDryRunning, setIsDryRunning] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
+  const [activeTab, setActiveTab] = useState('flow')
+  const [runsRefreshKey, setRunsRefreshKey] = useState(0)
 
   const reactFlow = useReactFlow()
 
@@ -99,14 +100,6 @@ function AutomationEditorInner({
     setSelectedNodeId(null)
   }, [automation.id, automation.updatedAt])
 
-  const serializedConfig = useMemo(
-    () => JSON.stringify(config, null, 2),
-    [config]
-  )
-  const serializedLayout = useMemo(
-    () => JSON.stringify(layout, null, 2),
-    [layout]
-  )
   const selectedNode = useMemo(
     () => (selectedNodeId ? getConfigNode(config, selectedNodeId) : null),
     [config, selectedNodeId]
@@ -120,7 +113,12 @@ function AutomationEditorInner({
   function onNodesChange(changes: NodeChange[]) {
     setNodes((current) => {
       const next = applyNodeChanges(changes, current) as Node[]
-      const changedPositions = changes.some((change) => change.type === 'position' || change.type === 'dimensions')
+      // 'dimensions' changes fire from React Flow's own mount-time node
+      // measurement (a ResizeObserver, unrelated to any user action — no
+      // node here is resizable), not a real edit. Counting them as dirty
+      // meant the graph looked unsaved the instant the canvas rendered,
+      // before the user touched anything.
+      const changedPositions = changes.some((change) => change.type === 'position')
       if (changedPositions) {
         setLayout(updateLayoutFromNodes(layout, next))
         setLayoutDirty(true)
@@ -314,8 +312,38 @@ function AutomationEditorInner({
   async function runDry() {
     setIsDryRunning(true)
     try {
+      // Dry runs execute against the last *saved* revision, not whatever is
+      // on the canvas right now. Save first when it's safe to (the current
+      // graph passes validation), so "Dry Run" tests what's on screen rather
+      // than a silently stale version. When it doesn't pass, saving would
+      // fail anyway, so warn and fall back to previewing the last saved copy.
+      if (configDirty || layoutDirty) {
+        if (validation.canStart) {
+          const latestLayout = updateLayoutFromNodes(layout, nodes)
+          const updated = await updateAutomation(automation.id, { config, layout: latestLayout })
+          onAutomationChange(updated)
+        } else {
+          toast.warning('Unsaved changes are invalid — dry run is previewing the last saved version.')
+        }
+      }
+
       const results = await dryRunAutomation(automation.id, 10)
-      toast.success(`Dry run completed for ${results.length} message(s)`)
+      const matchedCount = results.filter((r) => r.matched).length
+      const failedCount = results.filter((r) => r.status === 'failed').length
+
+      const summary =
+        results.length === 0
+          ? 'Dry run complete: no messages to test against.'
+          : `Dry run complete: ${matchedCount}/${results.length} message(s) would trigger an action` +
+            (failedCount > 0 ? `, ${failedCount} failed` : '')
+      if (failedCount > 0) {
+        toast.error(summary)
+      } else {
+        toast.success(summary)
+      }
+
+      setRunsRefreshKey((key) => key + 1)
+      setActiveTab('runs')
     } catch (error: any) {
       toast.error(error?.message || 'Dry run failed')
     } finally {
@@ -403,7 +431,18 @@ function AutomationEditorInner({
                 <Copy className="mr-2 h-4 w-4" />
                 Duplicate
               </Button>
-              <Button variant="outline" onClick={runDry} disabled={isDryRunning}>
+              <Button
+                variant="outline"
+                onClick={runDry}
+                disabled={isDryRunning}
+                title={
+                  configDirty || layoutDirty
+                    ? validation.canStart
+                      ? 'Saves your unsaved changes, then previews against the last 10 messages'
+                      : 'Unsaved changes are invalid — previews the last saved version instead'
+                    : 'Preview against the last 10 messages (no webhooks or emails are sent)'
+                }
+              >
                 <Play className="mr-2 h-4 w-4" />
                 Dry Run
               </Button>
@@ -457,11 +496,9 @@ function AutomationEditorInner({
           </Card>
         ) : null}
 
-        <Tabs defaultValue="flow">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="flow">Flow</TabsTrigger>
-            <TabsTrigger value="config">Config</TabsTrigger>
-            <TabsTrigger value="layout">Layout</TabsTrigger>
             <TabsTrigger value="runs">Runs</TabsTrigger>
           </TabsList>
 
@@ -500,26 +537,8 @@ function AutomationEditorInner({
             </Card>
           </TabsContent>
 
-          <TabsContent value="config">
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Canonical config is available for debugging, but the primary editing path is the node config sheet.
-              </p>
-              <Textarea readOnly value={serializedConfig} className="min-h-[28rem] font-mono text-xs" />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="layout">
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Layout is derived editor state and saved separately from canonical automation config.
-              </p>
-              <Textarea readOnly value={serializedLayout} className="min-h-[28rem] font-mono text-xs" />
-            </div>
-          </TabsContent>
-
           <TabsContent value="runs">
-            <RunHistoryPanel automationId={automation.id} />
+            <RunHistoryPanel key={runsRefreshKey} automationId={automation.id} />
           </TabsContent>
         </Tabs>
 

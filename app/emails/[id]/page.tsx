@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, Trash2, Star, Reply, Forward, MoreVertical, Mail, ChevronDown, ChevronUp, RefreshCw, Copy, ExternalLink, Search, X } from 'lucide-react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
@@ -47,8 +47,19 @@ function categoryBadgeClassName(category: string): string {
 }
 
 export default function InboxPage() {
+  // useSearchParams needs a Suspense boundary to keep this page statically
+  // prerenderable, the same shape /auth/verify uses for its `token` param.
+  return (
+    <Suspense fallback={null}>
+      <InboxPageContent />
+    </Suspense>
+  )
+}
+
+function InboxPageContent() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const inboxId = params.id as string
 
   const [inbox, setInbox] = useState<InboxEmail | null>(null)
@@ -213,6 +224,45 @@ export default function InboxPage() {
       cancelled = true
     }
   }, [selectedMessage?.id])
+
+  // Deep link from another page (e.g. an automation run) naming a specific
+  // message via ?threadId=&messageId=. Runs once per inbox visit; a message
+  // named this way may not be on the first page of the default list.
+  useEffect(() => {
+    const targetMessageId = searchParams.get('messageId')
+    const targetThreadId = searchParams.get('threadId')
+    if (!targetThreadId) return
+
+    let cancelled = false
+    const loadTarget = async () => {
+      try {
+        let cursor: string | undefined = undefined
+        let match: EmailMessage | undefined
+        // Threads are bounded; page through until the target message turns
+        // up or the thread is exhausted — a long thread can exceed the
+        // default page size, so a single page isn't guaranteed to have it.
+        do {
+          const data = await getEmailMessages(inboxId, { threadId: targetThreadId, cursor })
+          if (cancelled) return
+          match = targetMessageId
+            ? data.messages.find((m) => m.id === targetMessageId)
+            : data.messages[0]
+          cursor = data.nextCursor ?? undefined
+        } while (!match && cursor)
+        if (match) {
+          setSelectedMessage(match)
+          setShowMessageDetail(true)
+        }
+      } catch {
+        // Deep link target could not be resolved; leave the inbox view as-is.
+      }
+    }
+
+    loadTarget()
+    return () => {
+      cancelled = true
+    }
+  }, [inboxId])
 
   const toggleThreadMessage = (messageId: string) => {
     const newExpanded = new Set(expandedThreadMessages)
