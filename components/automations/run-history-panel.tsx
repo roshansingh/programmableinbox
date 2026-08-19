@@ -92,7 +92,7 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
                       href={`/emails/${run.emailMessage.inboxEmailAddressId}?threadId=${run.emailMessage.threadId}&messageId=${run.emailMessage.id}`}
                       className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
                     >
-                      <span className="truncate">
+                      <span className="min-w-0 truncate">
                         From {run.emailMessage.from} · {truncateSubject(run.emailMessage.subject)}
                       </span>
                       <ExternalLink className="h-3 w-3 shrink-0" />

@@ -236,11 +236,19 @@ function InboxPageContent() {
     let cancelled = false
     const loadTarget = async () => {
       try {
-        const data = await getEmailMessages(inboxId, { threadId: targetThreadId })
-        if (cancelled) return
-        const match = targetMessageId
-          ? data.messages.find((m) => m.id === targetMessageId)
-          : data.messages[0]
+        let cursor: string | undefined = undefined
+        let match: EmailMessage | undefined
+        // Threads are bounded; page through until the target message turns
+        // up or the thread is exhausted — a long thread can exceed the
+        // default page size, so a single page isn't guaranteed to have it.
+        do {
+          const data = await getEmailMessages(inboxId, { threadId: targetThreadId, cursor })
+          if (cancelled) return
+          match = targetMessageId
+            ? data.messages.find((m) => m.id === targetMessageId)
+            : data.messages[0]
+          cursor = data.nextCursor ?? undefined
+        } while (!match && cursor)
         if (match) {
           setSelectedMessage(match)
           setShowMessageDetail(true)
