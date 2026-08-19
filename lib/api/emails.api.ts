@@ -60,6 +60,8 @@ export interface EmailMessage {
   references: string[]
   tags: string[]
   isStarred: boolean
+  /** Inbox-wide, not per-user — one shared flag, like isStarred (issue #138). */
+  isRead: boolean
   categories: string[]
   extractedOtp: string | null
   metadata: {
@@ -181,5 +183,15 @@ export async function starEmailMessage(
 ): Promise<EmailMessage> {
   return apiClient.patch<EmailMessage>(`/app/emailInbox/${inboxId}/messages/${messageId}`, {
     isStarred,
+  })
+}
+
+export async function setEmailMessageRead(
+  inboxId: string,
+  messageId: string,
+  isRead: boolean
+): Promise<EmailMessage> {
+  return apiClient.patch<EmailMessage>(`/app/emailInbox/${inboxId}/messages/${messageId}`, {
+    isRead,
   })
 }

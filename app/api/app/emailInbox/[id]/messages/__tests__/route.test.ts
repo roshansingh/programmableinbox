@@ -59,6 +59,7 @@ function message(overrides: Record<string, unknown> = {}) {
     text: 'body',
     html: '<p>body</p>',
     isStarred: false,
+    isRead: false,
     tags: [],
     categories: [],
     extractedOtp: null,

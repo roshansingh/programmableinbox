@@ -233,6 +233,11 @@ model EmailMessage {
   references          String[]
   tags                String[] @default([])
   isStarred           Boolean  @default(false)
+  /// Inbox-wide, not per-user (issue #138 v1): one shared flag, like isStarred.
+  /// Any org member viewing the inbox can flip it — see MessageReadScope in
+  /// lib/services/scope.ts for why that differs from isStarred's owner-only
+  /// mutation authority.
+  isRead              Boolean  @default(false)
   categories          String[] @default([])
   extractedOtp        String?
   metadata            Json?

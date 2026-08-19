@@ -7,6 +7,7 @@ import {
 } from '@/app/api/app/emailInbox/[id]/messages/[messageId]/route'
 import { GET as getOtp } from '@/app/api/v1/emailInbox/[id]/otp/route'
 import { prisma } from '@/lib/db'
+import { signToken, hashPassword } from '@/lib/auth-server'
 import { createOrgWithUser, createSecondOrg, createApiKey } from './helpers/auth'
 import { seedInbox, seedMessage } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
@@ -288,6 +289,95 @@ describe('PATCH /api/app/emailInbox/[id]/messages/[messageId]', () => {
 
     const row = await prisma.emailMessage.findUniqueOrThrow({ where: { id: messageA.id } })
     expect(row.isStarred).toBe(false)
+  })
+})
+
+describe('PATCH /api/app/emailInbox/[id]/messages/[messageId] — isRead (issue #138)', () => {
+  it('updates isRead and persists it', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    const message = await seedMessage(inbox.id, org.id, { isRead: false })
+
+    const res = await patchMessage(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
+        method: 'PATCH', credential: token,
+        body: { isRead: true },
+      }),
+      params({ id: inbox.id, messageId: message.id }),
+    )
+    expect(res.status).toBe(200)
+    const { data } = await res.json()
+    expect(data.isRead).toBe(true)
+
+    const row = await prisma.emailMessage.findUniqueOrThrow({ where: { id: message.id } })
+    expect(row.isRead).toBe(true)
+  })
+
+  it('lets a colleague who did not create the inbox mark it read, unlike isStarred', async () => {
+    const { org, user } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    const message = await seedMessage(inbox.id, org.id, { isRead: false })
+
+    // A second member of the same organization, not the inbox's creator —
+    // isStarred's owner-only mutation would 404 this caller.
+    const colleague = await prisma.user.create({
+      data: {
+        email: `colleague-${message.id}@test.dev`,
+        passwordHash: await hashPassword('password123'),
+        emailVerified: true,
+      },
+    })
+    await prisma.membership.create({
+      data: { userId: colleague.id, organizationId: org.id, role: 'member' as never },
+    })
+    const colleagueToken = signToken({ userId: colleague.id })
+
+    const res = await patchMessage(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
+        method: 'PATCH', credential: colleagueToken,
+        body: { isRead: true },
+      }),
+      params({ id: inbox.id, messageId: message.id }),
+    )
+    expect(res.status).toBe(200)
+
+    const row = await prisma.emailMessage.findUniqueOrThrow({ where: { id: message.id } })
+    expect(row.isRead).toBe(true)
+  })
+
+  it('400 when isRead is not a boolean', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    const message = await seedMessage(inbox.id, org.id)
+
+    const res = await patchMessage(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/messages/${message.id}`, {
+        method: 'PATCH', credential: token,
+        body: { isRead: 'yes' },
+      }),
+      params({ id: inbox.id, messageId: message.id }),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('404 patching a message under another org\'s inbox', async () => {
+    const { org: orgA, user: userA } = await createOrgWithUser()
+    const inboxA = await seedInbox(orgA.id, userA.id)
+    const messageA = await seedMessage(inboxA.id, orgA.id, { isRead: false })
+
+    const { token: tokenB } = await createSecondOrg()
+
+    const res = await patchMessage(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inboxA.id}/messages/${messageA.id}`, {
+        method: 'PATCH', credential: tokenB,
+        body: { isRead: true },
+      }),
+      params({ id: inboxA.id, messageId: messageA.id }),
+    )
+    expect(res.status).toBe(404)
+
+    const row = await prisma.emailMessage.findUniqueOrThrow({ where: { id: messageA.id } })
+    expect(row.isRead).toBe(false)
   })
 })
 

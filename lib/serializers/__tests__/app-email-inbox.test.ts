@@ -39,6 +39,7 @@ const MESSAGE_ROW = {
   html: '<p>body</p>',
   bodyText: 'body',
   isStarred: false,
+  isRead: false,
   tags: [],
   categories: ['billing'],
   extractedOtp: null,
@@ -68,5 +69,9 @@ describe('serializeAppMessage', () => {
 
   it('keeps categories, which the dashboard renders', () => {
     expect(serializeAppMessage(MESSAGE_ROW).categories).toEqual(['billing'])
+  })
+
+  it('passes through isRead', () => {
+    expect(serializeAppMessage({ ...MESSAGE_ROW, isRead: true }).isRead).toBe(true)
   })
 })

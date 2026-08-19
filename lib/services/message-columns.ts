@@ -20,6 +20,6 @@ export const MESSAGE_COLUMNS = Prisma.sql`
   "id", "from", "to", "bcc", "cc", "subject", "text", "html", "bodyText",
   "headers", "externalId", "inboxEmailAddressId", "organizationId", "threadId",
   "parentMessageId", "messageId", "inReplyTo", "references", "tags", "isStarred",
-  "categories", "extractedOtp", "metadata", "dispatchedAt", "enrichedAt",
+  "isRead", "categories", "extractedOtp", "metadata", "dispatchedAt", "enrichedAt",
   "deletedAt", "createdAt", "updatedAt"
 `

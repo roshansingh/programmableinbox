@@ -48,6 +48,7 @@ type MessageRow = {
   bodyText: string | null
   text: string
   isStarred: boolean
+  isRead: boolean
   tags: string[]
   categories: string[]
   extractedOtp: string | null

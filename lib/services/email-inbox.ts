@@ -11,7 +11,7 @@ import { validateInboxAddress, validateInboxName } from '@/lib/validation/inbox-
 import { INVALID_ADDRESS } from '@/lib/validation/inbox-policy-messages'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { checkResourceLimit } from '@/lib/commercial/enforce'
-import type { OrgScope, OwnerScope, InboxWriteScope, InboxDeleteScope } from './scope'
+import type { OrgScope, OwnerScope, InboxWriteScope, InboxDeleteScope, MessageReadScope } from './scope'
 
 type EmailInboxRow = Awaited<ReturnType<typeof prisma.emailInbox.create>>
 
@@ -471,6 +471,29 @@ export async function setMessageStarred(
   if (!message) return null
 
   return prisma.emailMessage.update({ where: { id: messageId }, data: { isStarred } })
+}
+
+/**
+ * Org-scoped, not owner-scoped (issue #138) — see `MessageReadScope`. Any
+ * member of the inbox's organization may flip `isRead`, not just its creator,
+ * since auto-marking on open has to work for every teammate viewing a shared
+ * inbox.
+ */
+export async function setMessageRead(
+  scope: MessageReadScope,
+  inboxId: string,
+  messageId: string,
+  isRead: boolean,
+) {
+  const inbox = await getInbox(scope, inboxId)
+  if (!inbox) return null
+
+  const message = await prisma.emailMessage.findFirst({
+    where: { id: messageId, inboxEmailAddressId: inboxId },
+  })
+  if (!message) return null
+
+  return prisma.emailMessage.update({ where: { id: messageId }, data: { isRead } })
 }
 
 export async function deleteMessage(

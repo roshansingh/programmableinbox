@@ -55,6 +55,7 @@ const MESSAGE = {
   text: 'body',
   html: '<p>body</p>',
   isStarred: false,
+  isRead: false,
   tags: [],
   categories: [],
   extractedOtp: null,
@@ -192,6 +193,102 @@ describe('PATCH /api/app/emailInbox/[id]/messages/[messageId]', () => {
 
     const response = await PATCH(
       request('PATCH', { isStarred: true }, 'Bearer sk_live_abcdef123456'),
+      { params },
+    )
+
+    expect(response.status).toBe(401)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('400s when neither isStarred nor isRead is provided', async () => {
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', {}), { params })
+
+    expect(response.status).toBe(400)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('PATCH /api/app/emailInbox/[id]/messages/[messageId] — isRead (issue #138)', () => {
+  it('marks the message read', async () => {
+    emailMessageUpdateMock.mockResolvedValue({ ...MESSAGE, isRead: true })
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: true }), { params })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.isRead).toBe(true)
+  })
+
+  it('resolves via the organization scope, not owner-only, unlike isStarred', async () => {
+    emailMessageUpdateMock.mockResolvedValue({ ...MESSAGE, isRead: true })
+    const { PATCH } = await import('../route')
+
+    await PATCH(request('PATCH', { isRead: true }), { params })
+
+    expect(emailInboxFindFirstMock).toHaveBeenCalledWith({
+      where: { id: 'inbox_1', organizationId: { in: ['org_1'] } },
+    })
+  })
+
+  it('lets a colleague who does not own the inbox mark it read', async () => {
+    // INBOX.userId is 'user_1'; this caller is a different member of the same
+    // organization. isStarred's owner-only lookup would 404 this caller.
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({ ...PRINCIPAL, userId: 'user_2' })
+    emailMessageUpdateMock.mockResolvedValue({ ...MESSAGE, isRead: true })
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: true }), { params })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('403s a user who belongs to no organization', async () => {
+    resolveUserPrincipalFromTokenMock.mockResolvedValue({ ...PRINCIPAL, memberships: [] })
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: true }), { params })
+
+    expect(response.status).toBe(403)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('404s when the inbox is outside the caller organizations', async () => {
+    emailInboxFindFirstMock.mockResolvedValue(null)
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: true }), { params })
+
+    expect(response.status).toBe(404)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('404s a message that belongs to a different inbox', async () => {
+    emailMessageFindFirstMock.mockResolvedValue(null)
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: true }), { params })
+
+    expect(response.status).toBe(404)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('400s a non-boolean isRead', async () => {
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(request('PATCH', { isRead: 'yes' }), { params })
+
+    expect(response.status).toBe(400)
+    expect(emailMessageUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects an API key', async () => {
+    const { PATCH } = await import('../route')
+
+    const response = await PATCH(
+      request('PATCH', { isRead: true }, 'Bearer sk_live_abcdef123456'),
       { params },
     )
 

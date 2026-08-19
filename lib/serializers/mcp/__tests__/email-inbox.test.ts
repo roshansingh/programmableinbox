@@ -32,6 +32,7 @@ function message(overrides: Record<string, unknown> = {}) {
     html: '<html><style>.a{color:red}</style><body>hi</body></html>',
     bodyText: 'the parsed body text',
     isStarred: false,
+    isRead: false,
     tags: ['invoice'],
     categories: ['billing'],
     extractedOtp: '123456',

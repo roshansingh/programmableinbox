@@ -43,6 +43,7 @@ function message(overrides: Record<string, unknown> = {}) {
     html: '<p>Your code is 123456</p>',
     bodyText: 'Your code is 123456',
     isStarred: false,
+    isRead: false,
     tags: [],
     categories: [],
     extractedOtp: '123456',
