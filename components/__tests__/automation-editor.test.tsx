@@ -240,6 +240,25 @@ describe('AutomationEditor', () => {
     })
   })
 
+  it('does not mark the layout dirty from React Flow dimension-measurement events', async () => {
+    const automation = makeAutomation()
+
+    render(<AutomationEditor automation={automation} onAutomationChange={vi.fn()} />)
+
+    const onNodesChange = latestReactFlowProps?.onNodesChange as
+      | ((changes: Array<Record<string, unknown>>) => void)
+      | undefined
+    act(() => {
+      // React Flow fires 'dimensions' changes as it measures each node on
+      // mount, unrelated to any user action — no node here is resizable.
+      onNodesChange?.([
+        { id: automation.config.trigger.id, type: 'dimensions', dimensions: { width: 200, height: 80 } },
+      ])
+    })
+
+    expect(screen.getByRole('button', { name: 'Save Layout' })).toBeDisabled()
+  })
+
   it('keeps node-connection validity rules from the previous editor', async () => {
     const automation = makeAutomation()
 

@@ -113,7 +113,12 @@ function AutomationEditorInner({
   function onNodesChange(changes: NodeChange[]) {
     setNodes((current) => {
       const next = applyNodeChanges(changes, current) as Node[]
-      const changedPositions = changes.some((change) => change.type === 'position' || change.type === 'dimensions')
+      // 'dimensions' changes fire from React Flow's own mount-time node
+      // measurement (a ResizeObserver, unrelated to any user action — no
+      // node here is resizable), not a real edit. Counting them as dirty
+      // meant the graph looked unsaved the instant the canvas rendered,
+      // before the user touched anything.
+      const changedPositions = changes.some((change) => change.type === 'position')
       if (changedPositions) {
         setLayout(updateLayoutFromNodes(layout, next))
         setLayoutDirty(true)
