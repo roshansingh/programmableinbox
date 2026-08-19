@@ -92,6 +92,12 @@ export interface EmailMessage {
      */
     isStarred: boolean;
     /**
+     * Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.
+     * @type {boolean}
+     * @memberof EmailMessage
+     */
+    isRead: boolean;
+    /**
      * 
      * @type {Array<string>}
      * @memberof EmailMessage
@@ -139,6 +145,7 @@ export function instanceOfEmailMessage(value: object): value is EmailMessage {
     if (!('html' in value) || value['html'] === undefined) return false;
     if (!('bodyText' in value) || value['bodyText'] === undefined) return false;
     if (!('isStarred' in value) || value['isStarred'] === undefined) return false;
+    if (!('isRead' in value) || value['isRead'] === undefined) return false;
     if (!('tags' in value) || value['tags'] === undefined) return false;
     if (!('categories' in value) || value['categories'] === undefined) return false;
     if (!('extractedOtp' in value) || value['extractedOtp'] === undefined) return false;
@@ -168,6 +175,7 @@ export function EmailMessageFromJSONTyped(json: any, ignoreDiscriminator: boolea
         'html': json['html'],
         'bodyText': json['bodyText'],
         'isStarred': json['isStarred'],
+        'isRead': json['isRead'],
         'tags': json['tags'],
         'categories': json['categories'],
         'extractedOtp': json['extractedOtp'],
@@ -199,6 +207,7 @@ export function EmailMessageToJSONTyped(value?: EmailMessage | null, ignoreDiscr
         'html': value['html'],
         'bodyText': value['bodyText'],
         'isStarred': value['isStarred'],
+        'isRead': value['isRead'],
         'tags': value['tags'],
         'categories': value['categories'],
         'extractedOtp': value['extractedOtp'],

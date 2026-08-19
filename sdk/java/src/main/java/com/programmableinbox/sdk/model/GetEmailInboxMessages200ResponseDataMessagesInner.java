@@ -48,6 +48,7 @@ import com.programmableinbox.sdk.ApiClient;
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_HTML,
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_BODY_TEXT,
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_IS_STARRED,
+  GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_IS_READ,
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_TAGS,
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_CATEGORIES,
   GetEmailInboxMessages200ResponseDataMessagesInner.JSON_PROPERTY_EXTRACTED_OTP,
@@ -103,6 +104,10 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
   public static final String JSON_PROPERTY_IS_STARRED = "isStarred";
   @javax.annotation.Nonnull
   private Boolean isStarred;
+
+  public static final String JSON_PROPERTY_IS_READ = "isRead";
+  @javax.annotation.Nonnull
+  private Boolean isRead;
 
   public static final String JSON_PROPERTY_TAGS = "tags";
   @javax.annotation.Nonnull
@@ -439,6 +444,30 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
   }
 
 
+  public GetEmailInboxMessages200ResponseDataMessagesInner isRead(@javax.annotation.Nonnull Boolean isRead) {
+    this.isRead = isRead;
+    return this;
+  }
+
+  /**
+   * Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.
+   * @return isRead
+   */
+  @javax.annotation.Nonnull
+  @JsonProperty(value = JSON_PROPERTY_IS_READ, required = true)
+  @JsonInclude(value = JsonInclude.Include.ALWAYS)
+  public Boolean getIsRead() {
+    return isRead;
+  }
+
+
+  @JsonProperty(value = JSON_PROPERTY_IS_READ, required = true)
+  @JsonInclude(value = JsonInclude.Include.ALWAYS)
+  public void setIsRead(@javax.annotation.Nonnull Boolean isRead) {
+    this.isRead = isRead;
+  }
+
+
   public GetEmailInboxMessages200ResponseDataMessagesInner tags(@javax.annotation.Nonnull List<String> tags) {
     this.tags = tags;
     return this;
@@ -599,6 +628,7 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
         Objects.equals(this.html, getEmailInboxMessages200ResponseDataMessagesInner.html) &&
         Objects.equals(this.bodyText, getEmailInboxMessages200ResponseDataMessagesInner.bodyText) &&
         Objects.equals(this.isStarred, getEmailInboxMessages200ResponseDataMessagesInner.isStarred) &&
+        Objects.equals(this.isRead, getEmailInboxMessages200ResponseDataMessagesInner.isRead) &&
         Objects.equals(this.tags, getEmailInboxMessages200ResponseDataMessagesInner.tags) &&
         Objects.equals(this.categories, getEmailInboxMessages200ResponseDataMessagesInner.categories) &&
         Objects.equals(this.extractedOtp, getEmailInboxMessages200ResponseDataMessagesInner.extractedOtp) &&
@@ -608,7 +638,7 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
 
   @Override
   public int hashCode() {
-    return Objects.hash(id, threadId, parentMessageId, subject, from, to, cc, bcc, text, html, bodyText, isStarred, tags, categories, extractedOtp, createdAt, threadCount);
+    return Objects.hash(id, threadId, parentMessageId, subject, from, to, cc, bcc, text, html, bodyText, isStarred, isRead, tags, categories, extractedOtp, createdAt, threadCount);
   }
 
   @Override
@@ -627,6 +657,7 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
     sb.append("    html: ").append(toIndentedString(html)).append("\n");
     sb.append("    bodyText: ").append(toIndentedString(bodyText)).append("\n");
     sb.append("    isStarred: ").append(toIndentedString(isStarred)).append("\n");
+    sb.append("    isRead: ").append(toIndentedString(isRead)).append("\n");
     sb.append("    tags: ").append(toIndentedString(tags)).append("\n");
     sb.append("    categories: ").append(toIndentedString(categories)).append("\n");
     sb.append("    extractedOtp: ").append(toIndentedString(extractedOtp)).append("\n");
@@ -746,6 +777,11 @@ public class GetEmailInboxMessages200ResponseDataMessagesInner {
     // add `isStarred` to the URL query string
     if (getIsStarred() != null) {
       joiner.add(String.format(java.util.Locale.ROOT, "%sisStarred%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getIsStarred()))));
+    }
+
+    // add `isRead` to the URL query string
+    if (getIsRead() != null) {
+      joiner.add(String.format(java.util.Locale.ROOT, "%sisRead%s=%s", prefix, suffix, ApiClient.urlEncode(ApiClient.valueToString(getIsRead()))));
     }
 
     // add `tags` to the URL query string

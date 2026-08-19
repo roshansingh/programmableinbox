@@ -16,7 +16,7 @@ import type { GetEmailInboxOtp200ResponseData } from '@programmableinbox/sdk'
 
 // TODO: Update the object below with actual values
 const example = {
-  "otp": "123456",
+  "otp": 123456,
   "message": null,
 } satisfies GetEmailInboxOtp200ResponseData
 

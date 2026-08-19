@@ -601,6 +601,7 @@ components:
         html: "<p>Hello, I need help with...</p>"
         bodyText: "Hello, I need help with..."
         isStarred: false
+        isRead: false
         tags:
         - tags
         - tags
@@ -659,6 +660,11 @@ components:
         isStarred:
           example: false
           type: boolean
+        isRead:
+          description: "Inbox-wide, not per-user: one shared flag reflecting whether\
+            \ any viewer has opened this message."
+          example: false
+          type: boolean
         tags:
           items:
             type: string
@@ -691,6 +697,7 @@ components:
       - from
       - html
       - id
+      - isRead
       - isStarred
       - parentMessageId
       - subject
@@ -812,6 +819,7 @@ components:
         html: "<p>Hello, I need help with...</p>"
         bodyText: "Hello, I need help with..."
         isStarred: false
+        isRead: false
         tags:
         - tags
         - tags
@@ -842,6 +850,7 @@ components:
           html: "<p>Hello, I need help with...</p>"
           bodyText: "Hello, I need help with..."
           isStarred: false
+          isRead: false
           tags:
           - tags
           - tags
@@ -869,6 +878,7 @@ components:
           html: "<p>Hello, I need help with...</p>"
           bodyText: "Hello, I need help with..."
           isStarred: false
+          isRead: false
           tags:
           - tags
           - tags
@@ -919,6 +929,7 @@ components:
             html: "<p>Hello, I need help with...</p>"
             bodyText: "Hello, I need help with..."
             isStarred: false
+            isRead: false
             tags:
             - tags
             - tags
@@ -946,6 +957,7 @@ components:
             html: "<p>Hello, I need help with...</p>"
             bodyText: "Hello, I need help with..."
             isStarred: false
+            isRead: false
             tags:
             - tags
             - tags
@@ -984,6 +996,7 @@ components:
           html: "<p>Hello, I need help with...</p>"
           bodyText: "Hello, I need help with..."
           isStarred: false
+          isRead: false
           tags:
           - tags
           - tags
@@ -1021,6 +1034,7 @@ components:
           html: "<p>Hello, I need help with...</p>"
           bodyText: "Hello, I need help with..."
           isStarred: false
+          isRead: false
           tags:
           - tags
           - tags
@@ -1063,6 +1077,7 @@ components:
             html: "<p>Hello, I need help with...</p>"
             bodyText: "Hello, I need help with..."
             isStarred: false
+            isRead: false
             tags:
             - tags
             - tags

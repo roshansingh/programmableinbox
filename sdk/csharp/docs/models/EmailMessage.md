@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **Text** | **string** |  | 
 **Html** | **string** |  | 
 **IsStarred** | **bool** |  | 
+**IsRead** | **bool** | Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message. | 
 **Tags** | **List&lt;string&gt;** |  | 
 **Categories** | **List&lt;string&gt;** | Categories assigned to the message. Matched by the &#x60;categories&#x60; parameter. | 
 **CreatedAt** | **DateTime** |  | 

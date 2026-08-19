@@ -43,6 +43,7 @@ namespace ProgrammableInbox.Sdk.Model
         /// <param name="text">text</param>
         /// <param name="html">html</param>
         /// <param name="isStarred">isStarred</param>
+        /// <param name="isRead">Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.</param>
         /// <param name="tags">tags</param>
         /// <param name="categories">Categories assigned to the message. Matched by the &#x60;categories&#x60; parameter.</param>
         /// <param name="createdAt">createdAt</param>
@@ -51,7 +52,7 @@ namespace ProgrammableInbox.Sdk.Model
         /// <param name="extractedOtp">One-time code parsed from the message body. Derived from text/html, which the same email_messages:read scope already returns.</param>
         /// <param name="threadCount">Number of messages in the thread (present only in grouped mode)</param>
         [JsonConstructor]
-        public EmailMessage(string id, string threadId, string subject, string from, List<string> to, List<string> cc, List<string> bcc, string text, string html, bool isStarred, List<string> tags, List<string> categories, DateTime createdAt, string? parentMessageId = default, string? bodyText = default, string? extractedOtp = default, Option<int?> threadCount = default)
+        public EmailMessage(string id, string threadId, string subject, string from, List<string> to, List<string> cc, List<string> bcc, string text, string html, bool isStarred, bool isRead, List<string> tags, List<string> categories, DateTime createdAt, string? parentMessageId = default, string? bodyText = default, string? extractedOtp = default, Option<int?> threadCount = default)
         {
             Id = id;
             ThreadId = threadId;
@@ -63,6 +64,7 @@ namespace ProgrammableInbox.Sdk.Model
             Text = text;
             Html = html;
             IsStarred = isStarred;
+            IsRead = isRead;
             Tags = tags;
             Categories = categories;
             CreatedAt = createdAt;
@@ -143,6 +145,14 @@ namespace ProgrammableInbox.Sdk.Model
         public bool IsStarred { get; set; }
 
         /// <summary>
+        /// Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.
+        /// </summary>
+        /// <value>Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.</value>
+        /* <example>false</example> */
+        [JsonPropertyName("isRead")]
+        public bool IsRead { get; set; }
+
+        /// <summary>
         /// Gets or Sets Tags
         /// </summary>
         [JsonPropertyName("tags")]
@@ -216,6 +226,7 @@ namespace ProgrammableInbox.Sdk.Model
             sb.Append("  Text: ").Append(Text).Append("\n");
             sb.Append("  Html: ").Append(Html).Append("\n");
             sb.Append("  IsStarred: ").Append(IsStarred).Append("\n");
+            sb.Append("  IsRead: ").Append(IsRead).Append("\n");
             sb.Append("  Tags: ").Append(Tags).Append("\n");
             sb.Append("  Categories: ").Append(Categories).Append("\n");
             sb.Append("  CreatedAt: ").Append(CreatedAt).Append("\n");
@@ -285,6 +296,7 @@ namespace ProgrammableInbox.Sdk.Model
             Option<string?> text = default;
             Option<string?> html = default;
             Option<bool?> isStarred = default;
+            Option<bool?> isRead = default;
             Option<List<string>?> tags = default;
             Option<List<string>?> categories = default;
             Option<DateTime?> createdAt = default;
@@ -337,6 +349,9 @@ namespace ProgrammableInbox.Sdk.Model
                             break;
                         case "isStarred":
                             isStarred = new Option<bool?>(utf8JsonReader.TokenType == JsonTokenType.Null ? (bool?)null : utf8JsonReader.GetBoolean());
+                            break;
+                        case "isRead":
+                            isRead = new Option<bool?>(utf8JsonReader.TokenType == JsonTokenType.Null ? (bool?)null : utf8JsonReader.GetBoolean());
                             break;
                         case "tags":
                             tags = new Option<List<string>?>(JsonSerializer.Deserialize<List<string>>(ref utf8JsonReader, jsonSerializerOptions)!);
@@ -395,6 +410,9 @@ namespace ProgrammableInbox.Sdk.Model
             if (!isStarred.IsSet)
                 throw new ArgumentException("Property is required for class EmailMessage.", nameof(isStarred));
 
+            if (!isRead.IsSet)
+                throw new ArgumentException("Property is required for class EmailMessage.", nameof(isRead));
+
             if (!tags.IsSet)
                 throw new ArgumentException("Property is required for class EmailMessage.", nameof(tags));
 
@@ -443,6 +461,9 @@ namespace ProgrammableInbox.Sdk.Model
             if (isStarred.IsSet && isStarred.Value == null)
                 throw new ArgumentNullException(nameof(isStarred), "Property is not nullable for class EmailMessage.");
 
+            if (isRead.IsSet && isRead.Value == null)
+                throw new ArgumentNullException(nameof(isRead), "Property is not nullable for class EmailMessage.");
+
             if (tags.IsSet && tags.Value == null)
                 throw new ArgumentNullException(nameof(tags), "Property is not nullable for class EmailMessage.");
 
@@ -455,7 +476,7 @@ namespace ProgrammableInbox.Sdk.Model
             if (threadCount.IsSet && threadCount.Value == null)
                 throw new ArgumentNullException(nameof(threadCount), "Property is not nullable for class EmailMessage.");
 
-            return new EmailMessage(id.Value!, threadId.Value!, subject.Value!, from.Value!, to.Value!, cc.Value!, bcc.Value!, text.Value!, html.Value!, isStarred.Value!.Value!, tags.Value!, categories.Value!, createdAt.Value!.Value!, parentMessageId.Value!, bodyText.Value!, extractedOtp.Value!, threadCount);
+            return new EmailMessage(id.Value!, threadId.Value!, subject.Value!, from.Value!, to.Value!, cc.Value!, bcc.Value!, text.Value!, html.Value!, isStarred.Value!.Value!, isRead.Value!.Value!, tags.Value!, categories.Value!, createdAt.Value!.Value!, parentMessageId.Value!, bodyText.Value!, extractedOtp.Value!, threadCount);
         }
 
         /// <summary>
@@ -534,6 +555,8 @@ namespace ProgrammableInbox.Sdk.Model
             writer.WriteString("html", emailMessage.Html);
 
             writer.WriteBoolean("isStarred", emailMessage.IsStarred);
+
+            writer.WriteBoolean("isRead", emailMessage.IsRead);
 
             writer.WritePropertyName("tags");
             JsonSerializer.Serialize(writer, emailMessage.Tags, jsonSerializerOptions);

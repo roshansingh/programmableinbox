@@ -92,6 +92,12 @@ export interface GetEmailInboxMessages200ResponseDataMessagesInner {
      */
     isStarred: boolean;
     /**
+     * Inbox-wide, not per-user: one shared flag reflecting whether any viewer has opened this message.
+     * @type {boolean}
+     * @memberof GetEmailInboxMessages200ResponseDataMessagesInner
+     */
+    isRead: boolean;
+    /**
      * 
      * @type {Array<string>}
      * @memberof GetEmailInboxMessages200ResponseDataMessagesInner
@@ -139,6 +145,7 @@ export function instanceOfGetEmailInboxMessages200ResponseDataMessagesInner(valu
     if (!('html' in value) || value['html'] === undefined) return false;
     if (!('bodyText' in value) || value['bodyText'] === undefined) return false;
     if (!('isStarred' in value) || value['isStarred'] === undefined) return false;
+    if (!('isRead' in value) || value['isRead'] === undefined) return false;
     if (!('tags' in value) || value['tags'] === undefined) return false;
     if (!('categories' in value) || value['categories'] === undefined) return false;
     if (!('extractedOtp' in value) || value['extractedOtp'] === undefined) return false;
@@ -168,6 +175,7 @@ export function GetEmailInboxMessages200ResponseDataMessagesInnerFromJSONTyped(j
         'html': json['html'],
         'bodyText': json['bodyText'],
         'isStarred': json['isStarred'],
+        'isRead': json['isRead'],
         'tags': json['tags'],
         'categories': json['categories'],
         'extractedOtp': json['extractedOtp'],
@@ -199,6 +207,7 @@ export function GetEmailInboxMessages200ResponseDataMessagesInnerToJSONTyped(val
         'html': value['html'],
         'bodyText': value['bodyText'],
         'isStarred': value['isStarred'],
+        'isRead': value['isRead'],
         'tags': value['tags'],
         'categories': value['categories'],
         'extractedOtp': value['extractedOtp'],
