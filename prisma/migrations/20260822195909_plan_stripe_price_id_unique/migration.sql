@@ -1,0 +1,14 @@
+-- `plan.stripePriceId` was never unique despite `syncSubscriptionFromStripe`
+-- (ee/billing/subscription-sync.ts) resolving it with
+-- `prisma.plan.findUnique({ where: { stripePriceId } })` since that call was
+-- introduced in PR #120. Without this index the query is an invalid
+-- `PlanWhereUniqueInput` and every subscription webhook
+-- (checkout.session.completed, customer.subscription.*) throws
+-- `PrismaClientValidationError` at runtime — never caught at build time
+-- because `next build` runs with `ignoreBuildErrors: true`.
+--
+-- Multiple `NULL`s are permitted under a Postgres unique index, so
+-- `self_hosted` and any plan with no price configured yet coexist fine; only
+-- two non-null values colliding would fail this migration, and `code` is
+-- already the plan identifier, so no seed data assigns the same price twice.
+CREATE UNIQUE INDEX "plans_stripePriceId_key" ON "plans"("stripePriceId");
