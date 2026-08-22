@@ -25,11 +25,11 @@ interface CommercialProviderState {
 }
 
 const globalForCommercial = globalThis as unknown as {
-  __inboxuiCommercialProvider?: CommercialProviderState
+  __pibxCommercialProvider?: CommercialProviderState
 }
 
 function state(): CommercialProviderState {
-  return (globalForCommercial.__inboxuiCommercialProvider ??= {})
+  return (globalForCommercial.__pibxCommercialProvider ??= {})
 }
 
 /**
