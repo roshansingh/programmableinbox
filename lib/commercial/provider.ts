@@ -4,6 +4,35 @@ import { NoopQuota } from './oss/NoopQuota'
 import { NoopMetering } from './oss/NoopMetering'
 
 /**
+ * Backed by `globalThis`, not module/class-static scope. In a production
+ * Next.js build, webpack (and Turbopack in dev) can compile this same source
+ * file into more than one independent bundled copy across different entry
+ * points/chunks — confirmed for the analogous `lib/logger.config.ts` case by
+ * grepping `.next/server` for a string unique to this file and finding it
+ * duplicated across separate compiled chunks (see `lib/db.ts`'s
+ * `globalForPrisma` for the original instance of this pattern in this repo).
+ * `ee/init.ts`'s one-time `configure()` call, made from `instrumentation.ts`,
+ * would then only be visible on *its own* copy of this class — an API route
+ * handler compiled into a different chunk would read its own, never-configured
+ * copy and silently fall back to the OSS defaults regardless of
+ * `USE_COMMERCIAL`. `globalThis` is the one true JS global shared by the whole
+ * Node.js process no matter how the bundler chunks the code.
+ */
+interface CommercialProviderState {
+  plans?: IPlanResolver
+  quota?: IQuota
+  metering?: IMetering
+}
+
+const globalForCommercial = globalThis as unknown as {
+  __inboxuiCommercialProvider?: CommercialProviderState
+}
+
+function state(): CommercialProviderState {
+  return (globalForCommercial.__inboxuiCommercialProvider ??= {})
+}
+
+/**
  * Service locator for the commercial plan engine (issue #117 §3).
  *
  * This is the seam that lets the open-source build work with `ee/` deleted: the
@@ -23,30 +52,29 @@ import { NoopMetering } from './oss/NoopMetering'
  *   - metering:  billing telemetry
  */
 export class CommercialProvider {
-  private static _plans: IPlanResolver | undefined
-  private static _quota: IQuota | undefined
-  private static _metering: IMetering | undefined
-
   /** Lazily falls back to the OSS default on first access. */
   static get plans(): IPlanResolver {
-    if (!this._plans) {
-      this._plans = new UnlimitedPlanResolver()
+    const s = state()
+    if (!s.plans) {
+      s.plans = new UnlimitedPlanResolver()
     }
-    return this._plans
+    return s.plans
   }
 
   static get quota(): IQuota {
-    if (!this._quota) {
-      this._quota = new NoopQuota()
+    const s = state()
+    if (!s.quota) {
+      s.quota = new NoopQuota()
     }
-    return this._quota
+    return s.quota
   }
 
   static get metering(): IMetering {
-    if (!this._metering) {
-      this._metering = new NoopMetering()
+    const s = state()
+    if (!s.metering) {
+      s.metering = new NoopMetering()
     }
-    return this._metering
+    return s.metering
   }
 
   /**
@@ -59,15 +87,17 @@ export class CommercialProvider {
    * nothing.
    */
   static configure(plans: IPlanResolver, quota: IQuota, metering: IMetering): void {
-    this._plans = plans
-    this._quota = quota
-    this._metering = metering
+    const s = state()
+    s.plans = plans
+    s.quota = quota
+    s.metering = metering
   }
 
   /** Reset to uninitialised, so the next access lazily re-loads the defaults. */
   static reset(): void {
-    this._plans = undefined
-    this._quota = undefined
-    this._metering = undefined
+    const s = state()
+    s.plans = undefined
+    s.quota = undefined
+    s.metering = undefined
   }
 }

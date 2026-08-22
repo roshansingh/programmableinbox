@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { CommercialProvider } from '../provider'
 import { UnlimitedPlanResolver } from '../oss/UnlimitedPlanResolver'
 import { NoopQuota } from '../oss/NoopQuota'
@@ -98,6 +98,39 @@ describe('CommercialProvider', () => {
 
       expect(CommercialProvider.quota).toBe(otherQuota)
     })
+  })
+
+  /**
+   * In a production Next.js build, webpack can compile `lib/commercial/provider.ts`
+   * into more than one independent bundled copy across different entry points —
+   * confirmed empirically for the analogous lib/logger.config.ts case by grepping
+   * `.next/server` for a string unique to that file and finding it duplicated
+   * across separate compiled chunks (see the comment on `lib/db.ts`'s
+   * `globalForPrisma`). `instrumentation.ts` calls `configure()` on its own copy;
+   * a route handler importing a *different* copy must still see the same
+   * configuration, or `ee/init.ts` wiring up `DbPlanResolver` at boot is
+   * invisible everywhere requests are actually served. `vi.resetModules()`
+   * stands in for "a separate module instance" here.
+   */
+  it('is visible to a separately-loaded module instance, simulating a different webpack chunk', async () => {
+    const strictPlans: IPlanResolver = {
+      resolve: async () => ({
+        planCode: 'free',
+        planName: 'Free',
+        limits: UNLIMITED,
+        periodStart: null,
+        periodEnd: null,
+      }),
+    }
+
+    CommercialProvider.configure(strictPlans, CommercialProvider.quota, CommercialProvider.metering)
+
+    vi.resetModules()
+    const { CommercialProvider: FreshCommercialProvider } = await import('../provider')
+
+    expect(FreshCommercialProvider.plans).toBe(strictPlans)
+
+    FreshCommercialProvider.reset()
   })
 
   describe('reset()', () => {
