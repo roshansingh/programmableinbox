@@ -120,6 +120,17 @@ describe('BillingPage', () => {
     expect(proCard).toHaveTextContent('$20.00/month')
   })
 
+  it('singularizes a count of exactly 1, rather than "1 email inboxes"', async () => {
+    mockAuthMe(userOnPlan('free'))
+    mockPlansEndpoint()
+    renderWithProviders(<BillingPage />)
+
+    const freeCard = (await findCardTitle('Free')).closest('[data-slot="card"]') as HTMLElement
+
+    expect(freeCard).toHaveTextContent('1 email inbox')
+    expect(freeCard).not.toHaveTextContent('1 email inboxes')
+  })
+
   it('marks the organization\'s current plan', async () => {
     mockAuthMe(userOnPlan('pro'))
     mockPlansEndpoint()

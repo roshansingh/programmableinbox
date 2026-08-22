@@ -27,10 +27,24 @@ async function resolvePrice(stripePriceId: string | null): Promise<PlanPrice> {
 
   try {
     const price = await getStripe().prices.retrieve(stripePriceId)
+
+    // A tiered/graduated price has no single `unit_amount`, and a price with
+    // no `recurring` block isn't billed on a known interval. Defaulting either
+    // to 0 / "month" would display a real price as free or misstate its
+    // billing terms rather than admit it can't be resolved — worse than the
+    // null this route already returns for a genuinely unconfigured plan.
+    if (price.unit_amount === null || !price.recurring) {
+      logger.warn(
+        { stripePriceId, unitAmount: price.unit_amount, recurring: price.recurring },
+        'Stripe price has no fixed unit amount or recurring interval; reporting as unavailable',
+      )
+      return null
+    }
+
     return {
-      amount: price.unit_amount ?? 0,
+      amount: price.unit_amount,
       currency: price.currency,
-      interval: price.recurring?.interval ?? 'month',
+      interval: price.recurring.interval,
     }
   } catch (error) {
     logger.warn({ error, stripePriceId }, 'Failed to retrieve Stripe price; reporting as unavailable')

@@ -160,6 +160,35 @@ describe('GET /api/app/billing/plans', () => {
     expect(response.status).toBe(200)
     expect(body.data.plans.find((p: { code: string }) => p.code === 'pro').price).toBeNull()
   })
+
+  /**
+   * A tiered/graduated Stripe price has no single `unit_amount`. Defaulting it
+   * to 0 would show "$0.00/month" for a plan that is not free — worse than
+   * showing nothing, since it looks like a real, checked price.
+   */
+  it('reports a price with no unit_amount as unavailable rather than $0', async () => {
+    priceRetrieveMock.mockResolvedValue({ unit_amount: null, currency: 'usd', recurring: { interval: 'month' } })
+    const { GET } = await import('../plans/route')
+
+    const response = await GET(request(), ctx)
+    const body = await response.json()
+
+    expect(body.data.plans.find((p: { code: string }) => p.code === 'pro').price).toBeNull()
+  })
+
+  /**
+   * A price with no `recurring` info isn't billed monthly (or on any interval
+   * we know); defaulting to "month" would misstate real billing terms.
+   */
+  it('reports a price with no recurring interval as unavailable rather than defaulting to monthly', async () => {
+    priceRetrieveMock.mockResolvedValue({ unit_amount: 2000, currency: 'usd', recurring: null })
+    const { GET } = await import('../plans/route')
+
+    const response = await GET(request(), ctx)
+    const body = await response.json()
+
+    expect(body.data.plans.find((p: { code: string }) => p.code === 'pro').price).toBeNull()
+  })
 })
 
 describe('GET /api/app/billing/plans with the commercial layer off', () => {

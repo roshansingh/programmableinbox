@@ -25,8 +25,15 @@ function formatPrice(price: PublicPlan["price"]): string {
   return `${amount}/${price.interval}`
 }
 
-function formatCount(count: number | null, unit: string): string {
-  return count === null ? `Unlimited ${unit}` : `${count.toLocaleString()} ${unit}`
+/**
+ * `singular`/`plural` are passed explicitly rather than derived (e.g. by
+ * stripping a trailing "s") because a unit like "incoming emails / month"
+ * isn't a single pluralizable word — a suffix rule would need to know it's
+ * "emails" specifically, inside a longer phrase.
+ */
+function formatCount(count: number | null, singular: string, plural: string): string {
+  if (count === null) return `Unlimited ${plural}`
+  return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
 }
 
 /**
@@ -197,9 +204,15 @@ function BillingContent() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <ul className="space-y-1 text-sm text-muted-foreground">
-                            <li>{formatCount(planSummary.limits.emailInboxes, "email inboxes")}</li>
                             <li>
-                              {formatCount(planSummary.limits.incomingEmailsPerPeriod, "incoming emails / month")}
+                              {formatCount(planSummary.limits.emailInboxes, "email inbox", "email inboxes")}
+                            </li>
+                            <li>
+                              {formatCount(
+                                planSummary.limits.incomingEmailsPerPeriod,
+                                "incoming email / month",
+                                "incoming emails / month",
+                              )}
                             </li>
                             <li>{planSummary.limits.outboundEmail ? "Outbound email" : "No outbound email"}</li>
                             <li>{planSummary.limits.llmEnrichment ? "AI enrichment" : "No AI enrichment"}</li>
