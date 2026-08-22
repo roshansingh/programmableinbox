@@ -87,8 +87,8 @@ export const POST = withUser(async (request: NextRequest, principal) => {
       client_reference_id: organizationId,
       metadata: { organizationId },
       subscription_data: { metadata: { organizationId } },
-      success_url: `${appBaseUrl}/settings?checkout=success`,
-      cancel_url: `${appBaseUrl}/settings?checkout=cancelled`,
+      success_url: `${appBaseUrl}/billing?checkout=success`,
+      cancel_url: `${appBaseUrl}/billing?checkout=cancelled`,
     })
 
     if (!session.url) {

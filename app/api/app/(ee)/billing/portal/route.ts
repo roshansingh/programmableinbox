@@ -55,7 +55,7 @@ export const POST = withUser(async (request: NextRequest, principal) => {
   try {
     const session = await getStripe().billingPortal.sessions.create({
       customer: organization.stripeCustomerId,
-      return_url: `${requireAppBaseUrl()}/settings`,
+      return_url: `${requireAppBaseUrl()}/billing`,
     })
 
     return jsonSuccess({ url: session.url })

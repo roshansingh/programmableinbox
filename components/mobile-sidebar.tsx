@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
-import { Inbox, Mail, Phone, Settings, ChevronDown, Plus, X, Workflow } from 'lucide-react'
+import { Inbox, Mail, Phone, Settings, ChevronDown, Plus, X, Workflow, CreditCard } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,13 +18,20 @@ import { useAuth } from "@/components/auth-provider"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
 
-const navigation = [
+const BASE_NAVIGATION = [
   { name: "Dashboard", icon: Inbox, href: "/", current: false },
   { name: "Emails", icon: Mail, href: "/emails", current: false },
   { name: "Automations", icon: Workflow, href: "/automations", current: false },
   { name: "Phone Numbers", icon: Phone, href: "#phones", current: false },
-{ name: "Settings", icon: Settings, href: "/settings", current: false },
 ]
+
+const SETTINGS_ITEM = { name: "Settings", icon: Settings, href: "/settings", current: false }
+
+/**
+ * See the matching note in sidebar.tsx: a plan is present exactly when
+ * `USE_COMMERCIAL=true` and Stripe is configured, so this is the whole gate.
+ */
+const BILLING_ITEM = { name: "Billing", icon: CreditCard, href: "/billing", current: false }
 
 interface MobileSidebarProps {
   open: boolean
@@ -33,12 +40,13 @@ interface MobileSidebarProps {
 
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
-  const { user } = useAuth()
+  const { user, plan } = useAuth()
   const organizations = user?.organizations ?? []
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
   const currentOrg =
     organizations.find((org) => org.id === selectedOrgId) ?? organizations[0] ?? null
   const orgName = currentOrg?.name ?? "Organization"
+  const navigation = [...BASE_NAVIGATION, ...(plan ? [BILLING_ITEM] : []), SETTINGS_ITEM]
 
   return (
     <Sheet open={open} onOpenChange={onClose}>

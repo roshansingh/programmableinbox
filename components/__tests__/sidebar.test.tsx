@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@/test/test-utils'
 import { Sidebar } from '@/components/sidebar'
-import type { User } from '@/lib/api/auth.api'
+import type { User, OrganizationPlan } from '@/lib/api/auth.api'
 
 const mockUser = vi.hoisted(() => ({ current: null as User | null }))
+const mockPlan = vi.hoisted(() => ({ current: null as OrganizationPlan | null }))
 
 vi.mock('@/components/auth-provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/auth-provider')>()
@@ -12,6 +13,7 @@ vi.mock('@/components/auth-provider', async (importOriginal) => {
     useAuth: () => ({
       user: mockUser.current,
       organizationId: mockUser.current?.organizations?.[0]?.id ?? null,
+      plan: mockPlan.current,
       isLoading: false,
       isAuthenticated: !!mockUser.current,
       refreshUser: vi.fn(),
@@ -90,5 +92,33 @@ describe('Sidebar', () => {
 
     expect(screen.queryByText('John Doe')).not.toBeInTheDocument()
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
+  })
+
+  describe('Billing link', () => {
+    /** No plan means USE_COMMERCIAL is off — self-hosted has nothing to bill. */
+    it('is absent when the organization has no plan', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = null
+      render(<Sidebar />)
+
+      expect(screen.queryByText('Billing')).not.toBeInTheDocument()
+    })
+
+    it('links to /billing when the organization has a plan', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+      render(<Sidebar />)
+
+      expect(screen.getByText('Billing').closest('a')).toHaveAttribute('href', '/billing')
+    })
+
+    it('sits directly above Settings', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+      render(<Sidebar />)
+
+      const labels = screen.getAllByRole('link').map((link) => link.textContent)
+      expect(labels.indexOf('Billing')).toBe(labels.indexOf('Settings') - 1)
+    })
   })
 })

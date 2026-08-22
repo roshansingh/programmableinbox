@@ -152,6 +152,40 @@ stripe trigger checkout.session.completed
 stripe trigger customer.subscription.deleted
 ```
 
+### The dashboard billing page
+
+`/billing` (`app/billing/page.tsx`) is the plan picker — two cards, Free and Pro, each showing 5
+fields: email inboxes, incoming emails/month, outbound email, AI enrichment, and price. That cap is
+deliberate — the page is meant to be a glance, not a spec sheet, so it shows only what actually
+differs between the two plans today rather than every key in `PlanLimits`.
+
+Its data comes from `GET /api/app/billing/plans`, a fourth billing route alongside
+checkout/portal/webhook, also under the `(ee)` group. Unlike checkout and portal it is **not**
+restricted to `BILLING_ROLES` — reading what a plan costs and includes does not spend anyone's
+money, so any member can see it. It queries the `isPublic` `Plan` rows and resolves each one's price
+live from Stripe via `stripePriceId` (Plan carries no price column of its own). A plan with no
+`stripePriceId` and a Stripe lookup failure both collapse to `price: null`, which the client cannot
+and does not need to tell apart — either way there's nothing to charge and nothing to show. That
+degrade-per-plan behavior also means one Stripe outage reports one plan as unavailable rather than
+failing the whole list.
+
+**There is no downgrade route, on purpose.** The Free card never offers an action when it isn't the
+organization's current plan — the only way back to Free is cancelling the Pro subscription, and that
+button lives on the Pro card and opens the Billing Portal (`createBillingPortalSession`), exactly
+like the settings-page flow it replaces. A dedicated "switch to Free" endpoint would duplicate the
+cancellation logic the [Local development](#local-development) section above already argues against
+rebuilding — Stripe's portal is where cancellation happens, and the existing webhook
+(`customer.subscription.deleted` → `syncSubscriptionFromStripe`) is what actually moves the
+organization back to `free` once the subscription ends.
+
+The nav link to it (`components/sidebar.tsx`, `components/mobile-sidebar.tsx`) is gated on
+`useAuth().plan` being non-null — no separate `AppConfig` flag was added, because a plan is present
+exactly when `USE_COMMERCIAL=true` *and* Stripe is configured: `assertConfig()` refuses to boot
+otherwise (see "Billing (Stripe)" above). One check on `plan` is the whole gate.
+
+`success_url` / `cancel_url` (checkout) and `return_url` (portal) all point back at `/billing` now,
+not `/settings` — this page is billing's actual home in the dashboard.
+
 ## What the client sees
 
 - **Plan limits** ride `organizations[]` on `GET /api/app/auth/me`, via
@@ -162,6 +196,7 @@ stripe trigger customer.subscription.deleted
 - **Live usage** is a separate, polled endpoint, `GET /api/app/usage` — plan limits change rarely
   and are fine to cache with the session; usage changes constantly and would go stale immediately
   if it rode the same fetch.
+- **The plan picker** is `GET /api/app/billing/plans` — see "The dashboard billing page" above.
 
 ## Related
 

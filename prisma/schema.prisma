@@ -521,8 +521,10 @@ model Plan {
   /// schema is the whole contract. `null` for a limit means unlimited —
   /// `Infinity` does not survive JSON.
   limits        Json
-  /// Unread until billing lands. Singular, so it cannot express monthly and
-  /// annual prices; revisit with Stripe.
+  /// Read by `POST /api/app/billing/checkout` (the price actually charged) and
+  /// `GET /api/app/billing/plans` (the price the billing page displays, fetched
+  /// live from Stripe). Singular, so it cannot express monthly and annual
+  /// prices at once — revisit if that's ever needed.
   stripePriceId String?
   /// False hides a plan from any pricing or plan-picker UI. `self_hosted` is
   /// not selectable on the hosted offering.
