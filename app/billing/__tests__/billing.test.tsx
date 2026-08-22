@@ -260,5 +260,30 @@ describe('BillingPage', () => {
       await waitFor(() => expect(proCard).toHaveTextContent(/current plan/i), { timeout: 3000 })
       expect(calls).toBeGreaterThanOrEqual(2)
     })
+
+    /**
+     * `refreshUser` (components/auth-provider.tsx) wraps its fetch in
+     * try/catch and never re-throws, so a transient failure on the first
+     * /auth/me call must not abort the retry chain — the delayed second
+     * refreshUser() call has to run regardless.
+     */
+    it('still performs the delayed retry when the first session fetch fails', async () => {
+      withCheckoutSuccess()
+      mockPlansEndpoint()
+      let calls = 0
+      server.use(
+        http.get('http://localhost:4000/api/app/auth/me', () => {
+          calls++
+          if (calls === 1) return HttpResponse.json({ message: 'network hiccup' }, { status: 500 })
+          return HttpResponse.json({ data: userOnPlan('pro') })
+        }),
+      )
+
+      renderWithProviders(<BillingPage />)
+
+      const proCard = (await findCardTitle('Pro')).closest('[data-slot="card"]') as HTMLElement
+      await waitFor(() => expect(proCard).toHaveTextContent(/current plan/i), { timeout: 3000 })
+      expect(calls).toBeGreaterThanOrEqual(2)
+    })
   })
 })
