@@ -1,10 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import { AuthProvider } from '@/components/auth-provider'
 import { mockUser, mockOrganization } from '@/test/mocks/fixtures/users'
+import { useSearchParams } from 'next/navigation'
 import BillingPage from '../page'
+
+function withCheckoutSuccess() {
+  vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('checkout=success') as never)
+}
 
 vi.mock('@/components/sidebar', () => ({
   Sidebar: () => <nav data-testid="sidebar">Sidebar</nav>,
@@ -81,6 +86,7 @@ function findCardTitle(name: string) {
 describe('BillingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never)
     localStorage.setItem('auth_token', 'mock-jwt-token')
   })
 
@@ -190,5 +196,58 @@ describe('BillingPage', () => {
     ;(await screen.findByRole('button', { name: /upgrade to pro/i })).click()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not start checkout/i)
+  })
+
+  /**
+   * Stripe redirects to success_url as soon as payment settles, but the
+   * webhook that actually writes the Subscription row is a separate,
+   * asynchronous call from Stripe's backend that can still be in flight when
+   * this page mounts — a single /auth/me refetch on mount can race it.
+   */
+  describe('returning from a successful checkout', () => {
+    afterEach(() => {
+      vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never)
+    })
+
+    it('scrubs the checkout param from the URL', async () => {
+      withCheckoutSuccess()
+      mockAuthMe(userOnPlan('free'))
+      mockPlansEndpoint()
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
+
+      renderWithProviders(<BillingPage />)
+
+      await waitFor(() => expect(replaceStateSpy).toHaveBeenCalled())
+    })
+
+    it('shows a confirming message while re-checking the session', async () => {
+      withCheckoutSuccess()
+      mockAuthMe(userOnPlan('free'))
+      mockPlansEndpoint()
+
+      renderWithProviders(<BillingPage />)
+
+      expect(await screen.findByText(/confirming your subscription/i)).toBeInTheDocument()
+    })
+
+    it('retries the session fetch and picks up the plan once the webhook lands', async () => {
+      withCheckoutSuccess()
+      mockPlansEndpoint()
+      let calls = 0
+      server.use(
+        http.get('http://localhost:4000/api/app/auth/me', () => {
+          calls++
+          // First call still reflects the pre-webhook state — the race this
+          // retry exists to cover.
+          return HttpResponse.json({ data: calls === 1 ? userOnPlan('free') : userOnPlan('pro') })
+        }),
+      )
+
+      renderWithProviders(<BillingPage />)
+
+      const proCard = (await findCardTitle('Pro')).closest('[data-slot="card"]') as HTMLElement
+      await waitFor(() => expect(proCard).toHaveTextContent(/current plan/i), { timeout: 3000 })
+      expect(calls).toBeGreaterThanOrEqual(2)
+    })
   })
 })

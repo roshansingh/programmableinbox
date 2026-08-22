@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,18 @@ function formatCount(count: number | null, unit: string): string {
 }
 
 /**
+ * How long to wait before re-checking the session after a checkout redirect.
+ *
+ * Stripe sends the browser to `success_url` as soon as payment settles, but
+ * the webhook that actually writes the `Subscription` row is a separate,
+ * asynchronous call from Stripe's backend — it can still be in flight when
+ * this page mounts, so the first `/auth/me` refetch can show the pre-checkout
+ * plan. One retry after a short delay covers the common case; if the webhook
+ * is slower than that, a manual reload picks up the change once it lands.
+ */
+const CHECKOUT_CONFIRM_DELAY_MS = 1200
+
+/**
  * Plan picker (issue #120 billing page).
  *
  * There is no downgrade route: cancelling a Pro subscription happens through
@@ -38,12 +51,14 @@ function formatCount(count: number | null, unit: string): string {
  * therefore never offers an action when it isn't the current plan; there is
  * nothing this page can start on its behalf.
  */
-export default function BillingPage() {
-  const { plan, organizationId } = useAuth()
+function BillingContent() {
+  const searchParams = useSearchParams()
+  const { plan, organizationId, refreshUser } = useAuth()
   const [plans, setPlans] = useState<PublicPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingCode, setPendingCode] = useState<string | null>(null)
+  const [confirmingCheckout, setConfirmingCheckout] = useState(false)
 
   useEffect(() => {
     if (!plan) {
@@ -55,6 +70,29 @@ export default function BillingPage() {
       .catch(() => setError("Could not load plans"))
       .finally(() => setLoading(false))
   }, [plan])
+
+  useEffect(() => {
+    if (searchParams.get("checkout") !== "success") return
+
+    // Scrubbed immediately so a later reload of this URL doesn't re-trigger
+    // the confirmation retry.
+    window.history.replaceState(null, "", window.location.pathname)
+
+    let cancelled = false
+    setConfirmingCheckout(true)
+    refreshUser()
+      .then(() => new Promise((resolve) => setTimeout(resolve, CHECKOUT_CONFIRM_DELAY_MS)))
+      .then(() => (cancelled ? undefined : refreshUser()))
+      .finally(() => {
+        if (!cancelled) setConfirmingCheckout(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+    // Empty deps: this runs once for the checkout redirect, and the URL is
+    // scrubbed immediately, so there is nothing to re-trigger on.
+  }, [])
 
   const startCheckout = async (planCode: string) => {
     if (!organizationId || pendingCode) return
@@ -140,6 +178,11 @@ export default function BillingPage() {
                     {error}
                   </p>
                 )}
+                {confirmingCheckout && (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    Confirming your subscription…
+                  </p>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   {plans.map((planSummary) => {
                     const isCurrent = plan.code === planSummary.code
@@ -178,5 +221,16 @@ export default function BillingPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function BillingPage() {
+  // useSearchParams needs a Suspense boundary to keep this page statically
+  // prerenderable, the same shape /auth/verify and /auth/login use for their
+  // own search-param reads.
+  return (
+    <Suspense fallback={null}>
+      <BillingContent />
+    </Suspense>
   )
 }
