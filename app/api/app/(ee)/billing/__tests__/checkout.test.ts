@@ -134,6 +134,22 @@ describe('POST /api/app/billing/checkout', () => {
   })
 
   /**
+   * `customer_creation` is a Checkout Session param that Stripe only accepts in
+   * `mode: 'payment'` — sending it in `mode: 'subscription'` (this route's mode)
+   * is a 400 `StripeInvalidRequestError`. Subscription mode creates a customer
+   * automatically whenever none is passed, so the field is never needed here.
+   */
+  it('does not send customer_creation, which Stripe rejects in subscription mode', async () => {
+    const { POST } = await import('../checkout/route')
+
+    await POST(request(), ctx)
+
+    const args = createSessionMock.mock.calls[0][0]
+    expect(args.customer_creation).toBeUndefined()
+    expect(args.customer).toBeUndefined()
+  })
+
+  /**
    * A second customer record for one organization splits invoices and payment
    * methods across two Stripe objects nobody can reconcile.
    */

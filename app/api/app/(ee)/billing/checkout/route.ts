@@ -78,9 +78,11 @@ export const POST = withUser(async (request: NextRequest, principal) => {
       line_items: [{ price: plan.stripePriceId, quantity: 1 }],
       // Reuses the existing customer when there is one, so a returning
       // subscriber keeps one invoice history rather than accumulating records.
-      ...(organization.stripeCustomerId
-        ? { customer: organization.stripeCustomerId }
-        : { customer_creation: 'always' }),
+      // `customer_creation` is deliberately not set for a first-time subscriber:
+      // that param is only valid in `mode: 'payment'` — Stripe rejects it with a
+      // 400 in `mode: 'subscription'`, which creates a customer automatically
+      // whenever none is passed.
+      ...(organization.stripeCustomerId ? { customer: organization.stripeCustomerId } : {}),
       // Both carried: `client_reference_id` survives on the session, and
       // `metadata` is what the webhook copies onto the subscription so every
       // later lifecycle event knows which organization it belongs to.
