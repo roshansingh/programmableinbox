@@ -34,7 +34,7 @@ import {
 import { toolError, toolResult, type ToolResult } from './tool-result'
 import type { ApiKeyPrincipal } from '@/lib/auth/principals'
 import { config } from '@/lib/config'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 
 /**
  * The MCP tool surface over the read-only email API (issue #104).

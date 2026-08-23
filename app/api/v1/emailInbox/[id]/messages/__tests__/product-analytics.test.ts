@@ -18,7 +18,7 @@ vi.mock('@/lib/services/email-inbox', () => ({
   listMessages: (...a: unknown[]) => listMessagesMock(...a),
 }))
 
-vi.mock('@/ee/product-analytics/capture', () => ({
+vi.mock('@/lib/product-analytics/capture', () => ({
   captureEvent: (...args: unknown[]) => captureEventMock(...args),
   PRODUCT_ANALYTICS_EVENTS: { messageSearchUsed: 'message_search_used' },
 }))

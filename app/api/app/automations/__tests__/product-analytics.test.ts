@@ -33,7 +33,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-vi.mock('@/ee/product-analytics/capture', () => ({
+vi.mock('@/lib/product-analytics/capture', () => ({
   captureEvent: (...args: unknown[]) => captureEventMock(...args),
   PRODUCT_ANALYTICS_EVENTS: { automationCreated: 'automation_created', planLimitDenied: 'plan_limit_denied' },
 }))

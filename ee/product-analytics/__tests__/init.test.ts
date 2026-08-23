@@ -3,12 +3,19 @@ import { withConfigEnv, setConfigEnv } from '@/test/config'
 
 const getPostHogClientMock = vi.fn()
 const loggerInfoMock = vi.fn()
+const registerProductAnalyticsCaptureMock = vi.fn()
 
 vi.mock('../client', () => ({
   getPostHogClient: (...a: unknown[]) => getPostHogClientMock(...a),
 }))
 vi.mock('@/lib/logger', () => ({
   default: { info: (...a: unknown[]) => loggerInfoMock(...a), warn: vi.fn(), error: vi.fn() },
+}))
+vi.mock('@/lib/product-analytics/capture', () => ({
+  registerProductAnalyticsCapture: (...a: unknown[]) => registerProductAnalyticsCaptureMock(...a),
+  // `../capture` (real, unmocked here) re-exports this from the facade —
+  // stubbed just enough to keep that import satisfied.
+  PRODUCT_ANALYTICS_EVENTS: { inboxCreated: 'inbox_created' },
 }))
 
 describe('initializeProductAnalytics', () => {
@@ -31,6 +38,14 @@ describe('initializeProductAnalytics', () => {
       expect(getPostHogClientMock).toHaveBeenCalled()
       expect(loggerInfoMock).toHaveBeenCalled()
     })
+
+    it('registers its captureEvent into the Community facade', async () => {
+      const { initializeProductAnalytics } = await import('../init')
+      const { captureEvent } = await import('../capture')
+      initializeProductAnalytics()
+
+      expect(registerProductAnalyticsCaptureMock).toHaveBeenCalledWith(captureEvent)
+    })
   })
 
   describe('disabled (the default)', () => {
@@ -42,6 +57,14 @@ describe('initializeProductAnalytics', () => {
 
       expect(getPostHogClientMock).not.toHaveBeenCalled()
       expect(loggerInfoMock).not.toHaveBeenCalled()
+    })
+
+    it('still registers captureEvent into the facade — the delegate no-ops on its own', async () => {
+      const { initializeProductAnalytics } = await import('../init')
+      const { captureEvent } = await import('../capture')
+      initializeProductAnalytics()
+
+      expect(registerProductAnalyticsCaptureMock).toHaveBeenCalledWith(captureEvent)
     })
 
     it('does nothing at all — no client construction, no log line — when unset entirely', async () => {

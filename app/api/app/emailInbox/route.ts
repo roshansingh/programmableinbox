@@ -5,7 +5,7 @@ import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { config } from '@/lib/config'
 import { prisma } from '@/lib/db'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import logger from '@/lib/logger'
 
 export const GET = withUser(async (request, principal) => {

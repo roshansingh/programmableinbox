@@ -2,47 +2,28 @@ import 'server-only'
 import { config } from '@/lib/config'
 import logger from '@/lib/logger'
 import { getPostHogClient } from './client'
+import {
+  PRODUCT_ANALYTICS_EVENTS,
+  type ProductAnalyticsEvent,
+} from '@/lib/product-analytics/capture'
 
 /**
- * The event taxonomy (issue #152), as a closed map rather than bare strings
- * at each call site. A typo'd event name is then a compile error instead of
- * a silently un-fired analytics event nobody notices until the funnel is
- * missing data.
- *
- * Names and fire points, from the issue's phasing:
- *   - inbox_created           app/api/app/emailInbox/route.ts POST
- *   - second_inbox_created    same path, when the org's live count reaches 2
- *   - message_viewed          the isRead PATCH branch, messages/[messageId]
- *   - automation_created      app/api/app/automations/route.ts POST
- *   - plan_limit_denied       every jsonPlanDenial / checkResourceLimit 402
- *   - checkout_completed      Stripe webhook creating a Subscription row
- *   - api_key_created         app/api/app/apiKeys/route.ts POST
- *   - webhook_created         app/api/app/webhooks/route.ts POST
- *   - message_search_used     a non-null MessageSearch on a messages GET
- *   - mcp_tool_called         every MCP tool invocation, app/api/mcp
+ * The event taxonomy now lives in `@/lib/product-analytics/capture` — the
+ * Community tree, not here — because eight non-commercial route handlers
+ * and `lib/mcp/tools.ts` reference these names, and `scripts/foss.mjs`
+ * deletes this whole directory for the FOSS build. Re-exported here so this
+ * module's own (EE-internal) callers — `ee/billing/subscription-sync.ts` and
+ * this file's own test — don't need to know that.
  */
-export const PRODUCT_ANALYTICS_EVENTS = {
-  inboxCreated: 'inbox_created',
-  secondInboxCreated: 'second_inbox_created',
-  messageViewed: 'message_viewed',
-  automationCreated: 'automation_created',
-  planLimitDenied: 'plan_limit_denied',
-  checkoutCompleted: 'checkout_completed',
-  apiKeyCreated: 'api_key_created',
-  webhookCreated: 'webhook_created',
-  messageSearchUsed: 'message_search_used',
-  mcpToolCalled: 'mcp_tool_called',
-} as const
-
-export type ProductAnalyticsEvent =
-  (typeof PRODUCT_ANALYTICS_EVENTS)[keyof typeof PRODUCT_ANALYTICS_EVENTS]
+export { PRODUCT_ANALYTICS_EVENTS, type ProductAnalyticsEvent }
 
 /**
- * Fires a named server-side event (issue #152).
+ * Fires a named server-side event (issue #152). The real, PostHog-talking
+ * implementation — registered into `@/lib/product-analytics/capture`'s
+ * facade by `./init.ts` at boot, which is what non-commercial call sites
+ * actually import. Nothing outside `ee/` imports this file directly.
  *
- * The single place every route handler and service-layer call goes through,
- * so none of them has to reimplement the disabled check: a no-op — no
- * PostHog client constructed, no network call — whenever
+ * A no-op — no PostHog client constructed, no network call — whenever
  * `ENABLE_PRODUCT_ANALYTICS` is off, which is the default and must stay free
  * of any observable side effect in that state.
  *

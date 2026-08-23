@@ -596,11 +596,24 @@ const ObservabilitySchema = z
  * publish it. The separate Personal API Key (`phx_...`), which is
  * admin-scoped and read-capable, is not modeled here at all: nothing in this
  * PR's scope needs server-side feature-flag/insights API access.
+ *
+ * The `phc_` prefix is therefore enforced, not just documented: since this
+ * value is published to every authenticated user via `AppConfig`, a
+ * misconfigured deployment that pastes in its Personal Key (`phx_...`) by
+ * mistake — the two look interchangeable to someone copying a key out of
+ * PostHog's UI — must fail loudly at boot rather than leak an admin-scoped
+ * credential to the browser.
  */
 const ProductAnalyticsSchema = z
   .object({
     ENABLE_PRODUCT_ANALYTICS: zBool.optional(),
-    POSTHOG_API_KEY: zNonEmpty.optional(),
+    POSTHOG_API_KEY: zNonEmpty
+      .optional()
+      .refine((v) => !v || v.startsWith('phc_'), {
+        message:
+          'must be a PostHog project key (starts with phc_) — POSTHOG_API_KEY is published to ' +
+          'the browser via AppConfig, so a Personal API Key (phx_...) must never be set here',
+      }),
     POSTHOG_HOST: zUrl(['http:', 'https:']).optional(),
   })
   .superRefine((v, ctx) => {

@@ -4,7 +4,7 @@ import { getMessage, setMessageStarred, setMessageRead, deleteMessage } from '@/
 import { serializeAppMessage } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { config } from '@/lib/config'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import logger from '@/lib/logger'
 
 type Params = { id: string; messageId: string }

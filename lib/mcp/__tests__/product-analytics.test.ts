@@ -19,7 +19,7 @@ vi.mock('@/lib/services/email-inbox', () => ({
   OTP_DEFAULT_WINDOW_MINUTES: 15,
 }))
 
-vi.mock('@/ee/product-analytics/capture', () => ({
+vi.mock('@/lib/product-analytics/capture', () => ({
   captureEvent: (...args: unknown[]) => captureEventMock(...args),
   PRODUCT_ANALYTICS_EVENTS: { mcpToolCalled: 'mcp_tool_called', planLimitDenied: 'plan_limit_denied' },
 }))

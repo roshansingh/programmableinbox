@@ -34,7 +34,7 @@ vi.mock('@/lib/services/message-search', () => ({
   fetchSearchedMessages: (...a: unknown[]) => fetchSearchedMessagesMock(...a),
 }))
 
-vi.mock('@/ee/product-analytics/capture', () => ({
+vi.mock('@/lib/product-analytics/capture', () => ({
   captureEvent: (...args: unknown[]) => captureEventMock(...args),
   PRODUCT_ANALYTICS_EVENTS: { messageSearchUsed: 'message_search_used' },
 }))

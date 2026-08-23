@@ -103,4 +103,32 @@ describe('productAnalytics config domain', () => {
       expect(config.host).toBeNull()
     })
   })
+
+  describe('POSTHOG_API_KEY prefix', () => {
+    it('rejects a Personal API Key (phx_...) even while the flag is off', () => {
+      // Checked regardless of ENABLE_PRODUCT_ANALYTICS: this value is
+      // published to every authenticated user via AppConfig the moment it's
+      // set, whether or not capture is currently enabled.
+      expect(() => withEnv({ POSTHOG_API_KEY: 'phx_admin_scoped_key' })).toThrow(ConfigError)
+    })
+
+    it('rejects a Personal API Key when enabling', () => {
+      expect(() =>
+        withEnv({
+          ENABLE_PRODUCT_ANALYTICS: 'true',
+          POSTHOG_API_KEY: 'phx_admin_scoped_key',
+          POSTHOG_HOST: 'https://us.i.posthog.com',
+        }),
+      ).toThrow(ConfigError)
+    })
+
+    it('accepts a project key (phc_...)', () => {
+      const config = withEnv({
+        ENABLE_PRODUCT_ANALYTICS: 'true',
+        POSTHOG_API_KEY: 'phc_test1234567890',
+        POSTHOG_HOST: 'https://us.i.posthog.com',
+      })
+      expect(config.apiKey).toBe('phc_test1234567890')
+    })
+  })
 })

@@ -10,7 +10,7 @@ import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 // automation's own config document (parseAutomationConfig /
 // createDefaultAutomationConfig), which would otherwise shadow this import.
 import { config as appConfig } from '@/lib/config'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import {
   formatAutomationRecord,
   readJsonObject,

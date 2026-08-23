@@ -12,7 +12,7 @@ import {
   type MessageSearch,
 } from '@/lib/search/message-search-params'
 import { config } from '@/lib/config'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 
 export const GET = withUser<{ id: string }>(async (request, principal, { params }) => {
   const { id } = await params

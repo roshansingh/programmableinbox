@@ -5,7 +5,7 @@ import { checkResourceLimit } from '@/lib/commercial/enforce'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
 import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
 import { config } from '@/lib/config'
-import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 
 /** Mirrors `enum WebhookStatus` in prisma/schema.prisma. */
 const WEBHOOK_STATUSES: readonly WebhookStatus[] = ['active', 'inactive', 'failing']

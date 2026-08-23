@@ -32,7 +32,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-vi.mock('@/ee/product-analytics/capture', () => ({
+vi.mock('@/lib/product-analytics/capture', () => ({
   captureEvent: (...args: unknown[]) => captureEventMock(...args),
   PRODUCT_ANALYTICS_EVENTS: {
     inboxCreated: 'inbox_created',
