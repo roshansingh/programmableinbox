@@ -4,8 +4,10 @@ const planFindUniqueMock = vi.fn()
 const subscriptionUpsertMock = vi.fn()
 const subscriptionUpdateManyMock = vi.fn()
 const subscriptionDeleteManyMock = vi.fn()
+const subscriptionFindUniqueMock = vi.fn()
 const organizationUpdateMock = vi.fn()
 const organizationFindUniqueMock = vi.fn()
+const membershipFindFirstMock = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -14,10 +16,20 @@ vi.mock('@/lib/db', () => ({
       upsert: (...a: unknown[]) => subscriptionUpsertMock(...a),
       updateMany: (...a: unknown[]) => subscriptionUpdateManyMock(...a),
       deleteMany: (...a: unknown[]) => subscriptionDeleteManyMock(...a),
+      // Checked before the upsert (issue #152) to tell a genuinely new
+      // subscription — a conversion — apart from a renewal or plan change on
+      // an existing one. Every test below leaves this at its default (null,
+      // "no existing row"), which is harmless: product analytics is off in
+      // the ambient test env, so captureEvent is a no-op regardless of what
+      // this returns.
+      findUnique: (...a: unknown[]) => subscriptionFindUniqueMock(...a),
     },
     organization: {
       update: (...a: unknown[]) => organizationUpdateMock(...a),
       findUnique: (...a: unknown[]) => organizationFindUniqueMock(...a),
+    },
+    membership: {
+      findFirst: (...a: unknown[]) => membershipFindFirstMock(...a),
     },
   },
 }))
@@ -93,7 +105,9 @@ describe('syncSubscriptionFromStripe', () => {
     planFindUniqueMock.mockResolvedValue(PRO_PLAN)
     subscriptionUpsertMock.mockResolvedValue({})
     subscriptionDeleteManyMock.mockResolvedValue({ count: 1 })
+    subscriptionFindUniqueMock.mockResolvedValue(null)
     organizationFindUniqueMock.mockResolvedValue({ id: 'org_1' })
+    membershipFindFirstMock.mockResolvedValue(null)
   })
 
   /**

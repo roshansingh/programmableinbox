@@ -7,9 +7,12 @@ import { clampLimit } from '@/lib/pagination/params'
 import {
   parseMessageSearch,
   SearchParamError,
+  hasMessageSearch,
   type MessageSearch,
 } from '@/lib/search/message-search-params'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 
 export const GET = withApiKey<{ id: string }>(
   { scopes: ['email_messages:read'] },
@@ -53,6 +56,10 @@ export const GET = withApiKey<{ id: string }>(
     })
 
     if (!result) return jsonError('Not found', 404)
+
+    if (hasMessageSearch(search) && config.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.messageSearchUsed, principal.userId, { inboxId: id })
+    }
 
     // Envelope key names match the pre-split route exactly — the OpenAPI spec
     // and existing consumers depend on messages/nextCursor/hasMore.

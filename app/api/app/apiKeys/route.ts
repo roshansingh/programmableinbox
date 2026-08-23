@@ -4,6 +4,8 @@ import { withUser } from '@/lib/auth/with-auth'
 import { toOrgScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { checkResourceLimit } from '@/lib/commercial/enforce'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 import logger from '@/lib/logger'
 import { API_KEY_SCOPE_SET } from '@/lib/api-key-scopes'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
@@ -118,7 +120,17 @@ export const POST = withUser(async (request, principal) => {
         },
       }),
     )
-    if (denial) return jsonPlanDenial(denial)
+    if (denial) {
+      if (config.productAnalytics.enabled) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+          resource: 'apiKeys',
+          limit: denial.limit,
+          used: denial.used,
+          planCode: denial.planCode,
+        })
+      }
+      return jsonPlanDenial(denial)
+    }
 
     const apiKey = `sk_live_${crypto.randomBytes(24).toString('hex')}`
     const prefix = getKeyPrefix(apiKey)
@@ -135,6 +147,13 @@ export const POST = withUser(async (request, principal) => {
         userId: principal.userId,
       },
     })
+
+    if (config.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.apiKeyCreated, principal.userId, {
+        apiKeyId: key.id,
+        organizationId,
+      })
+    }
 
     return jsonSuccess(
       {

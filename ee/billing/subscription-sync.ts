@@ -2,6 +2,8 @@ import 'server-only'
 import type Stripe from 'stripe'
 import { prisma } from '@/lib/db'
 import { SubscriptionStatus } from '@/lib/generated/prisma/client'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 import logger from '@/lib/logger'
 
 /**
@@ -207,11 +209,41 @@ export async function syncSubscriptionFromStripe(
     externalId: subscription.id,
   }
 
+  // Checked before the write, not after: `upsert` reports neither "created"
+  // nor "updated" on its own, and this is what tells the actual conversion
+  // moment (issue #152's checkout_completed) apart from a renewal or plan
+  // change hitting the same organization-keyed row. `Subscription` has no
+  // history table (issue #117 §9), so this existence check is the only way
+  // to answer "is this the first one" at all.
+  const existedBefore = config.productAnalytics.enabled
+    ? await prisma.subscription.findUnique({ where: { organizationId }, select: { id: true } })
+    : null
+
   await prisma.subscription.upsert({
     where: { organizationId },
     create: { organizationId, ...shared },
     update: shared,
   })
+
+  if (config.productAnalytics.enabled && !existedBefore) {
+    // No principal exists at this call site — this runs from a Stripe
+    // webhook, not an authenticated request — so distinct_id falls back to
+    // the organization's owner-role member, keeping the event on the same
+    // identity timeline every other capture call in this codebase uses.
+    // Falling further back to the organizationId itself (rather than
+    // dropping the event) if no owner membership is found is deliberate:
+    // conversion is rare enough that losing the event entirely is worse
+    // than an event keyed on an id instead of a user.
+    const owner = await prisma.membership.findFirst({
+      where: { organizationId, role: 'owner' },
+      orderBy: { createdAt: 'asc' },
+      select: { userId: true },
+    })
+    captureEvent(PRODUCT_ANALYTICS_EVENTS.checkoutCompleted, owner?.userId ?? organizationId, {
+      organizationId,
+      planCode: plan.code,
+    })
+  }
 
   logger.info(
     { organizationId, planCode: plan.code, status, stripeSubscriptionId: subscription.id },

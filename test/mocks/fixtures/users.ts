@@ -10,6 +10,11 @@ export const mockAppConfig: AppConfig = {
   // The default deployment posture — verification off, behaviour unchanged.
   // The AuthGuard suite overrides `/app/auth/me` to flip this on.
   emailVerificationRequired: false,
+  // Off by default, same posture as email verification above — the
+  // product-analytics-provider suite overrides `/app/auth/me` to flip this on.
+  productAnalyticsEnabled: false,
+  posthogApiKey: null,
+  posthogHost: null,
 }
 
 export const mockOrganization: Organization = {

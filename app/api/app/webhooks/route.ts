@@ -4,6 +4,8 @@ import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { checkResourceLimit } from '@/lib/commercial/enforce'
 import { WebhookStatus } from '@/lib/generated/prisma/client'
 import { parsePagination, OffsetTooLargeError } from '@/lib/pagination/params'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 
 /** Mirrors `enum WebhookStatus` in prisma/schema.prisma. */
 const WEBHOOK_STATUSES: readonly WebhookStatus[] = ['active', 'inactive', 'failing']
@@ -69,7 +71,17 @@ export const POST = withUser(async (request, principal) => {
     const denial = await checkResourceLimit(organizationId, 'webhooks', 'webhook', () =>
       prisma.webhook.count({ where: { organizationId } }),
     )
-    if (denial) return jsonPlanDenial(denial)
+    if (denial) {
+      if (config.productAnalytics.enabled) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+          resource: 'webhooks',
+          limit: denial.limit,
+          used: denial.used,
+          planCode: denial.planCode,
+        })
+      }
+      return jsonPlanDenial(denial)
+    }
 
     const webhook = await prisma.webhook.create({
       data: {
@@ -80,6 +92,13 @@ export const POST = withUser(async (request, principal) => {
         secret: secret || null,
       },
     })
+
+    if (config.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.webhookCreated, principal.userId, {
+        webhookId: webhook.id,
+        organizationId,
+      })
+    }
 
     return jsonSuccess(webhook, 201)
   } catch {

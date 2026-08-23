@@ -3,6 +3,8 @@ import { toOrgScope, toOwnerScope, toMessageReadScope } from '@/lib/services/sco
 import { getMessage, setMessageStarred, setMessageRead, deleteMessage } from '@/lib/services/email-inbox'
 import { serializeAppMessage } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 import logger from '@/lib/logger'
 
 type Params = { id: string; messageId: string }
@@ -59,6 +61,15 @@ export const PATCH = withUser<Params>(async (request, principal, { params }) => 
 
       const updated = await setMessageRead(scope, inboxId, messageId, isRead)
       if (!updated) return jsonError('Message not found', 404)
+
+      // Only the true transition counts as "viewed" (issue #152) — flipping
+      // back to unread is a deliberate un-read action, not a second view.
+      if (isRead && config.productAnalytics.enabled) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.messageViewed, principal.userId, {
+          inboxId,
+          messageId,
+        })
+      }
 
       return jsonSuccess(serializeAppMessage(updated))
     }

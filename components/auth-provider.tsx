@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
+import posthog from "posthog-js"
 import { getCurrentUser, type User, type AppConfig, type OrganizationPlan } from "@/lib/api/auth.api"
 import { isPublicPath, SESSION_FETCH_SKIPPED_ROUTES } from "@/lib/auth/public-routes"
 
@@ -43,6 +44,11 @@ const EMPTY_CONFIG: AppConfig = {
   // user a verify-your-email wall for the moment before /auth/me resolves,
   // including on deployments that never enabled it.
   emailVerificationRequired: false,
+  // Same fail-closed reading: no instrumentation until the server says
+  // otherwise, so nothing calls posthog.init() before /auth/me resolves.
+  productAnalyticsEnabled: false,
+  posthogApiKey: null,
+  posthogHost: null,
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -70,6 +76,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userData = await getCurrentUser()
       setUser(userData)
       setIsAuthenticated(true)
+
+      // Both calls are gated on the same config.productAnalyticsEnabled flag
+      // ProductAnalyticsProvider uses for posthog.init() — a call here before
+      // init() has run is a harmless no-op in posthog-js (it warns to the
+      // console rather than throwing), and React fires a child's mount effect
+      // before its parent's, so ProductAnalyticsProvider (a sibling mounted
+      // ahead of AuthGuard in app/layout.tsx, both children of this provider)
+      // has already initialized by the time this effect runs in practice.
+      //
+      // Wrapped in its own try/catch, deliberately separate from the outer
+      // one: this is telemetry, not part of resolving the session, and it
+      // must not be able to fall into the outer catch below and undo the
+      // setUser/setIsAuthenticated calls just above — an instrumentation
+      // hiccup (an ad-blocker, a PostHog outage) must never look like an
+      // authentication failure to the rest of the app.
+      if (userData.config?.productAnalyticsEnabled) {
+        try {
+          posthog.identify(userData.id, { email: userData.email })
+
+          const organization = userData.organizations?.[0]
+          if (organization) {
+            posthog.group('organization', organization.id, { plan: organization.plan?.code })
+          }
+        } catch {
+          // Best-effort. Nothing to recover, nothing to surface — the user's
+          // session is already established at this point.
+        }
+      }
     } catch {
       setUser(null)
       setIsAuthenticated(false)

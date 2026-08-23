@@ -8,8 +8,11 @@ import { clampLimit } from '@/lib/pagination/params'
 import {
   parseMessageSearch,
   SearchParamError,
+  hasMessageSearch,
   type MessageSearch,
 } from '@/lib/search/message-search-params'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/ee/product-analytics/capture'
 
 export const GET = withUser<{ id: string }>(async (request, principal, { params }) => {
   const { id } = await params
@@ -47,6 +50,10 @@ export const GET = withUser<{ id: string }>(async (request, principal, { params 
   // it is indistinguishable from one that does not exist.
   const result = await listMessages(scope, id, { limit, cursor, threadId, grouped, search })
   if (!result) return jsonError('Not found', 404)
+
+  if (hasMessageSearch(search) && config.productAnalytics.enabled) {
+    captureEvent(PRODUCT_ANALYTICS_EVENTS.messageSearchUsed, principal.userId, { inboxId: id })
+  }
 
   return jsonSuccess({
     messages: result.messages.map((message) =>

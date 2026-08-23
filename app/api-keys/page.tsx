@@ -270,7 +270,16 @@ export default function ApiKeysPage() {
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <Label>Your API Key</Label>
-                        <div className="flex gap-2">
+                        {/*
+                          ph-no-capture (issue #152): the reveal-once secret
+                          must never reach a PostHog session recording or
+                          autocapture event, on top of the client-wide
+                          maskAllInputs — that option masks input *values* in
+                          the replay but does not stop the element being
+                          reported to autocapture at all, which ph-no-capture
+                          does.
+                        */}
+                        <div className="flex gap-2 ph-no-capture">
                           <Input value={createdKey.apiKey} readOnly className="font-mono text-sm" />
                           <Button
                             variant="outline"

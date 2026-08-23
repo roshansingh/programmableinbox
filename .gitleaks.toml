@@ -130,6 +130,11 @@ regexes = [
   '''^rotated-secret-12345$''',
   '''^re_test_key_[0-9]+$''',
   '''^sk-ant-test$''',
+  # Fake PostHog project key used across the product-analytics test suite
+  # (app/api/app/webhooks/__tests__/product-analytics.test.ts,
+  # lib/config/__tests__/schema-product-analytics.test.ts,
+  # ee/product-analytics/__tests__/*.test.ts, etc.).
+  '''^phc_test1234567890$''',
   # v0.app scaffold demo data, removed from app/api-keys/page.tsx but still
   # reachable by a full-history scan.
   #

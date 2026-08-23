@@ -26,6 +26,9 @@ afterEach(() => {
   delete process.env.ENABLE_EMAIL_VERIFICATION
   delete process.env.EMAIL_LINK_SECRET
   delete process.env.APP_BASE_URL
+  delete process.env.ENABLE_PRODUCT_ANALYTICS
+  delete process.env.POSTHOG_API_KEY
+  delete process.env.POSTHOG_HOST
   resetConfigCache()
 })
 
@@ -35,6 +38,9 @@ describe('getAppConfig', () => {
     expect(getAppConfig()).toEqual({
       emailInboxDomains: ['inbox.pibx.dev', 'mail.example.com'],
       emailVerificationRequired: false,
+      productAnalyticsEnabled: false,
+      posthogApiKey: null,
+      posthogHost: null,
     })
   })
 
@@ -51,6 +57,28 @@ describe('getAppConfig', () => {
     resetConfigCache()
 
     expect(getAppConfig().emailVerificationRequired).toBe(true)
+  })
+
+  it('reports product analytics as disabled with no key/host when the flag is unset', () => {
+    configure('inbox.pibx.dev')
+    const result = getAppConfig()
+
+    expect(result.productAnalyticsEnabled).toBe(false)
+    expect(result.posthogApiKey).toBeNull()
+    expect(result.posthogHost).toBeNull()
+  })
+
+  it('publishes the PostHog project key and host when product analytics is on', () => {
+    configure('inbox.pibx.dev')
+    process.env.ENABLE_PRODUCT_ANALYTICS = 'true'
+    process.env.POSTHOG_API_KEY = 'phc_test1234567890'
+    process.env.POSTHOG_HOST = 'https://us.i.posthog.com'
+    resetConfigCache()
+
+    const result = getAppConfig()
+    expect(result.productAnalyticsEnabled).toBe(true)
+    expect(result.posthogApiKey).toBe('phc_test1234567890')
+    expect(result.posthogHost).toBe('https://us.i.posthog.com')
   })
 
   /**
@@ -87,6 +115,9 @@ describe('getAppConfig', () => {
     expect(Object.keys(getAppConfig()).sort()).toEqual([
       'emailInboxDomains',
       'emailVerificationRequired',
+      'posthogApiKey',
+      'posthogHost',
+      'productAnalyticsEnabled',
     ])
   })
 
