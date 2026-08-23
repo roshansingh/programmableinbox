@@ -12,7 +12,8 @@ import { createCheckoutSession } from "@/lib/api/billing.api"
  *
  * A constant rather than a picker because there is exactly one paid plan
  * (issue #120 scope). A second one turns this into a choice, and the banner is
- * the wrong place for it — that belongs in settings.
+ * the wrong place for it — that belongs on the `/billing` page, which is
+ * exactly that picker.
  */
 const UPGRADE_PLAN_CODE = 'pro'
 
