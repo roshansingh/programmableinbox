@@ -90,3 +90,7 @@ build with `ee/` removed is a complete, fully functional open-source edition.
 Issues and PRs are welcome. [`docs/architecture/README.md`](docs/architecture/README.md) is the
 best starting point for understanding the codebase before making a change. Run `npm run test`
 before opening a PR — the suite should stay green.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
