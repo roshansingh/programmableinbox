@@ -47,6 +47,28 @@ export type AppConfig = {
    * server-side; this field only decides which screen to render.
    */
   emailVerificationRequired: boolean
+
+  /**
+   * Whether this deployment has PostHog product analytics turned on (issue
+   * #152). Drives whether the client calls `posthog.init()` at all.
+   *
+   * Safe to publish for the same reason as `emailVerificationRequired`: it
+   * only tells an authenticated user this deployment has the feature
+   * switched on, which they would also learn from the network requests a
+   * live instrumentation makes.
+   */
+  productAnalyticsEnabled: boolean
+
+  /**
+   * PostHog's public, write-only **project** key (`phc_...`), or null when
+   * product analytics is off. Safe to publish by PostHog's own design — see
+   * the `ProductAnalyticsSchema` doc in `lib/config/schema.ts`. Never the
+   * separate Personal API Key (`phx_...`), which this app does not use.
+   */
+  posthogApiKey: string | null
+
+  /** PostHog ingestion host, or null when product analytics is off. */
+  posthogHost: string | null
 }
 
 /**
@@ -63,5 +85,8 @@ export function getAppConfig(): AppConfig {
   return {
     emailInboxDomains: config.emailInbox.domains,
     emailVerificationRequired: config.emailVerification.enabled,
+    productAnalyticsEnabled: config.productAnalytics.enabled,
+    posthogApiKey: config.productAnalytics.apiKey,
+    posthogHost: config.productAnalytics.host,
   }
 }

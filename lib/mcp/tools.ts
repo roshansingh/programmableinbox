@@ -33,6 +33,8 @@ import {
 } from '@/lib/serializers/mcp/email-inbox'
 import { toolError, toolResult, type ToolResult } from './tool-result'
 import type { ApiKeyPrincipal } from '@/lib/auth/principals'
+import { config } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 
 /**
  * The MCP tool surface over the read-only email API (issue #104).
@@ -690,7 +692,21 @@ const createInboxTool: ToolDefinition = {
       // Every rejection here is caller-correctable — a malformed address, a
       // disallowed domain, an impersonating name, an address already taken.
       // Surfacing the service's own wording keeps one description of each rule.
-      if (result.error) throw new ToolInputError(result.error.message)
+      if (result.error) {
+        // `planCode` is present only on a 402 from a plan cap — see
+        // InboxWriteError. Same signal as the HTTP creation route captures
+        // (issue #152), mirrored here since this tool reaches createInbox
+        // directly rather than through app/api/app/emailInbox.
+        if (config.productAnalytics.enabled && result.error.planCode) {
+          captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+            resource: 'emailInboxes',
+            limit: result.error.limit,
+            used: result.error.used,
+            planCode: result.error.planCode,
+          })
+        }
+        throw new ToolInputError(result.error.message)
+      }
 
       return toolResult({ inbox: serializeMcpInbox(result.inbox) })
     }),
@@ -760,7 +776,14 @@ export const EMAIL_TOOLS: readonly ToolDefinition[] = [
  */
 export function registerEmailTools(server: McpServer, principal: ApiKeyPrincipal): void {
   for (const tool of EMAIL_TOOLS) {
-    server.registerTool(tool.name, tool.config, ((args: never) =>
-      tool.run(args, principal)) as Parameters<McpServer['registerTool']>[2])
+    server.registerTool(tool.name, tool.config, ((args: never) => {
+      // Fired on every call attempt, not just successful ones — mcp_tool_called
+      // (issue #152) is an engagement/power-user signal, and a scope refusal or
+      // bad-argument result is still evidence a model reached for this tool.
+      if (config.productAnalytics.enabled) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.mcpToolCalled, principal.userId, { tool: tool.name })
+      }
+      return tool.run(args, principal)
+    }) as Parameters<McpServer['registerTool']>[2])
   }
 }

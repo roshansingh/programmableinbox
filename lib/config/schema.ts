@@ -576,6 +576,65 @@ const ObservabilitySchema = z
     serviceName: v.OTEL_SERVICE_NAME ?? 'inboxui',
   }))
 
+/**
+ * EE-only product analytics: PostHog session replay, autocapture, error
+ * tracking, and named feature/conversion events (issue #152).
+ *
+ * Off by default even on an EE build — not tied to `USE_COMMERCIAL`, on the
+ * `ENABLE_OBSERVABILITY` precedent this schema is modeled on directly.
+ * Setting `ENABLE_PRODUCT_ANALYTICS=true` on a Community build is inert: the
+ * code that reads `config.productAnalytics` lives entirely in
+ * `ee/product-analytics/`, which `scripts/foss.mjs` deletes.
+ *
+ * `POSTHOG_API_KEY` is PostHog's **project** key (`phc_...`) — a public,
+ * write-only identifier by PostHog's own design, safe to ship to the browser
+ * (via `AppConfig`, not `NEXT_PUBLIC_*`, per this repo's existing pattern for
+ * exactly this reason). It is deliberately not `zSecret`-boxed: every other
+ * secret in this file is boxed because logging it would be a compromise, but
+ * this value is *meant* to be published, and boxing it would only add a
+ * `.reveal()` call at the one place — `getAppConfig()` — that exists to
+ * publish it. The separate Personal API Key (`phx_...`), which is
+ * admin-scoped and read-capable, is not modeled here at all: nothing in this
+ * PR's scope needs server-side feature-flag/insights API access.
+ *
+ * The `phc_` prefix is therefore enforced, not just documented: since this
+ * value is published to every authenticated user via `AppConfig`, a
+ * misconfigured deployment that pastes in its Personal Key (`phx_...`) by
+ * mistake — the two look interchangeable to someone copying a key out of
+ * PostHog's UI — must fail loudly at boot rather than leak an admin-scoped
+ * credential to the browser.
+ */
+const ProductAnalyticsSchema = z
+  .object({
+    ENABLE_PRODUCT_ANALYTICS: zBool.optional(),
+    POSTHOG_API_KEY: zNonEmpty
+      .optional()
+      .refine((v) => !v || v.startsWith('phc_'), {
+        message:
+          'must be a PostHog project key (starts with phc_) — POSTHOG_API_KEY is published to ' +
+          'the browser via AppConfig, so a Personal API Key (phx_...) must never be set here',
+      }),
+    POSTHOG_HOST: zUrl(['http:', 'https:']).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.ENABLE_PRODUCT_ANALYTICS) return
+
+    for (const name of ['POSTHOG_API_KEY', 'POSTHOG_HOST'] as const) {
+      if (!v[name]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: 'is required when ENABLE_PRODUCT_ANALYTICS is true',
+        })
+      }
+    }
+  })
+  .transform((v) => ({
+    enabled: v.ENABLE_PRODUCT_ANALYTICS ?? false,
+    apiKey: v.POSTHOG_API_KEY ?? null,
+    host: v.POSTHOG_HOST ?? null,
+  }))
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -673,6 +732,10 @@ export const DOMAIN_SCHEMAS = {
       'OTEL_EXPORTER_OTLP_HEADERS',
       'OTEL_SERVICE_NAME',
     ],
+  },
+  productAnalytics: {
+    schema: ProductAnalyticsSchema,
+    vars: ['ENABLE_PRODUCT_ANALYTICS', 'POSTHOG_API_KEY', 'POSTHOG_HOST'],
   },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
 

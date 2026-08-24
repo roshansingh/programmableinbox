@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-// import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { AuthProvider } from '@/components/auth-provider'
 import { AuthGuard } from '@/components/auth-guard'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
+import { ProductAnalyticsProvider } from '@/components/product-analytics-provider'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -60,13 +60,20 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
+            {/*
+              Inside AuthProvider, not a body-level sibling like the dead
+              <Analytics/> (Vercel) import this replaces — gating
+              posthog.init() on useAuth().config.productAnalyticsEnabled
+              needs the auth context to exist. See
+              components/product-analytics-provider.tsx.
+            */}
+            <ProductAnalyticsProvider />
             <AuthGuard>
               {children}
             </AuthGuard>
           </AuthProvider>
         </ThemeProvider>
         <Toaster />
-        {/* <Analytics /> */}
       </body>
     </html>
   )

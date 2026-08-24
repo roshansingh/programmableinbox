@@ -6,6 +6,11 @@ import { withUser } from '@/lib/auth/with-auth'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
+// Aliased: the POST handler below already binds a local `config` for the
+// automation's own config document (parseAutomationConfig /
+// createDefaultAutomationConfig), which would otherwise shadow this import.
+import { config as appConfig } from '@/lib/config'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import {
   formatAutomationRecord,
   readJsonObject,
@@ -90,19 +95,38 @@ export const POST = withUser(async (request, principal) => {
   // automation stays a 400 rather than being reported as a billing problem.
   const plan = await CommercialProvider.plans.resolve(scoped.organizationId)
   if (!plan.limits.automationsEnabled) {
-    return jsonPlanDenial({
+    const denial = {
       message: `Automations are not included in your ${plan.planName} plan.`,
-      status: 402,
+      status: 402 as const,
       limit: 0,
       used: 0,
       planCode: plan.planCode,
-    })
+    }
+    if (appConfig.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+        resource: 'automations',
+        limit: denial.limit,
+        used: denial.used,
+        planCode: denial.planCode,
+      })
+    }
+    return jsonPlanDenial(denial)
   }
 
   const denial = await checkResourceLimit(scoped.organizationId, 'automations', 'automation', () =>
     prisma.automation.count({ where: { organizationId: scoped.organizationId } }),
   )
-  if (denial) return jsonPlanDenial(denial)
+  if (denial) {
+    if (appConfig.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+        resource: 'automations',
+        limit: denial.limit,
+        used: denial.used,
+        planCode: denial.planCode,
+      })
+    }
+    return jsonPlanDenial(denial)
+  }
 
   const created = await prisma.automation.create({
     data: {
@@ -140,6 +164,13 @@ export const POST = withUser(async (request, principal) => {
       },
     },
   })
+
+  if (appConfig.productAnalytics.enabled) {
+    captureEvent(PRODUCT_ANALYTICS_EVENTS.automationCreated, principal.userId, {
+      automationId: finalized.id,
+      organizationId: scoped.organizationId,
+    })
+  }
 
   return jsonSuccess(formatAutomationRecord(finalized), 201)
 })

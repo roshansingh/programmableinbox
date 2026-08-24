@@ -3,6 +3,9 @@ import { toOrgScope, toInboxWriteScope } from '@/lib/services/scope'
 import { createInbox, listInboxes } from '@/lib/services/email-inbox'
 import { serializeAppInbox } from '@/lib/serializers/app/email-inbox'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import { config } from '@/lib/config'
+import { prisma } from '@/lib/db'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import logger from '@/lib/logger'
 
 export const GET = withUser(async (request, principal) => {
@@ -34,7 +37,39 @@ export const POST = withUser(async (request, principal) => {
     if (error) return error
 
     const result = await createInbox(scope, { email, name })
-    if (result.error) return jsonError(result.error.message, result.error.status)
+    if (result.error) {
+      // `planCode` is present only on a 402 from a plan cap (see
+      // InboxWriteError) — every other rejection here (malformed address,
+      // blocklisted name, taken address) is the caller's mistake, not a
+      // "hit a wall, needs to upgrade" moment.
+      if (config.productAnalytics.enabled && result.error.planCode) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.planLimitDenied, principal.userId, {
+          resource: 'emailInboxes',
+          limit: result.error.limit,
+          used: result.error.used,
+          planCode: result.error.planCode,
+        })
+      }
+      return jsonError(result.error.message, result.error.status)
+    }
+
+    // Gated on the flag so a disabled deployment pays no extra COUNT query
+    // for the second-inbox check — captureEvent is already a no-op when
+    // disabled, but the count would still run without this guard.
+    if (config.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.inboxCreated, principal.userId, {
+        inboxId: result.inbox.id,
+        organizationId,
+      })
+
+      const liveCount = await prisma.emailInbox.count({ where: { organizationId } })
+      if (liveCount === 2) {
+        captureEvent(PRODUCT_ANALYTICS_EVENTS.secondInboxCreated, principal.userId, {
+          inboxId: result.inbox.id,
+          organizationId,
+        })
+      }
+    }
 
     return jsonSuccess(serializeAppInbox(result.inbox, principal.userId), 201)
   } catch (error) {

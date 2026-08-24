@@ -110,7 +110,7 @@ export function EmailHtmlViewer({
     return (
       <pre
         className={cn(
-          "whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed",
+          "whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed ph-no-capture",
           className
         )}
       >
@@ -120,7 +120,17 @@ export function EmailHtmlViewer({
   }
 
   return (
-    <div className={className}>
+    // ph-no-capture (issue #152): message content is attacker-controlled and
+    // frequently sensitive (receipts, one-time codes, account notices), so it
+    // is excluded from PostHog session replay and autocapture outright, on
+    // top of the client-wide maskAllInputs (which only covers form inputs,
+    // not rendered content like this). The HTML body itself is already
+    // isolated in a sandboxed, scriptless iframe for unrelated reasons (see
+    // EMAIL_IFRAME_SANDBOX above); that sandbox stops rrweb's page script
+    // from recording cross-document iframe content by construction, but the
+    // plain-text fallback above renders directly into this document and
+    // needs the class explicitly.
+    <div className={cn(className, "ph-no-capture")}>
       <div className="rounded-md border border-border overflow-hidden bg-white">
         <iframe
           title={title}
