@@ -91,6 +91,8 @@ const VERIFICATION_OPT_OUTS = [
   // Only an unverified user ever calls it; gating it would 403 the one call
   // that clears the gate.
   'app/api/app/auth/verification/resend/route.ts',
+  // An unverified user must still be able to end their own session.
+  'app/api/app/auth/logout/route.ts',
 ]
 
 describe('structural route guards', () => {
