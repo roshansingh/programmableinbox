@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const apiKeyFindUniqueMock = vi.fn()
@@ -7,6 +8,7 @@ const apiKeyUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -47,7 +49,7 @@ describe('GET /api/app/apiKeys/[id]', () => {
     })
 
     const { GET } = await loadRoute()
-    const response = await GET(new Request('http://localhost/api/app/apiKeys/key_1', { headers: { authorization: 'Bearer jwt.token.here' } }) as any, {
+    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys/key_1', { headers: { cookie: 'session=jwt.token.here' } }) as any, {
       params: Promise.resolve({ id: 'key_1' }),
     })
     const body = await response.json()
@@ -87,9 +89,9 @@ describe('DELETE /api/app/apiKeys/[id]', () => {
     apiKeyUpdateMock.mockResolvedValue({})
 
     const { DELETE } = await loadRoute()
-    const response = await DELETE(new Request('http://localhost/api/app/apiKeys/key_1', {
+    const response = await DELETE(new NextRequest('http://localhost/api/app/apiKeys/key_1', {
       method: 'DELETE',
-      headers: { authorization: 'Bearer token' },
+      headers: { cookie: 'session=token' },
     }) as any, {
       params: Promise.resolve({ id: 'key_1' }),
     })
@@ -109,9 +111,9 @@ describe('DELETE /api/app/apiKeys/[id]', () => {
     })
 
     const { DELETE } = await loadRoute()
-    const response = await DELETE(new Request('http://localhost/api/app/apiKeys/key_1', {
+    const response = await DELETE(new NextRequest('http://localhost/api/app/apiKeys/key_1', {
       method: 'DELETE',
-      headers: { authorization: 'Bearer token' },
+      headers: { cookie: 'session=token' },
     }) as any, {
       params: Promise.resolve({ id: 'key_1' }),
     })

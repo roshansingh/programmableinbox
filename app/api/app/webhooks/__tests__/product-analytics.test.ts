@@ -14,6 +14,7 @@ const captureEventMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -44,7 +45,7 @@ function post() {
   return new NextRequest('http://localhost/api/app/webhooks', {
     method: 'POST',
     body: JSON.stringify({ name: 'My webhook', url: 'https://example.com/hook', events: ['email.received'] }),
-    headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+    headers: { 'content-type': 'application/json', cookie: 'session=token' },
   })
 }
 
@@ -130,7 +131,7 @@ describe('product analytics enabled', () => {
       new NextRequest('http://localhost/api/app/webhooks', {
         method: 'POST',
         body: JSON.stringify({ name: 'Missing url and events' }),
-        headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+        headers: { 'content-type': 'application/json', cookie: 'session=token' },
       }) as any,
       { params: Promise.resolve({}) },
     )

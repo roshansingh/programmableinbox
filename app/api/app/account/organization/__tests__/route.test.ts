@@ -7,6 +7,7 @@ const orgUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -24,15 +25,17 @@ async function loadRoute() {
 function makeRequest(body: object) {
   return new NextRequest('http://localhost/api/app/account/organization', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token' },
+    headers: { 'Content-Type': 'application/json', cookie: 'session=token' },
     body: JSON.stringify(body),
   })
 }
 
 function keyRequest(body: object) {
-  const request = makeRequest(body)
-  request.headers.set('Authorization', 'Bearer sk_live_abcdef123456')
-  return request
+  return new NextRequest('http://localhost/api/app/account/organization', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', cookie: 'session=sk_live_abcdef123456' },
+    body: JSON.stringify(body),
+  })
 }
 
 describe('PATCH /api/app/account/organization', () => {

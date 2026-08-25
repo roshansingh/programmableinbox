@@ -9,6 +9,7 @@ const createSessionMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...a: unknown[]) => resolveUserPrincipalFromTokenMock(...a),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -27,7 +28,7 @@ const PRO_PLAN = { id: 3, code: 'pro', name: 'Pro', stripePriceId: 'price_pro', 
 function request(body: unknown = { organizationId: 'org_1', planCode: 'pro' }) {
   return new NextRequest('http://localhost:3000/api/app/billing/checkout', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+    headers: { 'content-type': 'application/json', cookie: 'session=token' },
     body: JSON.stringify(body),
   })
 }

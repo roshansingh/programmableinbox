@@ -18,6 +18,7 @@ const emailInboxUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -40,7 +41,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 
 const ROW = {
   id: 'inbox_1',
@@ -70,7 +71,7 @@ async function post(body: unknown) {
   return POST(
     new NextRequest('http://localhost/api/app/emailInbox', {
       method: 'POST',
-      headers: { authorization: TOKEN },
+      headers: { cookie: `session=${TOKEN}` },
       body: JSON.stringify(body),
     }),
     { params: Promise.resolve({}) },
@@ -82,7 +83,7 @@ async function patch(body: unknown) {
   return PATCH(
     new NextRequest('http://localhost/api/app/emailInbox/inbox_1', {
       method: 'PATCH',
-      headers: { authorization: TOKEN },
+      headers: { cookie: `session=${TOKEN}` },
       body: JSON.stringify(body),
     }),
     { params: Promise.resolve({ id: 'inbox_1' }) },

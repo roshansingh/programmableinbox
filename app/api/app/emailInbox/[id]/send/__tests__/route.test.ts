@@ -9,6 +9,7 @@ const sendMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...a: unknown[]) => resolveUserPrincipalFromTokenMock(...a),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -28,7 +29,7 @@ const INBOX = { id: 'inbox_1', email: 'me@mail.example.com', organizationId: 'or
 function makeRequest() {
   return new NextRequest('http://localhost:3000/api/app/emailInbox/inbox_1/send', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+    headers: { 'content-type': 'application/json', cookie: 'session=token' },
     body: JSON.stringify({ to: ['dest@example.com'], subject: 'Hi', text: 'Hello' }),
   })
 }

@@ -17,6 +17,7 @@ const emailInboxFindManyMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -40,7 +41,7 @@ const PRINCIPAL = {
   ],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -62,10 +63,10 @@ beforeEach(() => {
   emailInboxFindManyMock.mockResolvedValue([])
 })
 
-async function get(url = 'http://localhost/api/app/emailInbox', authorization = TOKEN) {
+async function get(url = 'http://localhost/api/app/emailInbox', credential = TOKEN) {
   const { GET } = await import('../route')
   return GET(
-    new NextRequest(url, { headers: authorization ? { authorization } : {} }),
+    new NextRequest(url, { headers: credential ? { cookie: `session=${credential}` } : {} }),
     { params: Promise.resolve({}) },
   )
 }
@@ -137,7 +138,7 @@ describe('GET /api/app/emailInbox', () => {
   })
 
   it('rejects an API key without attempting JWT verification', async () => {
-    const response = await get('http://localhost/api/app/emailInbox', 'Bearer sk_live_abcdef123456')
+    const response = await get('http://localhost/api/app/emailInbox', 'sk_live_abcdef123456')
 
     expect(response.status).toBe(401)
     expect(resolveUserPrincipalFromTokenMock).not.toHaveBeenCalled()

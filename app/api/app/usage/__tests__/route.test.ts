@@ -5,11 +5,12 @@ const resolveUserPrincipalFromTokenMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...a: unknown[]) => resolveUserPrincipalFromTokenMock(...a),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 function request(query = '') {
   return new NextRequest(`http://localhost:3000/api/app/usage${query}`, {
-    headers: { authorization: 'Bearer token' },
+    headers: { cookie: 'session=token' },
   })
 }
 

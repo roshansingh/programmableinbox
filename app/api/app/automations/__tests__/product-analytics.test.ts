@@ -20,6 +20,7 @@ const resolvePlanMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -55,7 +56,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 
 const DEFAULT_CONFIG = createDefaultAutomationConfig()
 const DEFAULT_LAYOUT = createDefaultAutomationLayout(DEFAULT_CONFIG)
@@ -94,7 +95,7 @@ function post(body: unknown) {
     return POST(
       new NextRequest('http://localhost/api/app/automations', {
         method: 'POST',
-        headers: { authorization: TOKEN },
+        headers: { cookie: `session=${TOKEN}` },
         body: JSON.stringify(body),
       }),
       { params: Promise.resolve({}) },
