@@ -35,9 +35,11 @@ export function UserMenu({ onBeforeLogout }: UserMenuProps) {
     )
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     onBeforeLogout?.()
-    logout()
+    // Awaited so the server has cleared the httpOnly cookie before we
+    // navigate — the client holds no credential of its own to drop.
+    await logout()
     // Full navigation rather than router.push: it guarantees no stale user
     // data survives in memory, and it sidesteps AuthGuard, which would
     // otherwise redirect to /auth/login?redirect=<current page>. Matches how

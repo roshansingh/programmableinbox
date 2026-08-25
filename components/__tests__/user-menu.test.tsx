@@ -42,7 +42,7 @@ const originalLocation = window.location
 
 beforeEach(() => {
   mockUser.current = makeUser()
-  vi.mocked(logout).mockClear()
+  vi.mocked(logout).mockClear().mockResolvedValue(undefined)
   Object.defineProperty(window, 'location', {
     configurable: true,
     writable: true,
