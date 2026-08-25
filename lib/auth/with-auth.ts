@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { config } from '@/lib/config'
-import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
+import { resolveUserPrincipalFromToken, SESSION_COOKIE_NAME } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
 import { tagHandler } from './route-tags'
 import { API_KEY_PREFIX, resolveScope, type ApiKeyScope } from '@/lib/api-key-scopes'
@@ -25,6 +25,10 @@ export type PrincipalHandler<TPrincipal, P = Record<string, never>> = (
 function bearer(request: NextRequest): string | null {
   const header = request.headers.get('authorization')
   return header?.startsWith('Bearer ') ? header.slice(7) : null
+}
+
+function sessionCookie(request: NextRequest): string | null {
+  return request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
 }
 
 function looksLikeApiKey(credential: string): boolean {
@@ -70,7 +74,7 @@ export function withUser<P = Record<string, never>>(
 
   return tagHandler(
     async (request: NextRequest, context: RouteCtx<P>) => {
-      const credential = bearer(request)
+      const credential = sessionCookie(request)
       if (!credential || looksLikeApiKey(credential)) {
         return jsonError('Unauthorized', 401)
       }
