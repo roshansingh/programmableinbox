@@ -12,6 +12,7 @@ import { NextRequest } from 'next/server'
 import { withConfigEnv, setConfigEnv } from '@/test/config'
 import { FakeRedis } from '@/lib/security/__tests__/fake-redis'
 import { setRateLimitRedisClient, __resetLogThrottlesForTests } from '@/lib/security/rate-limit'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const findUniqueMock = vi.fn()
 const compareMock = vi.fn()
@@ -129,11 +130,18 @@ describe('POST /api/app/auth/login — baseline', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 200 and a token for valid credentials', async () => {
+  it('returns 200, sets the session cookie, and puts no token in the body', async () => {
     compareMock.mockResolvedValue(true)
     const response = await POST(makeRequest({ email: 'user@example.com', password: 'correct' }))
+
     expect(response.status).toBe(200)
-    expect((await response.json()).data.token).toEqual(expect.any(String))
+    expect((await response.json()).data.token).toBeUndefined()
+
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+    const setCookieHeader = response.headers.get('set-cookie') ?? ''
+    expect(setCookieHeader).toMatch(/HttpOnly/i)
+    expect(setCookieHeader).toMatch(/Secure/i)
+    expect(setCookieHeader).toMatch(/SameSite=Strict/i)
   })
 
   it('returns the generic message for a wrong password', async () => {

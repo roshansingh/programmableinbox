@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { verifyPassword, signToken, formatUserResponse } from '@/lib/auth-server'
+import { verifyPassword, signToken, formatUserResponse, setSessionCookie } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import {
@@ -155,10 +155,9 @@ export const POST = withPublic(async (request: NextRequest) => {
 
     const token = signToken({ userId: user.id })
 
-    return jsonSuccess({
-      token,
-      user: formatUserResponse(user),
-    })
+    const response = jsonSuccess({ user: formatUserResponse(user) })
+    setSessionCookie(response, token)
+    return response
   } catch (error) {
     logger.error({ error }, 'Error logging in user')
     return jsonError('Internal server error', 500)
