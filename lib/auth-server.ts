@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { config } from './config'
 import { prisma } from './db'
 
@@ -66,6 +66,32 @@ export function verifyToken(token: string): { userId: string; issuedAt: number }
   if (typeof iat !== 'number') return null
 
   return { userId, issuedAt: iat }
+}
+
+export const SESSION_COOKIE_NAME = 'session'
+
+/** Matches signToken's 7-day expiresIn. */
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
+
+const SESSION_COOKIE_FLAGS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict' as const,
+  path: '/',
+}
+
+export function setSessionCookie(response: NextResponse, token: string): void {
+  response.cookies.set(SESSION_COOKIE_NAME, token, {
+    ...SESSION_COOKIE_FLAGS,
+    maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
+  })
+}
+
+export function clearSessionCookie(response: NextResponse): void {
+  response.cookies.set(SESSION_COOKIE_NAME, '', {
+    ...SESSION_COOKIE_FLAGS,
+    maxAge: 0,
+  })
 }
 
 export async function resolveUserPrincipalFromToken(token: string): Promise<{
@@ -156,10 +182,9 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
  * exists to provide.
  */
 export async function getAuthenticatedUser(request: NextRequest) {
-  const authHeader = request.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) return null
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value
+  if (!token) return null
 
-  const token = authHeader.slice(7)
   const payload = verifyToken(token)
   if (!payload) return null
 
