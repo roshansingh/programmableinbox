@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { withConfigEnv } from '@/test/config'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const userFindUniqueMock = vi.fn()
 const userUpdateMock = vi.fn()
@@ -103,12 +104,14 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       })
     })
 
-    it('still returns a session token, so the gate screen has something to render', async () => {
+    it('still sets the session cookie, so the gate screen has something to render', async () => {
       sendVerificationEmailMock.mockResolvedValue(undefined)
 
-      const { data } = await (await register()).json()
+      const response = await register()
+      const { data } = await response.json()
 
-      expect(typeof data.token).toBe('string')
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+      expect(data.token).toBeUndefined()
       expect(data.user.email).toBe('new@example.com')
       expect(data.user.emailVerified).toBe(false)
     })
@@ -125,8 +128,7 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       const response = await register()
 
       expect(response.status).toBe(200)
-      const { data } = await response.json()
-      expect(typeof data.token).toBe('string')
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
       expect(loggerErrorMock).toHaveBeenCalled()
       // No cooldown stamped for an email that never went out.
       expect(userUpdateMock).not.toHaveBeenCalled()
@@ -163,9 +165,10 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       expect(response.status).toBe(200)
       expect(sendVerificationEmailMock).not.toHaveBeenCalled()
       expect(userUpdateMock).not.toHaveBeenCalled()
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
 
       const { data } = await response.json()
-      expect(typeof data.token).toBe('string')
+      expect(data.token).toBeUndefined()
     })
   })
 })
