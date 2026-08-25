@@ -1,0 +1,494 @@
+name: release
+
+# Tag-triggered release pipeline (issue #130), superseding #124 for the SDK
+# half. One `vX.Y.Z` tag produces three deliverables:
+#   1. A Community Edition source tarball, attached to a GitHub Release
+#   2. A Community Edition docker image, multi-arch, pushed to GHCR
+#   3. Registry publishing for whichever of the 5 generated SDKs (Python, Go,
+#      TypeScript, Java, C#) changed version since their last release — never
+#      all 5 just because an app tag was cut. See sdk/README.md#publishing.
+#
+# "CE" means built from a tree with ee/ genuinely absent from the build
+# context, not merely excluded from the final artifact — see
+# docs/architecture/commercial-layer.md and ee/README.md for why that's the
+# actual license boundary, not just tidiness.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >-
+          Exercise the full pipeline (build, checks, packaging) without
+          pushing the docker image, publishing any SDK, or creating a GitHub
+          Release. Pick a real vX.Y.Z tag in the "Use workflow from" selector
+          above so this validates against real release inputs.
+        type: boolean
+        default: true
+
+# Read-only at the top level, widened per-job only where actually needed:
+# ce-docker pushes to GHCR (packages: write), sdk-publish pushes the Go
+# module's sdk/go/vX.Y.Z tag (contents: write), and release creates/edits the
+# GitHub Release and uploads its asset (contents: write). tag-info, test and
+# ce-tarball never touch either, and stay at the read-only default.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+  CE_IMAGE: ghcr.io/${{ github.repository }}-ce
+
+jobs:
+  tag-info:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.parse.outputs.tag }} # e.g. v0.10.0
+      version: ${{ steps.parse.outputs.version }} # e.g. 0.10.0
+    steps:
+      - id: parse
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::ref '$tag' is not a vX.Y.Z tag — for workflow_dispatch, pick a tag in the 'Use workflow from' selector"
+            exit 1
+          fi
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >>"$GITHUB_OUTPUT"
+          echo "### Release ${tag} (dry run: \`${DRY_RUN}\`)" >>"$GITHUB_STEP_SUMMARY"
+
+  # Gates every deliverable below on the tagged commit actually passing the
+  # suite — a release pipeline is exactly the wrong place to discover the
+  # tagged commit was broken.
+  test:
+    needs: tag-info
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@127.0.0.1:5432/dummy
+      - run: npm run lint
+      - run: npm run test
+
+  ce-tarball:
+    needs: [tag-info, test]
+    runs-on: ubuntu-latest
+    outputs:
+      tarball_name: ${{ steps.build.outputs.tarball_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      # scripts/release/build-ce-tarball.sh strips ee/ (via scripts/foss.mjs
+      # --force, this repo's one source of truth for the license boundary —
+      # see docs/architecture/commercial-layer.md) plus the internal
+      # planning directories not applicable to a self-hoster building from
+      # source, packages a prefixed tar.gz, and asserts no ee/ made it in —
+      # all before this job uploads anything.
+      - name: Build CE source tarball
+        id: build
+        run: scripts/release/build-ce-tarball.sh "${{ needs.tag-info.outputs.tag }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ce-tarball
+          path: ${{ steps.build.outputs.tarball_name }}
+          retention-days: 7
+
+  ce-docker:
+    needs: [tag-info, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Guardrail, run BEFORE any push: build once, single-platform, loaded
+      # locally so it's actually inspectable (a --push multi-arch build never
+      # produces a locally loadable image). Reuses the same Dockerfile.ce +
+      # Dockerfile.ce.dockerignore the real build below uses, so this exercises
+      # the identical build context ee/ is excluded from — see
+      # Dockerfile.ce.dockerignore's header for how that list is kept in sync
+      # with scripts/foss.mjs's COMMERCIAL_PATHS (scripts/__tests__/foss.test.ts
+      # asserts it).
+      - name: Build single-platform image for the no-ee guardrail
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ce
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.CE_IMAGE }}:guardrail-check
+          cache-from: type=gha,scope=ce
+          cache-to: type=gha,scope=ce,mode=max
+
+      - name: Guardrail — no ee/ anywhere in the built image
+        run: |
+          docker run --rm "${{ env.CE_IMAGE }}:guardrail-check" sh -c '
+            set -e
+            if [ -d /app/ee ]; then echo "ee/ present at /app/ee" >&2; exit 1; fi
+            if find /app -type d -iname ee 2>/dev/null | grep -q .; then
+              echo "an ee directory exists somewhere under /app" >&2; exit 1
+            fi
+            if find /app -path "*(ee)*" 2>/dev/null | grep -q .; then
+              echo "an (ee) route-group path exists somewhere under /app" >&2; exit 1
+            fi
+            exit 0
+          '
+
+      # The real, multi-arch build — reruns from the same cache, so this is
+      # fast. Skipped entirely in dry-run mode: nothing gets pushed to GHCR.
+      - name: Build & push CE image (multi-arch)
+        if: env.DRY_RUN == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ce
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.CE_IMAGE }}:${{ needs.tag-info.outputs.tag }}
+            ${{ env.CE_IMAGE }}:latest
+          cache-from: type=gha,scope=ce
+          cache-to: type=gha,scope=ce,mode=max
+
+      - name: Report what would have been pushed (dry run)
+        if: env.DRY_RUN == 'true'
+        run: |
+          echo "dry run — would have pushed:"
+          echo "  ${{ env.CE_IMAGE }}:${{ needs.tag-info.outputs.tag }}"
+          echo "  ${{ env.CE_IMAGE }}:latest"
+
+  # One matrix job per SDK language. fail-fast: false so a broken PyPI upload,
+  # say, never blocks Go's tag push. Each entry:
+  #   1. reads that language's own manifest version (scripts/release/check-sdk.mjs)
+  #   2. checks whether that version is already live on its registry
+  #   3. already live -> clean skip (exit 0, not a failure — a re-run of the
+  #      same tag must be idempotent)
+  #   4. not live -> build/pack, then publish (skipped in dry run)
+  # A maintainer bumps a language's manifest version by hand as part of the PR
+  # that changes that SDK; this job never decides version numbers, so a
+  # release with no SDK changes publishes zero SDK packages.
+  sdk-publish:
+    needs: [tag-info, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # contents: write is only for the Go leg's `git push origin` of the
+    # sdk/go/vX.Y.Z tag (below) — every other language publishes to its own
+    # package registry over a dedicated API token/secret, not via the GitHub
+    # API, so this is the narrowest grant that still covers all five.
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [python, typescript, java, csharp, go]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      # --- Version + "already published?" check -----------------------
+      # Go has no manifest field for a version (sdk/go/go.mod carries none),
+      # and go get resolves versions from git tags rather than a registry
+      # with an HTTP lookup API — so it reads its version from sdk/go/VERSION
+      # here and checks git tags directly in its own step below, rather than
+      # going through registry-status.mjs like the other four.
+      - name: Read manifest version
+        if: matrix.lang != 'go'
+        id: check
+        run: node scripts/release/check-sdk.mjs ${{ matrix.lang }}
+
+      - name: Read VERSION and check for an existing sdk/go/vX.Y.Z tag
+        if: matrix.lang == 'go'
+        id: go-check
+        run: |
+          node scripts/release/check-sdk.mjs go --version-only
+          version="$(cat sdk/go/VERSION | tr -d '[:space:]')"
+          # `git ls-remote --exit-code` returns 2 specifically for "ref not
+          # found" (not published — the expected, common case) and any other
+          # nonzero code for a real failure (network error, auth, timeout).
+          # Used as an `if` condition, its exit code is exempt from the
+          # runner's default `set -e`, so a real failure has to be detected
+          # explicitly here rather than relying on the step to fail on its
+          # own — otherwise a transient `git ls-remote` outage would be
+          # silently recorded as "not published" and the pipeline would go on
+          # to attempt (and re-push) a tag, rather than surfacing as the
+          # "version/registry check failed" outcome below.
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/sdk/go/v${version}" >/dev/null 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "published=true" >>"$GITHUB_OUTPUT"
+          elif [ "$rc" -eq 2 ]; then
+            echo "published=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "::error::git ls-remote failed checking for sdk/go/v${version} (exit $rc) — treating as a check failure, not 'unpublished'"
+            exit 1
+          fi
+
+      # if: always() so this still runs — and records what it can — even when
+      # `check`/`go-check` failed (e.g. a transient network error hitting the
+      # registry). Without it, GitHub Actions skips this step on an upstream
+      # failure, `outputs.published` comes back empty, every `publish-*` step
+      # below is skipped (not failed) because they all gate on
+      # `published == 'false'`, and "Record status" below would then fall
+      # through to its "published" default with nothing to contradict it.
+      - name: Set SDK_VERSION / SDK_PUBLISHED
+        id: status
+        if: always()
+        run: |
+          echo "version=${{ steps.check.outputs.version || steps.go-check.outputs.version }}" >>"$GITHUB_OUTPUT"
+          echo "published=${{ steps.check.outputs.published || steps.go-check.outputs.published }}" >>"$GITHUB_OUTPUT"
+
+      - name: Already published — skipping cleanly
+        if: steps.status.outputs.published == 'true'
+        run: echo "${{ matrix.lang }} ${{ steps.status.outputs.version }} is already published — nothing to do."
+
+      # --- Python (PyPI) ------------------------------------------------
+      - uses: actions/setup-python@v5
+        if: matrix.lang == 'python' && steps.status.outputs.published == 'false'
+        with:
+          python-version: '3.12'
+      - name: Build Python sdist/wheel
+        if: matrix.lang == 'python' && steps.status.outputs.published == 'false'
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build sdk/python
+          twine check sdk/python/dist/*
+      - name: Publish to PyPI
+        id: publish-python
+        if: matrix.lang == 'python' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload sdk/python/dist/*
+
+      # --- TypeScript (npm) ----------------------------------------------
+      - uses: actions/setup-node@v5
+        if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false'
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Build TypeScript package
+        if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false'
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+          npm pack --dry-run
+      - name: Publish to npm
+        id: publish-typescript
+        if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        working-directory: sdk/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # --access public: @programmableinbox is a scoped name, which npm
+        # defaults to restricted (private) unless told otherwise.
+        run: npm publish --access public
+
+      # --- Java (Maven Central) ------------------------------------------
+      - uses: actions/setup-java@v4
+        if: matrix.lang == 'java' && steps.status.outputs.published == 'false'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build Java package
+        if: matrix.lang == 'java' && steps.status.outputs.published == 'false'
+        run: mvn -B -f sdk/java/pom.xml -DskipTests package
+      - name: Publish to Maven Central
+        id: publish-java
+        if: matrix.lang == 'java' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        # KNOWN PREREQUISITE GAP — tracked as an explicit fast-follow, not a
+        # surprise: `mvn deploy` against today's sdk/java/pom.xml fails
+        # immediately, because the pom has neither a
+        # <distributionManagement> repository pointing at Sonatype/Central
+        # Portal nor the `central-publishing-maven-plugin` that would push to
+        # it. It does carry an openapi-generator-boilerplate `sign-artifacts`
+        # profile (maven-gpg-plugin) — inactive by default, and this workflow
+        # never passes `-P sign-artifacts` to activate it. Also needed: the
+        # namespace verification + GPG keypair from issue #130's provisioning
+        # checklist. None of that exists yet, so every real (non-dry-run,
+        # non-already-published) tag will show a red X on the Java leg until
+        # someone wires up central-publishing-maven-plugin +
+        # distributionManagement + activates -P sign-artifacts, before this
+        # can actually publish. isolated by fail-fast: false above, and
+        # doesn't block the CE tarball/image or the GitHub Release — it's
+        # left unfinished here rather than half-wired against a pom.xml that
+        # isn't ready for it.
+        run: mvn -B -f sdk/java/pom.xml -DskipTests deploy
+
+      # --- C# (NuGet) ------------------------------------------------------
+      - uses: actions/setup-dotnet@v4
+        if: matrix.lang == 'csharp' && steps.status.outputs.published == 'false'
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build C# package
+        if: matrix.lang == 'csharp' && steps.status.outputs.published == 'false'
+        run: |
+          dotnet pack sdk/csharp/src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj \
+            -c Release -o sdk/csharp/nupkg
+      - name: Publish to NuGet
+        id: publish-csharp
+        if: matrix.lang == 'csharp' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        run: |
+          dotnet nuget push sdk/csharp/nupkg/*.nupkg \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json
+
+      # --- Go (git tag, no registry) --------------------------------------
+      - uses: actions/setup-go@v5
+        if: matrix.lang == 'go' && steps.status.outputs.published == 'false'
+        with:
+          go-version: '1.23'
+      - name: Build (validate the module resolves and compiles)
+        if: matrix.lang == 'go' && steps.status.outputs.published == 'false'
+        working-directory: sdk/go
+        run: go build ./...
+      - name: Push sdk/go/vX.Y.Z tag
+        id: publish-go
+        if: matrix.lang == 'go' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        run: |
+          tag="sdk/go/v${{ steps.status.outputs.version }}"
+          git tag "$tag" "${{ github.sha }}"
+          git push origin "$tag"
+
+      - name: Record status for the release summary
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/sdk-status"
+          outcome="published"
+          # Order matters: the check-failed branch must be evaluated before
+          # the "published" default below, otherwise a failed version/registry
+          # check (steps.check / steps.go-check both empty outputs, publish
+          # step never runs so its outcome is "skipped" not "failure") falls
+          # through and gets misreported as a successful publish.
+          if [ "${{ steps.check.outcome }}" = "failure" ] || [ "${{ steps['go-check'].outcome }}" = "failure" ]; then
+            outcome="version/registry check failed — see this job's log"
+          elif [ "${{ steps.status.outputs.published }}" = "true" ]; then
+            outcome="already published"
+          elif [ "${{ steps[format('publish-{0}', matrix.lang)].outcome }}" = "failure" ]; then
+            outcome="publish failed — see this job's log"
+          elif [ "${{ env.DRY_RUN }}" = "true" ]; then
+            outcome="would publish (dry run)"
+          fi
+          echo "- **${{ matrix.lang }}** \`${{ steps.status.outputs.version }}\`: ${outcome}" \
+            > "$RUNNER_TEMP/sdk-status/${{ matrix.lang }}.md"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-status-${{ matrix.lang }}
+          path: ${{ runner.temp }}/sdk-status/${{ matrix.lang }}.md
+          retention-days: 7
+
+  release:
+    needs: [tag-info, ce-tarball, ce-docker, sdk-publish]
+    # CE tarball + CE image are the two deliverables every release must have;
+    # a broken SDK registry (fail-fast: false, above) must not block them, so
+    # this only hard-requires those two jobs, not sdk-publish.
+    if: always() && needs.ce-tarball.result == 'success' && needs.ce-docker.result == 'success'
+    runs-on: ubuntu-latest
+    # contents: write for `gh release create`/`gh release edit` (and the
+    # asset upload they include) — the only write this job needs.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ce-tarball
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sdk-status-*
+          path: sdk-status
+          merge-multiple: true
+
+      - name: Assemble release notes
+        id: notes
+        run: |
+          {
+            echo "## Community Edition"
+            echo "- docker: \`${{ env.CE_IMAGE }}:${{ needs.tag-info.outputs.tag }}\` (linux/amd64, linux/arm64)"
+            echo "- source tarball: attached below"
+            echo
+            echo "## SDKs"
+            if [ "${{ needs.sdk-publish.result }}" != "success" ]; then
+              echo "_one or more SDK publish jobs failed this round — see the Actions run for detail._"
+              echo
+            fi
+            cat sdk-status/*.md
+          } >>"$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Community Edition"
+            echo "- docker: \`${{ env.CE_IMAGE }}:${{ needs.tag-info.outputs.tag }}\` (linux/amd64, linux/arm64)"
+            echo
+            echo "## SDKs"
+            cat sdk-status/*.md
+          } > release-notes.md
+
+      - name: Create GitHub Release
+        if: env.DRY_RUN == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Idempotent on a re-run against the same tag (e.g. retrying after
+        # ce-docker transiently failed, then re-triggering the run) — checks
+        # for an existing release first and branches between create and
+        # upload+edit, rather than calling `gh release create` unconditionally
+        # and erroring out with "release already exists".
+        #
+        # The auto-generated changelog comes from the releases/generate-notes
+        # API directly (a read-only call, no side effects) rather than
+        # `gh release create --generate-notes`, which only exists on the
+        # create path and would need a different mechanism to reproduce on
+        # the re-run/edit branch. Fetching it the same way on both branches
+        # means the combined body (auto changelog + our own CE/SDK summary)
+        # is assembled identically either way.
+        run: |
+          tag="${{ needs.tag-info.outputs.tag }}"
+          asset="${{ needs.ce-tarball.outputs.tarball_name }}"
+          gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            -f tag_name="$tag" -q .body > generated-notes.md
+          cat generated-notes.md release-notes.md > combined-notes.md
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$asset" --clobber
+            gh release edit "$tag" --notes-file combined-notes.md
+          else
+            gh release create "$tag" "$asset" \
+              --title "$tag" \
+              --notes-file combined-notes.md
+          fi
+
+      - name: Dry run — release notes that would have been used
+        if: env.DRY_RUN == 'true'
+        run: cat release-notes.md

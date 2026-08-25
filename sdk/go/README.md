@@ -2,13 +2,21 @@
 
 Generated from `lib/openapi/email-inboxes.ts`. Regenerate with `npm run sdk:generate` from the repo root — do not hand-edit anything else in this directory.
 
+This module lives at `sdk/go` inside the `roshansingh/programmableinbox` monorepo rather than in a
+standalone repo, so its version isn't a field in a manifest like the other four SDKs — it's tracked
+in [`VERSION`](VERSION), and released as a `sdk/go/vX.Y.Z` git tag on the monorepo, Go's native
+convention for a subdirectory module. See `.github/workflows/release.yml`.
+
 ## Install
 
 ```bash
-go get github.com/roshansingh/programmableinbox-go
+go get github.com/roshansingh/programmableinbox/sdk/go
 ```
 
-(Not yet published — see [issue #124](https://github.com/roshansingh/programmableinbox/issues/124). Until then, use a `replace` directive in your own `go.mod` pointing at a local checkout of this repo's `sdk/go` directory.)
+Published via the tag-triggered release pipeline (`.github/workflows/release.yml`), gated on a
+maintainer bumping [`VERSION`](VERSION) — not yet released as of this writing. Until a
+`sdk/go/vX.Y.Z` tag exists, `go get` has nothing to resolve; use a `replace` directive in your own
+`go.mod` pointing at a local checkout of this repo's `sdk/go` directory instead.
 
 ## Quick start
 
@@ -19,7 +27,7 @@ import (
 	"context"
 	"fmt"
 
-	programmableinbox "github.com/roshansingh/programmableinbox-go"
+	programmableinbox "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {

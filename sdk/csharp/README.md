@@ -4,7 +4,12 @@ Generated from `lib/openapi/email-inboxes.ts`, targeting `net8.0`. Regenerate wi
 
 ## Install
 
-Not yet published to NuGet (tracked in [issue #124](https://github.com/roshansingh/programmableinbox/issues/124)). Until then, from a checkout, reference `src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj` directly from your own project (`dotnet add reference`).
+Not yet published to NuGet. The release pipeline that publishes this now exists — see
+[`sdk/README.md`](../README.md#publishing) — but publishing is gated on a maintainer bumping the
+version in the `.csproj` and on NuGet registry provisioning, tracked in
+[issue #130](https://github.com/roshansingh/programmableinbox/issues/130). Until then, from a
+checkout, reference `src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj` directly from your own
+project (`dotnet add reference`).
 
 ## Quick start
 

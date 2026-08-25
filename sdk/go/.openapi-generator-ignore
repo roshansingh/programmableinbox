@@ -1,1 +1,10 @@
 README.md
+# Hand-maintained: openapi-generator's default git_push.sh assumes a
+# standalone repo, which this module is not (see the file itself).
+git_push.sh
+# Not a generator output at all — the version source of truth for this SDK's
+# release pipeline (there's no manifest field for it, unlike the other four
+# languages). Never touched by generation, but listed here so that stays an
+# explicit decision rather than an accident.
+VERSION
+

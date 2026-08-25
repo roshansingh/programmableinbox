@@ -8,7 +8,10 @@ Generated from `lib/openapi/email-inboxes.ts`. Regenerate with `npm run sdk:gene
 pip install ./sdk/python
 ```
 
-(From a checkout — PyPI publishing is tracked in [issue #124](https://github.com/roshansingh/programmableinbox/issues/124).)
+(From a checkout. The release pipeline that publishes this to PyPI now exists — see
+[`sdk/README.md`](../README.md#publishing) — but publishing is gated on a maintainer bumping the
+version in `pyproject.toml` and on PyPI registry provisioning, tracked in
+[issue #130](https://github.com/roshansingh/programmableinbox/issues/130); it hasn't happened yet.)
 
 ## Quick start
 

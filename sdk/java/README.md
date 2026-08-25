@@ -4,7 +4,10 @@ Generated from `lib/openapi/email-inboxes.ts` using the `native` library option 
 
 ## Install
 
-Not yet published to Maven Central (tracked in [issue #124](https://github.com/roshansingh/programmableinbox/issues/124)). Until then, from a checkout:
+Not yet published to Maven Central. The release pipeline that publishes this now exists — see
+[`sdk/README.md`](../README.md#publishing) — but publishing is gated on a maintainer bumping the
+version in `pom.xml` and on Sonatype Central Portal namespace verification, tracked in
+[issue #130](https://github.com/roshansingh/programmableinbox/issues/130). Until then, from a checkout:
 
 ```bash
 cd sdk/java && mvn install
