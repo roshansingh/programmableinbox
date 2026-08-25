@@ -5,6 +5,7 @@ import { AuthGuard } from '@/components/auth-guard'
 import { server } from '@/test/mocks/server'
 import { mockUser, mockAppConfig } from '@/test/mocks/fixtures/users'
 import { useRouter, usePathname } from 'next/navigation'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 describe('AuthGuard', () => {
   const mockPush = vi.fn()
@@ -20,7 +21,7 @@ describe('AuthGuard', () => {
   })
 
   it('shows loading spinner while auth is resolving', () => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     render(
       <AuthGuard>
         <div>Protected Content</div>
@@ -32,7 +33,7 @@ describe('AuthGuard', () => {
   })
 
   it('renders children when authenticated', async () => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     render(
       <AuthGuard>
         <div>Protected Content</div>
@@ -110,7 +111,7 @@ describe('AuthGuard email-verification gate', () => {
   const mockPush = vi.fn()
 
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     vi.mocked(usePathname).mockReturnValue('/emails')
     vi.mocked(useRouter).mockReturnValue({
       push: mockPush,

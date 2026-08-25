@@ -4,10 +4,11 @@ import { EmailsList } from '@/components/emails-list'
 import { mockEmails } from '@/test/mocks/fixtures/emails'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 describe('EmailsList', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('shows loading state initially', () => {

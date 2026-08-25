@@ -4,6 +4,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/components/auth-provider'
 import { server } from '@/test/mocks/server'
 import { mockUser, mockOrganization, mockAppConfig } from '@/test/mocks/fixtures/users'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 const identifyMock = vi.fn()
 const groupMock = vi.fn()
@@ -23,7 +24,7 @@ vi.mock('posthog-js', () => ({
  */
 describe('AuthProvider product-analytics identify/group', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     identifyMock.mockClear()
     groupMock.mockClear()
   })

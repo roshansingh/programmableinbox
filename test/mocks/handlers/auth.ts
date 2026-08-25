@@ -1,12 +1,12 @@
 import { http, HttpResponse } from 'msw'
 import { mockUser } from '../fixtures/users'
+import { getSessionCookieFromRequest, setMockSessionCookie, clearMockSessionCookie } from '../session-cookie'
 
 const BASE = 'http://localhost:4000/api'
 
 export const authHandlers = [
   http.get(`${BASE}/app/auth/me`, ({ request }) => {
-    const auth = request.headers.get('Authorization')
-    if (!auth || !auth.startsWith('Bearer ')) {
+    if (!getSessionCookieFromRequest(request)) {
       return HttpResponse.json({ message: 'Unauthorized' }, { status: 401 })
     }
     return HttpResponse.json({ data: mockUser })
@@ -15,17 +15,20 @@ export const authHandlers = [
   http.post(`${BASE}/app/auth/login`, async ({ request }) => {
     const body = (await request.json()) as { email: string; password: string }
     if (body.email === 'test@example.com' && body.password === 'password') {
-      return HttpResponse.json({
-        data: { token: 'mock-jwt-token', user: mockUser },
-      })
+      setMockSessionCookie()
+      return HttpResponse.json({ data: { user: mockUser } })
     }
     return HttpResponse.json({ message: 'Invalid credentials' }, { status: 401 })
   }),
 
   http.post(`${BASE}/app/auth/register`, async () => {
-    return HttpResponse.json({
-      data: { token: 'mock-jwt-token', user: mockUser },
-    })
+    setMockSessionCookie()
+    return HttpResponse.json({ data: { user: mockUser } })
+  }),
+
+  http.post(`${BASE}/app/auth/logout`, () => {
+    clearMockSessionCookie()
+    return HttpResponse.json({ data: { loggedOut: true } })
   }),
 
   // Issue #102. Defaults are the happy paths; suites exercising expiry, an

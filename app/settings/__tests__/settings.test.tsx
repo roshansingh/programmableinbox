@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { server } from '@/test/mocks/server'
 import { AuthProvider } from '@/components/auth-provider'
 import { Toaster } from 'sonner'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 // Mock Sidebar and DashboardHeader since they have their own dependencies
 vi.mock('@/components/sidebar', () => ({
@@ -26,7 +27,7 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('SettingsPage', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('renders email as read-only text', async () => {

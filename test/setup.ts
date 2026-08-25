@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import MockLink from './mocks/next-link'
 import { server } from './mocks/server'
+import { clearMockSessionCookie } from './mocks/session-cookie'
 
 // Start MSW server before all tests
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
@@ -42,6 +43,7 @@ afterEach(() => {
   server.resetHandlers()
   cleanup()
   localStorage.clear()
+  clearMockSessionCookie()
   vi.clearAllMocks()
 })
 

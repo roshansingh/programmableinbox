@@ -3,10 +3,11 @@ import { render, screen, waitFor } from '@/test/test-utils'
 import { PhonesList } from '@/components/phones-list'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 describe('PhonesList', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('shows loading state initially', () => {

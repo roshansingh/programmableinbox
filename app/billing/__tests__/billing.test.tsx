@@ -6,6 +6,7 @@ import { AuthProvider } from '@/components/auth-provider'
 import { mockUser, mockOrganization } from '@/test/mocks/fixtures/users'
 import { useSearchParams } from 'next/navigation'
 import BillingPage from '../page'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 function withCheckoutSuccess() {
   vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('checkout=success') as never)
@@ -87,7 +88,7 @@ describe('BillingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never)
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('reports billing as unavailable when the deployment has no plan', async () => {

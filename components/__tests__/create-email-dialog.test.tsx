@@ -13,6 +13,7 @@ import { CreateEmailDialog } from '@/components/create-email-dialog'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
 import { mockUser } from '@/test/mocks/fixtures/users'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 const BASE = 'http://localhost:4000/api'
 
@@ -56,7 +57,7 @@ async function localPartInput() {
 }
 
 beforeEach(() => {
-  localStorage.setItem('auth_token', 'mock-jwt-token')
+  setMockSessionCookie()
 })
 
 describe('CreateEmailDialog — exactly one configured domain', () => {

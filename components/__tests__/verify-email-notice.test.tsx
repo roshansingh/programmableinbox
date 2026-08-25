@@ -4,12 +4,13 @@ import { render, screen, waitFor } from '@/test/test-utils'
 import { VerifyEmailNotice } from '@/components/verify-email-notice'
 import { server } from '@/test/mocks/server'
 import { mockUser, mockAppConfig } from '@/test/mocks/fixtures/users'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 const RESEND_URL = 'http://localhost:4000/api/app/auth/verification/resend'
 
 describe('VerifyEmailNotice', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     server.use(
       http.get('http://localhost:4000/api/app/auth/me', () =>
         HttpResponse.json({
