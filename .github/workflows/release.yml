@@ -64,10 +64,47 @@ jobs:
 
   # Gates every deliverable below on the tagged commit actually passing the
   # suite — a release pipeline is exactly the wrong place to discover the
-  # tagged commit was broken.
+  # tagged commit was broken. Mirrors .github/workflows/test.yml's `test` job
+  # (lint, unit tests, and integration tests against a real Postgres) rather
+  # than just the unit-test subset, since a tag can point at any ref, not only
+  # a commit that already went through that workflow's required checks.
+  #
+  # This job does NOT re-run test.yml's separate `foss` job (build with ee/
+  # stripped). That's intentionally covered downstream instead, by ce-docker's
+  # own guardrail build (a real `docker buildx build` against Dockerfile.ce,
+  # which performs the same entrypoint swap and fails closed if ee/ survives)
+  # — duplicating a full second build+test cycle here would cost several more
+  # minutes per release for no additional coverage.
   test:
     needs: tag-info
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: inbox
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: inbox
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://inbox:test@localhost:5432/inbox?options=-c%20timezone%3DUTC
+      TEST_DATABASE_URL: postgresql://inbox:test@localhost:5432/inbox_test?schema=public
+      JWT_SECRET: test-jwt-secret-at-least-16-chars
+      WEBHOOK_SECRET: test-webhook-secret
+      AUTOMATION_SWEEPER_SECRET: test-sweeper-secret
+      HEALTHZ_SECRET: test-healthz-secret
+      AUTH_RESEND_API_KEY: re_test_key
+      AUTH_EMAIL_FROM: test@example.com
+      AUTH_EMAIL_FROM_NAME: Test
+
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -76,10 +113,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-        env:
-          DATABASE_URL: postgresql://dummy:dummy@127.0.0.1:5432/dummy
       - run: npm run lint
       - run: npm run test
+      - run: npm run test:integration
 
   ce-tarball:
     needs: [tag-info, test]
