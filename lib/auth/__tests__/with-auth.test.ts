@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { withConfigEnv } from '@/test/config'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const resolveApiKeyPrincipalMock = vi.fn()
@@ -23,11 +24,6 @@ function requestWith(authorization?: string) {
     headers: authorization ? { authorization } : {},
   })
 }
-
-// `@/lib/auth-server` is mocked above without SESSION_COOKIE_NAME, so this is
-// hardcoded rather than imported — it must match the constant of the same
-// name in lib/auth-server.ts.
-const SESSION_COOKIE_NAME = 'session'
 
 function requestWithSession(token?: string) {
   return new NextRequest('http://localhost:4000/api/test', {
