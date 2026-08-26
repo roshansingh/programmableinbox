@@ -1,23 +1,54 @@
 # Authentication
 
-ProgrammableInbox uses **JWTs, not cookie sessions**. This doc covers how a request gets
-authenticated, the three wrappers every route is built on, and the client-side gate.
+ProgrammableInbox uses **JWTs**, carried two different ways depending on who holds them: the
+dashboard session travels in an **httpOnly cookie**, and an API key travels in an
+**`Authorization: Bearer` header**. This doc covers how a request gets authenticated, the three
+wrappers every route is built on, and the client-side gate.
 
-## Two credential types, resolved before verification
+## Two credential types, on two different channels
 
-A request carries one of two credential types in its `Authorization: Bearer <token>` header:
+- A **session JWT**, issued at login/register, carrying `{ userId }` (plus a few housekeeping
+  claims). It is set as an httpOnly, `Secure`, `SameSite=Strict` cookie (`SESSION_COOKIE_NAME` in
+  `lib/auth-server.ts`) by `setSessionCookie()` and never appears in a response body or in
+  `localStorage` — client JS cannot read it, which is the point: this closed an XSS
+  session-theft vector where a script that could run in the page could also read the token out of
+  `localStorage` and exfiltrate it.
+- An **API key**, prefixed `sk_live_`, created from the dashboard, sent in the
+  `Authorization: Bearer <key>` header.
 
-- A **session JWT**, issued at login, carrying `{ userId }` (plus a few housekeeping claims).
-- An **API key**, prefixed `sk_live_`, created from the dashboard.
-
-`lib/auth/with-auth.ts` decides which one it's looking at **by the `sk_live_` prefix, before any
-verification runs** — not by trying a JWT verify and falling back to an API-key lookup on
-failure. That ordering matters: the superseded approach verified a JWT first and fell back to an
-API-key lookup on the same header value, which is the shape of
+`lib/auth/with-auth.ts` decides which credential it's looking at **by which channel the request
+used it on** — a session is read from the cookie jar, an API key from the `Authorization` header
+— rather than by trying to verify one kind and falling back to the other on failure. That
+ordering matters: the superseded approach verified a JWT first and fell back to an API-key lookup
+on the same header value, which is the shape of
 [RFC 8725 §2.8 Cross-JWT Confusion](https://www.rfc-editor.org/rfc/rfc8725#section-2.8) — a
-token minted for one purpose gets accepted somewhere it was never meant to work. Deciding the
-type up front, from a property of the string itself, avoids that class of bug entirely rather
-than patching around it.
+token minted for one purpose gets accepted somewhere it was never meant to work. Putting the two
+credential types on two different transports forecloses that confusion structurally, rather than
+patching around it with a prefix check on a shared header.
+
+## Logging out
+
+`POST /api/app/auth/logout` clears the session cookie server-side (`clearSessionCookie()`). It's
+wrapped in `withUser({ allowUnverified: true }, ...)` rather than plain `withUser` — an
+unverified user (see the email-verification gate below) still has an active session and must be
+able to end it; gating the logout route itself behind verification would leave that user
+permanently signed in with no way to clear the cookie. Both client call sites (`user-menu.tsx`,
+`verify-email-notice.tsx`) `await` the logout call inside a `try/finally` before navigating to
+`/auth/login`, so a failed logout request (a 5xx, a dropped connection) still ends in a full
+navigation rather than stranding the user on the current page in an ambiguous signed-in state.
+
+## Login/register require `Content-Type: application/json`
+
+Both routes reject any request whose `Content-Type` isn't `application/json` (a `; charset=...`
+suffix is allowed) with 415, checked before the body is parsed. This exists because `text/plain`
+is one of the three CORS-safelisted content types: without the check, a cross-origin page could
+send a login/register POST with `credentials: 'include'` and `Content-Type: text/plain` as a
+browser "simple request" — no preflight required — and `request.json()` parses the body
+regardless of the declared type. The resulting `Set-Cookie` is then honored and stored by the
+victim's browser: `SameSite=Strict` restricts when a cookie is later *sent* on a cross-site
+request, not whether the browser may *store* a cookie set by a response to a request the browser
+itself made. Requiring `application/json` forces a real CORS preflight for any cross-origin
+caller, which this app does not answer permissively for an arbitrary origin.
 
 ## The three wrappers
 
@@ -44,9 +75,13 @@ every authenticated request).
 
 ## The client side
 
-- The token lives in `localStorage.auth_token`.
-- `apiClient` (`lib/api-client.ts`) attaches `Authorization: Bearer <token>` to every request. On
-  a `401` it clears the token and redirects to `/auth/login`, unless already on an auth page.
+- The session lives in the httpOnly cookie described above — client JS has no handle on it at
+  all, and there is nothing for the client to "clear" on logout beyond navigating away.
+- `apiClient` (`lib/api-client.ts`) sends every request with `credentials: 'include'`, so the
+  browser attaches the cookie automatically; the client never builds an `Authorization` header
+  for dashboard requests (API keys are a separate, server-to-server credential and aren't used by
+  the dashboard's own `apiClient` calls). On a `401` it redirects to `/auth/login`, unless already
+  on an auth page.
 - `<AuthGuard>` (in `app/layout.tsx`) is the client-side gate: it redirects an unauthenticated
   user to `/auth/login`.
 - `<AuthProvider>` calls `GET /api/app/auth/me` once on mount and shares the result via

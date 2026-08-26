@@ -57,10 +57,11 @@ Defined in `prisma/schema.prisma`. Names matter — they are the contract.
 
 ### 5.1 Auth
 - Email + password registration and login (`/auth/login`, `/auth/register`).
-- JWT issued at login, stored in `localStorage.auth_token`, sent as `Authorization: Bearer <token>`.
+- JWT issued at login/register, set as an httpOnly, `Secure`, `SameSite=Strict` session cookie (never in `localStorage`, never readable by client JS). `apiClient` sends it automatically via `credentials: 'include'`; `sk_live_` API keys are unaffected and still travel as `Authorization: Bearer <key>`.
+- `POST /api/app/auth/logout` clears the cookie server-side; the client awaits it before navigating to `/auth/login`.
 - `<AuthProvider>` calls `/api/auth/me` once at app mount; `useAuth()` is the single source of truth for the current user. Other components must not refetch `/auth/me`.
-- `<AuthGuard>` redirects unauthenticated users to `/auth/login`; on a 401 the API client wipes the token and redirects (unless already on an auth page).
-- Auth enforcement is **per-route via `getAuthenticatedUser(request)`**, not middleware. Every protected handler must call it and return `jsonError('Unauthorized', 401)` on null.
+- `<AuthGuard>` redirects unauthenticated users to `/auth/login`; on a 401 the API client redirects (unless already on an auth page) — there is no client-held token to wipe.
+- Auth enforcement is **per-route via the tagged wrappers in `lib/auth/with-auth.ts`** (`withUser`, `withApiKey`, `withPublic`), not middleware. Every protected handler must be wrapped and returns `jsonError('Unauthorized', 401)` on an invalid or missing credential.
 
 ### 5.2 Email inboxes
 - Create / list / get / update / delete an `EmailInbox` (`/api/v1/emailInbox`, `[id]`).
