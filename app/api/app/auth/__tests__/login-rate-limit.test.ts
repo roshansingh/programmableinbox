@@ -164,6 +164,52 @@ describe('POST /api/app/auth/login — baseline', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Content-Type enforcement — closes the CORS-safelisted-simple-request path
+// ---------------------------------------------------------------------------
+
+describe('POST /api/app/auth/login — Content-Type enforcement', () => {
+  function requestWithContentType(contentType: string | undefined) {
+    const headers: Record<string, string> = {
+      'x-forwarded-for': '10.9.9.9, 203.0.113.5',
+    }
+    if (contentType !== undefined) {
+      headers['Content-Type'] = contentType
+    }
+    return new NextRequest('http://localhost/api/app/auth/login', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email: 'user@example.com', password: 'correct' }),
+    })
+  }
+
+  it('rejects a text/plain body with 415 before touching the database', async () => {
+    // text/plain is one of the three CORS-safelisted content types, so a
+    // cross-origin caller can send it with no preflight.
+    const response = await POST(requestWithContentType('text/plain'))
+
+    expect(response.status).toBe(415)
+    expect(findUniqueMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing Content-Type header with 415', async () => {
+    const response = await POST(requestWithContentType(undefined))
+    expect(response.status).toBe(415)
+  })
+
+  it('still logs in with application/json, charset suffix included', async () => {
+    compareMock.mockResolvedValue(true)
+    const response = await POST(requestWithContentType('application/json; charset=utf-8'))
+    expect(response.status).toBe(200)
+  })
+
+  it('still logs in with a bare application/json', async () => {
+    compareMock.mockResolvedValue(true)
+    const response = await POST(requestWithContentType('application/json'))
+    expect(response.status).toBe(200)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Per-IP limiting — the one control that rejects before bcrypt
 // ---------------------------------------------------------------------------
 

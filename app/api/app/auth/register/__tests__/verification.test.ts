@@ -80,6 +80,51 @@ beforeEach(() => {
   userUpdateMock.mockResolvedValue(CREATED_USER)
 })
 
+describe('POST /api/app/auth/register — Content-Type enforcement', () => {
+  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+
+  function requestWithContentType(contentType: string | undefined) {
+    const headers: Record<string, string> = {}
+    if (contentType !== undefined) {
+      headers['Content-Type'] = contentType
+    }
+    return new NextRequest('http://localhost/api/app/auth/register', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        email: 'new@example.com',
+        password: 'password123',
+        firstName: 'New',
+        lastName: 'User',
+      }),
+    })
+  }
+
+  async function registerWithContentType(contentType: string | undefined) {
+    const { POST } = await import('../route')
+    return POST(requestWithContentType(contentType), ctx)
+  }
+
+  it('rejects a text/plain body with 415 before touching the database', async () => {
+    // text/plain is one of the three CORS-safelisted content types, so a
+    // cross-origin caller can send it with no preflight.
+    const response = await registerWithContentType('text/plain')
+
+    expect(response.status).toBe(415)
+    expect(transactionMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing Content-Type header with 415', async () => {
+    const response = await registerWithContentType(undefined)
+    expect(response.status).toBe(415)
+  })
+
+  it('still registers with application/json, charset suffix included', async () => {
+    const response = await registerWithContentType('application/json; charset=utf-8')
+    expect(response.status).toBe(200)
+  })
+})
+
 describe('POST /api/app/auth/register — verification side effects', () => {
   describe('with verification enabled', () => {
     withConfigEnv({
