@@ -30,12 +30,11 @@ export interface SignUpRequest {
 }
 
 /**
- * Auth response (token structure may vary based on backend implementation)
+ * Auth response. No token field: the session travels as an httpOnly cookie
+ * set by the server (`setSessionCookie` in `lib/auth-server.ts`), never in the
+ * response body.
  */
 export interface AuthResponse {
-  token?: string
-  accessToken?: string
-  access_token?: string
   user?: User
 }
 
