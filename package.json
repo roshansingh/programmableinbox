@@ -15,6 +15,7 @@
     "backfill:org-names": "node --import tsx scripts/backfill-org-names.ts",
     "sdk:export-spec": "node --import tsx scripts/export-openapi-spec.ts",
     "sdk:generate": "bash sdk/generate.sh",
+    "sdk:publish": "node scripts/release/publish-sdk.mjs",
     "start": "next start --port 4000",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -38,3 +38,24 @@ see the checklist in issue #130 — so until that's done, and until a maintainer
 the workflow's per-language jobs skip cleanly. Until then, everything here remains usable directly
 from a checkout (`pip install ./sdk/python`, a Go `replace` directive, `npm link`, a local
 Maven/NuGet install, etc.).
+
+### Publishing by hand (Python, TypeScript)
+
+`npm run sdk:publish -- <python|typescript> [--dry-run] [--force]` builds and publishes
+outside of a tag — a Python-only fix, or rehearsing before trusting a real tag to do it.
+It's `scripts/release/publish-sdk.mjs`, which shares its "is this version already
+published?" check with the CI job (`scripts/release/registry-status.mjs`), so the two
+can't quietly disagree.
+
+- `--dry-run` builds and verifies the package, prints what it would publish, never uploads.
+  Needs no credentials.
+- Without `--dry-run`, it publishes for real: Python reads `PYPI_API_TOKEN` if set
+  (otherwise falls back to twine's own config/prompt); TypeScript reads `NPM_TOKEN` if set,
+  via a throwaway auth file rather than a persistent `.npmrc` (otherwise publishes under
+  whatever `npm login` session already exists locally).
+- `--force` skips the already-published check (the registry itself still refuses a
+  real re-upload) — useful for rehearsing a build against a version that's already live.
+
+Java and C# aren't wired up for manual publishing here; use the CI workflow (once its
+Maven/NuGet prerequisites are provisioned — see issue #130) or the registry's own
+`mvn deploy` / `dotnet nuget push` by hand.
