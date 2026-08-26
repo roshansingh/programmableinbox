@@ -72,9 +72,12 @@ export function VerifyEmailNotice() {
     }
   }
 
-  const handleSignOut = () => {
-    logout()
-    window.location.href = "/auth/login"
+  const handleSignOut = async () => {
+    try {
+      await logout()
+    } finally {
+      window.location.href = "/auth/login"
+    }
   }
 
   return (

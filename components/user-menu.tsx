@@ -37,14 +37,19 @@ export function UserMenu({ onBeforeLogout }: UserMenuProps) {
 
   const handleLogout = async () => {
     onBeforeLogout?.()
-    // Awaited so the server has cleared the httpOnly cookie before we
-    // navigate — the client holds no credential of its own to drop.
-    await logout()
-    // Full navigation rather than router.push: it guarantees no stale user
-    // data survives in memory, and it sidesteps AuthGuard, which would
-    // otherwise redirect to /auth/login?redirect=<current page>. Matches how
-    // lib/api-client.ts handles a 401.
-    window.location.href = '/auth/login'
+    try {
+      // Awaited so the server has cleared the httpOnly cookie before we
+      // navigate — the client holds no credential of its own to drop.
+      await logout()
+    } finally {
+      // Full navigation rather than router.push: it guarantees no stale user
+      // data survives in memory, and it sidesteps AuthGuard, which would
+      // otherwise redirect to /auth/login?redirect=<current page>. Matches how
+      // lib/api-client.ts handles a 401. Runs even if the logout request
+      // failed — a user clicking "log out" must never be stranded on the
+      // current page in an ambiguous signed-in-or-not state.
+      window.location.href = '/auth/login'
+    }
   }
 
   return (
