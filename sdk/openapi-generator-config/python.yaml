@@ -1,3 +1,8 @@
 packageName: programmableinbox
 projectName: programmableinbox
 packageVersion: 0.1.0
+# Without these, the template's [project.urls] Repository falls back to a
+# literal "GIT_USER_ID/GIT_REPO_ID" placeholder — see go.yaml's comment for
+# why this is set per-language rather than once globally.
+gitUserId: roshansingh
+gitRepoId: programmableinbox
