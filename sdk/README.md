@@ -41,11 +41,11 @@ Maven/NuGet install, etc.).
 
 ### Publishing by hand (Python, TypeScript)
 
-`npm run sdk:publish -- <python|typescript> [--dry-run] [--force]` builds and publishes
-outside of a tag — a Python-only fix, or rehearsing before trusting a real tag to do it.
-It's `scripts/release/publish-sdk.mjs`, which shares its "is this version already
-published?" check with the CI job (`scripts/release/registry-status.mjs`), so the two
-can't quietly disagree.
+`npm run sdk:publish -- <python|typescript> [--dry-run] [--force] [--otp=123456]` builds
+and publishes outside of a tag — a Python-only fix, or rehearsing before trusting a real
+tag to do it. It's `scripts/release/publish-sdk.mjs`, which shares its "is this version
+already published?" check with the CI job (`scripts/release/registry-status.mjs`), so the
+two can't quietly disagree.
 
 - `--dry-run` builds and verifies the package, prints what it would publish, never uploads.
   Needs no credentials.
@@ -53,6 +53,10 @@ can't quietly disagree.
   (otherwise falls back to twine's own config/prompt); TypeScript reads `NPM_TOKEN` if set,
   via a throwaway auth file rather than a persistent `.npmrc` (otherwise publishes under
   whatever `npm login` session already exists locally).
+- `--otp=123456` (TypeScript only) — npm requires either this or a token with 2FA-bypass
+  enabled to publish. Pull the 6-digit code from your authenticator right before running
+  (it's time-limited), since a wrapped `child_process` publish can't reliably fall back to
+  an interactive OTP prompt the way running `npm publish` directly in a terminal can.
 - `--force` skips the already-published check (the registry itself still refuses a
   real re-upload) — useful for rehearsing a build against a version that's already live.
 

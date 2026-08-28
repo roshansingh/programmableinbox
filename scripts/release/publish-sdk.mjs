@@ -12,7 +12,7 @@
  * a real tag to do it for you.
  *
  * Usage:
- *   node scripts/release/publish-sdk.mjs <python|typescript> [--dry-run] [--force]
+ *   node scripts/release/publish-sdk.mjs <python|typescript> [--dry-run] [--force] [--otp=123456]
  *
  *   --dry-run  build and verify the package, print what would be published,
  *              but never upload. Never requires credentials.
@@ -21,6 +21,14 @@
  *              duplicate version — this only skips OUR check, it can't make
  *              PyPI/npm accept a re-upload. Useful for rehearsing a build
  *              against a version that happens to already be live.
+ *   --otp      typescript only. npm requires either this or a 2FA-bypass
+ *              token to publish (see NPM_TOKEN below) — without either, a
+ *              non-token publish 403s rather than reliably prompting, since
+ *              OTP prompting depends on npm detecting an interactive TTY,
+ *              which a wrapped child_process call can't guarantee. Get the
+ *              6-digit code from your authenticator right before running
+ *              this — it's time-limited, so generate it just-in-time, not
+ *              ahead of time.
  *
  * Credentials (only read for a real, non-dry-run publish):
  *   python:     PYPI_API_TOKEN   — if set, used as the twine token
@@ -96,7 +104,7 @@ function publishPython({ version, action }) {
   run('twine', ['upload', ...['sdk/python/dist/*.tar.gz', 'sdk/python/dist/*.whl']], { env: publishEnv })
 }
 
-function publishTypescript({ version, action }) {
+function publishTypescript({ version, action, otp }) {
   const pkgDir = resolve(ROOT, 'sdk/typescript')
   console.log(`==> Building TypeScript SDK (sdk/typescript) v${version}`)
   run('npm', ['ci'], { cwd: pkgDir })
@@ -109,11 +117,15 @@ function publishTypescript({ version, action }) {
   }
 
   console.log('==> Publishing to npm')
+  // --access public because @programmableinbox is a scoped name, which npm
+  // defaults to restricted unless told otherwise.
+  const publishArgs = ['publish', '--access', 'public']
+  if (otp) publishArgs.push('--otp', otp)
+
   if (!env.NPM_TOKEN) {
     // No token supplied — publish as-is, trusting an existing `npm login`
-    // session. --access public because @programmableinbox is a scoped name,
-    // which npm defaults to restricted unless told otherwise.
-    run('npm', ['publish', '--access', 'public'], { cwd: pkgDir })
+    // session (plus --otp above, if you passed one).
+    run('npm', publishArgs, { cwd: pkgDir })
     return
   }
 
@@ -121,7 +133,7 @@ function publishTypescript({ version, action }) {
   const configFile = join(configDir, '.npmrc')
   try {
     writeFileSync(configFile, npmAuthConfig(env.NPM_TOKEN))
-    run('npm', ['publish', '--access', 'public', '--userconfig', configFile], { cwd: pkgDir })
+    run('npm', [...publishArgs, '--userconfig', configFile], { cwd: pkgDir })
   } finally {
     rmSync(configDir, { recursive: true, force: true })
   }
@@ -134,9 +146,11 @@ async function main() {
   const lang = args[0]
   const dryRun = args.includes('--dry-run')
   const force = args.includes('--force')
+  const otpArg = args.find((a) => a.startsWith('--otp='))
+  const otp = otpArg ? otpArg.slice('--otp='.length) : undefined
 
   if (!SUPPORTED_LANGUAGES.includes(lang)) {
-    console.error(`usage: publish-sdk.mjs <${SUPPORTED_LANGUAGES.join('|')}> [--dry-run] [--force]`)
+    console.error(`usage: publish-sdk.mjs <${SUPPORTED_LANGUAGES.join('|')}> [--dry-run] [--force] [--otp=123456]`)
     return 1
   }
 
@@ -149,7 +163,7 @@ async function main() {
     return 0
   }
 
-  PUBLISHERS[lang]({ version, action })
+  PUBLISHERS[lang]({ version, action, otp })
 
   if (action === 'publish') console.log(`==> Published ${lang} v${version}`)
   return 0
