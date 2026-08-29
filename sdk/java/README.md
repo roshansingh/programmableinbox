@@ -1,19 +1,12 @@
 # ProgrammableInbox Java SDK
 
-Generated from `lib/openapi/email-inboxes.ts` using the `native` library option (`java.net.http`, no OkHttp/Retrofit dependency). Regenerate with `npm run sdk:generate` from the repo root — do not hand-edit anything else in this directory.
+[ProgrammableInbox](https://www.programmableinbox.com/) is a secondary inbox built for
+developers. Spin up a programmable email address in seconds, and it receives, categorizes, and
+extracts every message that arrives — grab a one-time code over the API, route mail with a rule,
+or read it in the dashboard. This is a typed client for its REST API, using the `native` library
+option (`java.net.http`, no OkHttp/Retrofit dependency).
 
 ## Install
-
-Not yet published to Maven Central. The release pipeline that publishes this now exists — see
-[`sdk/README.md`](../README.md#publishing) — but publishing is gated on a maintainer bumping the
-version in `pom.xml` and on Sonatype Central Portal namespace verification, tracked in
-[issue #130](https://github.com/roshansingh/programmableinbox/issues/130). Until then, from a checkout:
-
-```bash
-cd sdk/java && mvn install
-```
-
-then depend on it as:
 
 ```xml
 <dependency>
@@ -47,3 +40,9 @@ System.out.println(inboxes.getData());
 scope to one.
 
 The default base URL is `https://app.programmableinbox.com`; call `client.setBasePath("http://localhost:4000")` to point at a local dev server instead.
+
+## Links
+
+- [ProgrammableInbox](https://www.programmableinbox.com/)
+- [API docs](https://app.programmableinbox.com/api-docs)
+- [Source](https://github.com/roshansingh/programmableinbox)

@@ -1,11 +1,9 @@
 # ProgrammableInbox Go SDK
 
-Generated from `lib/openapi/email-inboxes.ts`. Regenerate with `npm run sdk:generate` from the repo root — do not hand-edit anything else in this directory.
-
-This module lives at `sdk/go` inside the `roshansingh/programmableinbox` monorepo rather than in a
-standalone repo, so its version isn't a field in a manifest like the other four SDKs — it's tracked
-in [`VERSION`](VERSION), and released as a `sdk/go/vX.Y.Z` git tag on the monorepo, Go's native
-convention for a subdirectory module. See `.github/workflows/release.yml`.
+[ProgrammableInbox](https://www.programmableinbox.com/) is a secondary inbox built for
+developers. Spin up a programmable email address in seconds, and it receives, categorizes, and
+extracts every message that arrives — grab a one-time code over the API, route mail with a rule,
+or read it in the dashboard. This is a typed client for its REST API.
 
 ## Install
 
@@ -13,10 +11,9 @@ convention for a subdirectory module. See `.github/workflows/release.yml`.
 go get github.com/roshansingh/programmableinbox/sdk/go
 ```
 
-Published via the tag-triggered release pipeline (`.github/workflows/release.yml`), gated on a
-maintainer bumping [`VERSION`](VERSION) — not yet released as of this writing. Until a
-`sdk/go/vX.Y.Z` tag exists, `go get` has nothing to resolve; use a `replace` directive in your own
-`go.mod` pointing at a local checkout of this repo's `sdk/go` directory instead.
+This module lives at `sdk/go` inside the `roshansingh/programmableinbox` monorepo, which is why
+the import path has that extra path segment — it's versioned via `sdk/go/vX.Y.Z` git tags on that
+repo rather than a standalone module.
 
 ## Quick start
 
@@ -44,3 +41,9 @@ func main() {
 ```
 
 The default host is `https://app.programmableinbox.com`; call `configuration.Servers[0] = programmableinbox.ServerConfiguration{URL: "http://localhost:4000"}` to point at a local dev server instead.
+
+## Links
+
+- [ProgrammableInbox](https://www.programmableinbox.com/)
+- [API docs](https://app.programmableinbox.com/api-docs)
+- [Source](https://github.com/roshansingh/programmableinbox)

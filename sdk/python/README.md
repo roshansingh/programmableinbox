@@ -1,17 +1,15 @@
 # ProgrammableInbox Python SDK
 
-Generated from `lib/openapi/email-inboxes.ts`. Regenerate with `npm run sdk:generate` from the repo root — do not hand-edit anything else in this directory.
+[ProgrammableInbox](https://www.programmableinbox.com/) is a secondary inbox built for developers.
+Spin up a programmable email address in seconds, and it receives, categorizes, and extracts every
+message that arrives — grab a one-time code over the API, route mail with a rule, or read it in
+the dashboard. This is a typed client for its REST API.
 
 ## Install
 
 ```bash
-pip install ./sdk/python
+pip install programmableinbox
 ```
-
-(From a checkout. The release pipeline that publishes this to PyPI now exists — see
-[`sdk/README.md`](../README.md#publishing) — but publishing is gated on a maintainer bumping the
-version in `pyproject.toml` and on PyPI registry provisioning, tracked in
-[issue #130](https://github.com/roshansingh/programmableinbox/issues/130); it hasn't happened yet.)
 
 ## Quick start
 
@@ -29,4 +27,11 @@ with programmableinbox.ApiClient(configuration) as api_client:
     print(inboxes.data)
 ```
 
-The default host is `https://app.programmableinbox.com`; pass `host=` to `Configuration` to point at a local dev server instead.
+The default host is `https://app.programmableinbox.com`; pass `host=` to `Configuration` to point
+at a local dev server instead.
+
+## Links
+
+- [ProgrammableInbox](https://www.programmableinbox.com/)
+- [API docs](https://app.programmableinbox.com/api-docs)
+- [Source](https://github.com/roshansingh/programmableinbox)
