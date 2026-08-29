@@ -1,6 +1,6 @@
 [project]
 name = "programmableinbox"
-version = "0.1.0"
+version = "0.1.2"
 description = "ProgrammableInbox Email Inboxes API"
 authors = [
   {name = "OpenAPI Generator Community",email = "team@openapitools.org"},

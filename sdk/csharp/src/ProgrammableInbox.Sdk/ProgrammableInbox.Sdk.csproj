@@ -12,7 +12,7 @@
     <Description>A library generated from a OpenAPI doc</Description>
     <Copyright>No Copyright</Copyright>
     <RootNamespace>ProgrammableInbox.Sdk</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.2</Version>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\ProgrammableInbox.Sdk.xml</DocumentationFile>
     <RepositoryUrl>https://github.com/roshansingh/programmableinbox.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

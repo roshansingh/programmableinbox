@@ -1,6 +1,6 @@
 {
   "name": "@programmableinbox/sdk",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "OpenAPI client for @programmableinbox/sdk",
   "author": "OpenAPI-Generator",
   "repository": {

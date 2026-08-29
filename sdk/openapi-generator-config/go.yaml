@@ -1,5 +1,5 @@
 packageName: programmableinbox
-packageVersion: 0.1.0
+packageVersion: 0.1.2
 gitUserId: roshansingh
 # The Go module lives at sdk/go inside this monorepo, not in a standalone
 # `programmableinbox-go` repo. openapi-generator's Go templates build the

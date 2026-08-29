@@ -1,5 +1,5 @@
 npmName: "@programmableinbox/sdk"
-npmVersion: 0.1.0
+npmVersion: 0.1.2
 supportsES6: true
 typescriptThreePlus: true
 # Without these, package.json's "repository" falls back to a literal

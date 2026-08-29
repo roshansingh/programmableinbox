@@ -1,6 +1,6 @@
 groupId: com.programmableinbox
 artifactId: sdk
-artifactVersion: 0.1.0
+artifactVersion: 0.1.2
 apiPackage: com.programmableinbox.sdk.api
 modelPackage: com.programmableinbox.sdk.model
 invokerPackage: com.programmableinbox.sdk
