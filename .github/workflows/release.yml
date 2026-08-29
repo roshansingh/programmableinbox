@@ -233,9 +233,15 @@ jobs:
     # contents: write is only for the Go leg's `git push origin` of the
     # sdk/go/vX.Y.Z tag (below) — every other language publishes to its own
     # package registry over a dedicated API token/secret, not via the GitHub
-    # API, so this is the narrowest grant that still covers all five.
+    # API, so this is the narrowest grant that still covers all five. id-token:
+    # write is only for the C# leg's NuGet Trusted Publishing exchange (NuGet/
+    # login@v1 below) — it lets that step request an OIDC token from GitHub;
+    # nuget.org verifies it against the trusted-publishing policy registered
+    # there and returns a short-lived (~1hr) API key, so no NUGET_API_KEY
+    # secret is stored. See https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing.
     permissions:
       contents: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -392,12 +398,26 @@ jobs:
         run: |
           dotnet pack sdk/csharp/src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj \
             -c Release -o sdk/csharp/nupkg
+      # Trusted Publishing (OIDC), not a stored NUGET_API_KEY: this job's
+      # id-token: write permission (above) lets this step request a signed
+      # token from GitHub, which NuGet/login exchanges for a short-lived
+      # (~1hr) API key after checking it against the trusted-publishing
+      # policy registered on nuget.org for this repo + this workflow file.
+      # NUGET_USER only needs to be the nuget.org profile username (not a
+      # secret credential in itself) — kept as a secret purely so it isn't
+      # hardcoded, per NuGet's own example.
+      - name: NuGet login (OIDC → temp API key)
+        id: nuget-login
+        if: matrix.lang == 'csharp' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
       - name: Publish to NuGet
         id: publish-csharp
         if: matrix.lang == 'csharp' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
         run: |
           dotnet nuget push sdk/csharp/nupkg/*.nupkg \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json
 
       # --- Go (git tag, no registry) --------------------------------------
