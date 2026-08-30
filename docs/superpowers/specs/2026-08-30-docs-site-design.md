@@ -42,13 +42,15 @@ from `sdk/openapi.json` (exported on demand from the committed
 Rationale (full comparison and research trail discussed in conversation, not
 reproduced here):
 
-- The OpenAPI plugin generates per-endpoint pages with **code samples in
-  curl, Python, Go, Node.js, Java, and C#** — an exact match for the five
-  languages the project already ships SDKs for. curl uses the plugin's
-  built-in generic HTTP sample; the other five are overridden per operation
-  with the `x-codeSamples` vendor extension to show actual SDK usage (the
-  real generated client call) rather than a generic HTTP-library snippet —
-  see Content architecture, API Reference, below.
+- The OpenAPI plugin generates per-endpoint pages with **six code-sample
+  tabs: curl, Python, Go, Node.js, Java, and C#**. Four of those —
+  Python, Go, Node.js, and C# — are overridden per operation with the
+  `x-codeSamples` vendor extension to show actual SDK usage (the real
+  generated client call) rather than a generic HTTP-library snippet. curl
+  and Java both keep the plugin's generic, auto-generated sample: curl
+  because there's no SDK for raw HTTP, Java because its SDK's publishing
+  leg is currently disabled — only Python, Go, TypeScript, and C# are
+  actually published today. See Content architecture, API Reference, below.
 - Fully static output deploys to GitHub Pages for free, indefinitely, with a
   single DNS record — no vendor ToS risk. (Vercel's free Hobby tier is
   contractually non-commercial-use-only, which conflicts with this project's
@@ -107,21 +109,26 @@ Sidebar structure, in order, with source material noted:
      ("Email Inboxes"); the plugin groups by OpenAPI tag automatically, so
      new tags create new sidebar categories with no docs-side change needed
      as the API grows.
-   - Code samples per operation: curl uses the plugin's generic HTTP sample;
-     Python, Go, Node.js, Java, and C# each show the real SDK call instead,
-     via an `x-codeSamples` array added to every operation in
-     `lib/openapi/email-inboxes.ts` (the source `sdk/openapi.json` is
+   - Code samples per operation: curl and Java both use the plugin's generic
+     HTTP sample (curl has no SDK to show; Java's SDK isn't currently
+     published — see below). Python, Go, Node.js, and C# each show the real
+     SDK call instead, via an `x-codeSamples` array added to every operation
+     in `lib/openapi/email-inboxes.ts` (the source `sdk/openapi.json` is
      exported from — see OpenAPI reference generation). Each sample is
      written against that language's actual generated client, not a
      hand-guessed approximation — the SDK sources under `sdk/<language>/`
      are the reference for exact method names and call shape.
 
 5. **SDKs**
-   - Overview / install matrix (all five languages at a glance)
-   - One page each: Python, Go, TypeScript, Java, C# — install, auth, one
-     runnable example, link into the API Reference. Source: `sdk/README.md`
-     and the per-SDK generated READMEs, rewritten for this audience rather
-     than copied verbatim (the generated READMEs are written for a package
+   - Overview / install matrix — **Python, Go, TypeScript, and C# only.**
+     The Java SDK exists in the repo but its publishing leg is currently
+     disabled in the release pipeline, so it isn't actually installable;
+     documenting it as available would send a reader to a package that
+     doesn't exist. Add its page back once Java publishing resumes.
+   - One page each: Python, Go, TypeScript, C# — install, auth, one runnable
+     example, link into the API Reference. Source: `sdk/README.md` and the
+     per-SDK generated READMEs, rewritten for this audience rather than
+     copied verbatim (the generated READMEs are written for a package
      registry reader, not a docs reader).
 
 6. **MCP**
@@ -233,9 +240,9 @@ missing at launch, and swap to DocSearch when the application is approved.
 - `npm run build` inside `website/` must succeed with zero broken links
   (Docusaurus's `onBrokenLinks: 'throw'` config, set from the start).
 - Manual review of the generated API reference pages against the live spec
-  (8 operations, correct request/response schemas, all 6 code-sample
-  languages render, and the five SDK-backed languages show the real client
-  call rather than a generic HTTP snippet).
+  (8 operations, correct request/response schemas, all 6 code-sample tabs
+  render, and the four SDK-backed languages — Python, Go, Node.js, C# —
+  show the real client call rather than a generic HTTP snippet).
 - Because `lib/openapi/email-inboxes.ts` is main-app source, not `website/`
   content, the root `npm run test` suite runs after any change to it — the
   same pre-PR requirement as any other app-code change.
