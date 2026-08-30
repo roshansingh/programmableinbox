@@ -62,6 +62,15 @@ const sidebars: SidebarsConfig = {
         'mcp/tool-reference',
       ],
     },
+    {
+      type: 'category',
+      label: 'Reference',
+      items: [
+        'reference/response-envelope-and-errors',
+        'reference/rate-limits',
+        'reference/changelog',
+      ],
+    },
   ],
 };
 
