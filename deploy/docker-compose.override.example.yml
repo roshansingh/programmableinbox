@@ -5,7 +5,7 @@
 services:
   app:
     # Pin to a specific GHCR digest to opt out of `:latest` mutability:
-    # image: ghcr.io/your-org/inboxui@sha256:abc123...
+    # image: ghcr.io/your-org/programmableinbox@sha256:abc123...
     deploy:
       resources:
         limits:

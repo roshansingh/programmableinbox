@@ -24,7 +24,7 @@ import { config, ConfigError } from '@/lib/config'
  * production bundles too, not just a dev-server artifact.
  */
 const globalForPostHog = globalThis as unknown as {
-  __inboxuiPostHogClient?: PostHog
+  __programmableinboxPostHogClient?: PostHog
 }
 
 /**
@@ -41,8 +41,8 @@ const globalForPostHog = globalThis as unknown as {
  * constructed with an empty key.
  */
 export function getPostHogClient(): PostHog {
-  if (globalForPostHog.__inboxuiPostHogClient) {
-    return globalForPostHog.__inboxuiPostHogClient
+  if (globalForPostHog.__programmableinboxPostHogClient) {
+    return globalForPostHog.__programmableinboxPostHogClient
   }
 
   const { apiKey, host } = config.productAnalytics
@@ -60,11 +60,11 @@ export function getPostHogClient(): PostHog {
     )
   }
 
-  globalForPostHog.__inboxuiPostHogClient = new PostHog(apiKey, { host })
-  return globalForPostHog.__inboxuiPostHogClient
+  globalForPostHog.__programmableinboxPostHogClient = new PostHog(apiKey, { host })
+  return globalForPostHog.__programmableinboxPostHogClient
 }
 
 /** Reset the memoised client. Tests only. */
 export function resetPostHogClient(): void {
-  globalForPostHog.__inboxuiPostHogClient = undefined
+  globalForPostHog.__programmableinboxPostHogClient = undefined
 }

@@ -18,15 +18,15 @@ RUN chmod 0755 /usr/local/bin/walg-archive-wrapper
 # Least-privileged role model (issue #41). The SQL is the single source of
 # truth; the wrapper is invoked both by the initdb hook below and, for clusters
 # that are already initialised, by deploy/scripts/pg-apply-least-privilege.sh.
-COPY least-privilege-roles.sql /usr/local/share/inboxui/least-privilege-roles.sql
-COPY apply-least-privilege.sh /usr/local/bin/inboxui-apply-least-privilege
+COPY least-privilege-roles.sql /usr/local/share/programmableinbox/least-privilege-roles.sql
+COPY apply-least-privilege.sh /usr/local/bin/programmableinbox-apply-least-privilege
 # ⚠️  /docker-entrypoint-initdb.d runs ONLY on a first-time init (empty PGDATA).
 #     Existing deployments must be converted explicitly — see
 #     deploy/runbooks/04-postgres-role-rotation.md.
 COPY initdb/10-least-privilege-roles.sh /docker-entrypoint-initdb.d/10-least-privilege-roles.sh
-RUN chmod 0755 /usr/local/bin/inboxui-apply-least-privilege \
+RUN chmod 0755 /usr/local/bin/programmableinbox-apply-least-privilege \
                /docker-entrypoint-initdb.d/10-least-privilege-roles.sh \
- && chmod 0644 /usr/local/share/inboxui/least-privilege-roles.sql
+ && chmod 0644 /usr/local/share/programmableinbox/least-privilege-roles.sql
 
 # docker-compose.yml passes `command: postgres -c config_file=...` so the
 # custom config is loaded at startup.

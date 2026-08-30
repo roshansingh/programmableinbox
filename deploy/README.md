@@ -1,6 +1,6 @@
 # Deployment — operator's guide
 
-Step-by-step guide to stand up **inboxui** on a single OVH box: all services in Docker Compose, self-hosted Postgres with continuous WAL archiving and point-in-time recovery to Backblaze B2, a Redis-backed async webhook worker, Caddy for TLS, and external monitoring via Uptime Kuma on PikaPods.
+Step-by-step guide to stand up **programmableinbox** on a single OVH box: all services in Docker Compose, self-hosted Postgres with continuous WAL archiving and point-in-time recovery to Backblaze B2, a Redis-backed async webhook worker, Caddy for TLS, and external monitoring via Uptime Kuma on PikaPods.
 
 Design rationale: [`docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision-design.md`](../docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision-design.md).
 
@@ -9,11 +9,11 @@ Design rationale: [`docs/superpowers/specs/2026-07-10-ovh-b2-deployment-revision
 | Container | Image | Purpose |
 |---|---|---|
 | `caddy` | `caddy:2-alpine` | TLS termination + single ingress (80/443), auto Let's Encrypt |
-| `app` | `ghcr.io/<owner>/inboxui` | Next.js server on :4000 (intended to host the in-process webhook worker — see Part 8) |
+| `app` | `ghcr.io/<owner>/programmableinbox` | Next.js server on :4000 (intended to host the in-process webhook worker — see Part 8) |
 | `migrate` | same as app (profile `migrate`) | One-shot `prisma migrate deploy`, run as the schema-owner role (see [Database roles](#database-roles)) |
-| `postgres` | `ghcr.io/<owner>/inboxui-postgres:17` | Database + WAL-G binary, WAL archiving to B2 |
+| `postgres` | `ghcr.io/<owner>/programmableinbox-postgres:17` | Database + WAL-G binary, WAL archiving to B2 |
 | `redis` | `redis:7-alpine` | BullMQ queue backing async webhook processing |
-| `backup-cron` | `ghcr.io/<owner>/inboxui-backup` | Base backups, pg_dump, retention, heartbeats |
+| `backup-cron` | `ghcr.io/<owner>/programmableinbox-backup` | Base backups, pg_dump, retention, heartbeats |
 
 External dependencies: **Backblaze B2** (backups), **Uptime Kuma on PikaPods** (monitoring), **GHCR** (images), **Resend** (inbound email webhooks).
 
@@ -28,27 +28,27 @@ The application does **not** connect to Postgres as a superuser. Four roles, wit
 | Role | Attributes | What it may do | Who uses it |
 |---|---|---|---|
 | `$POSTGRES_USER` (bootstrap) | `SUPERUSER` | everything; owns the database | the image entrypoint, and break-glass `docker compose exec` only — **no service connects as it** |
-| `inboxui_migrator` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | owns schema `public` and every object in it; `CONNECT` + `CREATE` on the database, so it can run DDL and install *trusted* extensions | the one-shot `migrate` service, via `MIGRATE_DATABASE_URL` |
-| `inboxui_app` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `USAGE` on schema `public`; `SELECT/INSERT/UPDATE/DELETE` on its tables; `USAGE, SELECT` on its sequences | the `app` container, via `DATABASE_URL` |
-| `inboxui_backup` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `pg_read_all_data` (read everything, for `pg_dump`), `pg_read_all_settings`, `pg_read_all_stats`, EXECUTE on the backup-control functions, and write access to `backup_status` — nothing else | `backup-cron`, via `POSTGRES_BACKUP_USER` |
+| `programmableinbox_migrator` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | owns schema `public` and every object in it; `CONNECT` + `CREATE` on the database, so it can run DDL and install *trusted* extensions | the one-shot `migrate` service, via `MIGRATE_DATABASE_URL` |
+| `programmableinbox_app` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `USAGE` on schema `public`; `SELECT/INSERT/UPDATE/DELETE` on its tables; `USAGE, SELECT` on its sequences | the `app` container, via `DATABASE_URL` |
+| `programmableinbox_backup` | `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS` | `pg_read_all_data` (read everything, for `pg_dump`), `pg_read_all_settings`, `pg_read_all_stats`, EXECUTE on the backup-control functions, and write access to `backup_status` — nothing else | `backup-cron`, via `POSTGRES_BACKUP_USER` |
 
 The runtime role cannot `COPY … TO PROGRAM` (host command execution), cannot `pg_read_file`, cannot disable RLS, cannot create roles and cannot drop the database. An SQL-injection or app-level compromise is confined to the data it was already allowed to read and write.
 
-**Why new migrations don't break the app.** Tables created by a future migration are owned by `inboxui_migrator`, and a new table grants nothing to anyone. Without help, the deploy would go green and the app would then throw `permission denied for table <new_table>`. `deploy/postgres/least-privilege-roles.sql` prevents that with:
+**Why new migrations don't break the app.** Tables created by a future migration are owned by `programmableinbox_migrator`, and a new table grants nothing to anyone. Without help, the deploy would go green and the app would then throw `permission denied for table <new_table>`. `deploy/postgres/least-privilege-roles.sql` prevents that with:
 
 ```sql
-ALTER DEFAULT PRIVILEGES FOR ROLE inboxui_migrator IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO inboxui_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE inboxui_migrator IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO inboxui_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE programmableinbox_migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO programmableinbox_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE programmableinbox_migrator IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO programmableinbox_app;
 ```
 
-Default privileges are keyed on the **creating role**, which is the reason migrations must always run as `inboxui_migrator` and never by hand as the superuser. (A duplicate set is registered for the bootstrap role as a safety net if someone does anyway.)
+Default privileges are keyed on the **creating role**, which is the reason migrations must always run as `programmableinbox_migrator` and never by hand as the superuser. (A duplicate set is registered for the bootstrap role as a safety net if someone does anyway.)
 
 The role model is created automatically by the postgres image's `/docker-entrypoint-initdb.d` hook — but:
 
 > ⚠️ **`/docker-entrypoint-initdb.d` runs only when `PGDATA` is empty.** Deploying this
-> image over an existing `/srv/inboxui/pgdata` creates nothing and warns about nothing.
+> image over an existing `/srv/programmableinbox/pgdata` creates nothing and warns about nothing.
 > Converting an already-running cluster is a deliberate operator action:
 > `deploy/scripts/pg-apply-least-privilege.sh`, documented step by step in
 > [`runbooks/04-postgres-role-rotation.md`](runbooks/04-postgres-role-rotation.md).
@@ -77,11 +77,11 @@ Set these up before touching the box:
 SSH in as root and run the bootstrap script:
 
 ```bash
-git clone https://github.com/OWNER/inboxui /tmp/inboxui
-sudo bash /tmp/inboxui/deploy/scripts/bootstrap.sh
+git clone https://github.com/OWNER/programmableinbox /tmp/programmableinbox
+sudo bash /tmp/programmableinbox/deploy/scripts/bootstrap.sh
 ```
 
-This installs Docker, creates the non-root `deploy` user (in the `docker` group), creates `/srv/inboxui/{pgdata,redis,backup-logs,secrets}`, and configures `ufw` (22/80/443). Add the OVH Network Firewall with the same rules as a second layer, and set up Tailscale for SSH before dropping public SSH.
+This installs Docker, creates the non-root `deploy` user (in the `docker` group), creates `/srv/programmableinbox/{pgdata,redis,backup-logs,secrets}`, and configures `ufw` (22/80/443). Add the OVH Network Firewall with the same rules as a second layer, and set up Tailscale for SSH before dropping public SSH.
 
 ---
 
@@ -96,14 +96,14 @@ This installs Docker, creates the non-root `deploy` user (in the `docker` group)
 
 ## Part 3 — Secrets (`app.env`)
 
-As the `deploy` user, create `/srv/inboxui/secrets/app.env` (mode `0600`). The full key list is in the design spec's §2; the essentials:
+As the `deploy` user, create `/srv/programmableinbox/secrets/app.env` (mode `0600`). The full key list is in the design spec's §2; the essentials:
 
 ```bash
-sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/app.env <<'EOF'
+sudo -u deploy install -m 0600 /dev/stdin /srv/programmableinbox/secrets/app.env <<'EOF'
 # App runtime
 DOMAIN=inbox.example.com
-DATABASE_URL=postgresql://inboxui_app:<app-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
-MIGRATE_DATABASE_URL=postgresql://inboxui_migrator:<migrator-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
+DATABASE_URL=postgresql://programmableinbox_app:<app-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
+MIGRATE_DATABASE_URL=postgresql://programmableinbox_migrator:<migrator-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
 JWT_SECRET=<random>
 WEBHOOK_SECRET=<resend-webhook-hmac>
 AUTH_RESEND_API_KEY=
@@ -126,7 +126,7 @@ ENABLE_ASYNC_WEBHOOK_PROCESSING=false
 REDIS_URL=redis://redis:6379
 # Postgres — bootstrap superuser. Created by the image entrypoint; NOTHING
 # connects as it (break-glass only). Do not reuse this password anywhere else.
-POSTGRES_DB=inboxui
+POSTGRES_DB=programmableinbox
 POSTGRES_USER=postgres_admin
 POSTGRES_PASSWORD=<superuser-pw>
 # Postgres — least-privileged roles (see "Database roles" above). The initdb
@@ -135,9 +135,9 @@ POSTGRES_PASSWORD=<superuser-pw>
 POSTGRES_APP_PASSWORD=<app-pw>            # must match DATABASE_URL
 POSTGRES_MIGRATOR_PASSWORD=<migrator-pw>  # must match MIGRATE_DATABASE_URL
 POSTGRES_BACKUP_PASSWORD=<backup-pw>
-POSTGRES_APP_USER=inboxui_app             # optional, this is the default
-POSTGRES_MIGRATOR_USER=inboxui_migrator   # optional, this is the default
-POSTGRES_BACKUP_USER=inboxui_backup       # optional, this is the default
+POSTGRES_APP_USER=programmableinbox_app             # optional, this is the default
+POSTGRES_MIGRATOR_USER=programmableinbox_migrator   # optional, this is the default
+POSTGRES_BACKUP_USER=programmableinbox_backup       # optional, this is the default
 # WAL-G → B2
 WALG_S3_PREFIX=s3://<walg-bucket>/walg
 AWS_ENDPOINT=https://s3.<region>.backblazeb2.com
@@ -164,20 +164,20 @@ The source of truth for this file is your password manager — **never commit it
 ## Part 4 — Copy compose files & pick your images
 
 ```bash
-sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/scripts/initial_deploy.sh /srv/inboxui/
-sudo chown -R deploy:deploy /srv/inboxui/
-sudo chmod +x /srv/inboxui/initial_deploy.sh
+sudo cp /tmp/programmableinbox/deploy/docker-compose.yml /srv/programmableinbox/
+sudo cp /tmp/programmableinbox/deploy/Caddyfile /srv/programmableinbox/
+sudo cp /tmp/programmableinbox/deploy/scripts/initial_deploy.sh /srv/programmableinbox/
+sudo chown -R deploy:deploy /srv/programmableinbox/
+sudo chmod +x /srv/programmableinbox/initial_deploy.sh
 ```
 
-The compose file references `ghcr.io/OWNER/…` images. Point them at your GHCR namespace by creating `/srv/inboxui/.env` (used by compose for variable substitution — distinct from `secrets/app.env`):
+The compose file references `ghcr.io/OWNER/…` images. Point them at your GHCR namespace by creating `/srv/programmableinbox/.env` (used by compose for variable substitution — distinct from `secrets/app.env`):
 
 ```bash
-sudo -u deploy tee /srv/inboxui/.env >/dev/null <<'EOF'
-APP_IMAGE=ghcr.io/<owner>/inboxui
-POSTGRES_IMAGE=ghcr.io/<owner>/inboxui-postgres
-BACKUP_IMAGE=ghcr.io/<owner>/inboxui-backup
+sudo -u deploy tee /srv/programmableinbox/.env >/dev/null <<'EOF'
+APP_IMAGE=ghcr.io/<owner>/programmableinbox
+POSTGRES_IMAGE=ghcr.io/<owner>/programmableinbox-postgres
+BACKUP_IMAGE=ghcr.io/<owner>/programmableinbox-backup
 IMAGE_TAG=latest
 POSTGRES_TAG=17
 BACKUP_TAG=latest
@@ -190,30 +190,30 @@ Images are built and pushed to GHCR by CI on push to `main` (`.github/workflows/
 
 ## Part 5 — First bring-up
 
-Run as the `deploy` user from `/srv/inboxui`:
+Run as the `deploy` user from `/srv/programmableinbox`:
 
 ```bash
 docker compose pull
 
 # 1. Database first. On an EMPTY pgdata this also runs the initdb hook that
-#    creates inboxui_app / inboxui_migrator / inboxui_backup.
+#    creates programmableinbox_app / programmableinbox_migrator / programmableinbox_backup.
 docker compose up -d postgres
 docker compose ps            # wait until postgres is "healthy"
-docker compose logs postgres | grep '\[inboxui\]'   # confirm the roles were created
+docker compose logs postgres | grep '\[programmableinbox\]'   # confirm the roles were created
 
 # 2. Confirm WAL archiving to B2 works
 docker compose exec postgres wal-g backup-list   # should succeed with an empty list
 
-# 3. Run migrations (one-shot; runs as inboxui_migrator via MIGRATE_DATABASE_URL)
+# 3. Run migrations (one-shot; runs as programmableinbox_migrator via MIGRATE_DATABASE_URL)
 docker compose run --rm migrate
 
 # 4. Grant the backup role write access to `backup_status`, which only exists
 #    once step 3 has created it. Idempotent; skip it and the backup cron will
 #    log "permission denied for table backup_status" every 5 minutes.
-sudo cp /tmp/inboxui/deploy/scripts/pg-apply-least-privilege.sh /srv/inboxui/
-sudo chown deploy:deploy /srv/inboxui/pg-apply-least-privilege.sh
-sudo chmod +x /srv/inboxui/pg-apply-least-privilege.sh
-/srv/inboxui/pg-apply-least-privilege.sh
+sudo cp /tmp/programmableinbox/deploy/scripts/pg-apply-least-privilege.sh /srv/programmableinbox/
+sudo chown deploy:deploy /srv/programmableinbox/pg-apply-least-privilege.sh
+sudo chmod +x /srv/programmableinbox/pg-apply-least-privilege.sh
+/srv/programmableinbox/pg-apply-least-privilege.sh
 
 # 5. Bring up the rest
 docker compose up -d         # app, caddy, redis, backup-cron
@@ -287,15 +287,15 @@ file, not `app.env` — it's a third-party image with a read-only mount over
 every container's log history, so it only gets the two vars it actually
 needs rather than `JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
 
-    sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/otel-collector.env <<'EOF'
+    sudo -u deploy install -m 0600 /dev/stdin /srv/programmableinbox/secrets/otel-collector.env <<'EOF'
     OTEL_EXPORTER_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
     OTEL_EXPORTER_AUTH=Basic <base64 of instanceID:apiToken>
-    OTEL_SERVICE_NAME=inboxui
+    OTEL_SERVICE_NAME=programmableinbox
     EOF
 
 Then add the app's half — `ENABLE_OBSERVABILITY` and the `OTEL_EXPORTER_OTLP_*` vars (pointed at
 the collector on the internal network, not at your OTLP backend directly) — from the
-"Observability" section of `.env.example` to `/srv/inboxui/secrets/app.env` from Part 3. Then:
+"Observability" section of `.env.example` to `/srv/programmableinbox/secrets/app.env` from Part 3. Then:
 
     sudo -u deploy docker compose -f docker-compose.yml --profile observability up -d
 
@@ -316,7 +316,7 @@ If `otel-collector.yaml` itself changed and the `observability` profile is alrea
 **Rollback** to a known-good image (uses the manual `initial_deploy.sh`, kept in sync on the box by CI):
 
 ```bash
-IMAGE_TAG=<previous-sha> /srv/inboxui/initial_deploy.sh <previous-sha>
+IMAGE_TAG=<previous-sha> /srv/programmableinbox/initial_deploy.sh <previous-sha>
 ```
 
 ---

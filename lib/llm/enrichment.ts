@@ -4,7 +4,7 @@ import { CommercialProvider } from '@/lib/commercial/provider'
 import logger from '@/lib/logger'
 import { getProvider } from './factory'
 
-const tracer = trace.getTracer('inboxui.llm')
+const tracer = trace.getTracer('programmableinbox.llm')
 
 /**
  * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
@@ -17,10 +17,10 @@ const tracer = trace.getTracer('inboxui.llm')
  */
 export async function enrichMessage(messageId: string): Promise<boolean> {
   return tracer.startActiveSpan('llm.enrich_message', async (span) => {
-    span.setAttribute('inboxui.message_id', messageId)
+    span.setAttribute('programmableinbox.message_id', messageId)
     try {
       const settled = await enrichMessageInner(messageId)
-      span.setAttribute('inboxui.enrichment.settled', settled)
+      span.setAttribute('programmableinbox.enrichment.settled', settled)
       if (!settled) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: 'enrichment failed transiently' })
       }

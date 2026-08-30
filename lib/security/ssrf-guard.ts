@@ -233,7 +233,7 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
 /**
  * Headers that survive a cross-origin redirect. Everything else — including
- * the tenant's custom headers and the `x-inboxui-signing-secret` — is dropped,
+ * the tenant's custom headers and the `x-programmableinbox-signing-secret` — is dropped,
  * so a redirect cannot be used to harvest a webhook secret.
  */
 const CROSS_ORIGIN_SAFE_HEADERS = new Set(['accept', 'accept-encoding', 'content-type', 'user-agent'])

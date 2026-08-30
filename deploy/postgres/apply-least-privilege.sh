@@ -8,7 +8,7 @@
 # `docker compose exec` wrapper around this file plus some preflight checks —
 # the two are not duplicates of each other.
 #
-# Installed into the postgres image as /usr/local/bin/inboxui-apply-least-privilege
+# Installed into the postgres image as /usr/local/bin/programmableinbox-apply-least-privilege
 # and run from two places:
 #
 #   * /docker-entrypoint-initdb.d/10-least-privilege-roles.sh, i.e. once, on a
@@ -19,24 +19,24 @@
 # It is idempotent — running it repeatedly is expected and supported. It is
 # also how the three role passwords are rotated.
 #
-# Required env (all normally live in /srv/inboxui/secrets/app.env):
+# Required env (all normally live in /srv/programmableinbox/secrets/app.env):
 #   POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD   bootstrap superuser
 #   POSTGRES_APP_PASSWORD                           runtime role
 #   POSTGRES_MIGRATOR_PASSWORD                      DDL/owner role
 #   POSTGRES_BACKUP_PASSWORD                        backup role
 #
 # Optional env (defaults shown):
-#   POSTGRES_APP_USER=inboxui_app
-#   POSTGRES_MIGRATOR_USER=inboxui_migrator
-#   POSTGRES_BACKUP_USER=inboxui_backup
+#   POSTGRES_APP_USER=programmableinbox_app
+#   POSTGRES_MIGRATOR_USER=programmableinbox_migrator
+#   POSTGRES_BACKUP_USER=programmableinbox_backup
 #   PGHOST=/var/run/postgresql
 # ===========================================================================
 set -euo pipefail
 
-SQL_FILE="${INBOXUI_ROLE_SQL:-/usr/local/share/inboxui/least-privilege-roles.sql}"
+SQL_FILE="${PROGRAMMABLEINBOX_ROLE_SQL:-/usr/local/share/programmableinbox/least-privilege-roles.sql}"
 
 die() {
-  printf '[inboxui] ERROR: %s\n' "$*" >&2
+  printf '[programmableinbox] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -53,9 +53,9 @@ for var in POSTGRES_DB POSTGRES_USER \
   require "$var"
 done
 
-APP_ROLE="${POSTGRES_APP_USER:-inboxui_app}"
-MIGRATOR_ROLE="${POSTGRES_MIGRATOR_USER:-inboxui_migrator}"
-BACKUP_ROLE="${POSTGRES_BACKUP_USER:-inboxui_backup}"
+APP_ROLE="${POSTGRES_APP_USER:-programmableinbox_app}"
+MIGRATOR_ROLE="${POSTGRES_MIGRATOR_USER:-programmableinbox_migrator}"
+BACKUP_ROLE="${POSTGRES_BACKUP_USER:-programmableinbox_backup}"
 
 # A least-privileged role that collides with the bootstrap superuser would be a
 # no-op at best and would hand the app superuser at worst. Refuse.
@@ -69,7 +69,7 @@ done
 
 # Secrets are handed to psql through a 0600 temp file of \set commands rather
 # than `psql -v name=value`, so they never appear in the process table.
-VARS_FILE="$(umask 077 && mktemp "${TMPDIR:-/tmp}/inboxui-pgvars.XXXXXX")"
+VARS_FILE="$(umask 077 && mktemp "${TMPDIR:-/tmp}/programmableinbox-pgvars.XXXXXX")"
 trap 'rm -f "$VARS_FILE"' EXIT
 
 # psql's \set takes a single-quoted literal; double any embedded single quote.
@@ -110,7 +110,7 @@ case "$PGHOST" in
     ;;
 esac
 
-printf '[inboxui] applying %s to database %s as %s\n' "$SQL_FILE" "$POSTGRES_DB" "$POSTGRES_USER"
+printf '[programmableinbox] applying %s to database %s as %s\n' "$SQL_FILE" "$POSTGRES_DB" "$POSTGRES_USER"
 
 psql \
   --no-psqlrc \

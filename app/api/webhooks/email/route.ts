@@ -73,7 +73,7 @@ async function determineThreading(email: ResendEmailData, dbId: string, inboxId:
   // Use the top-level message_id from Resend, or the Message-ID header, or generate a fallback
   const emailMessageId = email.message_id
     || getHeader(email.headers, 'message-id')
-    || `<${email.id}@inboxui.generated>`
+    || `<${email.id}@programmableinbox.generated>`
   const storedMessageId = `${emailMessageId}::${inboxId}`
   const inReplyTo = getHeader(email.headers, 'in-reply-to')
   const referencesHeader = getHeader(email.headers, 'references') || ''

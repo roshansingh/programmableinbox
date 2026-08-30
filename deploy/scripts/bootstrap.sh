@@ -4,7 +4,7 @@
 set -euo pipefail
 
 DEPLOY_USER=deploy
-SRV_DIR=/srv/inboxui
+SRV_DIR=/srv/programmableinbox
 
 if [[ $EUID -ne 0 ]]; then
   echo "Must run as root"; exit 1

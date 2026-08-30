@@ -152,7 +152,7 @@ processors:
   # either of those key names, so the combination is what actually scopes
   # this to app log lines — without it, every other container's logs
   # (postgres, caddy, redis, ...) would also get stamped
-  # `service.name=inboxui`, making e.g. a Caddy TLS error indistinguishable
+  # `service.name=programmableinbox`, making e.g. a Caddy TLS error indistinguishable
   # from an app error in the backend.
   #
   # trace_id/span_id: promotes the JSON fields injected by

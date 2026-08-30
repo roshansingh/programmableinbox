@@ -15,18 +15,18 @@
 SSH in as root and:
 
 ```bash
-git clone https://github.com/OWNER/inboxui /tmp/inboxui
-sudo bash /tmp/inboxui/deploy/scripts/bootstrap.sh
+git clone https://github.com/OWNER/programmableinbox /tmp/programmableinbox
+sudo bash /tmp/programmableinbox/deploy/scripts/bootstrap.sh
 ```
 
-This installs Docker, creates the `deploy` user, sets up `/srv/inboxui/`, and configures `ufw`.
+This installs Docker, creates the `deploy` user, sets up `/srv/programmableinbox/`, and configures `ufw`.
 
 ## 3. Restore secrets
 
 From your password manager (1Password / Bitwarden — source of truth, **not git**):
 
 ```bash
-sudo -u deploy install -m 0600 /dev/stdin /srv/inboxui/secrets/app.env <<EOF
+sudo -u deploy install -m 0600 /dev/stdin /srv/programmableinbox/secrets/app.env <<EOF
 # paste contents from password manager
 EOF
 ```
@@ -34,24 +34,24 @@ EOF
 ## 4. Restore the database
 
 ```bash
-sudo cp /tmp/inboxui/deploy/docker-compose.yml /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/Caddyfile /srv/inboxui/
-sudo cp /tmp/inboxui/deploy/scripts/initial_deploy.sh /srv/inboxui/
-sudo chmod +x /srv/inboxui/initial_deploy.sh
-sudo chown -R deploy:deploy /srv/inboxui/
+sudo cp /tmp/programmableinbox/deploy/docker-compose.yml /srv/programmableinbox/
+sudo cp /tmp/programmableinbox/deploy/Caddyfile /srv/programmableinbox/
+sudo cp /tmp/programmableinbox/deploy/scripts/initial_deploy.sh /srv/programmableinbox/
+sudo chmod +x /srv/programmableinbox/initial_deploy.sh
+sudo chown -R deploy:deploy /srv/programmableinbox/
 
 sudo -u deploy bash <<'EOS'
-cd /srv/inboxui
+cd /srv/programmableinbox
 docker compose pull postgres
 docker compose up -d postgres   # starts with empty pgdata
 sleep 10
 docker compose exec postgres wal-g backup-fetch /var/lib/postgresql/data LATEST
 
-sudo tee /srv/inboxui/pgdata/postgresql.auto.conf >/dev/null <<'CFG'
+sudo tee /srv/programmableinbox/pgdata/postgresql.auto.conf >/dev/null <<'CFG'
 restore_command = 'wal-g wal-fetch %f %p'
 recovery_target_action = 'promote'
 CFG
-sudo touch /srv/inboxui/pgdata/recovery.signal
+sudo touch /srv/programmableinbox/pgdata/recovery.signal
 docker compose restart postgres
 EOS
 ```
@@ -106,7 +106,7 @@ Fall back to the last restic `pg_dump`. This loses up to 24h of writes (the wors
 ```bash
 # From the backup-cron container with restic env configured (B2 backend):
 restic snapshots --tag pgdump
-restic dump latest inboxui-<ts>.pgdump > /tmp/restore.pgdump
+restic dump latest programmableinbox-<ts>.pgdump > /tmp/restore.pgdump
 PGPASSWORD=$POSTGRES_PASSWORD pg_restore \
   --host=postgres --username=$POSTGRES_USER --dbname=$POSTGRES_DB \
   --clean --if-exists --no-owner --no-privileges \

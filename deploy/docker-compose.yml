@@ -1,7 +1,7 @@
-name: inboxui
+name: programmableinbox
 
 networks:
-  inboxui-internal:
+  programmableinbox-internal:
     driver: bridge
 
 volumes:
@@ -26,21 +26,21 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     depends_on:
       - app
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/programmableinbox/programmableinbox}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     # DATABASE_URL in app.env MUST point at the least-privileged runtime role
-    # (inboxui_app): DML only, no DDL, not a superuser. See deploy/README.md
+    # (programmableinbox_app): DML only, no DDL, not a superuser. See deploy/README.md
     # §"Database roles" and deploy/runbooks/04-postgres-role-rotation.md.
-    env_file: /srv/inboxui/secrets/app.env
+    env_file: /srv/programmableinbox/secrets/app.env
     expose:
       - "4000"
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,7 +73,7 @@ services:
     # history, so it gets only what it needs (the real OTLP backend
     # credentials) rather than app.env's full JWT_SECRET/WEBHOOK_SECRET/
     # DATABASE_URL/AUTH_* set. See deploy/README.md Part 9.
-    env_file: /srv/inboxui/secrets/otel-collector.env
+    env_file: /srv/programmableinbox/secrets/otel-collector.env
     volumes:
       - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
       - otel-collector-storage:/var/lib/otelcol/file_storage
@@ -82,7 +82,7 @@ services:
       # ingestion path instead of an in-process OTLP push from the app.
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     # Not published to the host and not exposed to any other network — only
     # reachable from `app`, over the internal bridge, by service name.
     expose:
@@ -90,16 +90,16 @@ services:
       - "4318"
 
   migrate:
-    image: ${APP_IMAGE:-ghcr.io/programmableinbox/inboxui}:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/programmableinbox/programmableinbox}:${IMAGE_TAG:-latest}
     profiles: ["migrate"]
-    env_file: /srv/inboxui/secrets/app.env
+    env_file: /srv/programmableinbox/secrets/app.env
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     depends_on:
       postgres:
         condition: service_healthy
     # Migrations are the ONLY thing that runs DDL, and they run as the schema
-    # owner (inboxui_migrator) — never as the app's runtime role and never as a
+    # owner (programmableinbox_migrator) — never as the app's runtime role and never as a
     # superuser. app.env carries both URLs; DATABASE_URL is the runtime one, so
     # it is swapped for MIGRATE_DATABASE_URL here (Prisma only reads
     # DATABASE_URL, via prisma.config.ts). `$$` is escaped so compose passes the
@@ -117,19 +117,19 @@ services:
         exec node node_modules/prisma/build/index.js migrate deploy
 
   postgres:
-    image: ${POSTGRES_IMAGE:-ghcr.io/programmableinbox/inboxui-postgres}:${POSTGRES_TAG:-17}
+    image: ${POSTGRES_IMAGE:-ghcr.io/programmableinbox/programmableinbox-postgres}:${POSTGRES_TAG:-17}
     restart: unless-stopped
     # POSTGRES_USER/PASSWORD are the *bootstrap superuser* the image entrypoint
     # creates — break-glass only, nothing connects as it. The image's initdb
     # hook reads POSTGRES_{APP,MIGRATOR,BACKUP}_PASSWORD from this same file to
     # create the least-privileged roles, but ONLY on a first-time init with an
     # empty pgdata. Existing volumes: deploy/scripts/pg-apply-least-privilege.sh.
-    env_file: /srv/inboxui/secrets/app.env
+    env_file: /srv/programmableinbox/secrets/app.env
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     volumes:
-      - /srv/inboxui/pgdata:/var/lib/postgresql/data
+      - /srv/programmableinbox/pgdata:/var/lib/postgresql/data
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -138,17 +138,17 @@ services:
       start_period: 30s
 
   backup-cron:
-    image: ${BACKUP_IMAGE:-ghcr.io/programmableinbox/inboxui-backup}:${BACKUP_TAG:-latest}
+    image: ${BACKUP_IMAGE:-ghcr.io/programmableinbox/programmableinbox-backup}:${BACKUP_TAG:-latest}
     restart: unless-stopped
     # Connects as POSTGRES_BACKUP_USER (read-only via pg_read_all_data, plus
     # write on `backup_status` only). Falls back to the bootstrap superuser with
     # a loud warning in /var/log/backup/cron.log if that is unset.
-    env_file: /srv/inboxui/secrets/app.env
+    env_file: /srv/programmableinbox/secrets/app.env
     volumes:
-      - /srv/inboxui/backup-logs:/var/log/backup
-      - /srv/inboxui/secrets:/secrets:ro
+      - /srv/programmableinbox/backup-logs:/var/log/backup
+      - /srv/programmableinbox/secrets:/secrets:ro
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,9 +158,9 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
-      - /srv/inboxui/redis:/data
+      - /srv/programmableinbox/redis:/data
     networks:
-      - inboxui-internal
+      - programmableinbox-internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
