@@ -45,8 +45,8 @@ client like Claude Code or Cursor, so an agent can read the same inbox you can.
 
 ## Where to start
 
-- New to the project? Read [Core Concepts](core-concepts), then
-  [run it locally with Docker](quickstart-docker).
+- New to the project? Read [Core Concepts](introduction/core-concepts), then
+  [run it locally with Docker](introduction/quickstart-docker).
 - Deploying it yourself? Go to [Self-Hosting](../self-hosting/requirements-and-installation).
 - Calling the API? Start at [Authentication & Scopes](../api-reference/authentication-and-scopes)
   or jump straight to an [SDK](../sdks/overview).
