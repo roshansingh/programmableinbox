@@ -25,6 +25,17 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Using ProgrammableInbox',
+      items: [
+        'using-programmableinbox/inboxes',
+        'using-programmableinbox/search',
+        'using-programmableinbox/automations',
+        'using-programmableinbox/webhooks',
+        'using-programmableinbox/organizations-and-api-keys',
+      ],
+    },
+    {
+      type: 'category',
       label: 'API Reference',
       items: [
         'api-reference/authentication-and-scopes',
