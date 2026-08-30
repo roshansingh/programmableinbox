@@ -5,6 +5,7 @@ import { GET as me } from '@/app/api/app/auth/me/route'
 import { prisma } from '@/lib/db'
 import { createOrgWithUser } from './helpers/auth'
 import { jsonRequest } from './helpers/request'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 describe('POST /api/app/auth/register', () => {
   it('400 when email or password is missing', async () => {
@@ -17,7 +18,7 @@ describe('POST /api/app/auth/register', () => {
     expect(message).toBe('Email and password are required')
   })
 
-  it('creates a user + name-derived organization + owner membership, returns token + user', async () => {
+  it('creates a user + name-derived organization + owner membership, sets the session cookie', async () => {
     const email = `register-${Date.now()}@test.dev`
     const res = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
@@ -25,7 +26,8 @@ describe('POST /api/app/auth/register', () => {
     }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
-    expect(typeof data.token).toBe('string')
+    expect(res.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+    expect(data.token).toBeUndefined()
     expect(data.user.email).toBe(email)
     expect(data.user.firstName).toBe('Reg')
     expect(data.user.lastName).toBe('User')
@@ -75,7 +77,7 @@ describe('POST /api/app/auth/login', () => {
     expect(res.status).toBe(400)
   })
 
-  it('correct creds return { token, user }', async () => {
+  it('correct creds set the session cookie and return the user', async () => {
     const email = `login-${Date.now()}@test.dev`
     await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
@@ -88,7 +90,8 @@ describe('POST /api/app/auth/login', () => {
     }))
     expect(res.status).toBe(200)
     const { data } = await res.json()
-    expect(typeof data.token).toBe('string')
+    expect(res.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+    expect(data.token).toBeUndefined()
     expect(data.user.email).toBe(email)
   })
 

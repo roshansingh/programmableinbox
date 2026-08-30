@@ -12,6 +12,7 @@ import { GET as listInboxes } from '@/app/api/app/emailInbox/route'
 import { prisma } from '@/lib/db'
 import { resetConfigCache } from '@/lib/config'
 import { jsonRequest } from './helpers/request'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const ORIGINAL = {
   ENABLE_EMAIL_VERIFICATION: process.env.ENABLE_EMAIL_VERIFICATION,
@@ -48,6 +49,11 @@ function tokenFromLastSend(): string {
   return url.searchParams.get('token')!
 }
 
+/**
+ * The session credential now travels as a cookie on the response rather
+ * than in the JSON body, so it's pulled off `res.cookies` here instead of
+ * `data.token`.
+ */
 async function signUp(email: string) {
   const res = await register(
     jsonRequest('http://localhost/api/app/auth/register', {
@@ -57,7 +63,9 @@ async function signUp(email: string) {
   )
   expect(res.status).toBe(200)
   const { data } = await res.json()
-  return data as { token: string; user: { id: string; emailVerified: boolean } }
+  const token = res.cookies.get(SESSION_COOKIE_NAME)?.value
+  expect(token).toEqual(expect.any(String))
+  return { token: token as string, user: data.user as { id: string; emailVerified: boolean } }
 }
 
 describe('email verification, end to end', () => {
