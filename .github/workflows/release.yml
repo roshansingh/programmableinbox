@@ -107,7 +107,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
@@ -124,7 +124,7 @@ jobs:
       tarball_name: ${{ steps.build.outputs.tarball_name }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
@@ -234,11 +234,17 @@ jobs:
     # sdk/go/vX.Y.Z tag (below) — every other language publishes to its own
     # package registry over a dedicated API token/secret, not via the GitHub
     # API, so this is the narrowest grant that still covers all five. id-token:
-    # write is only for the C# leg's NuGet Trusted Publishing exchange (NuGet/
-    # login@v1 below) — it lets that step request an OIDC token from GitHub;
-    # nuget.org verifies it against the trusted-publishing policy registered
-    # there and returns a short-lived (~1hr) API key, so no NUGET_API_KEY
-    # secret is stored. See https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing.
+    # write backs two independent OIDC-based Trusted Publishing exchanges:
+    # C# (NuGet/login@v1 below — nuget.org verifies the token against a
+    # trusted-publishing policy registered there, returns a short-lived
+    # ~1hr API key, see https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+    # and TypeScript (npm's registry — the CLI itself detects the OIDC
+    # environment via actions/setup-node@v6 + this permission and uses it
+    # automatically, no separate exchange action, see
+    # https://docs.npmjs.com/trusted-publishers/). Neither needs its
+    # long-lived secret (NUGET_API_KEY / NPM_TOKEN) once its registry-side
+    # Trusted Publisher is configured — NPM_TOKEN is kept only as npm's own
+    # documented fallback when OIDC isn't available.
     permissions:
       contents: write
       id-token: write
@@ -249,7 +255,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
@@ -331,7 +337,7 @@ jobs:
         run: twine upload sdk/python/dist/*
 
       # --- TypeScript (npm) ----------------------------------------------
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false'
         with:
           node-version: '24'
@@ -343,6 +349,21 @@ jobs:
           npm ci
           npm run build
           npm pack --dry-run
+      # Trusted Publishing (OIDC), not primarily NPM_TOKEN: npm CLI >=11.5.1
+      # (bundled with Node 24) auto-detects the OIDC environment this job's
+      # id-token: write permission + actions/setup-node@v6 provide, and uses
+      # it once a Trusted Publisher is configured on npmjs.com for this repo
+      # + workflow file — no code branch needed here, npm tries OIDC first.
+      # NODE_AUTH_TOKEN stays wired as npm's own documented fallback for
+      # before that's configured, or if OIDC is ever unavailable — but it's
+      # a fallback only: npm is deprecating tokens that bypass 2FA for
+      # publishing, so NPM_TOKEN alone is not a durable long-term path here.
+      #
+      # Trusted Publishing cannot bootstrap a package's first-ever publish —
+      # npmjs.com won't let you configure a Trusted Publisher for a package
+      # that doesn't exist yet. @programmableinbox/sdk needs one manual
+      # publish first (npm run sdk:publish -- typescript --otp=..., or an
+      # NPM_TOKEN-authenticated CI run) before this can take over.
       - name: Publish to npm
         id: publish-typescript
         if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
