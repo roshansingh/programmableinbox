@@ -63,14 +63,20 @@ class FakeIoRedis extends EventEmitter {
   }
 }
 
+class MockRedis {
+  constructor() {
+    const instance = new FakeIoRedis()
+    instances.push(instance)
+    return instance as unknown as never
+  }
+}
+
+// Both `default` and `Redis` are mocked because the module under test
+// destructures `default` — see the comment at its `await import('ioredis')`
+// call for why only `default` is safe to rely on there.
 vi.mock('ioredis', () => ({
-  Redis: class {
-    constructor() {
-      const instance = new FakeIoRedis()
-      instances.push(instance)
-      return instance as unknown as never
-    }
-  },
+  Redis: MockRedis,
+  default: MockRedis,
 }))
 
 const POLICY = { limit: 5, windowMs: 60_000 }
