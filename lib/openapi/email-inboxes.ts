@@ -29,6 +29,50 @@ export const spec = {
           'Returns a list of email inboxes for the organization. Requires API key with `email_inboxes:read` scope.',
         operationId: 'listEmailInboxes',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `import programmableinbox
+from programmableinbox.api.email_inboxes_api import EmailInboxesApi
+
+configuration = programmableinbox.Configuration(access_token="sk_live_...")
+with programmableinbox.ApiClient(configuration) as api_client:
+    api = EmailInboxesApi(api_client)
+    inboxes = api.list_email_inboxes()
+    print(inboxes.data)`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `configuration := programmableinbox.NewConfiguration()
+client := programmableinbox.NewAPIClient(configuration)
+ctx := context.WithValue(context.Background(), programmableinbox.ContextAccessToken, "sk_live_...")
+
+inboxes, _, err := client.EmailInboxesAPI.ListEmailInboxes(ctx).Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `import { Configuration, EmailInboxesApi } from '@programmableinbox/sdk'
+
+const config = new Configuration({ accessToken: 'sk_live_...' })
+const api = new EmailInboxesApi(config)
+
+const inboxes = await api.listEmailInboxes()`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var host = Host.CreateDefaultBuilder(args)
+    .ConfigureApi((context, options) => { options.AddTokens(new BearerToken("sk_live_...")); })
+    .Build();
+var api = host.Services.GetRequiredService<IEmailInboxesApi>();
+
+var response = await api.ListEmailInboxesAsync();
+var inboxes = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         responses: {
           '200': {
@@ -72,6 +116,38 @@ export const spec = {
           'Claims a new email address and returns the inbox. The address must be on a domain this account can receive at, and is immutable once created. Requires API key with `email_inboxes:create` scope. The inbox is always created in the organization the key is bound to — there is no way to name a different one.',
         operationId: 'createEmailInbox',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `from programmableinbox.models.create_email_inbox_request import CreateEmailInboxRequest
+
+req = CreateEmailInboxRequest(email="orders@example.com", name="Orders")
+inbox = api.create_email_inbox(req)`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `req := programmableinbox.NewCreateEmailInboxRequest("orders@example.com")
+req.SetName("Orders")
+
+inbox, _, err := client.EmailInboxesAPI.CreateEmailInbox(ctx).CreateEmailInboxRequest(*req).Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const inbox = await api.createEmailInbox({
+  createEmailInboxRequest: { email: 'orders@example.com', name: 'Orders' },
+})`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var req = new CreateEmailInboxRequest("orders@example.com", name: "Orders");
+var response = await api.CreateEmailInboxAsync(req);
+var inbox = response.Created();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         requestBody: {
           required: true,
@@ -169,6 +245,29 @@ export const spec = {
           'Returns a single email inbox by id, scoped to the organization the API key is bound to. Requires API key with `email_inboxes:read` scope.',
         operationId: 'getEmailInbox',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `inbox = api.get_email_inbox(id="inbx_123")`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `inbox, _, err := client.EmailInboxesAPI.GetEmailInbox(ctx, "inbx_123").Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const inbox = await api.getEmailInbox({ id: 'inbx_123' })`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var response = await api.GetEmailInboxAsync("inbx_123");
+var inbox = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {
@@ -225,6 +324,41 @@ export const spec = {
           + 'request. Requires API key with `email_inboxes:update` scope.',
         operationId: 'updateEmailInbox',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `from programmableinbox.models.update_email_inbox_request import UpdateEmailInboxRequest
+
+inbox = api.update_email_inbox(
+    id="inbx_123",
+    update_email_inbox_request=UpdateEmailInboxRequest(name="New Name"),
+)`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `req := programmableinbox.NewUpdateEmailInboxRequest()
+req.SetName("New Name")
+
+inbox, _, err := client.EmailInboxesAPI.UpdateEmailInbox(ctx, "inbx_123").UpdateEmailInboxRequest(*req).Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const inbox = await api.updateEmailInbox({
+  id: 'inbx_123',
+  updateEmailInboxRequest: { name: 'New Name' },
+})`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var req = new UpdateEmailInboxRequest(name: "New Name");
+var response = await api.UpdateEmailInboxAsync("inbx_123", req);
+var inbox = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {
@@ -329,6 +463,28 @@ export const spec = {
           'Soft-deletes the inbox and its messages in one transaction. The rows are retained and every read filters them out, so the data is recoverable — but the **address is retired permanently and can never be claimed again, by anyone including you**. Mail keeps being delivered to it, so releasing it would hand the next claimant your still-arriving messages. Requires API key with `email_inboxes:delete` scope, which is granted separately from create and update for exactly this reason.',
         operationId: 'deleteEmailInbox',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `api.delete_email_inbox(id="inbx_123")`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `_, err := client.EmailInboxesAPI.DeleteEmailInbox(ctx, "inbx_123").Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `await api.deleteEmailInbox({ id: 'inbx_123' })`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var response = await api.DeleteEmailInboxAsync("inbx_123");`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {
@@ -379,6 +535,51 @@ export const spec = {
           'Returns messages for a specific email inbox with optional pagination and filtering. Requires API key with `email_messages:read` scope.',
         operationId: 'getEmailInboxMessages',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `page = api.get_email_inbox_messages(
+    id="inbx_123",
+    limit=25,
+    q="invoice",
+    var_from="stripe.com",
+    tags=["billing"],
+)`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `page, _, err := client.EmailInboxesAPI.GetEmailInboxMessages(ctx, "inbx_123").
+    Limit(25).
+    Q("invoice").
+    From("stripe.com").
+    Tags([]string{"billing"}).
+    Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const page = await api.getEmailInboxMessages({
+  id: 'inbx_123',
+  limit: 25,
+  q: 'invoice',
+  from: 'stripe.com',
+  tags: ['billing'],
+})`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var response = await api.GetEmailInboxMessagesAsync(
+    "inbx_123",
+    limit: new Option<int>(25),
+    q: new Option<string>("invoice"),
+    from: new Option<string>("stripe.com"),
+    tags: new Option<List<string>>(new List<string> { "billing" }));
+var page = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {
@@ -561,6 +762,29 @@ export const spec = {
           'Returns a specific message from an email inbox. Requires API key with `email_messages:read` scope.',
         operationId: 'getEmailMessage',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `msg = api.get_email_message(id="inbx_123", message_id="msg_456")`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `msg, _, err := client.EmailInboxesAPI.GetEmailMessage(ctx, "inbx_123", "msg_456").Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const msg = await api.getEmailMessage({ id: 'inbx_123', messageId: 'msg_456' })`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var response = await api.GetEmailMessageAsync("inbx_123", "msg_456");
+var msg = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {
@@ -631,6 +855,30 @@ export const spec = {
           + 'and arguments with the pibx_email_get_latest_otp MCP tool.',
         operationId: 'getEmailInboxOtp',
         tags: ['Email Inboxes'],
+        'x-codeSamples': [
+          {
+            lang: 'Python',
+            label: 'Python',
+            source: `otp = api.get_email_inbox_otp(id="inbx_123", var_from="stripe.com", within_minutes=10)`,
+          },
+          {
+            lang: 'Go',
+            label: 'Go',
+            source: `otp, _, err := client.EmailInboxesAPI.GetEmailInboxOtp(ctx, "inbx_123").From("stripe.com").WithinMinutes(10).Execute()`,
+          },
+          {
+            lang: 'NodeJs',
+            label: 'Node.js',
+            source: `const otp = await api.getEmailInboxOtp({ id: 'inbx_123', from: 'stripe.com', withinMinutes: 10 })`,
+          },
+          {
+            lang: 'C#',
+            label: 'C#',
+            source: `var response = await api.GetEmailInboxOtpAsync(
+    "inbx_123", from: new Option<string>("stripe.com"), withinMinutes: new Option<int>(10));
+var otp = response.Ok();`,
+          },
+        ],
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           {

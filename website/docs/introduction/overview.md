@@ -21,8 +21,7 @@ client like Claude Code or Cursor, so an agent can read the same inbox you can.
 - **Testing and QA** — disposable inboxes for signup flows, magic links, and
   one-time codes, without a shared team mailbox.
 - **Agent workflows** — give an LLM agent a real, addressable inbox it can
-  read via [MCP](../mcp/overview) or the [SDKs](../sdks/overview), instead
-  of screen-scraping a mail client.
+  read via MCP or the SDKs, instead of screen-scraping a mail client.
 - **Programmatic mail handling** — receive, thread, search, and act on
   incoming mail through a [REST API](../api-reference/authentication-and-scopes),
   with automations for routing.
@@ -45,12 +44,9 @@ client like Claude Code or Cursor, so an agent can read the same inbox you can.
 
 ## Where to start
 
-- New to the project? Read [Core Concepts](core-concepts), then
-  [run it locally with Docker](quickstart-docker).
-- Deploying it yourself? Go to [Self-Hosting](../self-hosting/requirements-and-installation).
-- Calling the API? Start at [Authentication & Scopes](../api-reference/authentication-and-scopes)
-  or jump straight to an [SDK](../sdks/overview).
-- Wiring up an agent? See [MCP](../mcp/overview).
+- New to the project? Start at [Authentication & Scopes](../api-reference/authentication-and-scopes).
+- Calling the API? Start at [Authentication & Scopes](../api-reference/authentication-and-scopes).
+- Want to learn more? Check out the full [API Reference](../api-reference/authentication-and-scopes).
 
 Open source under [AGPL-3.0](https://github.com/roshansingh/programmableinbox/blob/main/LICENSE),
 with an optional commercial layer.
