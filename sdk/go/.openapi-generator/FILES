@@ -19,7 +19,6 @@ docs/GetEmailInboxOtp200ResponseData.md
 docs/GetEmailMessage200Response.md
 docs/ListEmailInboxes200Response.md
 docs/UpdateEmailInboxRequest.md
-git_push.sh
 go.mod
 go.sum
 model_create_email_inbox_201_response.go

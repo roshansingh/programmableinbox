@@ -1,6 +1,6 @@
 [project]
 name = "programmableinbox"
-version = "0.1.0"
+version = "0.1.2"
 description = "ProgrammableInbox Email Inboxes API"
 authors = [
   {name = "OpenAPI Generator Community",email = "team@openapitools.org"},
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/GIT_USER_ID/GIT_REPO_ID"
+Repository = "https://github.com/roshansingh/programmableinbox"
 
 [tool.poetry]
 requires-poetry = ">=2.0"

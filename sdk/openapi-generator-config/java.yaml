@@ -1,8 +1,21 @@
 groupId: com.programmableinbox
 artifactId: sdk
-artifactVersion: 0.1.0
+artifactVersion: 0.1.2
 apiPackage: com.programmableinbox.sdk.api
 modelPackage: com.programmableinbox.sdk.model
 invokerPackage: com.programmableinbox.sdk
 library: native
 hideGenerationTimestamp: true
+# gitUserId/gitRepoId alone don't reach pom.xml's <scm> block — unlike the
+# other languages' templates, Java's ignores them for scm and instead reads
+# these three dedicated options (confirmed via `openapi-generator-cli
+# config-help -g java`); without them it defaults to openapi-generator's own
+# repo (openapitools/openapi-generator), not a GIT_USER_ID placeholder.
+gitUserId: roshansingh
+gitRepoId: programmableinbox
+scmConnection: "scm:git:git@github.com:roshansingh/programmableinbox.git"
+scmDeveloperConnection: "scm:git:git@github.com:roshansingh/programmableinbox.git"
+scmUrl: "https://github.com/roshansingh/programmableinbox"
+# The top-level <project><url>, distinct from <scm><url> above — also
+# defaults to openapi-generator's own repo if left unset.
+artifactUrl: "https://github.com/roshansingh/programmableinbox"

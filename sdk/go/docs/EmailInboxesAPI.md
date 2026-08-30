@@ -32,7 +32,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -98,7 +98,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -166,7 +166,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -236,7 +236,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -322,7 +322,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -396,7 +396,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -469,7 +469,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {
@@ -530,7 +530,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func main() {

@@ -1,10 +1,15 @@
 # ProgrammableInbox C# SDK
 
-Generated from `lib/openapi/email-inboxes.ts`, targeting `net8.0`. Regenerate with `npm run sdk:generate` from the repo root — do not hand-edit anything else in this directory.
+[ProgrammableInbox](https://www.programmableinbox.com/) is a secondary inbox built for
+developers. Spin up a programmable email address in seconds, and it receives, categorizes, and
+extracts every message that arrives — grab a one-time code over the API, route mail with a rule,
+or read it in the dashboard. This is a typed client for its REST API, targeting `net8.0`.
 
 ## Install
 
-Not yet published to NuGet (tracked in [issue #124](https://github.com/roshansingh/programmableinbox/issues/124)). Until then, from a checkout, reference `src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj` directly from your own project (`dotnet add reference`).
+```bash
+dotnet add package ProgrammableInbox.Sdk
+```
 
 ## Quick start
 
@@ -36,3 +41,9 @@ The default base URL is `https://app.programmableinbox.com`. To point at a local
 ```csharp
 options.AddApiHttpClients(client => client.BaseAddress = new Uri("http://localhost:4000"));
 ```
+
+## Links
+
+- [ProgrammableInbox](https://www.programmableinbox.com/)
+- [API docs](https://app.programmableinbox.com/api-docs)
+- [Source](https://github.com/roshansingh/programmableinbox)

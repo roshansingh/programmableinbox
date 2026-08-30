@@ -1,0 +1,47 @@
+# Build context excludes for `docker buildx build -f Dockerfile.ce` — buildx
+# picks up a `<Dockerfile>.dockerignore` automatically when it exists, ahead
+# of the plain `.dockerignore` used for the main image. This is a copy of
+# that file plus every commercial path, so `ee/` never enters the build
+# context at all (not merely "excluded from the final image") — see
+# Dockerfile.ce's header comment and docs/architecture/commercial-layer.md.
+#
+# The excluded paths below must be kept in step with `COMMERCIAL_PATHS` in
+# scripts/foss.mjs, the single source of truth for the license carve-out
+# (scripts/__tests__/foss.test.ts asserts *that* list against LICENSE). This
+# file can't import from foss.mjs the way the test does — .dockerignore has
+# no templating — so it's hand-kept in sync instead. If this list and
+# COMMERCIAL_PATHS drift, the no-ee guardrail in
+# .github/workflows/release.yml catches it before any image is pushed: it
+# fails the job on any `ee` directory found in the built image's filesystem.
+
+node_modules
+.next
+.git
+.github
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage
+.nyc_output
+.DS_Store
+*.log
+test
+**/__tests__
+docs
+debates
+tickets
+plans
+deploy
+repo-info.md
+README.md
+
+# Commercial code — the actual point of this file. Keep in step with
+# COMMERCIAL_PATHS in scripts/foss.mjs.
+ee
+app/api/app/(ee)
+app/api/webhooks/(ee)

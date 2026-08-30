@@ -1,5 +1,10 @@
 packageName: ProgrammableInbox.Sdk
-packageVersion: 0.1.0
+packageVersion: 0.1.2
 targetFramework: net8.0
 nullableReferenceTypes: true
 packageGuid: "{316EE9BB-A75F-4585-875A-8F342FDC7C29}"
+# Without these, the .csproj's RepositoryUrl falls back to a literal
+# "GIT_USER_ID/GIT_REPO_ID" placeholder — see go.yaml's comment for why this
+# is set per-language rather than once globally.
+gitUserId: roshansingh
+gitRepoId: programmableinbox

@@ -12,9 +12,9 @@
     <Description>A library generated from a OpenAPI doc</Description>
     <Copyright>No Copyright</Copyright>
     <RootNamespace>ProgrammableInbox.Sdk</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.2</Version>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\ProgrammableInbox.Sdk.xml</DocumentationFile>
-    <RepositoryUrl>https://github.com/GIT_USER_ID/GIT_REPO_ID.git</RepositoryUrl>
+    <RepositoryUrl>https://github.com/roshansingh/programmableinbox.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReleaseNotes>Minor update</PackageReleaseNotes>
     <Nullable>enable</Nullable>

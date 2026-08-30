@@ -101,4 +101,23 @@ describe.skipIf(ALREADY_STRIPPED)('commercial path manifest', () => {
       }
     },
   )
+
+  /**
+   * Same failure mode as the LICENSE check above, aimed at the CE docker
+   * image: `Dockerfile.ce.dockerignore` can't import `COMMERCIAL_PATHS`
+   * (.dockerignore has no templating), so it's hand-kept in sync instead —
+   * see its header comment. This is the guard that catches the two drifting,
+   * short of the build-time no-ee check in .github/workflows/release.yml
+   * actually building an image.
+   */
+  it('names every path Dockerfile.ce.dockerignore excludes from the CE image build context', () => {
+    const dockerignore = read('Dockerfile.ce.dockerignore')
+    const excluded = dockerignore
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+    for (const path of COMMERCIAL_PATHS) {
+      expect(excluded, `${path} should be excluded`).toContain(path)
+    }
+  })
 })

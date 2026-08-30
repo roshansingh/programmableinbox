@@ -1,5 +1,12 @@
 packageName: programmableinbox
-packageVersion: 0.1.0
+packageVersion: 0.1.2
 gitUserId: roshansingh
-gitRepoId: programmableinbox-go
+# The Go module lives at sdk/go inside this monorepo, not in a standalone
+# `programmableinbox-go` repo. openapi-generator's Go templates build the
+# go.mod `module` line (and every generated import path) from
+# `{gitHost}/{gitUserId}/{gitRepoId}`, so gitRepoId doubles as the module
+# path suffix — it must carry the sdk/go subdirectory. Released via
+# `sdk/go/vX.Y.Z` git tags, Go's native convention for monorepo subdirectory
+# modules (see sdk/go/README.md and .github/workflows/release.yml).
+gitRepoId: programmableinbox/sdk/go
 withGoMod: true

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-	openapiclient "github.com/roshansingh/programmableinbox-go"
+	openapiclient "github.com/roshansingh/programmableinbox/sdk/go"
 )
 
 func Test_programmableinbox_EmailInboxesAPIService(t *testing.T) {
