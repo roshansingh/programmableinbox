@@ -1,0 +1,84 @@
+# Quick start Compose file for the Community Edition Docker image.
+#
+# This is deliberately NOT the production setup — see deploy/docker-compose.yml
+# and deploy/README.md for that (TLS via Caddy, least-privileged Postgres
+# roles, WAL-archiving backups, an async webhook worker). This file is for
+# trying ProgrammableInbox locally: one Postgres role, no TLS, no backups.
+#
+# Usage:
+#   cp .env.quickstart.example .env
+#   # edit .env — see docs/quickstart-docker.md
+#   docker compose pull
+#   docker compose up -d
+#   # → http://localhost:4000
+
+name: programmableinbox-quickstart
+
+volumes:
+  postgres-data:
+  redis-data:
+
+services:
+  app:
+    image: ghcr.io/roshansingh/programmableinbox-ce:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-4000}:4000"
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-inboxui}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-inboxui}?options=-c%20timezone%3DUTC"
+      REDIS_URL: "redis://redis:6379"
+      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env, e.g. output of openssl rand -base64 32}"
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET:?set WEBHOOK_SECRET in .env, any 8+ character string}"
+      AUTH_RESEND_API_KEY: "${AUTH_RESEND_API_KEY:?set AUTH_RESEND_API_KEY in .env, a placeholder is fine until you wire up real inbound mail}"
+      AUTH_EMAIL_FROM: "${AUTH_EMAIL_FROM:-no-reply@example.com}"
+      AUTH_EMAIL_FROM_NAME: "${AUTH_EMAIL_FROM_NAME:-ProgrammableInbox}"
+      EMAIL_INBOX_DOMAINS: "${EMAIL_INBOX_DOMAINS:?set EMAIL_INBOX_DOMAINS in .env, a domain you don't own yet is fine for exploring the UI}"
+      NEXT_PUBLIC_API_MODE: local
+    # The standalone runtime image ships node_modules/prisma but not
+    # node_modules/.bin, so the Prisma CLI is invoked directly (same pattern
+    # deploy/docker-compose.yml's `migrate` service uses). Running the
+    # migration inline keeps this quickstart to one command instead of a
+    # separate migrate step to remember.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        node node_modules/prisma/build/index.js migrate deploy
+        exec node server.js
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inboxui}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-inboxui}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Backs AUTH_RATE_LIMIT_ENABLED (on by default) and the async webhook queue
+  # if you later turn on ENABLE_ASYNC_WEBHOOK_PROCESSING.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

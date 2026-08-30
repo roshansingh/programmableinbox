@@ -28,6 +28,11 @@ Open source under [AGPL-3.0](LICENSE), with an optional commercial layer under [
 
 ## Quick start
 
+Prefer Docker? Skip straight to the **[Community Edition Docker quick start](docs/quickstart-docker.md)**
+— pulls the published image, no Node or local Postgres install needed.
+
+To run from source instead:
+
 **Requirements:** Node.js 24+, PostgreSQL 14+, and optionally Redis 6+ (only for async webhook
 processing).
 
