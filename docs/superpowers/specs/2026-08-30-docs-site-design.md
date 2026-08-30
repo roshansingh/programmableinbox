@@ -36,15 +36,19 @@ run indefinitely, with no vendor lock-in.
 
 **Docusaurus, deployed statically to GitHub Pages**, using the
 `docusaurus-plugin-openapi-docs` plugin to generate the API reference directly
-from the already-committed `sdk/openapi.json`.
+from `sdk/openapi.json` (exported on demand from the committed
+`lib/openapi/email-inboxes.ts` — see OpenAPI reference generation below).
 
 Rationale (full comparison and research trail discussed in conversation, not
 reproduced here):
 
 - The OpenAPI plugin generates per-endpoint pages with **code samples in
-  curl, Python, Go, Node.js, Java, and C#** out of the box — an exact match
-  for the five languages the project already ships SDKs for, with no
-  per-endpoint manual annotation required.
+  curl, Python, Go, Node.js, Java, and C#** — an exact match for the five
+  languages the project already ships SDKs for. curl uses the plugin's
+  built-in generic HTTP sample; the other five are overridden per operation
+  with the `x-codeSamples` vendor extension to show actual SDK usage (the
+  real generated client call) rather than a generic HTTP-library snippet —
+  see Content architecture, API Reference, below.
 - Fully static output deploys to GitHub Pages for free, indefinitely, with a
   single DNS record — no vendor ToS risk. (Vercel's free Hobby tier is
   contractually non-commercial-use-only, which conflicts with this project's
@@ -103,6 +107,14 @@ Sidebar structure, in order, with source material noted:
      ("Email Inboxes"); the plugin groups by OpenAPI tag automatically, so
      new tags create new sidebar categories with no docs-side change needed
      as the API grows.
+   - Code samples per operation: curl uses the plugin's generic HTTP sample;
+     Python, Go, Node.js, Java, and C# each show the real SDK call instead,
+     via an `x-codeSamples` array added to every operation in
+     `lib/openapi/email-inboxes.ts` (the source `sdk/openapi.json` is
+     exported from — see OpenAPI reference generation). Each sample is
+     written against that language's actual generated client, not a
+     hand-guessed approximation — the SDK sources under `sdk/<language>/`
+     are the reference for exact method names and call shape.
 
 5. **SDKs**
    - Overview / install matrix (all five languages at a glance)
@@ -158,18 +170,23 @@ folded into the root workspace's install or build.
 
 ## OpenAPI reference generation
 
-`sdk/openapi.json` is already the single source of truth the five SDKs are
-generated from (`npm run sdk:export-spec` / `npm run sdk:generate` at the repo
-root). The docs site becomes a sixth consumer of that same committed file:
+`sdk/openapi.json` is the single source the five SDKs are generated from,
+but it is **gitignored, not committed** — it's produced on demand by
+`npm run sdk:export-spec` (repo root), which serializes the real source of
+truth, `lib/openapi/email-inboxes.ts` (a committed TypeScript module). The
+docs site becomes a consumer of the same generation step, not of a checked-in
+file:
 
-- `docusaurus gen-api-docs all` runs against `../sdk/openapi.json` as part of
-  the docs build (`npm run build` inside `website/`), regenerating `api/`
-  from the current spec every time the site builds.
-- No separate drift-detection or spec-sync CI step is needed: because the
-  docs build always regenerates from whatever `sdk/openapi.json` contains at
-  build time, and that file is already kept current as part of the existing
-  SDK workflow, the API reference is automatically as current as the last
-  commit to `main` — the same guarantee the 5 SDKs already have.
+- CI (and any local docs build) runs `npm run sdk:export-spec` at the repo
+  root before building `website/`, producing a fresh `sdk/openapi.json`.
+- `docusaurus gen-api-docs` then runs against `../sdk/openapi.json` as part
+  of the docs build (`npm run build` inside `website/`), regenerating the API
+  reference from that freshly-exported spec every time the site builds.
+- No separate drift-detection step is needed: because both the export and
+  the docs regeneration happen on every build from the same committed
+  source (`lib/openapi/email-inboxes.ts`), the API reference is automatically
+  as current as the last commit to `main` — the same guarantee the 5 SDKs
+  already have, and for the same reason (one source, regenerated on demand).
 
 ## Build & deploy
 
@@ -217,7 +234,11 @@ missing at launch, and swap to DocSearch when the application is approved.
   (Docusaurus's `onBrokenLinks: 'throw'` config, set from the start).
 - Manual review of the generated API reference pages against the live spec
   (8 operations, correct request/response schemas, all 6 code-sample
-  languages render).
+  languages render, and the five SDK-backed languages show the real client
+  call rather than a generic HTTP snippet).
+- Because `lib/openapi/email-inboxes.ts` is main-app source, not `website/`
+  content, the root `npm run test` suite runs after any change to it — the
+  same pre-PR requirement as any other app-code change.
 - Manual pass through each migrated content page against its source doc to
   confirm no meaning was lost in the audience rewrite.
 - Local `npm run serve` smoke test of self-hosting instructions actually
