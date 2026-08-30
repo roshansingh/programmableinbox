@@ -53,6 +53,15 @@ const sidebars: SidebarsConfig = {
         'sdks/csharp',
       ],
     },
+    {
+      type: 'category',
+      label: 'MCP',
+      items: [
+        'mcp/overview',
+        'mcp/setup',
+        'mcp/tool-reference',
+      ],
+    },
   ],
 };
 
