@@ -28,10 +28,27 @@ Open source under [AGPL-3.0](LICENSE), with an optional commercial layer under [
 
 ## Quick start
 
-Prefer Docker? Skip straight to the **[Community Edition Docker quick start](docs/quickstart-docker.md)**
-— pulls the published image, no Node or local Postgres install needed.
+### Docker (Community Edition)
 
-To run from source instead:
+No Node or local Postgres install needed — pulls the published image.
+
+```bash
+mkdir programmableinbox && cd programmableinbox
+curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/.env.quickstart.example
+cp .env.quickstart.example .env
+# edit .env: set POSTGRES_PASSWORD, JWT_SECRET (openssl rand -base64 32), WEBHOOK_SECRET,
+# AUTH_RESEND_API_KEY, and EMAIL_INBOX_DOMAINS — a placeholder is fine to start exploring
+
+docker compose pull
+docker compose up -d
+# → http://localhost:4000, register a new account at /auth/register
+```
+
+See **[docs/quickstart-docker.md](docs/quickstart-docker.md)** for wiring up real inbound mail via
+Resend, upgrading, and troubleshooting.
+
+### From source
 
 **Requirements:** Node.js 24+, PostgreSQL 14+, and optionally Redis 6+ (only for async webhook
 processing).

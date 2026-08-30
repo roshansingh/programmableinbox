@@ -25,7 +25,7 @@ services:
     ports:
       - "${APP_PORT:-4000}:4000"
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-inboxui}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-inboxui}?options=-c%20timezone%3DUTC"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-programmableinbox}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-programmableinbox}?options=-c%20timezone%3DUTC"
       REDIS_URL: "redis://redis:6379"
       JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env, e.g. output of openssl rand -base64 32}"
       WEBHOOK_SECRET: "${WEBHOOK_SECRET:?set WEBHOOK_SECRET in .env, any 8+ character string}"
@@ -56,9 +56,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-inboxui}
+      POSTGRES_USER: ${POSTGRES_USER:-programmableinbox}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-inboxui}
+      POSTGRES_DB: ${POSTGRES_DB:-programmableinbox}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
