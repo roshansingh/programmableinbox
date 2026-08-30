@@ -56,6 +56,15 @@ const config: Config = {
         },
       },
     ],
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        indexDocs: true,
+        indexBlog: false,
+        docsRouteBasePath: '/',
+      },
+    ],
   ],
   themes: ['docusaurus-theme-openapi-docs'],
 
