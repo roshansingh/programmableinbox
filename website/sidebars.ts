@@ -42,6 +42,17 @@ const sidebars: SidebarsConfig = {
         ...apiSidebar,
       ],
     },
+    {
+      type: 'category',
+      label: 'SDKs',
+      items: [
+        'sdks/overview',
+        'sdks/python',
+        'sdks/go',
+        'sdks/typescript',
+        'sdks/csharp',
+      ],
+    },
   ],
 };
 
