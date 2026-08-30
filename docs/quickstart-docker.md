@@ -33,8 +33,8 @@ cp .env.quickstart.example .env
 Open `.env` and fill in the values with no default:
 
 ```bash
-# a random password for the local Postgres container
-POSTGRES_PASSWORD=<pick one>
+# a URL-safe password for the local Postgres container (avoid `/`, `@`, `:`); e.g. openssl rand -hex 24
+POSTGRES_PASSWORD=<generated password>
 
 # openssl rand -base64 32
 JWT_SECRET=<generated secret>
@@ -76,9 +76,9 @@ Once healthy, open **http://localhost:4000**.
 
 The Community Edition image doesn't ship seed data — register a new account
 directly at `/auth/register`. From there you can create an inbox (on the
-domain you set in `EMAIL_INBOX_DOMAINS`), and if you've wired up a real API
-key, connect to it over [MCP](architecture/mcp-server.md) or the [REST
-API](../sdk/README.md).
+domain you set in `EMAIL_INBOX_DOMAINS`). You can then use the [REST
+API](../sdk/README.md) with an API key; to use [MCP](architecture/mcp-server.md),
+set `ENABLE_MCP=true` in `.env` and restart the stack.
 
 ## 5. Receive real mail (optional)
 
