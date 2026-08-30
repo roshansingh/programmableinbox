@@ -15,6 +15,16 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Self-Hosting',
+      items: [
+        'self-hosting/requirements-and-installation',
+        'self-hosting/configuration',
+        'self-hosting/production-deployment',
+        'self-hosting/upgrading',
+      ],
+    },
+    {
+      type: 'category',
       label: 'API Reference',
       items: [
         'api-reference/authentication-and-scopes',
