@@ -1,5 +1,5 @@
 -- ===========================================================================
--- inboxui — least-privileged Postgres role model
+-- programmableinbox — least-privileged Postgres role model
 -- ===========================================================================
 --
 -- Applied two ways, both of which run THIS file so there is exactly one source
@@ -21,13 +21,13 @@
 --
 --   <bootstrap>          POSTGRES_USER — superuser created by the image
 --                        entrypoint. Break-glass only. Nothing connects as it.
---   inboxui_migrator     Owns schema `public` and every object in it. Runs DDL.
+--   programmableinbox_migrator     Owns schema `public` and every object in it. Runs DDL.
 --                        Used ONLY by the one-shot `migrate` compose service.
 --                        NOSUPERUSER / NOCREATEDB / NOCREATEROLE.
---   inboxui_app          Runtime role for the Next.js app. DML only
+--   programmableinbox_app          Runtime role for the Next.js app. DML only
 --                        (SELECT/INSERT/UPDATE/DELETE) plus USAGE on sequences.
 --                        Cannot create, drop or alter anything.
---   inboxui_backup       pg_dump / wal-g. Read-only via the predefined
+--   programmableinbox_backup       pg_dump / wal-g. Read-only via the predefined
 --                        pg_read_all_data role, plus the specific backup
 --                        functions and write access to `backup_status` only.
 --
@@ -40,7 +40,7 @@
 
 \set ON_ERROR_STOP on
 
-\echo '[inboxui] applying least-privileged role model'
+\echo '[programmableinbox] applying least-privileged role model'
 
 -- ---------------------------------------------------------------------------
 -- 1. Roles
@@ -265,7 +265,7 @@ SELECT format('GRANT SELECT, INSERT, UPDATE ON TABLE public.backup_status TO %I'
 -- ---------------------------------------------------------------------------
 
 \echo ''
-\echo '[inboxui] role attributes (rolsuper MUST be false for app/migrator/backup):'
+\echo '[programmableinbox] role attributes (rolsuper MUST be false for app/migrator/backup):'
 
 SELECT rolname,
        rolsuper     AS superuser,
@@ -278,4 +278,4 @@ SELECT rolname,
  ORDER BY rolsuper DESC, rolname;
 
 \echo ''
-\echo '[inboxui] least-privileged role model applied'
+\echo '[programmableinbox] least-privileged role model applied'

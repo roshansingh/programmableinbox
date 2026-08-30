@@ -33,7 +33,7 @@ import { enrichMessage } from "@/lib/llm/enrichment";
 import { prisma } from "@/lib/db";
 import logger from "@/lib/logger";
 
-const tracer = trace.getTracer("inboxui.webhooks");
+const tracer = trace.getTracer("programmableinbox.webhooks");
 
 // ---------------------------------------------------------------------------
 // Worker singleton
@@ -121,9 +121,9 @@ async function processEmailWebhookJob(
   job: Job<EmailWebhookJobData>,
 ): Promise<void> {
   return tracer.startActiveSpan("webhook.process_email_job", async (span) => {
-    span.setAttribute("inboxui.job_id", job.id ?? "");
-    span.setAttribute("inboxui.external_id", job.data.externalId);
-    span.setAttribute("inboxui.inbox_email_address_id", job.data.inboxEmailAddressId);
+    span.setAttribute("programmableinbox.job_id", job.id ?? "");
+    span.setAttribute("programmableinbox.external_id", job.data.externalId);
+    span.setAttribute("programmableinbox.inbox_email_address_id", job.data.inboxEmailAddressId);
     try {
       await processEmailWebhookJobInner(job);
     } catch (error) {

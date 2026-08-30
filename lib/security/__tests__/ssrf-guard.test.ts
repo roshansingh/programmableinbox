@@ -195,7 +195,7 @@ describe('safeFetch', () => {
       `${server.origin}/hook?x=1`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-inboxui-signing-secret': 's3cret' },
+        headers: { 'content-type': 'application/json', 'x-programmableinbox-signing-secret': 's3cret' },
         body: '{"hello":"world"}',
       },
       LOCAL
@@ -215,7 +215,7 @@ describe('safeFetch', () => {
     expect(received.url).toBe('/hook?x=1')
     expect(received.body).toBe('{"hello":"world"}')
     expect(received.headers['content-type']).toBe('application/json')
-    expect(received.headers['x-inboxui-signing-secret']).toBe('s3cret')
+    expect(received.headers['x-programmableinbox-signing-secret']).toBe('s3cret')
     expect(received.headers['content-length']).toBe('17')
   })
 
@@ -321,7 +321,7 @@ describe('safeFetch', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-inboxui-signing-secret': 'do-not-leak',
+          'x-programmableinbox-signing-secret': 'do-not-leak',
           authorization: 'Bearer do-not-leak',
           'x-custom-tenant-header': 'do-not-leak',
         },
@@ -330,8 +330,8 @@ describe('safeFetch', () => {
       LOCAL
     )
 
-    expect(entry.requests[0].headers['x-inboxui-signing-secret']).toBe('do-not-leak')
-    expect(destination.requests[0].headers['x-inboxui-signing-secret']).toBeUndefined()
+    expect(entry.requests[0].headers['x-programmableinbox-signing-secret']).toBe('do-not-leak')
+    expect(destination.requests[0].headers['x-programmableinbox-signing-secret']).toBeUndefined()
     expect(destination.requests[0].headers.authorization).toBeUndefined()
     expect(destination.requests[0].headers['x-custom-tenant-header']).toBeUndefined()
     // Same-origin-safe headers survive.

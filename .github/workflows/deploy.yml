@@ -98,7 +98,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_SSH_PORT }}
           source: deploy/docker-compose.yml
-          target: /srv/inboxui/
+          target: /srv/programmableinbox/
           strip_components: 1
 
       # otel-collector.yaml is bind-mounted by the (opt-in, profile-gated)
@@ -124,7 +124,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_SSH_PORT }}
           source: deploy/otel-collector.yaml
-          target: /srv/inboxui/
+          target: /srv/programmableinbox/
           strip_components: 1
 
       # Keep the manual initial-deploy / rollback script fresh for the runbooks.
@@ -137,7 +137,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_SSH_PORT }}
           source: deploy/scripts/initial_deploy.sh
-          target: /srv/inboxui/
+          target: /srv/programmableinbox/
           strip_components: 2
 
       # Routine deploy, inlined so there is no server-side script to drift:
@@ -153,10 +153,10 @@ jobs:
           port: ${{ secrets.DEPLOY_SSH_PORT }}
           script: |
             set -euo pipefail
-            cd /srv/inboxui
+            cd /srv/programmableinbox
             export IMAGE_TAG="${{ needs.build.outputs.sha }}"
 
-            PREVIOUS_TAG=$(docker inspect --format '{{ index .Config.Labels "image.tag" }}' inboxui-app-1 2>/dev/null || true)
+            PREVIOUS_TAG=$(docker inspect --format '{{ index .Config.Labels "image.tag" }}' programmableinbox-app-1 2>/dev/null || true)
             echo "Previous tag: ${PREVIOUS_TAG:-unknown}"
             echo "Rolling to:   ${IMAGE_TAG}"
 
@@ -171,7 +171,7 @@ jobs:
 
             echo "Waiting for app to become healthy..."
             for i in $(seq 1 30); do
-              status=$(docker inspect --format '{{ .State.Health.Status }}' inboxui-app-1 2>/dev/null || echo starting)
+              status=$(docker inspect --format '{{ .State.Health.Status }}' programmableinbox-app-1 2>/dev/null || echo starting)
               if [ "$status" = "healthy" ]; then
                 echo "App healthy after ${i}0s"
                 break
@@ -179,7 +179,7 @@ jobs:
               sleep 10
             done
 
-            if [ "$(docker inspect --format '{{ .State.Health.Status }}' inboxui-app-1)" != "healthy" ]; then
+            if [ "$(docker inspect --format '{{ .State.Health.Status }}' programmableinbox-app-1)" != "healthy" ]; then
               echo "App did not become healthy. Inspect: docker compose logs --tail=100 app"
               exit 1
             fi

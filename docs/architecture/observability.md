@@ -126,7 +126,7 @@ The `service.name` stamping (below) needs an explicit guard instead, and it has 
 specific than "this line parsed as JSON": Caddy's own default logging is also JSON when its
 stderr isn't a TTY (true for every container here), and it also uses a `level` key, so
 `attributes["level"] != nil` alone still lets Caddy's log lines through and get mislabeled
-`service.name=inboxui`. The guard is `attributes["level"] != nil and attributes["pid"] != nil` —
+`service.name=programmableinbox`. The guard is `attributes["level"] != nil and attributes["pid"] != nil` —
 Pino's default base object always adds `pid`/`hostname` and Caddy's JSON encoder does not use
 either name, so the combination is what actually scopes this to app log lines rather than "any
 container whose stdout happens to be JSON."
@@ -155,7 +155,7 @@ OpenTelemetry SDK environment variables, but they don't all reach the exporter t
   service rather than a public OTLP gateway, and `OTEL_EXPORTER_OTLP_HEADERS` carries no real
   secret — it's still required because `assertConfig()` has no way to know the endpoint is a
   same-host collector rather than a public backend; any non-empty value satisfies it.
-- `OTEL_SERVICE_NAME` is different: `config.observability.serviceName` (defaulted to `'inboxui'`
+- `OTEL_SERVICE_NAME` is different: `config.observability.serviceName` (defaulted to `'programmableinbox'`
   if unset) *is* read back out of `config` and passed explicitly to
   `registerOTel(config.observability.serviceName)`. It is the one field in `config.observability`
   with a genuine runtime role beyond boot-time validation. `deploy/otel-collector.yaml`'s

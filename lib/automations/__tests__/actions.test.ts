@@ -117,7 +117,7 @@ describe('executeSendWebhook — SSRF guard (#39)', () => {
     expect(url).toBe('https://hooks.example.com/webhook')
     expect(init.method).toBe('POST')
     expect(init.headers['content-type']).toBe('application/json')
-    expect(init.headers['x-inboxui-signing-secret']).toBe('sig')
+    expect(init.headers['x-programmableinbox-signing-secret']).toBe('sig')
     expect(JSON.parse(init.body)).toEqual({
       automationId: context.automation.id,
       automationRevisionId: context.revision.id,

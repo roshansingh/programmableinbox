@@ -21,10 +21,10 @@ describe('EmailsList', () => {
     render(<EmailsList />)
 
     await waitFor(() => {
-      expect(screen.getByText('inbox-one@test.inboxui.com')).toBeInTheDocument()
+      expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('inbox-two@test.inboxui.com')).toBeInTheDocument()
+    expect(screen.getByText('inbox-two@test.programmableinbox.com')).toBeInTheDocument()
     expect(screen.getByText('Support Inbox')).toBeInTheDocument()
   })
 
@@ -63,7 +63,7 @@ describe('EmailsList', () => {
     const { user } = render(<EmailsList />)
 
     await waitFor(() => {
-      expect(screen.getByText('inbox-one@test.inboxui.com')).toBeInTheDocument()
+      expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
 
     // Find and click the first delete button
@@ -85,14 +85,14 @@ describe('EmailsList', () => {
     const { user } = render(<EmailsList />)
 
     await waitFor(() => {
-      expect(screen.getByText('inbox-one@test.inboxui.com')).toBeInTheDocument()
+      expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
 
     const refreshButton = screen.getByRole('button', { name: /refresh/i })
     await user.click(refreshButton)
 
     await waitFor(() => {
-      expect(screen.getByText('inbox-one@test.inboxui.com')).toBeInTheDocument()
+      expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
   })
 
@@ -100,7 +100,7 @@ describe('EmailsList', () => {
     const { user } = render(<EmailsList />)
 
     await waitFor(() => {
-      expect(screen.getByText('inbox-one@test.inboxui.com')).toBeInTheDocument()
+      expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
 
     // Find copy buttons (they have Copy icon)
@@ -110,7 +110,7 @@ describe('EmailsList', () => {
       if (copyBtn) {
         await user.click(copyBtn)
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-          'inbox-one@test.inboxui.com'
+          'inbox-one@test.programmableinbox.com'
         )
       }
     }

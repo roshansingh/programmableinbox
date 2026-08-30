@@ -25,16 +25,16 @@ describe('initializeObservability', () => {
     const { initializeObservability } = await import('../init')
     initializeObservability()
 
-    expect(registerOTelMock).toHaveBeenCalledWith('inboxui')
+    expect(registerOTelMock).toHaveBeenCalledWith('programmableinbox')
     expect(loggerInfoMock).toHaveBeenCalled()
   })
 
   it('uses OTEL_SERVICE_NAME when set', async () => {
-    setConfigEnv({ OTEL_SERVICE_NAME: 'my-inboxui' })
+    setConfigEnv({ OTEL_SERVICE_NAME: 'my-programmableinbox' })
     const { initializeObservability } = await import('../init')
     initializeObservability()
 
-    expect(registerOTelMock).toHaveBeenCalledWith('my-inboxui')
+    expect(registerOTelMock).toHaveBeenCalledWith('my-programmableinbox')
   })
 
   it('does nothing when the flag is off', async () => {

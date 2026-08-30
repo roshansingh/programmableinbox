@@ -60,7 +60,7 @@ export type ProductAnalyticsCaptureFn = (
  * to `globalThis` — see the note on `lib/db.ts`'s Prisma singleton.
  */
 const globalForCapture = globalThis as unknown as {
-  __inboxuiProductAnalyticsCapture?: ProductAnalyticsCaptureFn
+  __programmableinboxProductAnalyticsCapture?: ProductAnalyticsCaptureFn
 }
 
 /**
@@ -71,12 +71,12 @@ const globalForCapture = globalThis as unknown as {
  * build, and `captureEvent` below stays the no-op it already is by default.
  */
 export function registerProductAnalyticsCapture(fn: ProductAnalyticsCaptureFn): void {
-  globalForCapture.__inboxuiProductAnalyticsCapture = fn
+  globalForCapture.__programmableinboxProductAnalyticsCapture = fn
 }
 
 /** Test-only: undo `registerProductAnalyticsCapture`. */
 export function resetProductAnalyticsCapture(): void {
-  globalForCapture.__inboxuiProductAnalyticsCapture = undefined
+  globalForCapture.__programmableinboxProductAnalyticsCapture = undefined
 }
 
 /**
@@ -102,7 +102,7 @@ export function captureEvent(
   distinctId: string,
   properties?: Record<string, unknown>,
 ): void {
-  const impl = globalForCapture.__inboxuiProductAnalyticsCapture
+  const impl = globalForCapture.__programmableinboxProductAnalyticsCapture
   if (!impl) return
 
   try {

@@ -3,7 +3,7 @@
 # Apply (or re-apply) the least-privileged Postgres role model to a RUNNING
 # cluster. Run this on the deployment host, as the `deploy` user:
 #
-#     /srv/inboxui/pg-apply-least-privilege.sh
+#     /srv/programmableinbox/pg-apply-least-privilege.sh
 #
 # HOST-SIDE WRAPPER ONLY. All it does is preflight the compose service and then
 # `docker compose exec` the real script, which is baked into the postgres image
@@ -26,11 +26,11 @@
 #     so the backup role picks up its grant on `backup_status`.
 #
 # It reads nothing itself — every value comes from the postgres container's own
-# environment, which compose populates from /srv/inboxui/secrets/app.env.
+# environment, which compose populates from /srv/programmableinbox/secrets/app.env.
 # ===========================================================================
 set -euo pipefail
 
-COMPOSE_DIR="${COMPOSE_DIR:-/srv/inboxui}"
+COMPOSE_DIR="${COMPOSE_DIR:-/srv/programmableinbox}"
 SERVICE="${POSTGRES_SERVICE:-postgres}"
 
 cd "$COMPOSE_DIR"
@@ -41,11 +41,11 @@ if ! docker compose ps --status running --services | grep -qx "$SERVICE"; then
   exit 1
 fi
 
-if ! docker compose exec -T "$SERVICE" test -x /usr/local/bin/inboxui-apply-least-privilege; then
+if ! docker compose exec -T "$SERVICE" test -x /usr/local/bin/programmableinbox-apply-least-privilege; then
   echo "ERROR: the running postgres image predates the least-privilege role model." >&2
   echo "       Pull a newer image and recreate the container first:" >&2
   echo "         docker compose pull $SERVICE && docker compose up -d $SERVICE" >&2
-  echo "       (recreating the container does NOT touch /srv/inboxui/pgdata)" >&2
+  echo "       (recreating the container does NOT touch /srv/programmableinbox/pgdata)" >&2
   exit 1
 fi
 
@@ -55,7 +55,7 @@ echo "Applying least-privileged role model to service '$SERVICE'..."
 # in effect and this authenticates through pg_hba's scram rule exactly like the
 # application does.
 docker compose exec -T -e PGHOST=127.0.0.1 "$SERVICE" \
-  /usr/local/bin/inboxui-apply-least-privilege
+  /usr/local/bin/programmableinbox-apply-least-privilege
 
 # Unquoted heredoc so $SERVICE resolves to the service this run actually used.
 # $POSTGRES_USER / $POSTGRES_DB are escaped so they stay literal — the operator

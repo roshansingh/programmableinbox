@@ -4,7 +4,7 @@ export const mockEmails: InboxEmail[] = [
   {
     id: 'email-1',
     organizationId: 'org-1',
-    email: 'inbox-one@test.inboxui.com',
+    email: 'inbox-one@test.programmableinbox.com',
     name: 'Support Inbox',
     isOwner: true,
     createdAt: '2025-01-15T10:00:00.000Z',
@@ -13,7 +13,7 @@ export const mockEmails: InboxEmail[] = [
   {
     id: 'email-2',
     organizationId: 'org-1',
-    email: 'inbox-two@test.inboxui.com',
+    email: 'inbox-two@test.programmableinbox.com',
     name: null,
     isOwner: true,
     createdAt: '2025-01-10T08:00:00.000Z',

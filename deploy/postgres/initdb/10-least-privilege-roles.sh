@@ -3,7 +3,7 @@
 # /docker-entrypoint-initdb.d hook.
 #
 # ⚠️  THE OFFICIAL POSTGRES IMAGE RUNS THIS FILE **ONLY WHEN PGDATA IS EMPTY**.
-#     Bringing a new image up on an existing /srv/inboxui/pgdata volume does
+#     Bringing a new image up on an existing /srv/programmableinbox/pgdata volume does
 #     NOT re-run it, and no warning is printed. Converting a cluster that is
 #     already initialised is a deliberate operator action:
 #
@@ -17,5 +17,5 @@
 # ===========================================================================
 set -euo pipefail
 
-echo "[inboxui] initdb hook: creating least-privileged roles"
-exec /usr/local/bin/inboxui-apply-least-privilege
+echo "[programmableinbox] initdb hook: creating least-privileged roles"
+exec /usr/local/bin/programmableinbox-apply-least-privilege
