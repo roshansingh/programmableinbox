@@ -37,4 +37,6 @@ endpoint only needs a `:read` scope.
 ## Response shape
 
 Every successful response is wrapped as `{ "data": ... }`. Every error
-response is `{ "message": "..." }` with a non-2xx status code.
+response is `{ "message": "..." }` with a non-2xx status code — see
+[Response envelope & error format](../reference/response-envelope-and-errors)
+for the full contract.

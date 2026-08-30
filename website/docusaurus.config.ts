@@ -80,11 +80,11 @@ const config: Config = {
     },
     languageTabs: [
       { language: 'curl' },
-      { language: 'Python' },
-      { language: 'Go' },
-      { language: 'NodeJs' },
-      { language: 'Java' },
-      { language: 'C#' },
+      { language: 'python' },
+      { language: 'go' },
+      { language: 'nodejs' },
+      { language: 'java' },
+      { language: 'csharp' },
     ],
   } satisfies Preset.ThemeConfig,
 };
