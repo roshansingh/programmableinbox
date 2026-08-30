@@ -107,7 +107,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
@@ -124,7 +124,7 @@ jobs:
       tarball_name: ${{ steps.build.outputs.tarball_name }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
@@ -234,22 +234,37 @@ jobs:
     # sdk/go/vX.Y.Z tag (below) — every other language publishes to its own
     # package registry over a dedicated API token/secret, not via the GitHub
     # API, so this is the narrowest grant that still covers all five. id-token:
-    # write is only for the C# leg's NuGet Trusted Publishing exchange (NuGet/
-    # login@v1 below) — it lets that step request an OIDC token from GitHub;
-    # nuget.org verifies it against the trusted-publishing policy registered
-    # there and returns a short-lived (~1hr) API key, so no NUGET_API_KEY
-    # secret is stored. See https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing.
+    # write backs two independent OIDC-based Trusted Publishing exchanges:
+    # C# (NuGet/login@v1 below — nuget.org verifies the token against a
+    # trusted-publishing policy registered there, returns a short-lived
+    # ~1hr API key, see https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+    # and TypeScript (npm's registry — the CLI itself detects the OIDC
+    # environment via actions/setup-node@v6 + this permission and uses it
+    # automatically, no separate exchange action, see
+    # https://docs.npmjs.com/trusted-publishers/). Neither uses a long-lived
+    # secret at all — no NUGET_API_KEY, and the npm leg carries no
+    # NODE_AUTH_TOKEN/NPM_TOKEN either, deliberately: this job is OIDC-only
+    # for both. NPM_TOKEN still exists as a secret, but only for
+    # scripts/release/publish-sdk.mjs's manual/local publish path, which has
+    # no CI OIDC context to detect — it is not read here.
     permissions:
       contents: write
       id-token: write
     strategy:
       fail-fast: false
+      # java is temporarily dropped from this matrix — Sonatype Central
+      # Portal namespace verification for com.programmableinbox is still
+      # pending, and the com.programmableinbox:sdk publish step (below) will
+      # fail on that alone regardless of the pom.xml wiring gap tracked
+      # separately. Re-add 'java' once that namespace shows "verified" on
+      # central.sonatype.com — this is the only change needed to resume it,
+      # the java steps below are untouched and still gated the same way.
       matrix:
-        lang: [python, typescript, java, csharp, go]
+        lang: [python, typescript, csharp, go]
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
 
@@ -331,7 +346,7 @@ jobs:
         run: twine upload sdk/python/dist/*
 
       # --- TypeScript (npm) ----------------------------------------------
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false'
         with:
           node-version: '24'
@@ -343,12 +358,28 @@ jobs:
           npm ci
           npm run build
           npm pack --dry-run
+      # Trusted Publishing (OIDC) only — no NPM_TOKEN, deliberately. npm CLI
+      # >=11.5.1 (bundled with Node 24) auto-detects the OIDC environment
+      # this job's id-token: write permission + actions/setup-node@v6's
+      # registry-url provide, and exchanges it for a short-lived credential
+      # once a Trusted Publisher is configured on npmjs.com for this repo +
+      # workflow file. No NODE_AUTH_TOKEN is set, so there is no token-based
+      # fallback: npm is deprecating tokens that bypass 2FA for publishing
+      # anyway (the exact `EOTP` failure this leg hit before this wiring
+      # existed), so a fallback onto that mechanism wouldn't be durable.
+      # Until the Trusted Publisher is configured, this step simply fails —
+      # that's the intended behavior, not a bug to work around with a token.
+      #
+      # Trusted Publishing cannot bootstrap a package's first-ever publish —
+      # npmjs.com won't let you configure a Trusted Publisher for a package
+      # that doesn't exist yet. @programmableinbox/sdk already has manually
+      # published versions on npm (via scripts/release/publish-sdk.mjs, a
+      # separate local/token-based path, unaffected by this), so that
+      # bootstrap requirement is already satisfied.
       - name: Publish to npm
         id: publish-typescript
         if: matrix.lang == 'typescript' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
         working-directory: sdk/typescript
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         # --access public: @programmableinbox is a scoped name, which npm
         # defaults to restricted (private) unless told otherwise.
         run: npm publish --access public
