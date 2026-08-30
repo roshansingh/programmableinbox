@@ -28,6 +28,7 @@ const config: Config = {
           routeBasePath: '/',
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/roshansingh/programmableinbox/edit/main/website/',
+          docItemComponent: '@theme/ApiItem',
         },
         blog: false,
         theme: {
@@ -36,6 +37,27 @@ const config: Config = {
       } satisfies Preset.Options,
     ],
   ],
+
+  plugins: [
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'api',
+        docsPluginId: 'classic',
+        config: {
+          pibx: {
+            specPath: '../sdk/openapi.json',
+            outputDir: 'docs/api-reference',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+              categoryLinkSource: 'tag',
+            },
+          },
+        },
+      },
+    ],
+  ],
+  themes: ['docusaurus-theme-openapi-docs'],
 
   themeConfig: {
     navbar: {
@@ -56,6 +78,14 @@ const config: Config = {
     prism: {
       additionalLanguages: ['bash', 'json', 'java', 'csharp', 'go'],
     },
+    languageTabs: [
+      { language: 'curl' },
+      { language: 'python' },
+      { language: 'go' },
+      { language: 'nodejs' },
+      { language: 'java' },
+      { language: 'csharp' },
+    ],
   } satisfies Preset.ThemeConfig,
 };
 
