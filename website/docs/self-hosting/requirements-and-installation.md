@@ -31,6 +31,7 @@ Fill in `.env` — see [Configuration](configuration) for what's required.
 
 ```bash
 npx prisma migrate dev
+npx prisma generate  # regenerates lib/generated/prisma; migrate dev does not do this on its own
 npx prisma db seed   # creates test@example.com / password123
 npm run dev
 ```
