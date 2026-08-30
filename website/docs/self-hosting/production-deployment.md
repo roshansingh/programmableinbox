@@ -20,6 +20,11 @@ Caddy is exposed on ports 80/443.
 
 ## Bring the stack up
 
+The compose files and configuration live under `deploy/` in the repository.
+Clone the repo, `cd deploy`, and follow the
+[operator's guide](https://github.com/roshansingh/programmableinbox/blob/main/deploy/README.md)
+to provision secrets and environment files before running the commands below.
+
 ```bash
 docker compose pull
 docker compose up -d postgres
@@ -28,10 +33,10 @@ docker compose up -d
 ```
 
 The `migrate` step runs schema migrations using a dedicated
-`programmableinbox_migrator` database role with DDL privileges. The app
-itself connects as `programmableinbox_app`, which can only read and write
+`inboxui_migrator` database role with DDL privileges. The app
+itself connects as `inboxui_app`, which can only read and write
 data — it cannot alter the schema. A third role,
-`programmableinbox_backup`, can read everything plus write backup status,
+`inboxui_backup`, can read everything plus write backup status,
 for use by backup tooling. A break-glass superuser role exists but is never
 used by the running application.
 

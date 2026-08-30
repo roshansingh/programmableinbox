@@ -23,7 +23,7 @@ Point at a self-hosted instance by setting `basePath` on the `Configuration`:
 ```ts
 const config = new Configuration({
   accessToken: 'sk_live_...',
-  basePath: 'https://your-domain.example.com/api/v1',
+  basePath: 'https://your-domain.example.com',
 });
 ```
 

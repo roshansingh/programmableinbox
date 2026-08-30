@@ -26,7 +26,7 @@ Point at a self-hosted instance by setting `configuration.host`:
 ```python
 configuration = programmableinbox.Configuration(
     access_token="sk_live_...",
-    host="https://docs.example.com/api/v1",
+    host="https://your-domain.example.com",
 )
 ```
 

@@ -48,6 +48,6 @@ can never see or act on a different organization's data.
 ## Ownership vs. visibility
 
 Within an organization, every member can see every inbox. Only the user who
-created an inbox (or an admin) can rename, delete it, or send mail from it —
-seeing something and being allowed to change it are deliberately different
+created an inbox can rename, delete it, or send mail from it — seeing
+something and being allowed to change it are deliberately different
 permissions.

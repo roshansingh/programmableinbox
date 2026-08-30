@@ -12,10 +12,10 @@ the dashboard.
 ## Seeing vs. changing
 
 Any member of an organization can see every inbox that belongs to it. Only
-the inbox's creator (or an organization admin) can rename, delete it, or
-send mail from it. The dashboard reflects this directly — an inbox you
-don't own shows without the actions you can't take on it, rather than
-letting you click into a action that then fails.
+the inbox's creator can rename, delete it, or send mail from it. The
+dashboard reflects this directly — an inbox you don't own shows without the
+actions you can't take on it, rather than letting you click into an action
+that then fails.
 
 ## API keys
 

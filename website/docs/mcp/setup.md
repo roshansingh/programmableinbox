@@ -21,7 +21,10 @@ you're connecting from a browser-based client.)
 
 From the dashboard, under **Settings → API Keys**, create a key with the
 scopes the tools you'll use need — typically `email_inboxes:read` and
-`email_messages:read` at minimum. See
+`email_messages:read` at minimum. The two write tools need their own scopes
+too: `pibx_email_create_inbox` needs `email_inboxes:create` and
+`pibx_email_update_inbox` needs `email_inboxes:update` — a key minted with
+only the two read scopes can't invoke them. See
 [Organizations & API Keys](../using-programmableinbox/organizations-and-api-keys)
 for the full scope list.
 
@@ -38,11 +41,26 @@ claude mcp add --transport http programmableinbox https://your-domain.example.co
   --header "Authorization: Bearer sk_live_..."
 ```
 
-**Cursor** (`.cursor/mcp.json`) or **VS Code** (`.vscode/mcp.json`):
+**Cursor** (`.cursor/mcp.json`):
 
 ```json
 {
   "mcpServers": {
+    "programmableinbox": {
+      "url": "https://your-domain.example.com/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:PIBX_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+**VS Code** (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
     "programmableinbox": {
       "url": "https://your-domain.example.com/api/mcp",
       "headers": {

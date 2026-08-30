@@ -5,7 +5,7 @@ title: Tool Reference
 
 # Tool Reference
 
-All six tools are prefixed `pibx_email_`. Every tool call is scoped to the
+All eight tools are prefixed `pibx_email_`. Every tool call is scoped to the
 organization your API key belongs to, exactly like the REST API.
 
 | Tool | Does | Needs |
@@ -16,6 +16,8 @@ organization your API key belongs to, exactly like the REST API.
 | `pibx_email_get_message` | Fetch one message in full | `email_messages:read` |
 | `pibx_email_get_thread` | Fetch every message in a thread | `email_messages:read` |
 | `pibx_email_get_latest_otp` | Fetch the most recent one-time code delivered to an inbox | `email_messages:read` |
+| `pibx_email_create_inbox` | Creates a new email inbox and returns it. The address must be on a domain this account can receive at, and cannot be changed afterwards — create another inbox instead. | `email_inboxes:create` |
+| `pibx_email_update_inbox` | Rename an existing email inbox | `email_inboxes:update` |
 
 `pibx_email_search_messages` has no `grouped` argument — grouping and
 searching together isn't supported (see [Search](../using-programmableinbox/search)),

@@ -20,24 +20,22 @@ This command starts a local development server and opens up a browser window. Mo
 
 ## Build
 
+This site's build pulls in the OpenAPI spec from `../sdk/openapi.json`,
+which is gitignored and not committed. Export it fresh from the repo root
+before building:
+
 ```bash
-npm run build
+# from the repo root
+npm run sdk:export-spec
+
+# then, inside website/
+npm install && npm run build
 ```
 
 This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
 ## Deployment
 
-Using SSH:
-
-```bash
-USE_SSH=true npm run deploy
-```
-
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> npm run deploy
-```
-
-If you are using GitHub Pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+This site deploys automatically via `.github/workflows/docs.yml` on every
+push to `main` that touches `website/**` or `lib/openapi/email-inboxes.ts`.
+Do not run `docusaurus deploy` manually — there is no `gh-pages` branch.

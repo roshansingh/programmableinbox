@@ -34,6 +34,9 @@ export default tseslint.config(
       // set, since they were written to satisfy openapi-generator's default
       // target config, not this one.
       'sdk/typescript/**',
+      // Docusaurus docs site — its own isolated toolchain (see website/), not
+      // held to this repo's lint rules.
+      'website/**',
     ],
   },
   // Parser and plugin only — `base` enables no rules of its own, which keeps
