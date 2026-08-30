@@ -54,8 +54,16 @@ git clone https://github.com/roshansingh/programmableinbox /tmp/programmableinbo
 
 ### 2. Rename the Postgres roles (live)
 
+`$POSTGRES_USER`/`$POSTGRES_DB` live only inside the containers, via `env_file` —
+they are not set in your SSH shell. Pull them out of `app.env` once; every `psql`
+invocation below (and in Phase B/D) relies on them being set for the rest of the
+session:
+
 ```bash
 cd /srv/inboxui   # still the old path — the running stack is untouched by this step
+export POSTGRES_USER=$(grep -m1 '^POSTGRES_USER=' secrets/app.env | cut -d= -f2-)
+export POSTGRES_DB=$(grep -m1 '^POSTGRES_DB=' secrets/app.env | cut -d= -f2-)
+
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 ALTER ROLE inboxui_app RENAME TO programmableinbox_app;
 ALTER ROLE inboxui_migrator RENAME TO programmableinbox_migrator;
@@ -162,7 +170,9 @@ docker compose logs --tail=50 app | grep -i error     # expect nothing
 docker compose run --rm migrate                       # expect "No pending migrations to apply."
 ```
 
-Confirm the role rename actually took, not just that the app happens to work:
+Confirm the role rename actually took, not just that the app happens to work. If
+Phase B is a new shell session, re-export `$POSTGRES_USER`/`$POSTGRES_DB` from
+`secrets/app.env` first (see step 2):
 
 ```bash
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
