@@ -7,7 +7,11 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Introduction',
-      items: ['introduction/overview'],
+      items: [
+        'introduction/overview',
+        'introduction/core-concepts',
+        'introduction/quickstart-docker',
+      ],
     },
     {
       type: 'category',
