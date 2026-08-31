@@ -41,15 +41,21 @@ export function UserMenu({ onBeforeLogout }: UserMenuProps) {
       // Awaited so the server has cleared the httpOnly cookie before we
       // navigate — the client holds no credential of its own to drop.
       await logout()
-    } finally {
-      // Full navigation rather than router.push: it guarantees no stale user
-      // data survives in memory, and it sidesteps AuthGuard, which would
-      // otherwise redirect to /auth/login?redirect=<current page>. Matches how
-      // lib/api-client.ts handles a 401. Runs even if the logout request
-      // failed — a user clicking "log out" must never be stranded on the
-      // current page in an ambiguous signed-in-or-not state.
-      window.location.href = '/auth/login'
+    } catch (error) {
+      // Swallowed rather than left to propagate: a `finally` block doesn't
+      // stop the original rejection from surfacing once it's run, and
+      // nothing downstream awaits this handler's promise (it's an `onSelect`
+      // callback), so an uncaught rejection here becomes an unhandled
+      // promise rejection in the browser console.
+      console.error('Failed to log out cleanly', error)
     }
+    // Full navigation rather than router.push: it guarantees no stale user
+    // data survives in memory, and it sidesteps AuthGuard, which would
+    // otherwise redirect to /auth/login?redirect=<current page>. Matches how
+    // lib/api-client.ts handles a 401. Runs even if the logout request
+    // failed — a user clicking "log out" must never be stranded on the
+    // current page in an ambiguous signed-in-or-not state.
+    window.location.href = '/auth/login'
   }
 
   return (

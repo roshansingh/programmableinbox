@@ -17,11 +17,11 @@
 export const MOCK_SESSION_COOKIE_VALUE = 'mock-session-token'
 
 export function setMockSessionCookie(value: string = MOCK_SESSION_COOKIE_VALUE): void {
-  document.cookie = `session=${value}`
+  document.cookie = `session=${value}; path=/`
 }
 
 export function clearMockSessionCookie(): void {
-  document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+  document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
 }
 
 export function getSessionCookieFromRequest(request: Request): string | null {

@@ -89,6 +89,20 @@ describe('UserMenu', () => {
     expect(window.location.href).toBe('/auth/login')
   })
 
+  it('still navigates to login when the server logout call fails, without an unhandled rejection', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(logout).mockRejectedValue(new Error('network error'))
+    const user = userEvent.setup()
+    render(<UserMenu />)
+
+    await user.click(screen.getByRole('button', { name: /roshan singh/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /log out/i }))
+
+    expect(window.location.href).toBe('/auth/login')
+    expect(consoleError).toHaveBeenCalledWith('Failed to log out cleanly', expect.any(Error))
+    consoleError.mockRestore()
+  })
+
   it('runs onBeforeLogout before navigating, so the mobile sheet can close', async () => {
     const user = userEvent.setup()
     const onBeforeLogout = vi.fn()

@@ -130,4 +130,17 @@ describe('VerifyEmailNotice', () => {
     expect(logout).toHaveBeenCalledTimes(1)
     expect(window.location.href).toBe('/auth/login')
   })
+
+  it('still navigates to login when the server logout call fails, without an unhandled rejection', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(logout).mockRejectedValue(new Error('network error'))
+    const user = userEvent.setup()
+    render(<VerifyEmailNotice />)
+
+    await user.click(await screen.findByRole('button', { name: /sign out/i }))
+
+    expect(window.location.href).toBe('/auth/login')
+    expect(consoleError).toHaveBeenCalledWith('Failed to log out cleanly', expect.any(Error))
+    consoleError.mockRestore()
+  })
 })

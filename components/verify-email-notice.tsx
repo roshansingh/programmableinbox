@@ -75,9 +75,15 @@ export function VerifyEmailNotice() {
   const handleSignOut = async () => {
     try {
       await logout()
-    } finally {
-      window.location.href = "/auth/login"
+    } catch (error) {
+      // Swallowed rather than left to propagate: a `finally` block doesn't
+      // stop the original rejection from surfacing once it's run, and
+      // nothing downstream awaits this handler's promise (it's an `onClick`
+      // callback), so an uncaught rejection here becomes an unhandled
+      // promise rejection in the browser console.
+      console.error('Failed to log out cleanly', error)
     }
+    window.location.href = "/auth/login"
   }
 
   return (
