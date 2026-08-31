@@ -44,7 +44,7 @@ describe('observability config domain', () => {
     expect(config.enabled).toBe(false)
     expect(config.otlpEndpoint).toBeNull()
     expect(config.otlpHeaders).toBeNull()
-    expect(config.serviceName).toBe('inboxui')
+    expect(config.serviceName).toBe('programmableinbox')
   })
 
   it('parses a complete configuration', () => {
@@ -68,12 +68,12 @@ describe('observability config domain', () => {
     expect(JSON.stringify(config.otlpHeaders)).toBe('"[redacted]"')
   })
 
-  it('defaults serviceName to inboxui when unset', () => {
-    expect(withEnv({}).serviceName).toBe('inboxui')
+  it('defaults serviceName to programmableinbox when unset', () => {
+    expect(withEnv({}).serviceName).toBe('programmableinbox')
   })
 
   it('reads OTEL_SERVICE_NAME when set', () => {
-    expect(withEnv({ OTEL_SERVICE_NAME: 'my-inboxui' }).serviceName).toBe('my-inboxui')
+    expect(withEnv({ OTEL_SERVICE_NAME: 'my-programmableinbox' }).serviceName).toBe('my-programmableinbox')
   })
 
   it('throws on a malformed flag rather than reading it as off', () => {

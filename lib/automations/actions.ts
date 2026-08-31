@@ -238,7 +238,7 @@ async function executeSendWebhook(
       headers: {
         'content-type': 'application/json',
         ...(node.config.headers ?? {}),
-        ...(node.config.secret ? { 'x-inboxui-signing-secret': node.config.secret } : {}),
+        ...(node.config.secret ? { 'x-programmableinbox-signing-secret': node.config.secret } : {}),
       },
       body: payload,
     })

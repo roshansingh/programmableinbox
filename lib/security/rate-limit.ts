@@ -189,7 +189,14 @@ async function getClient(): Promise<RateLimitRedis | null> {
 
   _clientPromise = (async () => {
     try {
-      const { Redis: RedisCtor } = await import('ioredis')
+      // Destructure `default`, not `Redis`: ioredis's CJS entry reassigns
+      // `module.exports` to a function, which strips the `__esModule` flag.
+      // Webpack's dynamic-import namespace helper only copies named exports
+      // when the resolved value's `typeof` is `'object'` — a function fails
+      // that check, so `Redis` comes back `undefined` while `default` (set
+      // unconditionally) does not. Destructuring `Redis` here is what
+      // produced prod's "a is not a constructor" (new undefined()).
+      const { default: RedisCtor } = await import('ioredis')
       const { timeoutMs } = getRateLimitConfig()
       const client: Redis = new RedisCtor({
         ...buildRedisOptions(),

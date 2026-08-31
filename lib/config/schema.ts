@@ -573,7 +573,7 @@ const ObservabilitySchema = z
     enabled: v.ENABLE_OBSERVABILITY ?? false,
     otlpEndpoint: v.OTEL_EXPORTER_OTLP_ENDPOINT ?? null,
     otlpHeaders: v.OTEL_EXPORTER_OTLP_HEADERS ?? null,
-    serviceName: v.OTEL_SERVICE_NAME ?? 'inboxui',
+    serviceName: v.OTEL_SERVICE_NAME ?? 'programmableinbox',
   }))
 
 /**

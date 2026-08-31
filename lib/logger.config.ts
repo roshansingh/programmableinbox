@@ -17,15 +17,15 @@ import { config } from '@/lib/config'
 // `lib/db.ts` stashes its Prisma singleton there (`globalForPrisma`) to
 // survive Next.js dev-mode module duplication.
 const globalForLoggerConfig = globalThis as unknown as {
-  __inboxuiExtraLogTransportTargets?: TransportTargetOptions[]
-  __inboxuiLoggerConfigBuilt?: boolean
+  __programmableinboxExtraLogTransportTargets?: TransportTargetOptions[]
+  __programmableinboxLoggerConfigBuilt?: boolean
 }
 
 function getExtraTransportTargets(): TransportTargetOptions[] {
-  if (!globalForLoggerConfig.__inboxuiExtraLogTransportTargets) {
-    globalForLoggerConfig.__inboxuiExtraLogTransportTargets = []
+  if (!globalForLoggerConfig.__programmableinboxExtraLogTransportTargets) {
+    globalForLoggerConfig.__programmableinboxExtraLogTransportTargets = []
   }
-  return globalForLoggerConfig.__inboxuiExtraLogTransportTargets
+  return globalForLoggerConfig.__programmableinboxExtraLogTransportTargets
 }
 
 /**
@@ -37,8 +37,8 @@ function getExtraTransportTargets(): TransportTargetOptions[] {
  * alongside `vi.resetModules()` in `afterEach`.
  */
 export function resetLoggerConfigStateForTests(): void {
-  globalForLoggerConfig.__inboxuiExtraLogTransportTargets = []
-  globalForLoggerConfig.__inboxuiLoggerConfigBuilt = false
+  globalForLoggerConfig.__programmableinboxExtraLogTransportTargets = []
+  globalForLoggerConfig.__programmableinboxLoggerConfigBuilt = false
 }
 
 /**
@@ -61,7 +61,7 @@ export function resetLoggerConfigStateForTests(): void {
  * copy, and only a process-global survives that.
  */
 export function registerExtraLogTransport(target: TransportTargetOptions): void {
-  if (globalForLoggerConfig.__inboxuiLoggerConfigBuilt) {
+  if (globalForLoggerConfig.__programmableinboxLoggerConfigBuilt) {
     throw new Error(
       'registerExtraLogTransport() called after the logger was already built — ' +
         'it must run before the first getLogger()/logger.* call in the process. ' +
@@ -93,7 +93,7 @@ const PRETTY_TARGET: TransportTargetOptions = {
  * kept logging at `info`, with the warning itself buried in the startup output.
  */
 export function buildLoggerConfig(): LoggerOptions {
-  globalForLoggerConfig.__inboxuiLoggerConfigBuilt = true
+  globalForLoggerConfig.__programmableinboxLoggerConfigBuilt = true
 
   const isDev = !config.runtime.isProduction
   const level = config.logging.level ?? (isDev ? 'debug' : 'info')

@@ -19,7 +19,7 @@ PGPASSWORD="${BACKUP_DB_PASSWORD}" pg_dump \
   2>>"$LOG_DIR/pgdump.log" \
   | restic backup \
       --stdin \
-      --stdin-filename "inboxui-${TS}.pgdump" \
+      --stdin-filename "programmableinbox-${TS}.pgdump" \
       --tag pgdump \
       --tag "ts=${TS}" \
       >>"$LOG_DIR/pgdump.log" 2>&1

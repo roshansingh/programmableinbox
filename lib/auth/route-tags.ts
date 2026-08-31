@@ -26,7 +26,7 @@ export type RouteTagInfo = {
   allowUnverified: boolean
 }
 
-const ROUTE_TAG = Symbol.for('inboxui.routeTag')
+const ROUTE_TAG = Symbol.for('programmableinbox.routeTag')
 
 export function tagHandler<T>(
   handler: T,

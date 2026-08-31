@@ -46,8 +46,8 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
    ```
 
 5. These vars are split across **two** files — the collector gets its own
-   `/srv/inboxui/secrets/otel-collector.env`, deliberately separate from the app's
-   `/srv/inboxui/secrets/app.env` (see [`deploy/README.md`](../deploy/README.md), Part 3 and
+   `/srv/programmableinbox/secrets/otel-collector.env`, deliberately separate from the app's
+   `/srv/programmableinbox/secrets/app.env` (see [`deploy/README.md`](../deploy/README.md), Part 3 and
    Part 9), so a third-party image with a read-only mount over every container's log history never
    sees `JWT_SECRET`, `DATABASE_URL`, or anything else it doesn't need:
 
@@ -57,11 +57,11 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
    | `OTEL_EXPORTER_OTLP_ENDPOINT` | `app.env` | `http://otel-collector:4318` — the collector, on the internal docker network, **not** Grafana |
    | `OTEL_EXPORTER_OTLP_PROTOCOL` | `app.env` | `http/protobuf` |
    | `OTEL_EXPORTER_OTLP_HEADERS` | `app.env` | any non-empty value, e.g. `X-Local-Collector=unused` — required by `assertConfig()`, but carries no real secret since the app never talks to Grafana directly |
-   | `OTEL_SERVICE_NAME` | **both** files | `inboxui` (default) or your choice — keep it the same value in both, since the collector's log pipeline stamps it onto log records so they match the app's trace resource |
+   | `OTEL_SERVICE_NAME` | **both** files | `programmableinbox` (default) or your choice — keep it the same value in both, since the collector's log pipeline stamps it onto log records so they match the app's trace resource |
    | `OTEL_EXPORTER_ENDPOINT` | `otel-collector.env` | the Grafana OTLP gateway URL from step 2 |
    | `OTEL_EXPORTER_AUTH` | `otel-collector.env` | the `Basic ...` header value from step 4 |
 
-   `/srv/inboxui/secrets/otel-collector.env` needs to exist (even if you later swap collector
+   `/srv/programmableinbox/secrets/otel-collector.env` needs to exist (even if you later swap collector
    credentials) — `docker-compose.yml`'s `otel-collector` service has no default for it.
 
 6. Bring up the app **and** the collector — the collector is gated behind the `observability`

@@ -8,7 +8,7 @@
 
 ```bash
 ssh deploy@$HOST
-cd /srv/inboxui
+cd /srv/programmableinbox
 docker compose stop app
 ```
 
@@ -23,35 +23,35 @@ Sources: app logs, audit records, user report. Pick a timestamp **just before** 
 This restores into a fresh data dir **next to** the broken one. The broken DB stays intact for forensics.
 
 ```bash
-sudo install -d -o 70 -g 70 -m 0700 /srv/inboxui/pgdata-recovery
+sudo install -d -o 70 -g 70 -m 0700 /srv/programmableinbox/pgdata-recovery
 docker run --rm \
-  --network inboxui_inboxui-internal \
-  --env-file /srv/inboxui/secrets/app.env \
-  -v /srv/inboxui/pgdata-recovery:/var/lib/postgresql/data \
-  ghcr.io/OWNER/inboxui-postgres:17 \
+  --network programmableinbox_programmableinbox-internal \
+  --env-file /srv/programmableinbox/secrets/app.env \
+  -v /srv/programmableinbox/pgdata-recovery:/var/lib/postgresql/data \
+  ghcr.io/OWNER/programmableinbox-postgres:17 \
   bash -c "wal-g backup-fetch /var/lib/postgresql/data LATEST"
 ```
 
 ## 4. Configure recovery target and start
 
 ```bash
-cat <<EOF | sudo tee /srv/inboxui/pgdata-recovery/postgresql.auto.conf
+cat <<EOF | sudo tee /srv/programmableinbox/pgdata-recovery/postgresql.auto.conf
 restore_command = 'wal-g wal-fetch %f %p'
 recovery_target_time = '2026-05-14 13:42:30 UTC'
 recovery_target_action = 'promote'
 EOF
-sudo touch /srv/inboxui/pgdata-recovery/recovery.signal
+sudo touch /srv/programmableinbox/pgdata-recovery/recovery.signal
 ```
 
 Spin up the recovery instance on an alternate port (no compose; one-off container):
 
 ```bash
 docker run --rm -d --name pg-recovery \
-  --network inboxui_inboxui-internal \
+  --network programmableinbox_programmableinbox-internal \
   -p 127.0.0.1:5433:5432 \
-  --env-file /srv/inboxui/secrets/app.env \
-  -v /srv/inboxui/pgdata-recovery:/var/lib/postgresql/data \
-  ghcr.io/OWNER/inboxui-postgres:17 \
+  --env-file /srv/programmableinbox/secrets/app.env \
+  -v /srv/programmableinbox/pgdata-recovery:/var/lib/postgresql/data \
+  ghcr.io/OWNER/programmableinbox-postgres:17 \
   postgres -c config_file=/etc/postgresql/postgresql.conf
 ```
 
@@ -78,8 +78,8 @@ SQL
 
 ```bash
 docker compose stop postgres
-sudo mv /srv/inboxui/pgdata /srv/inboxui/pgdata-corrupt-$(date +%s)
-sudo mv /srv/inboxui/pgdata-recovery /srv/inboxui/pgdata
+sudo mv /srv/programmableinbox/pgdata /srv/programmableinbox/pgdata-corrupt-$(date +%s)
+sudo mv /srv/programmableinbox/pgdata-recovery /srv/programmableinbox/pgdata
 docker rm -f pg-recovery
 docker compose up -d postgres
 docker compose run --rm migrate    # no-op if schema unchanged

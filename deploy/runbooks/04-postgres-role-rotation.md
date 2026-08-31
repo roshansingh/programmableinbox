@@ -16,7 +16,7 @@ The role model lives in `deploy/postgres/least-privilege-roles.sql`, which the p
 
 > ⚠️ **The official postgres image only executes `/docker-entrypoint-initdb.d/*` when `PGDATA` is empty.**
 > Pulling the new image and recreating the container against the existing
-> `/srv/inboxui/pgdata` runs **none** of it, and prints **no warning**. There is
+> `/srv/programmableinbox/pgdata` runs **none** of it, and prints **no warning**. There is
 > no automatic path. That is what this runbook is for.
 
 ## The target role model
@@ -24,9 +24,9 @@ The role model lives in `deploy/postgres/least-privilege-roles.sql`, which the p
 | Role | Attributes | Privileges | Used by |
 |---|---|---|---|
 | `$POSTGRES_USER` (bootstrap) | SUPERUSER | everything; owns the database | image entrypoint + break-glass only |
-| `inboxui_migrator` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | owns schema `public` and every object in it; `CONNECT`+`CREATE` on the database | the one-shot `migrate` service (`prisma migrate deploy`) |
-| `inboxui_app` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | `USAGE` on `public`; `SELECT/INSERT/UPDATE/DELETE` on its tables; `USAGE,SELECT` on sequences; `CONNECT` on the database. **No DDL, no `COPY … PROGRAM`, no `pg_read_file`** | the `app` container |
-| `inboxui_backup` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | `pg_read_all_data`, `pg_read_all_settings`, `pg_read_all_stats`, EXECUTE on the backup-control functions, and `SELECT/INSERT/UPDATE` on `backup_status` only | `backup-cron` (`pg_dump`, `wal-g`) |
+| `programmableinbox_migrator` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | owns schema `public` and every object in it; `CONNECT`+`CREATE` on the database | the one-shot `migrate` service (`prisma migrate deploy`) |
+| `programmableinbox_app` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | `USAGE` on `public`; `SELECT/INSERT/UPDATE/DELETE` on its tables; `USAGE,SELECT` on sequences; `CONNECT` on the database. **No DDL, no `COPY … PROGRAM`, no `pg_read_file`** | the `app` container |
+| `programmableinbox_backup` | NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOREPLICATION, NOBYPASSRLS | `pg_read_all_data`, `pg_read_all_settings`, `pg_read_all_stats`, EXECUTE on the backup-control functions, and `SELECT/INSERT/UPDATE` on `backup_status` only | `backup-cron` (`pg_dump`, `wal-g`) |
 
 ---
 
@@ -42,7 +42,7 @@ Save all three in the password manager **now** — `app.env` is not the source o
 
 ```bash
 ssh deploy@$HOST
-sudo -u deploy vi /srv/inboxui/secrets/app.env
+sudo -u deploy vi /srv/programmableinbox/secrets/app.env
 ```
 
 Add (keep the existing `POSTGRES_USER` / `POSTGRES_PASSWORD` lines exactly as they are — the bootstrap superuser must keep working until rollback is off the table):
@@ -53,23 +53,23 @@ POSTGRES_APP_PASSWORD=<generated>
 POSTGRES_MIGRATOR_PASSWORD=<generated>
 POSTGRES_BACKUP_PASSWORD=<generated>
 # role names are optional; these are the defaults
-POSTGRES_APP_USER=inboxui_app
-POSTGRES_MIGRATOR_USER=inboxui_migrator
-POSTGRES_BACKUP_USER=inboxui_backup
+POSTGRES_APP_USER=programmableinbox_app
+POSTGRES_MIGRATOR_USER=programmableinbox_migrator
+POSTGRES_BACKUP_USER=programmableinbox_backup
 ```
 
 Do **not** repoint `DATABASE_URL` yet — that happens in step 5, after the roles exist.
 
 ## 3. Get the new postgres image onto the box
 
-The conversion script ships inside the image, so the container has to be recreated first. Recreating the container does **not** touch `/srv/inboxui/pgdata`.
+The conversion script ships inside the image, so the container has to be recreated first. Recreating the container does **not** touch `/srv/programmableinbox/pgdata`.
 
 ```bash
-cd /srv/inboxui
+cd /srv/programmableinbox
 docker compose pull postgres
 docker compose up -d postgres
 docker compose ps                       # wait for "healthy"
-docker compose exec -T postgres test -x /usr/local/bin/inboxui-apply-least-privilege && echo OK
+docker compose exec -T postgres test -x /usr/local/bin/programmableinbox-apply-least-privilege && echo OK
 ```
 
 If that last check fails, CI has not published a postgres image containing this change yet. Stop here.
@@ -77,15 +77,15 @@ If that last check fails, CI has not published a postgres image containing this 
 ## 4. Create the roles
 
 ```bash
-sudo cp /tmp/inboxui/deploy/scripts/pg-apply-least-privilege.sh /srv/inboxui/
-sudo chown deploy:deploy /srv/inboxui/pg-apply-least-privilege.sh
-sudo chmod +x /srv/inboxui/pg-apply-least-privilege.sh
-sudo -u deploy /srv/inboxui/pg-apply-least-privilege.sh
+sudo cp /tmp/programmableinbox/deploy/scripts/pg-apply-least-privilege.sh /srv/programmableinbox/
+sudo chown deploy:deploy /srv/programmableinbox/pg-apply-least-privilege.sh
+sudo chmod +x /srv/programmableinbox/pg-apply-least-privilege.sh
+sudo -u deploy /srv/programmableinbox/pg-apply-least-privilege.sh
 ```
 
 This is idempotent — re-running it is safe and is also how you rotate the passwords later.
 
-What it does, in order: creates the three roles; revokes `CONNECT`/`TEMPORARY` on the database from `PUBLIC`; makes `inboxui_migrator` the owner of schema `public` **and of every existing table, sequence, view and enum type in it**; revokes `CREATE` on `public` from `PUBLIC`; grants the runtime role DML on everything that exists today; sets `ALTER DEFAULT PRIVILEGES` so everything created by future migrations is covered automatically; and grants the backup role `pg_read_all_data`.
+What it does, in order: creates the three roles; revokes `CONNECT`/`TEMPORARY` on the database from `PUBLIC`; makes `programmableinbox_migrator` the owner of schema `public` **and of every existing table, sequence, view and enum type in it**; revokes `CREATE` on `public` from `PUBLIC`; grants the runtime role DML on everything that exists today; sets `ALTER DEFAULT PRIVILEGES` so everything created by future migrations is covered automatically; and grants the backup role `pg_read_all_data`.
 
 > The re-ownership step is not optional. `ALTER TABLE` requires *ownership*, not
 > a privilege — without it the very next migration would fail on every table the
@@ -97,22 +97,22 @@ What it does, in order: creates the three roles; revokes `CONNECT`/`TEMPORARY` o
 docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 -- 1. attributes: rolsuper must be f for all three
 SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolbypassrls, rolcanlogin
-  FROM pg_roles WHERE rolname LIKE 'inboxui\_%' ORDER BY rolname;
+  FROM pg_roles WHERE rolname LIKE 'programmableinbox\_%' ORDER BY rolname;
 
 -- 2. the runtime role can read/write the data ...
-SELECT has_table_privilege('inboxui_app', 'public.email_messages', 'SELECT') AS sel,
-       has_table_privilege('inboxui_app', 'public.email_messages', 'INSERT') AS ins,
-       has_table_privilege('inboxui_app', 'public.email_messages', 'DELETE') AS del;
+SELECT has_table_privilege('programmableinbox_app', 'public.email_messages', 'SELECT') AS sel,
+       has_table_privilege('programmableinbox_app', 'public.email_messages', 'INSERT') AS ins,
+       has_table_privilege('programmableinbox_app', 'public.email_messages', 'DELETE') AS del;
 
 -- 3. ... but owns nothing (0 rows expected)
 SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
- WHERE n.nspname = 'public' AND pg_get_userbyid(c.relowner) = 'inboxui_app';
+ WHERE n.nspname = 'public' AND pg_get_userbyid(c.relowner) = 'programmableinbox_app';
 
 -- 4. the migrator owns everything (0 rows expected)
 SELECT c.relname, pg_get_userbyid(c.relowner) AS owner
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
  WHERE n.nspname = 'public' AND c.relkind IN ('r','p','S','v','m')
-   AND pg_get_userbyid(c.relowner) <> 'inboxui_migrator';
+   AND pg_get_userbyid(c.relowner) <> 'programmableinbox_migrator';
 
 -- 5. default privileges are recorded (expect one row per role/objtype)
 SELECT pg_get_userbyid(defaclrole) AS grantor, defaclobjtype, defaclacl
@@ -131,7 +131,7 @@ Now prove the runtime role really cannot escalate — **this is the actual point
 ```bash
 docker compose exec -T postgres \
   env PGPASSWORD="$POSTGRES_APP_PASSWORD" \
-  psql -h 127.0.0.1 -U inboxui_app -d "$POSTGRES_DB" <<'SQL'
+  psql -h 127.0.0.1 -U programmableinbox_app -d "$POSTGRES_DB" <<'SQL'
 -- each of these MUST fail
 COPY (SELECT 1) TO PROGRAM 'id';           -- ERROR: must be superuser ...
 SELECT pg_read_file('/etc/passwd');        -- ERROR: permission denied for function
@@ -143,12 +143,12 @@ If any of those three **succeeds**, stop and do not proceed — the model has no
 
 ## 5. Repoint the application
 
-Edit `/srv/inboxui/secrets/app.env` again:
+Edit `/srv/programmableinbox/secrets/app.env` again:
 
 ```bash
-# was: postgresql://app:<superuser-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
-DATABASE_URL=postgresql://inboxui_app:<POSTGRES_APP_PASSWORD>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
-MIGRATE_DATABASE_URL=postgresql://inboxui_migrator:<POSTGRES_MIGRATOR_PASSWORD>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
+# was: postgresql://app:<superuser-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
+DATABASE_URL=postgresql://programmableinbox_app:<POSTGRES_APP_PASSWORD>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
+MIGRATE_DATABASE_URL=postgresql://programmableinbox_migrator:<POSTGRES_MIGRATOR_PASSWORD>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
 ```
 
 > Keep `?options=-c%20timezone%3DUTC` on **both** URLs. See `CLAUDE.md` — without
@@ -162,7 +162,7 @@ MIGRATE_DATABASE_URL=postgresql://inboxui_migrator:<POSTGRES_MIGRATOR_PASSWORD>@
 ## 6. Restart the app and the backup cron
 
 ```bash
-cd /srv/inboxui
+cd /srv/programmableinbox
 docker compose up -d --no-deps --force-recreate app backup-cron
 docker compose logs --tail=50 app
 curl -fsS https://$DOMAIN/api/healthz | jq      # expect db: ok
@@ -181,9 +181,9 @@ Expect `No pending migrations to apply.` and **no** permission errors.
 `backup_status` is created by a migration, so on a cluster whose roles were created before that table existed the backup role has no write grant on it yet. The script skips it silently in that case. Re-run it:
 
 ```bash
-sudo -u deploy /srv/inboxui/pg-apply-least-privilege.sh
+sudo -u deploy /srv/programmableinbox/pg-apply-least-privilege.sh
 docker compose exec backup-cron /scripts/report-status.sh
-tail -20 /srv/inboxui/backup-logs/cron.log       # no WARNING, no permission denied
+tail -20 /srv/programmableinbox/backup-logs/cron.log       # no WARNING, no permission denied
 ```
 
 ## 9. Verify backups end to end
@@ -191,7 +191,7 @@ tail -20 /srv/inboxui/backup-logs/cron.log       # no WARNING, no permission den
 ```bash
 docker compose exec backup-cron /scripts/pgdump.sh
 docker compose exec backup-cron /scripts/base-backup.sh
-tail -40 /srv/inboxui/backup-logs/cron.log
+tail -40 /srv/programmableinbox/backup-logs/cron.log
 ```
 
 `pg_dump` runs on `pg_read_all_data`, which covers current *and future* tables — no per-table grant maintenance. If `wal-g backup-push` reports a permission error on some function not in the grant list, add it to the `p.proname IN (...)` set in `deploy/postgres/least-privilege-roles.sql` rather than handing the role superuser.
@@ -211,7 +211,7 @@ Only once steps 5–9 are green and you are past the rollback window:
    docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
      -c "SELECT usename, application_name, client_addr FROM pg_stat_activity WHERE datname = current_database();"
    ```
-   Only `inboxui_app` and `inboxui_backup` should appear.
+   Only `programmableinbox_app` and `programmableinbox_backup` should appear.
 3. Record the rotation in `deploy/runbooks/drill-log.md`.
 
 Do **not** `ALTER ROLE … NOSUPERUSER` on the bootstrap role: the image entrypoint and every break-glass procedure in runbooks 02 and 03 depend on it. Its protection is that it is unreachable from outside the compose network and no service uses it.
@@ -223,7 +223,7 @@ Do **not** `ALTER ROLE … NOSUPERUSER` on the bootstrap role: the image entrypo
 At any point before step 10, revert in `app.env`:
 
 ```bash
-DATABASE_URL=postgresql://$POSTGRES_USER:<superuser-pw>@postgres:5432/inboxui?options=-c%20timezone%3DUTC
+DATABASE_URL=postgresql://$POSTGRES_USER:<superuser-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
 ```
 
 and restart:
@@ -234,14 +234,14 @@ docker compose up -d --no-deps --force-recreate app backup-cron
 
 The new roles can be left in place — they are inert when nothing authenticates as them. Two caveats, both harmless:
 
-- Schema `public` and its objects are now owned by `inboxui_migrator`. The bootstrap superuser retains full access regardless of ownership, so `migrate` and the app both keep working when pointed back at it.
+- Schema `public` and its objects are now owned by `programmableinbox_migrator`. The bootstrap superuser retains full access regardless of ownership, so `migrate` and the app both keep working when pointed back at it.
 - `PUBLIC` no longer has `CONNECT` on the database. Any *other* tool that relied on an unnamed role would need an explicit `GRANT CONNECT`. Nothing in this stack does.
 
 To undo the ownership change as well:
 
 ```sql
 ALTER SCHEMA public OWNER TO pg_database_owner;
-GRANT CONNECT ON DATABASE inboxui TO PUBLIC;
+GRANT CONNECT ON DATABASE programmableinbox TO PUBLIC;
 ```
 
 then re-own the relations back with the inverse of the loop in `least-privilege-roles.sql`.
@@ -251,4 +251,4 @@ then re-own the relations back with the inverse of the loop in `least-privilege-
 ## After a database restore
 
 - **PITR / `wal-g backup-fetch` (runbooks 02 and 03)** — roles are cluster-global and are included in a physical base backup, so they come back with the restore. Nothing to do. The `docker compose up -d postgres` in those runbooks does trigger initdb against the empty volume first, but `backup-fetch` then replaces that cluster wholesale.
-- **Logical restore from the restic `pg_dump`** — the dump is taken with `--no-owner --no-privileges`, so ownership and grants are **not** in it. After restoring, run `/srv/inboxui/pg-apply-least-privilege.sh` again to re-establish the whole model, then step 8.
+- **Logical restore from the restic `pg_dump`** — the dump is taken with `--no-owner --no-privileges`, so ownership and grants are **not** in it. After restoring, run `/srv/programmableinbox/pg-apply-least-privilege.sh` again to re-establish the whole model, then step 8.
