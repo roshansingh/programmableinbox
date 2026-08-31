@@ -171,9 +171,9 @@ website/
 ```
 
 `website/` gets its own `package.json` and its own `node_modules` — it is a
-static site with a different dependency tree (React 18, since Docusaurus
-hasn't moved to 19) from the main Next.js/React 19 app, and must not be
-folded into the root workspace's install or build.
+static site with a different dependency tree (Docusaurus 3.x, which itself
+pins React 19) from the main Next.js/React 19 app, and must not be folded
+into the root workspace's install or build.
 
 ## OpenAPI reference generation
 

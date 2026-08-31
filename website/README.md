@@ -12,7 +12,15 @@ npm install
 
 ## Local Development
 
+Like the build (see below), `npm run start` needs the OpenAPI spec exported
+first — it generates the API reference before starting the dev server, and
+fails without it:
+
 ```bash
+# from the repo root, once (or whenever the API changes)
+npm run sdk:export-spec
+
+# then, inside website/
 npm run start
 ```
 

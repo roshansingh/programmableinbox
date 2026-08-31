@@ -122,13 +122,13 @@ var inboxes = response.Ok();`,
             label: 'Python',
             source: `from programmableinbox.models.create_email_inbox_request import CreateEmailInboxRequest
 
-req = CreateEmailInboxRequest(email="orders@example.com", name="Orders")
+req = CreateEmailInboxRequest(email="orders@inbox.example.com", name="Orders")
 inbox = api.create_email_inbox(req)`,
           },
           {
             lang: 'Go',
             label: 'Go',
-            source: `req := programmableinbox.NewCreateEmailInboxRequest("orders@example.com")
+            source: `req := programmableinbox.NewCreateEmailInboxRequest("orders@inbox.example.com")
 req.SetName("Orders")
 
 inbox, _, err := client.EmailInboxesAPI.CreateEmailInbox(ctx).CreateEmailInboxRequest(*req).Execute()`,
@@ -137,13 +137,13 @@ inbox, _, err := client.EmailInboxesAPI.CreateEmailInbox(ctx).CreateEmailInboxRe
             lang: 'NodeJs',
             label: 'Node.js',
             source: `const inbox = await api.createEmailInbox({
-  createEmailInboxRequest: { email: 'orders@example.com', name: 'Orders' },
+  createEmailInboxRequest: { email: 'orders@inbox.example.com', name: 'Orders' },
 })`,
           },
           {
             lang: 'C#',
             label: 'C#',
-            source: `var req = new CreateEmailInboxRequest("orders@example.com", name: "Orders");
+            source: `var req = new CreateEmailInboxRequest("orders@inbox.example.com", name: "Orders");
 var response = await api.CreateEmailInboxAsync(req);
 var inbox = response.Created();`,
           },

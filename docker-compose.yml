@@ -7,7 +7,7 @@
 #
 # Usage:
 #   cp .env.quickstart.example .env
-#   # edit .env — see docs/quickstart-docker.md
+#   # edit .env — see https://docs.programmableinbox.com/introduction/quickstart-docker
 #   docker compose pull
 #   docker compose up -d
 #   # → http://localhost:4000
