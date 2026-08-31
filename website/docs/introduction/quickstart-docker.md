@@ -1,4 +1,9 @@
-# Quick start: Community Edition via Docker
+---
+sidebar_position: 3
+title: Quickstart (Docker)
+---
+
+# Quickstart (Docker)
 
 The fastest way to try ProgrammableInbox is the published Community Edition
 Docker image — no Node, no local Postgres install, no build step. This spins
@@ -6,11 +11,10 @@ up the app, a database, and Redis on your machine.
 
 This is a **local trial setup**, not a production deployment: one Postgres
 role, no TLS, no backups. For running this in production, see
-[`deploy/README.md`](../deploy/README.md) instead.
+[Production Deployment](../self-hosting/production-deployment) instead.
 
-If you'd rather run from source (for development, or to use `npx prisma db
-seed`'s test account), see the [Quick start](../README.md#quick-start) in the
-main README.
+If you'd rather run from source (for development, or to use the seeded test
+account), see [Requirements & Installation](../self-hosting/requirements-and-installation).
 
 ## Prerequisites
 
@@ -76,9 +80,11 @@ Once healthy, open **http://localhost:4000**.
 
 The Community Edition image doesn't ship seed data — register a new account
 directly at `/auth/register`. From there you can create an inbox (on the
-domain you set in `EMAIL_INBOX_DOMAINS`). You can then use the [REST
-API](../sdk/README.md) with an API key; to use [MCP](architecture/mcp-server.md),
-set `ENABLE_MCP=true` in `.env` and restart the stack.
+domain you set in `EMAIL_INBOX_DOMAINS`). You can then use the
+[REST API](../api-reference/authentication-and-scopes) or an
+[SDK](../sdks/overview) with an API key; to use [MCP](../mcp/overview), set
+`ENABLE_MCP=true` in `.env` and restart the stack — see
+[MCP Setup](../mcp/setup) for the client-side half.
 
 ## 5. Receive real mail (optional)
 
@@ -87,8 +93,8 @@ To have this instance actually receive email:
 1. Add and verify a domain in your [Resend](https://resend.com) account.
 2. Point that domain's inbound route at `https://<your-host>/api/webhooks/email`
    (this means the app needs to be reachable from the internet — see
-   [`deploy/README.md`](../deploy/README.md) for a hardened way to do that
-   with TLS).
+   [Production Deployment](../self-hosting/production-deployment) for a
+   hardened way to do that with TLS).
 3. Set `AUTH_RESEND_API_KEY` to your real Resend API key and
    `EMAIL_INBOX_DOMAINS` to that verified domain in `.env`.
 4. `docker compose up -d` to pick up the change.
@@ -105,9 +111,9 @@ docker compose up -d
 
 Pulls the new image and re-runs `prisma migrate deploy` against your existing
 database before restarting. To pin a specific release instead of the mutable
-`:latest` tag, set `IMAGE_TAG=vX.Y.Z` in `.env` — see [Releases on
-GitHub](https://github.com/roshansingh/programmableinbox/releases) for
-available tags. Images are multi-arch (`linux/amd64`, `linux/arm64`).
+`:latest` tag, set `IMAGE_TAG=vX.Y.Z` in `.env` — see
+[Releases on GitHub](https://github.com/roshansingh/programmableinbox/releases)
+for available tags. Images are multi-arch (`linux/amd64`, `linux/arm64`).
 
 ## Stopping / data
 
@@ -123,10 +129,16 @@ Postgres and Redis data live in the named volumes `postgres-data` and
 
 - **`app` exits immediately, logs mention a missing/invalid env var** — the
   app validates every required variable at boot and refuses to start if one
-  is unset or malformed (see [configuration.md](architecture/configuration.md)).
+  is unset or malformed (see [Configuration](../self-hosting/configuration)).
   The error names the offending variable.
 - **`app` can't reach `postgres`/`redis`** — both have healthchecks and `app`
   waits on them; give the stack a few seconds after `docker compose up -d` and
   recheck with `docker compose ps`.
 - **Changed `.env` but nothing changed** — environment values are read at
   container start, not live-reloaded: `docker compose up -d` after any edit.
+
+## Next steps
+
+- Building from source instead, or deploying to production? See
+  [Self-Hosting](../self-hosting/requirements-and-installation).
+- Ready to call the API? See [Authentication & Scopes](../api-reference/authentication-and-scopes).

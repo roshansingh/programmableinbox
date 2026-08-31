@@ -121,3 +121,8 @@ reports/
 /sdk/python/**/*.egg-info/
 /sdk/python/build/
 /sdk/python/.venv*/
+
+# Docs site (website/)
+website/node_modules/
+website/build/
+website/.docusaurus/

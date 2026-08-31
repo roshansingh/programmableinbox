@@ -146,6 +146,14 @@ regexes = [
   # this to the three scaffold literals would add precision without reducing any
   # real risk.
   '''^pk_(live|test)_51[A-Za-z0-9]+$''',
+  # Literal `sk_live_...` (with a literal ellipsis, not real characters) is the
+  # redacted-example-key convention used throughout the docs site's design
+  # spec, implementation plan, and generated Markdown (docs/superpowers/specs,
+  # docs/superpowers/plans, website/docs) wherever a curl/SDK code sample shows
+  # where a real API key goes. The upstream `curl-auth-header` rule flags any
+  # non-trivial `Authorization: Bearer` value, including this one — anchored so
+  # it cannot also swallow a real key that happens to start the same way.
+  '''^sk_live_\.\.\.$''',
 ]
 
 # Paths excluded here are non-source only: build output, dependencies, and

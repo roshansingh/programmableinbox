@@ -45,8 +45,8 @@ docker compose up -d
 # → http://localhost:4000, register a new account at /auth/register
 ```
 
-See **[docs/quickstart-docker.md](docs/quickstart-docker.md)** for wiring up real inbound mail via
-Resend, upgrading, and troubleshooting.
+See **[the Docker quickstart guide](https://docs.programmableinbox.com/introduction/quickstart-docker)**
+for wiring up real inbound mail via Resend, upgrading, and troubleshooting.
 
 ### From source
 
@@ -74,6 +74,8 @@ Log in with `test@example.com` / `password123`, or register a new account.
 
 ## Documentation
 
+- **[docs.programmableinbox.com](https://docs.programmableinbox.com)** — the public docs: product
+  overview, self-hosting, the API reference, SDK usage, and MCP setup
 - **[Architecture](docs/architecture/README.md)** — start here to understand how the app fits
   together: request flow, auth, multi-tenancy, email ingestion, search, the MCP server, and more,
   broken into one doc per topic
