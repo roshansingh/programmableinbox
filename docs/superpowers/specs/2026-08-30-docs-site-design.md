@@ -76,10 +76,10 @@ Sidebar structure, in order, with source material noted:
      from `docs/architecture/multi-tenancy-and-api-keys.md` and
      `docs/architecture/email-ingestion-and-search.md`, stripped of
      implementation detail)
-   - Quickstart (Docker) — from `docs/quickstart-docker.md` (currently on the
-     `worktree-ce-quickstart-guide` branch, not yet merged to `main`; this
-     project pulls it in once that branch merges, or migrates its content
-     directly if merge timing doesn't line up)
+   - Quickstart (Docker) — content migrated from the root `docs/quickstart-docker.md`
+     added by PR #158; that file is removed once its content lives here, so
+     `docs.programmableinbox.com` is the one canonical copy rather than two
+     drifting in parallel
 
 2. **Self-Hosting**
    - Requirements & installation

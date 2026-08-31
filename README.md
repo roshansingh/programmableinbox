@@ -28,6 +28,28 @@ Open source under [AGPL-3.0](LICENSE), with an optional commercial layer under [
 
 ## Quick start
 
+### Docker (Community Edition)
+
+No Node or local Postgres install needed — pulls the published image.
+
+```bash
+mkdir programmableinbox && cd programmableinbox
+curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/.env.quickstart.example
+cp .env.quickstart.example .env
+# edit .env: set POSTGRES_PASSWORD, JWT_SECRET (openssl rand -base64 32), WEBHOOK_SECRET,
+# AUTH_RESEND_API_KEY, and EMAIL_INBOX_DOMAINS — a placeholder is fine to start exploring
+
+docker compose pull
+docker compose up -d
+# → http://localhost:4000, register a new account at /auth/register
+```
+
+See **[the Docker quickstart guide](https://docs.programmableinbox.com/introduction/quickstart-docker)**
+for wiring up real inbound mail via Resend, upgrading, and troubleshooting.
+
+### From source
+
 **Requirements:** Node.js 24+, PostgreSQL 14+, and optionally Redis 6+ (only for async webhook
 processing).
 
@@ -52,6 +74,8 @@ Log in with `test@example.com` / `password123`, or register a new account.
 
 ## Documentation
 
+- **[docs.programmableinbox.com](https://docs.programmableinbox.com)** — the public docs: product
+  overview, self-hosting, the API reference, SDK usage, and MCP setup
 - **[Architecture](docs/architecture/README.md)** — start here to understand how the app fits
   together: request flow, auth, multi-tenancy, email ingestion, search, the MCP server, and more,
   broken into one doc per topic
