@@ -18,10 +18,10 @@ for the full scope list.
 
 ## 2. Connect your client
 
-Pick the example that matches your setup — the hosted SaaS instance, or your
+Pick the example that matches your setup — the hosted cloud instance, or your
 own self-hosted deployment.
 
-### SaaS (app.programmableinbox.com)
+### Cloud (app.programmableinbox.com)
 
 MCP is already enabled on the hosted instance, so this is just the API key
 from Step 1 plus your client config.
