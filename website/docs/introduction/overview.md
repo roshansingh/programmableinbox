@@ -18,7 +18,7 @@ client like Claude Code or Cursor, so an agent can read the same inbox you can.
 
 ## What it's for
 
-- **Testing and QA** — disposable inboxes for signup flows, magic links, and
+- **Testing and QA** — dedicated inboxes for signup flows, magic links, and
   one-time codes, without a shared team mailbox.
 - **Agent workflows** — give an LLM agent a real, addressable inbox it can
   read via [MCP](../mcp/overview) or the [SDKs](../sdks/overview), instead
