@@ -14,6 +14,7 @@ const captureEventMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -47,7 +48,7 @@ function post() {
   return new NextRequest('http://localhost/api/app/apiKeys', {
     method: 'POST',
     body: JSON.stringify({ organizationId: 'org_1', name: 'Partner Key', scopes: ['email_inboxes:read'] }),
-    headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+    headers: { 'content-type': 'application/json', cookie: 'session=token' },
   })
 }
 
@@ -133,7 +134,7 @@ describe('product analytics enabled', () => {
       new NextRequest('http://localhost/api/app/apiKeys', {
         method: 'POST',
         body: JSON.stringify({ organizationId: 'org_1', name: 'Bad Key', scopes: ['totally:wrong'] }),
-        headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
+        headers: { 'content-type': 'application/json', cookie: 'session=token' },
       }) as any,
       { params: Promise.resolve({}) },
     )

@@ -10,6 +10,7 @@ const sendVerificationEmailMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -48,7 +49,7 @@ const ctx = { params: Promise.resolve({}) }
 function request(credential = 'jwt.token.here') {
   return new NextRequest('http://localhost/api/app/auth/verification/resend', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${credential}` },
+    headers: { cookie: `session=${credential}` },
   })
 }
 
@@ -220,7 +221,7 @@ describe('POST /api/app/auth/verification/resend', () => {
       await POST(
         new NextRequest('http://localhost/api/app/auth/verification/resend', {
           method: 'POST',
-          headers: { Authorization: 'Bearer jwt', 'Content-Type': 'application/json' },
+          headers: { cookie: 'session=jwt', 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: 'victim@elsewhere.com' }),
         }),
         ctx,

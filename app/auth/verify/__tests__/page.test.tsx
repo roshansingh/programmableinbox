@@ -5,6 +5,7 @@ import VerifyEmailPage from '@/app/auth/verify/page'
 import { server } from '@/test/mocks/server'
 import { mockUser, mockAppConfig } from '@/test/mocks/fixtures/users'
 import { useSearchParams } from 'next/navigation'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 const CONFIRM_URL = 'http://localhost:4000/api/app/auth/verification/confirm'
 const ME_URL = 'http://localhost:4000/api/app/auth/me'
@@ -17,7 +18,7 @@ function withToken(token: string | null) {
 
 /** A signed-in visitor: /auth/me resolves, so the page can unlock in place. */
 function withSession() {
-  localStorage.setItem('auth_token', 'mock-jwt-token')
+  setMockSessionCookie()
   server.use(
     http.get(ME_URL, () =>
       HttpResponse.json({
@@ -61,7 +62,7 @@ describe('/auth/verify', () => {
    * newly-verified user straight back into the gate on the next page.
    */
   it('refetches the user after redeeming, so the gate does not re-engage on stale state', async () => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
 
     let meCalls = 0
     server.use(

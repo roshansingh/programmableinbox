@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
@@ -9,6 +10,7 @@ const automationUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -96,12 +98,12 @@ describe('POST /api/app/automations/[id]/activate-revision', () => {
     })
 
     const { POST } = await loadRoute()
-    const request = new Request('http://localhost/api/app/automations/automation_1/activate-revision', {
+    const request = new NextRequest('http://localhost/api/app/automations/automation_1/activate-revision', {
             method: 'POST',
       body: JSON.stringify({ revisionId: 'rev_invalid' }),
       headers: {
         'content-type': 'application/json',
-        authorization: 'Bearer token',
+        cookie: 'session=token',
       },
     })
 

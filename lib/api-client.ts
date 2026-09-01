@@ -27,31 +27,6 @@ export interface ApiResponse<T> {
   message?: string
 }
 
-/**
- * Get authentication token from storage
- */
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('auth_token')
-}
-
-/**
- * Set authentication token in storage
- */
-export function setAuthToken(token: string): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('auth_token', token)
-  }
-}
-
-/**
- * Remove authentication token from storage
- */
-export function removeAuthToken(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('auth_token')
-  }
-}
 
 /**
  * Build full URL from endpoint
@@ -92,12 +67,6 @@ function createHeaders(customHeaders?: HeadersInit): HeadersInit {
 
   // Always set Content-Type to application/json (cannot be overridden by custom headers)
   headers['Content-Type'] = 'application/json'
-
-  // Add Authorization header if token exists
-  const token = getAuthToken()
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
 
   return headers
 }
@@ -144,10 +113,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
       ...(typeof planDetail.planCode === 'string' ? { planCode: planDetail.planCode } : {}),
     }
 
-    // Handle 401 Unauthorized - clear token and redirect to login
+    // Handle 401 Unauthorized - the session cookie is invalid or absent.
     // Skip redirect if already on an auth page to avoid reload loops
     if (response.status === 401) {
-      removeAuthToken()
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/')) {
         window.location.href = '/auth/login'
       }

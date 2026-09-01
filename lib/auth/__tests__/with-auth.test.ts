@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { withConfigEnv } from '@/test/config'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const resolveApiKeyPrincipalMock = vi.fn()
@@ -8,6 +9,10 @@ const resolveApiKeyPrincipalMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  // with-auth.ts imports SESSION_COOKIE_NAME from this module too; Vitest
+  // throws "No ... export is defined on the mock" if a mocked module is
+  // missing a binding the code under test actually dereferences.
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/auth/api-key-auth', () => ({
@@ -17,6 +22,12 @@ vi.mock('@/lib/auth/api-key-auth', () => ({
 function requestWith(authorization?: string) {
   return new NextRequest('http://localhost:4000/api/test', {
     headers: authorization ? { authorization } : {},
+  })
+}
+
+function requestWithSession(token?: string) {
+  return new NextRequest('http://localhost:4000/api/test', {
+    headers: token ? { cookie: `${SESSION_COOKIE_NAME}=${token}` } : {},
   })
 }
 
@@ -42,11 +53,11 @@ const KEY = {
 describe('withUser', () => {
   beforeEach(() => vi.resetAllMocks())
 
-  it('401s with no Authorization header', async () => {
+  it('401s with no session cookie', async () => {
     const { withUser } = await import('../with-auth')
     const handler = withUser(async () => new Response('ok'))
 
-    const response = await handler(requestWith(), emptyCtx)
+    const response = await handler(requestWithSession(), emptyCtx)
     expect(response.status).toBe(401)
   })
 
@@ -60,15 +71,25 @@ describe('withUser', () => {
       return new Response('ok')
     })
 
-    await handler(requestWith('Bearer jwt.token.here'), emptyCtx)
+    await handler(requestWithSession('jwt.token.here'), emptyCtx)
     expect(seen).toEqual(USER)
   })
 
-  it('rejects an API key without attempting JWT verification', async () => {
+  it('rejects an API-key-shaped cookie value without attempting JWT verification', async () => {
     const { withUser } = await import('../with-auth')
     const handler = withUser(async () => new Response('ok'))
 
-    const response = await handler(requestWith('Bearer sk_live_abcdef123456'), emptyCtx)
+    const response = await handler(requestWithSession('sk_live_abcdef123456'), emptyCtx)
+
+    expect(response.status).toBe(401)
+    expect(resolveUserPrincipalFromTokenMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores an Authorization header — only the cookie is read', async () => {
+    const { withUser } = await import('../with-auth')
+    const handler = withUser(async () => new Response('ok'))
+
+    const response = await handler(requestWith('Bearer jwt.token.here'), emptyCtx)
 
     expect(response.status).toBe(401)
     expect(resolveUserPrincipalFromTokenMock).not.toHaveBeenCalled()
@@ -100,7 +121,7 @@ describe('withUser email-verification gate', () => {
         return new Response('ok')
       })
 
-      const response = await handler(requestWith('Bearer jwt.token.here'), emptyCtx)
+      const response = await handler(requestWithSession('jwt.token.here'), emptyCtx)
 
       expect(response.status).toBe(403)
       expect(await response.json()).toEqual({ message: 'Email verification required' })
@@ -113,7 +134,7 @@ describe('withUser email-verification gate', () => {
 
       const handler = withUser({ allowUnverified: true }, async () => new Response('reached'))
 
-      const response = await handler(requestWith('Bearer jwt.token.here'), emptyCtx)
+      const response = await handler(requestWithSession('jwt.token.here'), emptyCtx)
 
       expect(response.status).toBe(200)
       expect(await response.text()).toBe('reached')
@@ -125,7 +146,7 @@ describe('withUser email-verification gate', () => {
 
       const handler = withUser(async () => new Response('reached'))
 
-      expect(await (await handler(requestWith('Bearer jwt'), emptyCtx)).text()).toBe('reached')
+      expect(await (await handler(requestWithSession('jwt'), emptyCtx)).text()).toBe('reached')
     })
 
     /** 401 still wins: an unauthenticated caller is not "unverified". */
@@ -133,7 +154,7 @@ describe('withUser email-verification gate', () => {
       const { withUser } = await import('../with-auth')
       const handler = withUser(async () => new Response('ok'))
 
-      expect((await handler(requestWith(), emptyCtx)).status).toBe(401)
+      expect((await handler(requestWithSession(), emptyCtx)).status).toBe(401)
     })
 
     it('passes the opted-out principal through unchanged', async () => {
@@ -146,7 +167,7 @@ describe('withUser email-verification gate', () => {
         return new Response('ok')
       })
 
-      await handler(requestWith('Bearer jwt'), emptyCtx)
+      await handler(requestWithSession('jwt'), emptyCtx)
       expect(seen).toEqual(UNVERIFIED)
     })
   })
@@ -160,7 +181,7 @@ describe('withUser email-verification gate', () => {
 
       const handler = withUser(async () => new Response('reached'))
 
-      const response = await handler(requestWith('Bearer jwt.token.here'), emptyCtx)
+      const response = await handler(requestWithSession('jwt.token.here'), emptyCtx)
       expect(response.status).toBe(200)
       expect(await response.text()).toBe('reached')
     })

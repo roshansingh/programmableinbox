@@ -32,6 +32,7 @@ const emailInboxUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -62,7 +63,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 const UNAVAILABLE = 'Email address is not available'
 const IMMUTABLE = 'The address of an inbox cannot be changed. Create a new inbox instead.'
 
@@ -96,7 +97,7 @@ async function post(body: unknown) {
   return POST(
     new NextRequest('http://localhost/api/app/emailInbox', {
       method: 'POST',
-      headers: { authorization: TOKEN },
+      headers: { cookie: `session=${TOKEN}` },
       body: JSON.stringify(body),
     }),
     { params: Promise.resolve({}) },
@@ -108,7 +109,7 @@ async function patch(id: string, body: unknown) {
   return PATCH(
     new NextRequest(`http://localhost/api/app/emailInbox/${id}`, {
       method: 'PATCH',
-      headers: { authorization: TOKEN },
+      headers: { cookie: `session=${TOKEN}` },
       body: JSON.stringify(body),
     }),
     { params: Promise.resolve({ id }) },
@@ -207,7 +208,7 @@ describe('POST /api/app/emailInbox — address normalization', () => {
     const response = await POST(
       new NextRequest('http://localhost/api/app/emailInbox', {
         method: 'POST',
-        headers: { authorization: 'Bearer sk_live_abcdef123456' },
+        headers: { cookie: 'session=sk_live_abcdef123456' },
         body: JSON.stringify({ organizationId: 'org_1', email: 'payroll@corp.com' }),
       }),
       { params: Promise.resolve({}) },

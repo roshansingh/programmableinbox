@@ -19,6 +19,7 @@ const fetchGroupedThreadHeadsMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -42,7 +43,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 const INBOX = { id: 'inbox_1', organizationId: 'org_1', userId: 'user_1' }
 
 function message(overrides: Record<string, unknown> = {}) {
@@ -78,11 +79,11 @@ beforeEach(() => {
   emailMessageFindManyMock.mockResolvedValue([])
 })
 
-async function get(query = '', authorization = TOKEN) {
+async function get(query = '', credential = TOKEN) {
   const { GET } = await import('../route')
   return GET(
     new NextRequest(`http://localhost/api/app/emailInbox/inbox_1/messages${query}`, {
-      headers: authorization ? { authorization } : {},
+      headers: credential ? { cookie: `session=${credential}` } : {},
     }),
     { params: Promise.resolve({ id: 'inbox_1' }) },
   )
@@ -107,7 +108,7 @@ describe('GET /api/app/emailInbox/[id]/messages', () => {
   })
 
   it('rejects an API key without attempting a lookup', async () => {
-    const response = await get('', 'Bearer sk_live_abcdef123456')
+    const response = await get('', 'sk_live_abcdef123456')
 
     expect(response.status).toBe(401)
     expect(emailInboxFindFirstMock).not.toHaveBeenCalled()

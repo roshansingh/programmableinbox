@@ -4,6 +4,7 @@ import { render, waitFor } from '@/test/test-utils'
 import { ProductAnalyticsProvider } from '@/components/product-analytics-provider'
 import { server } from '@/test/mocks/server'
 import { mockUser, mockAppConfig } from '@/test/mocks/fixtures/users'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 const initMock = vi.fn()
 
@@ -35,7 +36,7 @@ function serveConfig(overrides: {
 
 describe('ProductAnalyticsProvider', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
     initMock.mockClear()
   })
 

@@ -4,7 +4,7 @@
  * Based on OpenAPI spec: /auth/register, /auth/login, /auth/me
  */
 
-import { apiClient, setAuthToken, removeAuthToken } from '../api-client'
+import { apiClient } from '../api-client'
 import type { AppConfig } from '../config/app-config'
 
 export type { AppConfig }
@@ -30,12 +30,11 @@ export interface SignUpRequest {
 }
 
 /**
- * Auth response (token structure may vary based on backend implementation)
+ * Auth response. No token field: the session travels as an httpOnly cookie
+ * set by the server (`setSessionCookie` in `lib/auth-server.ts`), never in the
+ * response body.
  */
 export interface AuthResponse {
-  token?: string
-  accessToken?: string
-  access_token?: string
   user?: User
 }
 
@@ -117,16 +116,7 @@ export interface User {
  * POST /app/auth/login
  */
 export async function signIn(credentials: SignInRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/app/auth/login', credentials)
-  
-  // Store token after successful sign in
-  // Handle different possible token field names
-  const token = response.token || response.accessToken || response.access_token
-  if (token) {
-    setAuthToken(token)
-  }
-  
-  return response
+  return apiClient.post<AuthResponse>('/app/auth/login', credentials)
 }
 
 /**
@@ -134,16 +124,7 @@ export async function signIn(credentials: SignInRequest): Promise<AuthResponse> 
  * POST /app/auth/register
  */
 export async function signUp(data: SignUpRequest): Promise<AuthResponse> {
-  const response = await apiClient.post<AuthResponse>('/app/auth/register', data)
-  
-  // Store token after successful registration
-  // Handle different possible token field names
-  const token = response.token || response.accessToken || response.access_token
-  if (token) {
-    setAuthToken(token)
-  }
-  
-  return response
+  return apiClient.post<AuthResponse>('/app/auth/register', data)
 }
 
 /**
@@ -197,12 +178,12 @@ export async function confirmPasswordReset(
 }
 
 /**
- * Logout user (client-side only)
- * Removes token from storage
- * Note: No backend endpoint exists for logout in the OpenAPI spec
+ * Logout user
+ * POST /app/auth/logout — clears the httpOnly session cookie server-side.
+ * The client holds no credential of its own to remove.
  */
-export function logout(): void {
-  removeAuthToken()
+export async function logout(): Promise<void> {
+  await apiClient.post('/app/auth/logout')
 }
 
 // Legacy function names for backward compatibility

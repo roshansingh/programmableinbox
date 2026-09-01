@@ -9,6 +9,7 @@ const apiKeyCountMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -53,7 +54,7 @@ describe('GET /api/app/apiKeys', () => {
     ])
 
     const { GET } = await loadRoute()
-    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys', { headers: { authorization: 'Bearer jwt.token.here' } }), { params: Promise.resolve({}) })
+    const response = await GET(new NextRequest('http://localhost/api/app/apiKeys', { headers: { cookie: 'session=jwt.token.here' } }), { params: Promise.resolve({}) })
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -96,7 +97,7 @@ describe('POST /api/app/apiKeys', () => {
       }),
       headers: {
         'content-type': 'application/json',
-        authorization: 'Bearer token',
+        cookie: 'session=token',
       },
     })
 
@@ -131,7 +132,7 @@ describe('POST /api/app/apiKeys', () => {
       }),
       headers: {
         'content-type': 'application/json',
-        authorization: 'Bearer token',
+        cookie: 'session=token',
       },
     })
 
@@ -201,7 +202,7 @@ describe('POST /api/app/apiKeys plan limit', () => {
       }),
       headers: {
         'content-type': 'application/json',
-        authorization: 'Bearer token',
+        cookie: 'session=token',
       },
     })
   }

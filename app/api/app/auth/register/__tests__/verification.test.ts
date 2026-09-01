@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { withConfigEnv } from '@/test/config'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const userFindUniqueMock = vi.fn()
 const userUpdateMock = vi.fn()
@@ -79,6 +80,51 @@ beforeEach(() => {
   userUpdateMock.mockResolvedValue(CREATED_USER)
 })
 
+describe('POST /api/app/auth/register — Content-Type enforcement', () => {
+  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+
+  function requestWithContentType(contentType: string | undefined) {
+    const headers: Record<string, string> = {}
+    if (contentType !== undefined) {
+      headers['Content-Type'] = contentType
+    }
+    return new NextRequest('http://localhost/api/app/auth/register', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        email: 'new@example.com',
+        password: 'password123',
+        firstName: 'New',
+        lastName: 'User',
+      }),
+    })
+  }
+
+  async function registerWithContentType(contentType: string | undefined) {
+    const { POST } = await import('../route')
+    return POST(requestWithContentType(contentType), ctx)
+  }
+
+  it('rejects a text/plain body with 415 before touching the database', async () => {
+    // text/plain is one of the three CORS-safelisted content types, so a
+    // cross-origin caller can send it with no preflight.
+    const response = await registerWithContentType('text/plain')
+
+    expect(response.status).toBe(415)
+    expect(transactionMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing Content-Type header with 415', async () => {
+    const response = await registerWithContentType(undefined)
+    expect(response.status).toBe(415)
+  })
+
+  it('still registers with application/json, charset suffix included', async () => {
+    const response = await registerWithContentType('application/json; charset=utf-8')
+    expect(response.status).toBe(200)
+  })
+})
+
 describe('POST /api/app/auth/register — verification side effects', () => {
   describe('with verification enabled', () => {
     withConfigEnv({
@@ -103,12 +149,14 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       })
     })
 
-    it('still returns a session token, so the gate screen has something to render', async () => {
+    it('still sets the session cookie, so the gate screen has something to render', async () => {
       sendVerificationEmailMock.mockResolvedValue(undefined)
 
-      const { data } = await (await register()).json()
+      const response = await register()
+      const { data } = await response.json()
 
-      expect(typeof data.token).toBe('string')
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+      expect(data.token).toBeUndefined()
       expect(data.user.email).toBe('new@example.com')
       expect(data.user.emailVerified).toBe(false)
     })
@@ -125,8 +173,7 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       const response = await register()
 
       expect(response.status).toBe(200)
-      const { data } = await response.json()
-      expect(typeof data.token).toBe('string')
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
       expect(loggerErrorMock).toHaveBeenCalled()
       // No cooldown stamped for an email that never went out.
       expect(userUpdateMock).not.toHaveBeenCalled()
@@ -163,9 +210,10 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       expect(response.status).toBe(200)
       expect(sendVerificationEmailMock).not.toHaveBeenCalled()
       expect(userUpdateMock).not.toHaveBeenCalled()
+      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
 
       const { data } = await response.json()
-      expect(typeof data.token).toBe('string')
+      expect(data.token).toBeUndefined()
     })
   })
 })

@@ -8,6 +8,7 @@ const webhookCountMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -27,7 +28,7 @@ async function get(query = '') {
   const { GET } = await loadRoute()
   return GET(
     new NextRequest(`http://localhost/api/app/webhooks${query}`, {
-      headers: { authorization: 'Bearer jwt.token.here' },
+      headers: { cookie: 'session=jwt.token.here' },
     }),
     { params: Promise.resolve({}) },
   )

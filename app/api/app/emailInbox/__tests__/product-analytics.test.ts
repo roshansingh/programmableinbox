@@ -17,6 +17,7 @@ const captureEventMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -54,7 +55,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 
 const ROW = {
   id: 'inbox_1',
@@ -81,7 +82,7 @@ async function post(email = 'free@corp.com') {
   return POST(
     new NextRequest('http://localhost/api/app/emailInbox', {
       method: 'POST',
-      headers: { authorization: TOKEN },
+      headers: { cookie: `session=${TOKEN}` },
       body: JSON.stringify({ organizationId: 'org_1', email }),
     }),
     { params: Promise.resolve({}) },

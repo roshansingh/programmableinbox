@@ -19,6 +19,7 @@ const emailMessageUpdateMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -39,7 +40,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 const INBOX = { id: 'inbox_1', organizationId: 'org_1', userId: 'user_1' }
 
 const MESSAGE = {
@@ -74,10 +75,10 @@ beforeEach(() => {
   emailMessageFindFirstMock.mockResolvedValue(MESSAGE)
 })
 
-function request(method: string, body?: unknown, authorization = TOKEN) {
+function request(method: string, body?: unknown, credential = TOKEN) {
   return new NextRequest('http://localhost/api/app/emailInbox/inbox_1/messages/msg_1', {
     method,
-    headers: authorization ? { authorization } : {},
+    headers: credential ? { cookie: `session=${credential}` } : {},
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
 }
@@ -102,7 +103,7 @@ describe('GET /api/app/emailInbox/[id]/messages/[messageId]', () => {
   it('rejects an API key without attempting a lookup', async () => {
     const { GET } = await import('../route')
 
-    const response = await GET(request('GET', undefined, 'Bearer sk_live_abcdef123456'), { params })
+    const response = await GET(request('GET', undefined, 'sk_live_abcdef123456'), { params })
 
     expect(response.status).toBe(401)
     expect(emailInboxFindFirstMock).not.toHaveBeenCalled()
@@ -201,7 +202,7 @@ describe('PATCH /api/app/emailInbox/[id]/messages/[messageId]', () => {
     const { PATCH } = await import('../route')
 
     const response = await PATCH(
-      request('PATCH', { isStarred: true }, 'Bearer sk_live_abcdef123456'),
+      request('PATCH', { isStarred: true }, 'sk_live_abcdef123456'),
       { params },
     )
 
@@ -297,7 +298,7 @@ describe('PATCH /api/app/emailInbox/[id]/messages/[messageId] — isRead (issue 
     const { PATCH } = await import('../route')
 
     const response = await PATCH(
-      request('PATCH', { isRead: true }, 'Bearer sk_live_abcdef123456'),
+      request('PATCH', { isRead: true }, 'sk_live_abcdef123456'),
       { params },
     )
 
@@ -343,7 +344,7 @@ describe('DELETE /api/app/emailInbox/[id]/messages/[messageId]', () => {
   it('rejects an API key — deletion is dashboard-only after the split', async () => {
     const { DELETE } = await import('../route')
 
-    const response = await DELETE(request('DELETE', undefined, 'Bearer sk_live_abcdef123456'), {
+    const response = await DELETE(request('DELETE', undefined, 'sk_live_abcdef123456'), {
       params,
     })
 

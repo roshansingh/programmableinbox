@@ -9,7 +9,10 @@
   the test itself. An unhandled request fails the test rather than silently hitting the network.
 - `next/navigation`, `next/link`, and `next-themes` are mocked globally in setup.
   `localStorage` is cleared between tests, `window.confirm` returns `true`, and
-  `navigator.clipboard` is stubbed.
+  `navigator.clipboard` is stubbed. Since the session moved from `localStorage` to an httpOnly
+  cookie, `test/setup.ts`'s `afterEach` also calls `clearMockSessionCookie()` (from
+  `test/mocks/session-cookie.ts`) alongside `localStorage.clear()`, so a signed-in fixture set up
+  by one test (via `setMockSessionCookie()`) can't leak into the next.
 - `vitest.config.ts` sets `NEXT_PUBLIC_API_MODE=local` and aliases `@` to the repo root, matching
   `tsconfig.json`.
 - **`AUTH_RATE_LIMIT_ENABLED=false` in the test baseline**, unlike production. Suites that

@@ -4,6 +4,7 @@ import ApiKeysPage from '@/app/api-keys/page'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
 import { mockApiKeyList, mockCreatedApiKey } from '@/test/mocks/fixtures/api-keys'
+import { setMockSessionCookie } from '@/test/mocks/session-cookie'
 
 // Mock Sidebar and DashboardHeader since they have their own dependencies
 vi.mock('@/components/sidebar', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/components/dashboard-header', () => ({
 
 describe('ApiKeysPage', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('shows loading state initially', () => {

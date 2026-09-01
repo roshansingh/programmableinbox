@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { config } from '@/lib/config'
-import { resolveUserPrincipalFromToken } from '@/lib/auth-server'
+import { resolveUserPrincipalFromToken, SESSION_COOKIE_NAME } from '@/lib/auth-server'
 import { resolveApiKeyPrincipal } from './api-key-auth'
 import { tagHandler } from './route-tags'
 import { API_KEY_PREFIX, resolveScope, type ApiKeyScope } from '@/lib/api-key-scopes'
@@ -27,6 +27,10 @@ function bearer(request: NextRequest): string | null {
   return header?.startsWith('Bearer ') ? header.slice(7) : null
 }
 
+function sessionCookie(request: NextRequest): string | null {
+  return request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
+}
+
 function looksLikeApiKey(credential: string): boolean {
   return credential.startsWith(API_KEY_PREFIX)
 }
@@ -40,7 +44,11 @@ function looksLikeApiKey(credential: string): boolean {
  * substitution class named in RFC 8725 §2.8. It also made every API-key
  * request pay a jwt.verify, reported expired JWTs as bad keys, and — because
  * getJwtSecret() throws outside verifyToken's try block — let a misconfigured
- * JWT_SECRET return 500 for perfectly valid API-key traffic.
+ * JWT_SECRET return 500 for perfectly valid API-key traffic. The session
+ * credential no longer even arrives in a header at all — it is read from the
+ * httpOnly cookie via `sessionCookie()` below, while an API key still arrives
+ * via `Authorization: Bearer` — so the two are on separate transports as well
+ * as separate code paths.
  */
 export function withUser<P = Record<string, never>>(
   handler: PrincipalHandler<UserPrincipal, P>,
@@ -70,7 +78,7 @@ export function withUser<P = Record<string, never>>(
 
   return tagHandler(
     async (request: NextRequest, context: RouteCtx<P>) => {
-      const credential = bearer(request)
+      const credential = sessionCookie(request)
       if (!credential || looksLikeApiKey(credential)) {
         return jsonError('Unauthorized', 401)
       }
@@ -80,8 +88,8 @@ export function withUser<P = Record<string, never>>(
 
       // A soft gate: the session is real and stays real, but the dashboard is
       // closed until the address is proven. 403 rather than 401 on purpose —
-      // 401 makes lib/api-client drop the token and bounce to /auth/login,
-      // which would log the user out of the very screen that offers Resend.
+      // 401 makes lib/api-client bounce to /auth/login, which would log the
+      // user out of the very screen that offers Resend.
       if (
         !allowUnverified &&
         !principal.emailVerified &&

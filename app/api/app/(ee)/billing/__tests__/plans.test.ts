@@ -8,6 +8,7 @@ const priceRetrieveMock = vi.fn()
 
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...a: unknown[]) => resolveUserPrincipalFromTokenMock(...a),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -49,7 +50,7 @@ const PRO_PLAN = {
 function request() {
   return new NextRequest('http://localhost:3000/api/app/billing/plans', {
     method: 'GET',
-    headers: { authorization: 'Bearer token' },
+    headers: { cookie: 'session=token' },
   })
 }
 

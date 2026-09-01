@@ -9,6 +9,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const automationFindFirstMock = vi.fn()
@@ -20,6 +21,7 @@ const consumeReplayRateLimitMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -48,13 +50,13 @@ async function loadRoute() {
   return await import('../route')
 }
 
-function replayRequest(body?: unknown, { credential = 'Bearer token' } = {}) {
-  return new Request('http://localhost/api/app/automations/automation_1/runs/run_1/replay', {
+function replayRequest(body?: unknown, { credential = 'token' } = {}) {
+  return new NextRequest('http://localhost/api/app/automations/automation_1/runs/run_1/replay', {
     method: 'POST',
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     headers: {
       'content-type': 'application/json',
-      ...(credential ? { authorization: credential } : {}),
+      ...(credential ? { cookie: `session=${credential}` } : {}),
     },
   }) as never
 }

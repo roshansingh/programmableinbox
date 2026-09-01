@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { hashPassword, signToken, formatUserResponse } from '@/lib/auth-server'
+import { hashPassword, signToken, formatUserResponse, setSessionCookie } from '@/lib/auth-server'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
 import { withPublic } from '@/lib/auth/with-auth'
 import { defaultOrganizationName } from '@/lib/user-display'
@@ -32,6 +32,19 @@ const THROTTLED = 'Too many registration attempts. Please try again later.'
  */
 export const POST = withPublic(async (request: NextRequest) => {
   try {
+    // Rejected before request.json() parses anything. `text/plain` is one of
+    // the three CORS-safelisted content types, so a cross-origin POST with
+    // that header sails through as a browser "simple request" — no preflight
+    // — and request.json() happily parses whatever bytes arrive regardless of
+    // the declared type. Requiring application/json forces any cross-origin
+    // caller into a real preflight, which this app does not answer
+    // permissively for an arbitrary origin. Has no effect on our own client:
+    // lib/api-client.ts's createHeaders() always sets this header.
+    const contentType = request.headers.get('content-type') ?? ''
+    if (!contentType.toLowerCase().startsWith('application/json')) {
+      return jsonError('Content-Type must be application/json', 415)
+    }
+
     const { email, password, firstName, lastName } = await request.json()
 
     // Type-check every field, not just presence. `hashPassword` hands the value
@@ -176,10 +189,9 @@ export const POST = withPublic(async (request: NextRequest) => {
 
     const token = signToken({ userId: user.id })
 
-    return jsonSuccess({
-      token,
-      user: formatUserResponse(user),
-    })
+    const response = jsonSuccess({ user: formatUserResponse(user) })
+    setSessionCookie(response, token)
+    return response
   } catch (error) {
     logger.error({ error }, 'Error registering user')
     return jsonError('Internal server error', 500)

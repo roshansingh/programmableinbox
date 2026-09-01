@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const automationFindFirstMock = vi.fn()
@@ -7,6 +8,7 @@ const automationRunFindManyMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -25,8 +27,8 @@ async function loadRoute() {
 }
 
 function makeRequest() {
-  return new Request('http://localhost/api/app/automations/automation_1/runs', {
-    headers: { authorization: 'Bearer token' },
+  return new NextRequest('http://localhost/api/app/automations/automation_1/runs', {
+    headers: { cookie: 'session=token' },
   })
 }
 

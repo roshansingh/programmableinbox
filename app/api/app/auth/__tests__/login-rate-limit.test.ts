@@ -12,6 +12,7 @@ import { NextRequest } from 'next/server'
 import { withConfigEnv, setConfigEnv } from '@/test/config'
 import { FakeRedis } from '@/lib/security/__tests__/fake-redis'
 import { setRateLimitRedisClient, __resetLogThrottlesForTests } from '@/lib/security/rate-limit'
+import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const findUniqueMock = vi.fn()
 const compareMock = vi.fn()
@@ -129,11 +130,18 @@ describe('POST /api/app/auth/login — baseline', () => {
     expect(response.status).toBe(400)
   })
 
-  it('returns 200 and a token for valid credentials', async () => {
+  it('returns 200, sets the session cookie, and puts no token in the body', async () => {
     compareMock.mockResolvedValue(true)
     const response = await POST(makeRequest({ email: 'user@example.com', password: 'correct' }))
+
     expect(response.status).toBe(200)
-    expect((await response.json()).data.token).toEqual(expect.any(String))
+    expect((await response.json()).data.token).toBeUndefined()
+
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toEqual(expect.any(String))
+    const setCookieHeader = response.headers.get('set-cookie') ?? ''
+    expect(setCookieHeader).toMatch(/HttpOnly/i)
+    expect(setCookieHeader).toMatch(/Secure/i)
+    expect(setCookieHeader).toMatch(/SameSite=Strict/i)
   })
 
   it('returns the generic message for a wrong password', async () => {
@@ -152,6 +160,52 @@ describe('POST /api/app/auth/login — baseline', () => {
     // being skipped, so "no such account" is not a timing oracle.
     expect(compareMock).toHaveBeenCalledTimes(1)
     expect(compareMock).toHaveBeenCalledWith('nope', expect.stringContaining('$2b$10$'))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Content-Type enforcement — closes the CORS-safelisted-simple-request path
+// ---------------------------------------------------------------------------
+
+describe('POST /api/app/auth/login — Content-Type enforcement', () => {
+  function requestWithContentType(contentType: string | undefined) {
+    const headers: Record<string, string> = {
+      'x-forwarded-for': '10.9.9.9, 203.0.113.5',
+    }
+    if (contentType !== undefined) {
+      headers['Content-Type'] = contentType
+    }
+    return new NextRequest('http://localhost/api/app/auth/login', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email: 'user@example.com', password: 'correct' }),
+    })
+  }
+
+  it('rejects a text/plain body with 415 before touching the database', async () => {
+    // text/plain is one of the three CORS-safelisted content types, so a
+    // cross-origin caller can send it with no preflight.
+    const response = await POST(requestWithContentType('text/plain'))
+
+    expect(response.status).toBe(415)
+    expect(findUniqueMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing Content-Type header with 415', async () => {
+    const response = await POST(requestWithContentType(undefined))
+    expect(response.status).toBe(415)
+  })
+
+  it('still logs in with application/json, charset suffix included', async () => {
+    compareMock.mockResolvedValue(true)
+    const response = await POST(requestWithContentType('application/json; charset=utf-8'))
+    expect(response.status).toBe(200)
+  })
+
+  it('still logs in with a bare application/json', async () => {
+    compareMock.mockResolvedValue(true)
+    const response = await POST(requestWithContentType('application/json'))
+    expect(response.status).toBe(200)
   })
 })
 

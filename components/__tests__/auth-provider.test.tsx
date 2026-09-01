@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/components/auth-provider'
 import { mockUser } from '@/test/mocks/fixtures/users'
+import { setMockSessionCookie, clearMockSessionCookie } from '@/test/mocks/session-cookie'
 
 describe('AuthProvider', () => {
   beforeEach(() => {
-    localStorage.setItem('auth_token', 'mock-jwt-token')
+    setMockSessionCookie()
   })
 
   it('transitions from loading to authenticated when token exists', async () => {
@@ -24,7 +25,7 @@ describe('AuthProvider', () => {
   })
 
   it('is unauthenticated when no token is present', async () => {
-    localStorage.clear()
+    clearMockSessionCookie()
 
     const { result } = renderHook(() => useAuth(), {
       wrapper: AuthProvider,

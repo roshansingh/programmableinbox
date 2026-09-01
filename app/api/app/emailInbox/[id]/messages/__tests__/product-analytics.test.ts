@@ -17,6 +17,7 @@ const captureEventMock = vi.fn()
 vi.mock('@/lib/auth-server', () => ({
   resolveUserPrincipalFromToken: (...args: unknown[]) =>
     resolveUserPrincipalFromTokenMock(...args),
+  SESSION_COOKIE_NAME: 'session',
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -46,7 +47,7 @@ const PRINCIPAL = {
   memberships: [{ organizationId: 'org_1', role: 'owner' }],
 }
 
-const TOKEN = 'Bearer header.payload.signature'
+const TOKEN = 'header.payload.signature'
 const INBOX = { id: 'inbox_1', organizationId: 'org_1', userId: 'user_1' }
 
 const params = Promise.resolve({ id: 'inbox_1' })
@@ -62,7 +63,7 @@ beforeEach(() => {
 
 function get(query: string) {
   return new NextRequest(`http://localhost/api/app/emailInbox/inbox_1/messages${query}`, {
-    headers: { authorization: TOKEN },
+    headers: { cookie: `session=${TOKEN}` },
   })
 }
 
