@@ -112,7 +112,14 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    const storedMetadata = (message.metadata as EnrichmentMetadata | null) ?? { links: [], timestamps: [] }
+    const storedMetadata: EnrichmentMetadata = {
+      links: Array.isArray((message.metadata as { links?: unknown })?.links)
+        ? ((message.metadata as unknown as EnrichmentMetadata).links)
+        : [],
+      timestamps: Array.isArray((message.metadata as { timestamps?: unknown })?.timestamps)
+        ? ((message.metadata as unknown as EnrichmentMetadata).timestamps)
+        : [],
+    }
     // Only links the heuristic couldn't classify confidently go to the LLM —
     // see lib/email/cta-heuristic.ts. Capped so a marketing email with dozens
     // of tracking links doesn't blow up the prompt.

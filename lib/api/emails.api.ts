@@ -65,7 +65,7 @@ export interface EmailMessage {
   categories: string[]
   extractedOtp: string | null
   metadata: {
-    links: Array<{ url: string; label?: string; isCta: boolean }>
+    links: Array<{ url: string; label?: string; isCta: boolean; ctaConfidence: 'high' | 'low' }>
     timestamps: string[]
   } | null
   createdAt: string
