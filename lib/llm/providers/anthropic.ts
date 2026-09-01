@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { LLMProvider, EnrichmentResult } from '../types'
+import type { LLMProvider, LlmEnrichmentResult, CandidateLink } from '../types'
 import { ENRICHMENT_JSON_SCHEMA, parseEnrichmentResult } from '../types'
-import { buildSystemPrompt } from '../prompt'
+import { buildSystemPrompt, buildUserMessage } from '../prompt'
 
 export class AnthropicAdapter implements LLMProvider {
   private client: Anthropic
@@ -12,18 +12,18 @@ export class AnthropicAdapter implements LLMProvider {
     this.model = model
   }
 
-  async enrich(subject: string, bodyText: string): Promise<EnrichmentResult> {
+  async enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult> {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
       system: buildSystemPrompt(),
       messages: [
-        { role: 'user', content: `Subject: ${subject}\n\nBody:\n${bodyText.slice(0, 4000)}` },
+        { role: 'user', content: buildUserMessage(subject, bodyText, candidateLinks) },
       ],
       tools: [
         {
           name: 'enrich_email',
-          description: 'Extract categories and metadata from the email',
+          description: 'Classify email categories and judge which candidate links are calls to action',
           input_schema: ENRICHMENT_JSON_SCHEMA as unknown as Anthropic.Tool['input_schema'],
         },
       ],
