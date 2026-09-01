@@ -24,11 +24,8 @@ describe('OpenAICompatAdapter', () => {
   it('returns enrichment result from JSON response', async () => {
     const payload = {
       categories: ['Promotions'],
-      extractedOtp: null,
-      metadata: {
-        links: [{ url: 'https://shop.example.com', label: 'Shop Now', isCta: true }],
-        timestamps: [],
-      },
+      ctaJudgments: [{ url: 'https://shop.example.com', isCta: true }],
+      timestamps: [],
     }
     mockCreate.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify(payload) } }],
@@ -36,23 +33,51 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
-    const result = await adapter.enrich('Summer Sale!', 'Get 50% off today')
+    const result = await adapter.enrich('Summer Sale!', 'Get 50% off today', [
+      { url: 'https://shop.example.com', label: 'Shop Now' },
+    ])
 
     expect(result.categories).toEqual(['Promotions'])
-    expect(result.extractedOtp).toBeNull()
-    expect(result.metadata.links[0].label).toBe('Shop Now')
+    expect(result.ctaJudgments).toEqual([{ url: 'https://shop.example.com', isCta: true }])
+  })
+
+  it('includes the candidate links in the user message sent to the model', async () => {
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ categories: [], ctaJudgments: [], timestamps: [] }) } }],
+    })
+
+    const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+    const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
+    await adapter.enrich('Hi', 'Hello', [{ url: 'https://example.com/x', label: 'Learn more' }])
+
+    const call = mockCreate.mock.calls[0][0]
+    const userMessage = call.messages.find((m: { role: string }) => m.role === 'user').content
+    expect(userMessage).toContain('https://example.com/x')
+    expect(userMessage).toContain('Learn more')
+  })
+
+  it('omits the candidate links section from the user message when there are none', async () => {
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ categories: [], ctaJudgments: [], timestamps: [] }) } }],
+    })
+
+    const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+    const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
+    await adapter.enrich('Hi', 'Hello', [])
+
+    const call = mockCreate.mock.calls[0][0]
+    const userMessage = call.messages.find((m: { role: string }) => m.role === 'user').content
+    expect(userMessage).not.toContain('Candidate links')
   })
 
   it('passes baseURL when provided and omits it when not', async () => {
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
 
-    // with baseURL
     new OpenAICompatAdapter('key', 'llama3.2', 'http://localhost:11434/v1')
     expect(MockOpenAI).toHaveBeenLastCalledWith(
       expect.objectContaining({ baseURL: 'http://localhost:11434/v1' })
     )
 
-    // without baseURL — should NOT have baseURL key
     MockOpenAI.mockClear()
     new OpenAICompatAdapter('key', 'model')
     expect(MockOpenAI).toHaveBeenLastCalledWith(
@@ -67,10 +92,10 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
-    const result = await adapter.enrich('Hi', 'Hello')
+    const result = await adapter.enrich('Hi', 'Hello', [])
 
     expect(result.categories).toEqual([])
-    expect(result.extractedOtp).toBeNull()
+    expect(result.ctaJudgments).toEqual([])
   })
 
   it('logs a warning with the finish_reason and content length when JSON parsing fails', async () => {
@@ -80,7 +105,7 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
-    await adapter.enrich('Hi', 'Hello')
+    await adapter.enrich('Hi', 'Hello', [])
 
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gpt-4o-mini', finishReason: 'stop', contentLength: 'not json at all'.length }),
@@ -89,25 +114,19 @@ describe('OpenAICompatAdapter', () => {
   })
 
   it('logs a warning when the response was truncated before completion (finish_reason: length)', async () => {
-    // Reasoning models can spend their entire max_completion_tokens budget on
-    // hidden reasoning tokens, leaving no room to emit the JSON answer — the
-    // response comes back empty with finish_reason: 'length' rather than an error.
     mockCreate.mockResolvedValue({
       choices: [{ finish_reason: 'length', message: { content: '', refusal: null } }],
     })
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-5.4-mini')
-    const result = await adapter.enrich('Your verification code', 'Enter this code: 745804')
+    const result = await adapter.enrich('Your verification code', 'Enter this code: 745804', [])
 
     expect(result.categories).toEqual([])
-    expect(result.extractedOtp).toBeNull()
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gpt-5.4-mini', finishReason: 'length' }),
       expect.stringContaining('not a clean stop'),
     )
-    // Empty content after a truncated/refused response would also fail JSON.parse('') —
-    // that's not a second, distinct failure worth a second warning.
     expect(mockLoggerWarn).toHaveBeenCalledTimes(1)
   })
 
@@ -123,10 +142,9 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-5.4-mini')
-    const result = await adapter.enrich('Your verification code', 'Enter this code: 745804')
+    const result = await adapter.enrich('Your verification code', 'Enter this code: 745804', [])
 
     expect(result.categories).toEqual([])
-    expect(result.extractedOtp).toBeNull()
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'gpt-5.4-mini',
@@ -144,7 +162,7 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-5.4-mini')
-    await adapter.enrich('Hi', 'Hello')
+    await adapter.enrich('Hi', 'Hello', [])
 
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ finishReason: 'length' }),
@@ -163,11 +181,7 @@ describe('OpenAICompatAdapter', () => {
         {
           finish_reason: 'stop',
           message: {
-            content: JSON.stringify({
-              categories: ['Security'],
-              extractedOtp: '745804',
-              metadata: { links: [], timestamps: [] },
-            }),
+            content: JSON.stringify({ categories: ['Security'], ctaJudgments: [], timestamps: [] }),
             refusal: null,
           },
         },
@@ -176,7 +190,7 @@ describe('OpenAICompatAdapter', () => {
 
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
     const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
-    await adapter.enrich('Your verification code', 'Enter this code: 745804')
+    await adapter.enrich('Your verification code', 'Enter this code: 745804', [])
 
     expect(mockLoggerWarn).not.toHaveBeenCalled()
   })

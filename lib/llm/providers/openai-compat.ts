@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
-import type { LLMProvider, EnrichmentResult } from '../types'
+import type { LLMProvider, LlmEnrichmentResult, CandidateLink } from '../types'
 import { parseEnrichmentResult } from '../types'
-import { buildSystemPrompt } from '../prompt'
+import { buildSystemPrompt, buildUserMessage } from '../prompt'
 import logger from '@/lib/logger'
 
 export class OpenAICompatAdapter implements LLMProvider {
@@ -16,14 +16,14 @@ export class OpenAICompatAdapter implements LLMProvider {
     this.extraBody = extraBody
   }
 
-  async enrich(subject: string, bodyText: string): Promise<EnrichmentResult> {
+  async enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       max_completion_tokens: 1024,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt() },
-        { role: 'user', content: `Subject: ${subject}\n\nBody:\n${bodyText.slice(0, 4000)}` },
+        { role: 'user', content: buildUserMessage(subject, bodyText, candidateLinks) },
       ],
       ...this.extraBody,
     } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming)
