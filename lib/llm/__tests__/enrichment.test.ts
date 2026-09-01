@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { LlmEnrichmentResult } from '../types'
+import type { LlmEnrichmentResult, CandidateLink } from '../types'
 import { UNLIMITED } from '@/lib/commercial/plan-limits'
 
-const mockEnrich = vi.fn<() => Promise<LlmEnrichmentResult>>()
+const mockEnrich = vi.fn<(subject: string, bodyText: string, candidateLinks: CandidateLink[]) => Promise<LlmEnrichmentResult>>()
 const mockGetProvider = vi.fn()
 const mockResolve = vi.fn()
 const mockFindUnique = vi.fn()
