@@ -39,4 +39,28 @@ describe('extractOtp', () => {
   it('prefers a strong keyword match over a weaker one earlier in the text', () => {
     expect(extractOtp('Your discount code is SAVE10. Your verification code is 918273.')).toBe('918273')
   })
+
+  it('does not extract a promo code as an OTP', () => {
+    expect(extractOtp('Use promo code: SAVE20 at checkout for 20% off.')).toBeNull()
+  })
+
+  it('does not extract a discount code as an OTP', () => {
+    expect(extractOtp('Your discount code is SAVE10. Shop now!')).toBeNull()
+  })
+
+  it('does not extract a coupon code as an OTP', () => {
+    expect(extractOtp('Coupon code = SPRING25')).toBeNull()
+  })
+
+  it('does not extract a referral code as an OTP', () => {
+    expect(extractOtp('Referral code: FRIEND50 gets you $10')).toBeNull()
+  })
+
+  it('does not extract a zip code as an OTP', () => {
+    expect(extractOtp('Your zip code is 94107 — update your address.')).toBeNull()
+  })
+
+  it('rejects an alphanumeric token on the weak keyword tier (digits-only for bare "code"/"pin")', () => {
+    expect(extractOtp('Your code: AB12CD')).toBeNull()
+  })
 })
