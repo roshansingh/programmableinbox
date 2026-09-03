@@ -7,6 +7,9 @@ import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { enrichMessage } from '@/lib/llm/enrichment'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
+import { extractLinks } from '@/lib/email/extract-links'
+import { extractOtp } from '@/lib/email/extract-otp'
+import { classifyLinks } from '@/lib/email/cta-heuristic'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { withPublic } from '@/lib/auth/with-auth'
@@ -232,6 +235,14 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       const messageId = crypto.randomUUID()
       const threading = await determineThreading(resendEmail, messageId, inbox.id)
 
+      const bodyText = deriveBodyText({
+        text: resendEmail.text || '',
+        html: resendEmail.html || '',
+      })
+      const links = classifyLinks(
+        extractLinks({ text: resendEmail.text || '', html: resendEmail.html || '' }),
+      )
+
       message = await prisma.emailMessage.create({
         data: {
           id: messageId,
@@ -244,11 +255,17 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           html: resendEmail.html || '',
           // Derived here rather than during enrichment (issue #106): enrichment is
           // LLM-gated and optional, so deriving it there would mean a message is
-          // unsearchable until an optional step happens to run.
-          bodyText: deriveBodyText({
-            text: resendEmail.text || '',
-            html: resendEmail.html || '',
-          }),
+          // unsearchable until an optional step happens to run. The same
+          // reasoning now applies to extractedOtp and metadata.links below —
+          // deterministic extraction (lib/email/extract-otp.ts,
+          // lib/email/extract-links.ts, lib/email/cta-heuristic.ts) runs
+          // unconditionally, for every organization, so this data isn't
+          // gated behind the LLM plan/quota either. Only `categories` and
+          // LLM-confirmed CTA judgments stay gated — see
+          // lib/llm/enrichment.ts.
+          bodyText,
+          extractedOtp: extractOtp(bodyText),
+          metadata: { links, timestamps: [] },
           headers: resendEmail.headers || {},
           externalId: resendEmail.id,
           inboxEmailAddressId: inbox.id,

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { EnrichmentResult } from '../types'
+import type { LlmEnrichmentResult, CandidateLink } from '../types'
 import { UNLIMITED } from '@/lib/commercial/plan-limits'
 
-const mockEnrich = vi.fn<() => Promise<EnrichmentResult>>()
+const mockEnrich = vi.fn<(subject: string, bodyText: string, candidateLinks: CandidateLink[]) => Promise<LlmEnrichmentResult>>()
 const mockGetProvider = vi.fn()
 const mockResolve = vi.fn()
 const mockFindUnique = vi.fn()
@@ -47,10 +47,24 @@ vi.mock('@opentelemetry/api', async (importOriginal) => {
   }
 })
 
-const ENRICHMENT_RESULT: EnrichmentResult = {
+const LLM_RESULT: LlmEnrichmentResult = {
   categories: ['Security'],
-  extractedOtp: '654321',
-  metadata: { links: [], timestamps: [] },
+  ctaJudgments: [],
+  timestamps: [],
+}
+
+/** A stored EmailMessage row shape as findUnique would return it, post-ingestion. */
+function baseMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'msg-1',
+    subject: 'Your OTP',
+    text: 'Code: 654321',
+    bodyText: null,
+    categories: [],
+    metadata: { links: [], timestamps: [] },
+    organizationId: 'org-1',
+    ...overrides,
+  }
 }
 
 describe('enrichMessage', () => {
@@ -59,14 +73,8 @@ describe('enrichMessage', () => {
     mockGetProvider.mockReturnValue({ enrich: mockEnrich })
     mockResolve.mockResolvedValue(planWithEnrichment(true))
     mockConsume.mockResolvedValue({ allowed: true, limit: null, used: 0, resetsAt: null })
-    mockFindUnique.mockResolvedValue({
-      id: 'msg-1',
-      subject: 'Your OTP',
-      text: 'Code: 654321',
-      metadata: null,
-      organizationId: 'org-1',
-    })
-    mockEnrich.mockResolvedValue(ENRICHMENT_RESULT)
+    mockFindUnique.mockResolvedValue(baseMessage())
+    mockEnrich.mockResolvedValue(LLM_RESULT)
   })
 
   it('wraps enrichment in an OTel span named llm.enrich_message', async () => {
@@ -76,11 +84,7 @@ describe('enrichMessage', () => {
     expect(startActiveSpanMock).toHaveBeenCalledWith('llm.enrich_message', expect.any(Function))
   })
 
-  it('never throws, even when an unexpected error occurs outside enrichMessageInner\'s own catch-all', async () => {
-    // getProvider() runs before enrichMessageInner's try block, so a throw
-    // here reaches the span wrapper's catch — the one path that exercises
-    // it. enrichMessage's documented contract is to never throw; the span
-    // wrapper must preserve that rather than rethrowing.
+  it("never throws, even when an unexpected error occurs outside enrichMessageInner's own catch-all", async () => {
     mockGetProvider.mockImplementation(() => {
       throw new Error('provider factory misconfigured')
     })
@@ -89,7 +93,7 @@ describe('enrichMessage', () => {
     await expect(enrichMessage('msg-1')).resolves.toBe(false)
   })
 
-  it('writes categories, extractedOtp, and metadata on success', async () => {
+  it('writes categories and merged link metadata on success, without touching extractedOtp', async () => {
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
 
@@ -97,33 +101,26 @@ describe('enrichMessage', () => {
       where: { id: 'msg-1' },
       data: {
         categories: ['Security'],
-        extractedOtp: '654321',
         metadata: { links: [], timestamps: [] },
       },
     })
   })
 
-  /**
-   * `text` is empty for HTML-only mail (webhook route sets `text: resendEmail.text || ''`);
-   * `bodyText` is derived at ingestion and falls back to HTML-extracted text in that case.
-   * Enrichment must read from `bodyText` or an OTP embedded only in the HTML part is invisible
-   * to the LLM.
-   */
   it('enriches from bodyText, not the raw text field, when text is empty (HTML-only mail)', async () => {
-    mockFindUnique.mockResolvedValue({
-      id: 'msg-1',
-      subject: 'Your ChatGPT code',
-      text: '',
-      bodyText: 'Enter this temporary verification code to continue: 851079',
-      metadata: null,
-      organizationId: 'org-1',
-    })
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        subject: 'Your ChatGPT code',
+        text: '',
+        bodyText: 'Enter this temporary verification code to continue: 851079',
+      }),
+    )
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
 
     expect(mockEnrich).toHaveBeenCalledWith(
       'Your ChatGPT code',
       'Enter this temporary verification code to continue: 851079',
+      [],
     )
   })
 
@@ -161,11 +158,6 @@ describe('enrichMessage', () => {
     expect(mockConsume).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
-  /**
-   * Exhausting the enrichment meter is a *settled* skip: retrying would produce
-   * the same answer until the period rolls over, so the caller must mark the
-   * step done rather than re-queue it forever.
-   */
   it('returns settled without calling the provider when the meter is exhausted', async () => {
     mockConsume.mockResolvedValue({ allowed: false, limit: 100, used: 100, resetsAt: null })
     const { enrichMessage } = await import('../enrichment')
@@ -175,11 +167,6 @@ describe('enrichMessage', () => {
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
-  /**
-   * The provider call is the billable part, so the unit is returned when it
-   * fails — otherwise a provider outage silently drains the allowance while
-   * producing nothing, and the retry drains it again.
-   */
   it('refunds the unit when the provider call fails', async () => {
     const { CommercialProvider } = await import('@/lib/commercial/provider')
     mockEnrich.mockRejectedValue(new Error('rate limit'))
@@ -190,12 +177,6 @@ describe('enrichMessage', () => {
     expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
-  /**
-   * The provider call already happened and was billed. If persisting the
-   * result then fails, metadata stays null, so the caller's retry re-runs
-   * provider.enrich() and would consume a second unit for the same message
-   * unless this failure also refunds the first one.
-   */
   it('refunds the unit when the DB write after a successful enrich fails', async () => {
     const { CommercialProvider } = await import('@/lib/commercial/provider')
     mockUpdate.mockRejectedValue(new Error('connection reset'))
@@ -206,40 +187,119 @@ describe('enrichMessage', () => {
     expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
   })
 
-  it('skips when metadata is already set (idempotency)', async () => {
-    mockFindUnique.mockResolvedValue({
-      id: 'msg-1', subject: 'Re', text: 'body', metadata: {}, organizationId: 'org-1',
-    })
+  it('skips when categories is already populated (idempotency)', async () => {
+    mockFindUnique.mockResolvedValue(baseMessage({ categories: ['Primary'] }))
     const { enrichMessage } = await import('../enrichment')
-    // A definitive skip is settled → true (nothing to retry).
     await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
     expect(mockEnrich).not.toHaveBeenCalled()
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
+  it('does NOT skip when metadata already holds deterministically-extracted links but categories is still empty', async () => {
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: { links: [{ url: 'https://example.com/x', isCta: false, ctaConfidence: 'low' }], timestamps: [] },
+      }),
+    )
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockEnrich).toHaveBeenCalled()
+  })
+
   it('returns false (transient failure, do not mark done) when provider.enrich rejects', async () => {
     mockEnrich.mockRejectedValue(new Error('rate limit'))
     const { enrichMessage } = await import('../enrichment')
-    // Never throws (best-effort), but signals failure so the caller doesn't
-    // permanently mark the step complete.
     await expect(enrichMessage('msg-1')).resolves.toBe(false)
     expect(mockUpdate).not.toHaveBeenCalled()
   })
 
-  it('writes metadata as empty object when enrichment returns no links/timestamps', async () => {
+  it('sends only low-confidence links to the provider as CTA candidates, capped at 10', async () => {
+    const links = Array.from({ length: 12 }, (_, i) => ({
+      url: `https://example.com/${i}`,
+      label: `Link ${i}`,
+      isCta: false,
+      ctaConfidence: 'low' as const,
+    }))
+    mockFindUnique.mockResolvedValue(baseMessage({ metadata: { links, timestamps: [] } }))
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    const [, , candidateLinks] = mockEnrich.mock.calls[0]
+    expect(candidateLinks).toHaveLength(10)
+    expect(candidateLinks[0]).toEqual({ url: 'https://example.com/0', label: 'Link 0' })
+  })
+
+  it('excludes high-confidence links from the CTA candidates sent to the provider', async () => {
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [
+            { url: 'https://example.com/verify', label: 'Verify Email', isCta: true, ctaConfidence: 'high' },
+            { url: 'https://example.com/x', label: 'Learn about our story', isCta: false, ctaConfidence: 'low' },
+          ],
+          timestamps: [],
+        },
+      }),
+    )
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    const [, , candidateLinks] = mockEnrich.mock.calls[0]
+    expect(candidateLinks).toEqual([{ url: 'https://example.com/x', label: 'Learn about our story' }])
+  })
+
+  it('merges a CTA judgment onto the matching stored link, promoting it to high confidence', async () => {
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [{ url: 'https://example.com/x', label: 'Learn about our story', isCta: false, ctaConfidence: 'low' }],
+          timestamps: [],
+        },
+      }),
+    )
     mockEnrich.mockResolvedValue({
       categories: ['Primary'],
-      extractedOtp: null,
-      metadata: { links: [], timestamps: [] },
+      ctaJudgments: [{ url: 'https://example.com/x', isCta: true }],
+      timestamps: [],
     })
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        categories: ['Primary'],
+        metadata: {
+          links: [{ url: 'https://example.com/x', label: 'Learn about our story', isCta: true, ctaConfidence: 'high' }],
+          timestamps: [],
+        },
+      },
+    })
+  })
+
+  it('leaves a low-confidence link untouched when the provider returns no judgment for it', async () => {
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [{ url: 'https://example.com/x', label: 'Mystery link', isCta: false, ctaConfidence: 'low' }],
+          timestamps: [],
+        },
+      }),
+    )
     const { enrichMessage } = await import('../enrichment')
     await enrichMessage('msg-1')
 
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ metadata: { links: [], timestamps: [] } }),
-      })
+        data: expect.objectContaining({
+          metadata: {
+            links: [{ url: 'https://example.com/x', label: 'Mystery link', isCta: false, ctaConfidence: 'low' }],
+            timestamps: [],
+          },
+        }),
+      }),
     )
   })
 })

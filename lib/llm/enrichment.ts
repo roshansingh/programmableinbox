@@ -3,8 +3,12 @@ import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import logger from '@/lib/logger'
 import { getProvider } from './factory'
+import type { EnrichmentMetadata } from './types'
 
 const tracer = trace.getTracer('programmableinbox.llm')
+
+/** How many low-confidence links to send the LLM for CTA review per message. */
+const MAX_CTA_CANDIDATES = 10
 
 /**
  * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
@@ -52,7 +56,15 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
   try {
     const message = await prisma.emailMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, subject: true, text: true, bodyText: true, metadata: true, organizationId: true },
+      select: {
+        id: true,
+        subject: true,
+        text: true,
+        bodyText: true,
+        categories: true,
+        metadata: true,
+        organizationId: true,
+      },
     })
     if (!message) {
       logger.info({ messageId }, '[enrichMessage] skip: message not found')
@@ -71,7 +83,12 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    if (message.metadata !== null) {
+    // categories is written only by this step — deterministic extraction at
+    // ingestion (app/api/webhooks/email/route.ts) never touches it — so a
+    // non-empty array is an accurate "the LLM already looked at this" signal.
+    // `metadata` can no longer be used for this: ingestion now always
+    // populates it with deterministically-extracted links, for every plan.
+    if (message.categories.length > 0) {
       logger.info({ messageId }, '[enrichMessage] skip: already enriched')
       return true
     }
@@ -95,29 +112,58 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    logger.info({ messageId }, '[enrichMessage] calling provider.enrich')
+    const storedMetadata: EnrichmentMetadata = {
+      links: Array.isArray((message.metadata as { links?: unknown })?.links)
+        ? ((message.metadata as unknown as EnrichmentMetadata).links)
+        : [],
+      timestamps: Array.isArray((message.metadata as { timestamps?: unknown })?.timestamps)
+        ? ((message.metadata as unknown as EnrichmentMetadata).timestamps)
+        : [],
+    }
+    // Only links the heuristic couldn't classify confidently go to the LLM —
+    // see lib/email/cta-heuristic.ts. Capped so a marketing email with dozens
+    // of tracking links doesn't blow up the prompt.
+    const candidateLinks = storedMetadata.links
+      .filter((link) => link.ctaConfidence === 'low')
+      .slice(0, MAX_CTA_CANDIDATES)
+      .map((link) => (link.label ? { url: link.url, label: link.label } : { url: link.url }))
+
+    logger.info(
+      { messageId, candidateLinkCount: candidateLinks.length },
+      '[enrichMessage] calling provider.enrich',
+    )
     try {
       // `text` is the raw sender-provided plain-text MIME part and is empty
       // for HTML-only mail; `bodyText` is derived at ingestion (route.ts) and
       // falls back to HTML-extracted text in that case, so it's what actually
-      // contains content like an OTP for those messages.
-      const result = await provider.enrich(message.subject, message.bodyText ?? message.text)
-      logger.info(
-        { messageId, categories: result.categories, otp: result.extractedOtp },
-        '[enrichMessage] done',
+      // contains content for those messages.
+      const result = await provider.enrich(
+        message.subject,
+        message.bodyText ?? message.text,
+        candidateLinks,
       )
+      logger.info({ messageId, categories: result.categories }, '[enrichMessage] done')
+
+      // Patch isCta/ctaConfidence onto the matching stored link by URL —
+      // never add, remove, or reorder links here. extractedOtp isn't touched
+      // at all: it was written once, at ingestion, and this step never
+      // revisits it.
+      const mergedLinks = storedMetadata.links.map((link) => {
+        const judgment = result.ctaJudgments.find((j) => j.url === link.url)
+        return judgment ? { ...link, isCta: judgment.isCta, ctaConfidence: 'high' as const } : link
+      })
+
       await prisma.emailMessage.update({
         where: { id: messageId },
         data: {
           categories: result.categories,
-          extractedOtp: result.extractedOtp ?? null,
-          metadata: result.metadata,
+          metadata: { links: mergedLinks, timestamps: result.timestamps },
         },
       })
     } catch (error) {
       // The unit isn't earned until the result is actually persisted: if the
-      // provider call succeeds but the update below fails, metadata stays
-      // null, so a retry would call the (billable) provider again for the
+      // provider call succeeds but the update below fails, categories stays
+      // empty, so a retry would call the (billable) provider again for the
       // same message unless this refunds the first attempt too.
       await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1, plan)
       throw error
