@@ -51,7 +51,7 @@ Every other variable the app needs to boot (`AUTH_JWT_SECRET`, `RESEND_WEBHOOK_S
 unconditionally by `test/integration/setup/setup.ts` and **cannot** be overridden from
 `.env.test`. They're fixtures, not deployment config — nothing in the suite asserts anything
 about their actual values, so a run whose outcome depends on what an operator happened to type in
-isn't reproducible. This isn't a hypothetical: a local `.env.test` once carried a `AUTH_JWT_SECRET`
+isn't reproducible. This isn't a hypothetical: a local `.env.test` once carried an `AUTH_JWT_SECRET`
 one character under the 16-character floor `lib/config` enforces, and every one of 233 tests
 failed with a `ConfigError` raised at the first call to `signToken` — nowhere near the file that
 was actually wrong. Unconditional assignment means a bad value an operator already has can't sit

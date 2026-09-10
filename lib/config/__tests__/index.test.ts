@@ -19,8 +19,8 @@ describe('config accessors', () => {
     process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
     process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7'
 
-    expect(config.webhooks.maxRetries).toBe(7)
-    expect(typeof config.webhooks.maxRetries).toBe('number')
+    expect(config.webhooks.maxAttempts).toBe(7)
+    expect(typeof config.webhooks.maxAttempts).toBe('number')
   })
 
   it('boxes secrets so a whole-domain log cannot leak them', () => {
@@ -33,10 +33,10 @@ describe('config accessors', () => {
   it('memoizes, so a later process.env mutation cannot reintroduce a raw value', () => {
     process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
     process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7'
-    expect(config.webhooks.maxRetries).toBe(7)
+    expect(config.webhooks.maxAttempts).toBe(7)
 
     process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '9'
-    expect(config.webhooks.maxRetries).toBe(7)
+    expect(config.webhooks.maxAttempts).toBe(7)
   })
 
   it('does not read process.env at module load', async () => {
@@ -68,7 +68,7 @@ describe('config accessors', () => {
   it('treats a blank variable as unset', () => {
     process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
     process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '   '
-    expect(config.webhooks.maxRetries).toBe(3)
+    expect(config.webhooks.maxAttempts).toBe(4)
   })
 
   it('never includes a secret value in the thrown message', () => {
@@ -91,7 +91,7 @@ describe('config accessors', () => {
 
     let message = ''
     try {
-      void config.webhooks.maxRetries
+      void config.webhooks.maxAttempts
     } catch (error) {
       message = (error as Error).message
     }

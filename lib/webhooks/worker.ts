@@ -77,7 +77,7 @@ export function getEmailWebhookWorker(): Worker<EmailWebhookJobData> {
         {
           jobId: job.id,
           attempt: job.attemptsMade,
-          maxAttempts: WEBHOOK_QUEUE_CONFIG.maxRetries + 1,
+          maxAttempts: WEBHOOK_QUEUE_CONFIG.maxAttempts,
           error: err,
         },
         "[webhook-worker] job failed",
@@ -254,9 +254,9 @@ async function processEmailWebhookJobInner(
     // Dead-letter: only on the final attempt
     // ------------------------------------------------------------------
     // `job.attemptsMade` is the number of attempts *completed so far* — on the
-    // last attempt it equals (maxRetries + 1) - 1 = maxRetries. Compare against
-    // the total `attempts` the job was configured with (stored in job.opts).
-    const maxAttempts = (job.opts.attempts ?? WEBHOOK_QUEUE_CONFIG.maxRetries + 1);
+    // last attempt it equals maxAttempts - 1. Compare against the total
+    // `attempts` the job was configured with (stored in job.opts).
+    const maxAttempts = (job.opts.attempts ?? WEBHOOK_QUEUE_CONFIG.maxAttempts);
     const isFinalAttempt = job.attemptsMade + 1 >= maxAttempts;
 
     if (isFinalAttempt) {

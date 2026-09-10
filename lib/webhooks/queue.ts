@@ -46,7 +46,7 @@ export const WEBHOOK_QUEUE_NAME = "email-webhook-jobs";
  * handlers that `next build` evaluates with no environment present, so reading
  * config at module load would fail the build rather than the misconfiguration.
  * The shape is unchanged for consumers, who still write
- * `WEBHOOK_QUEUE_CONFIG.maxRetries`.
+ * `WEBHOOK_QUEUE_CONFIG.maxAttempts`.
  *
  * Both values keep their existing defaults when unset. What changed is invalid
  * input: the previous `parsePositiveInt` returned the fallback for anything it
@@ -54,9 +54,9 @@ export const WEBHOOK_QUEUE_NAME = "email-webhook-jobs";
  * from an unset variable. It now throws.
  */
 export const WEBHOOK_QUEUE_CONFIG = {
-  /** Number of times a failed job is retried before being dead-lettered. */
-  get maxRetries(): number {
-    return config.webhooks.maxRetries;
+  /** Total number of attempts — including the first — before a failed job is dead-lettered. */
+  get maxAttempts(): number {
+    return config.webhooks.maxAttempts;
   },
   /**
    * Maximum number of inboxes processed concurrently by the worker.
@@ -133,9 +133,9 @@ export async function enqueueEmailWebhookJob(
 ): Promise<void> {
   const q = getEmailWebhookQueue();
   await q.add(`email-webhook-${data.inboxEmailAddressId}`, data, {
-    // maxRetries=3 means 3 retries; BullMQ counts the initial attempt too, so
-    // we pass maxRetries + 1 to get 1 initial attempt + 3 retries = 4 total.
-    attempts: WEBHOOK_QUEUE_CONFIG.maxRetries + 1,
+    // maxAttempts already counts the initial try, matching BullMQ's own
+    // `attempts` field one-to-one — no +1 adjustment.
+    attempts: WEBHOOK_QUEUE_CONFIG.maxAttempts,
     backoff: {
       type: "exponential",
       // Initial delay before the first retry; doubles on each subsequent attempt.

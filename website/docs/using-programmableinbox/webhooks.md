@@ -16,8 +16,8 @@ parsed, threaded, and stored before the response is sent. Setting
 `ASYNC_WEBHOOK_PROCESSING_ENABLED=true` instead queues the job to a
 Redis/BullMQ worker — useful for high-volume inboxes where inline processing
 would make the webhook response too slow. Both paths run the same
-threading, search-indexing, and automation logic; retries on the async path
-are capped by `WEBHOOK_QUEUE_MAX_ATTEMPTS` (default `3`).
+threading, search-indexing, and automation logic; total attempts on the
+async path are capped by `WEBHOOK_QUEUE_MAX_ATTEMPTS` (default `4`).
 
 ## Threading
 

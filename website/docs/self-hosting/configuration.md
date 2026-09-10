@@ -35,7 +35,7 @@ not just documented — a connection string missing the option fails
 |---|---|---|
 | `REDIS_URL` | none | Required if `ASYNC_WEBHOOK_PROCESSING_ENABLED=true` or `AUTH_RATE_LIMIT_ENABLED` (on by default) |
 | `ASYNC_WEBHOOK_PROCESSING_ENABLED` | `false` | Process inbound mail via a Redis/BullMQ queue instead of inline, for high volume |
-| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | `3` | Async webhook job retry limit |
+| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | `4` | Total attempts (including the first) for an async webhook job |
 | `AUTH_RATE_LIMIT_ENABLED` | `true` | Rate-limits login/register — see [Rate Limits](../reference/rate-limits) |
 | `EMAIL_VERIFICATION_ENABLED` | `false` | Require a verified email before dashboard access (needs `EMAIL_LINK_SIGNING_SECRET` + `APP_BASE_URL` when on) |
 | `MCP_ENABLED` | `false` | Expose the MCP server at `/api/mcp` — see [MCP Setup](../mcp/setup) |

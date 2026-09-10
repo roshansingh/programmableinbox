@@ -62,7 +62,7 @@ describe('auth schema', () => {
     expect(() => parse('auth', { AUTH_JWT_SECRET: '   ' })).toThrow()
   })
 
-  it('rejects a AUTH_JWT_SECRET below the minimum length', () => {
+  it('rejects an AUTH_JWT_SECRET below the minimum length', () => {
     expect(() => parse('auth', { AUTH_JWT_SECRET: 'short' })).toThrow()
   })
 })
@@ -122,9 +122,9 @@ describe('redis schema', () => {
 describe('webhooks schema', () => {
   const secret = { RESEND_WEBHOOK_SECRET: 'w'.repeat(16) }
 
-  it('defaults maxRetries to 3 and concurrency to 5 when unset', () => {
+  it('defaults maxAttempts to 4 and concurrency to 5 when unset', () => {
     const parsed = parse('webhooks', secret)
-    expect(parsed.maxRetries).toBe(3)
+    expect(parsed.maxAttempts).toBe(4)
     expect(parsed.concurrencyPerInbox).toBe(5)
   })
 
@@ -133,7 +133,7 @@ describe('webhooks schema', () => {
   })
 
   it.each(['abc', 'NaN', '-5', '0', '3.5'])(
-    'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s instead of defaulting to 3',
+    'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s instead of defaulting to 4',
     (raw) => {
       expect(() => parse('webhooks', { ...secret, WEBHOOK_QUEUE_MAX_ATTEMPTS: raw })).toThrow()
     },

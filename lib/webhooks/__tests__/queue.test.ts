@@ -86,10 +86,10 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
   // -------------------------------------------------------------------------
 
   describe('WEBHOOK_QUEUE_CONFIG', () => {
-    it('has default maxRetries of 3 when env var is absent', async () => {
+    it('has default maxAttempts of 4 when env var is absent', async () => {
       delete process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS;
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(WEBHOOK_QUEUE_CONFIG.maxAttempts).toBe(4);
     });
 
     it('has default concurrencyPerInbox of 5 when env var is absent', async () => {
@@ -101,32 +101,32 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
     it('parses WEBHOOK_QUEUE_MAX_ATTEMPTS from env', async () => {
       process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '5';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(5);
+      expect(WEBHOOK_QUEUE_CONFIG.maxAttempts).toBe(5);
     });
 
     // A typo'd tuning value used to be indistinguishable from an unset one:
     // parsePositiveInt returned the fallback for anything it could not parse,
-    // so the operator got 3 retries and no indication their setting was ignored.
+    // so the operator got the default and no indication their setting was ignored.
     it.each(['invalid', 'NaN', '-5', '0', '3.5', '1e2'])(
-      'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s rather than silently using 3',
+      'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s rather than silently defaulting',
       async (raw) => {
         process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = raw;
         const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-        expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
+        expect(() => WEBHOOK_QUEUE_CONFIG.maxAttempts).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
       },
     );
 
     it('rejects a value above the sanity bound', async () => {
       process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '101';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxAttempts).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
     });
 
     it('treats an empty WEBHOOK_QUEUE_MAX_ATTEMPTS as unset', async () => {
       // `FOO=` in a .env file means "not configured", not "configured badly".
       process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
+      expect(WEBHOOK_QUEUE_CONFIG.maxAttempts).toBe(4);
     });
 
     it('parses WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX from env', async () => {
@@ -362,11 +362,11 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       );
     });
 
-    it('sets attempts to maxRetries + 1', async () => {
+    it('sets attempts to maxAttempts directly, with no +1 adjustment', async () => {
       const { enqueueEmailWebhookJob, WEBHOOK_QUEUE_CONFIG } = await freshImport();
       await enqueueEmailWebhookJob(baseJobData);
       const opts = mockQueueAdd.mock.calls[0][2];
-      expect(opts.attempts).toBe(WEBHOOK_QUEUE_CONFIG.maxRetries + 1);
+      expect(opts.attempts).toBe(WEBHOOK_QUEUE_CONFIG.maxAttempts);
     });
 
     it('sets exponential backoff with 1000ms initial delay', async () => {
@@ -399,13 +399,12 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       expect(opts.removeOnFail.age).toBeGreaterThan(opts.removeOnComplete.age);
     });
 
-    it('respects custom maxRetries from env', async () => {
+    it('respects custom maxAttempts from env', async () => {
       process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7';
       const { enqueueEmailWebhookJob } = await freshImport();
       await enqueueEmailWebhookJob(baseJobData);
       const opts = mockQueueAdd.mock.calls[0][2];
-      // 7 retries → 8 total attempts
-      expect(opts.attempts).toBe(8);
+      expect(opts.attempts).toBe(7);
     });
 
     it('propagates rejection from queue.add', async () => {

@@ -21,7 +21,13 @@ export const RATE_LIMIT_FAIL_MODES = ['open', 'closed'] as const
 export type LogLevel = (typeof LOG_LEVELS)[number]
 export type LlmProviderName = (typeof LLM_PROVIDERS)[number]
 
-export const DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS = 3
+// 4, not 3: WEBHOOK_QUEUE_MAX_ATTEMPTS counts the initial try, unlike the
+// WEBHOOK_QUEUE_MAX_RETRIES it replaced, which counted only retries and left
+// BullMQ's `attempts` to add 1. Keeping the default at 4 preserves today's
+// out-of-the-box behavior (1 initial + 3 retries); an operator who had
+// WEBHOOK_QUEUE_MAX_RETRIES=N set explicitly must set this to N+1 to keep the
+// same retry count, since the two variables count different things.
+export const DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS = 4
 export const DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = 5
 
 // ---------------------------------------------------------------------------
@@ -151,7 +157,7 @@ const WebhooksSchema = z
   .transform((v) => ({
     secret: v.RESEND_WEBHOOK_SECRET,
     asyncProcessingEnabled: v.ASYNC_WEBHOOK_PROCESSING_ENABLED ?? false,
-    maxRetries: v.WEBHOOK_QUEUE_MAX_ATTEMPTS ?? DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS,
+    maxAttempts: v.WEBHOOK_QUEUE_MAX_ATTEMPTS ?? DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS,
     concurrencyPerInbox:
       v.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX ??
       DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX,

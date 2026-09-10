@@ -53,7 +53,7 @@ ASYNC_WEBHOOK_PROCESSING_ENABLED=true
 REDIS_URL=redis://localhost:6379
 
 # Retry configuration (optional, defaults shown)
-WEBHOOK_QUEUE_MAX_ATTEMPTS=3
+WEBHOOK_QUEUE_MAX_ATTEMPTS=4
 WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX=5
 ```
 
@@ -92,8 +92,8 @@ No manual intervention required, but ensure your orchestration allows 30-60s shu
 
 Controls sync vs. async processing:
 
-- **`true`** (default): Async enqueueing, fire-and-forget, requires Redis
-- **`false`**: Synchronous processing (old behavior), no Redis needed
+- **`true`**: Async enqueueing, fire-and-forget, requires Redis
+- **`false`** (default): Synchronous processing (old behavior), no Redis needed
 
 **Toggling**:
 - Change requires Next.js restart
@@ -103,15 +103,13 @@ Controls sync vs. async processing:
 
 #### WEBHOOK_QUEUE_MAX_ATTEMPTS
 
-Max retries before dead-letter (default: 3)
+Total attempts before dead-letter, including the first (default: 4)
 
 Behavior:
-- Job gets `attempts = maxRetries + 1` total executions
-- 1 initial attempt + N retries
-- Default 3 → 1 initial + 3 retries = 4 total attempts
+- Passed straight through to BullMQ's own `attempts` option — no +1 adjustment
 - Backoff: exponential (1s, 2s, 4s, 8s, ...)
 
-Example timeline with MAX_ATTEMPTS=3:
+Example timeline with the default MAX_ATTEMPTS=4:
 ```
 t=0:    Attempt 1 fails → retry in 1s
 t=1:    Attempt 2 fails → retry in 2s
@@ -498,8 +496,8 @@ For issues or questions:
 
 | Variable | Default | Min | Max | Impact |
 |----------|---------|-----|-----|--------|
-| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | 3 | 0 | 10 | Jobs abandon after N failures |
-| `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` | 5 | 1 | 50 | Parallel jobs; higher = faster but uses more CPU |
-| `ASYNC_WEBHOOK_PROCESSING_ENABLED` | true | — | — | If false, sync mode (requires DB on each request) |
-| `REDIS_URL` | redis://localhost:6379 | — | — | Must be reachable from all Next.js instances |
+| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | 4 | 1 | 100 | Total attempts (including the first) before dead-letter |
+| `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` | 5 | 1 | 1000 | Parallel jobs; higher = faster but uses more CPU |
+| `ASYNC_WEBHOOK_PROCESSING_ENABLED` | false | — | — | If true, requires `REDIS_URL` |
+| `REDIS_URL` | *(none)* | — | — | Required whenever async processing is on; must be reachable from all Next.js instances |
 
