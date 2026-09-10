@@ -78,8 +78,8 @@ function makeRequest(body: object, ip = '203.0.113.5') {
 
 withConfigEnv({
   AUTH_RATE_LIMIT_ENABLED: 'true',
-  AUTH_RATE_LIMIT_REGISTER_IP_MAX: '1000',
-  AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX: '1000',
+  AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1000',
+  AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS: '1000',
 })
 
 beforeEach(() => {
@@ -136,7 +136,7 @@ describe('POST /api/app/auth/register — throttling', () => {
   })
 
   it('throttles repeated registrations from one IP', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '2' })
 
     const statuses: number[] = []
     for (let i = 0; i < 3; i += 1) {
@@ -149,7 +149,7 @@ describe('POST /api/app/auth/register — throttling', () => {
   })
 
   it('stops creating accounts once throttled', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1' })
 
     await POST(makeRequest({ email: 'a@example.com', password: 'pw123456' }))
     await POST(makeRequest({ email: 'b@example.com', password: 'pw123456' }))
@@ -159,7 +159,7 @@ describe('POST /api/app/auth/register — throttling', () => {
   })
 
   it('returns Retry-After and RateLimit-* headers with the 429', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1' })
 
     await POST(makeRequest({ email: 'a@example.com', password: 'pw123456' }))
     const blocked = await POST(makeRequest({ email: 'b@example.com', password: 'pw123456' }))
@@ -173,7 +173,7 @@ describe('POST /api/app/auth/register — throttling', () => {
   })
 
   it('throttles one address across differing source IPs', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS: '2' })
 
     const statuses: number[] = []
     for (let i = 0; i < 3; i += 1) {
@@ -190,7 +190,7 @@ describe('POST /api/app/auth/register — throttling', () => {
 
   it('does not share one budget between callers with no trustworthy IP', async () => {
     // Per-IP limiting is inactive rather than global when XFF is absent.
-    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1' })
 
     const noXff = (email: string) =>
       new NextRequest('http://localhost/api/app/auth/register', {
@@ -213,7 +213,7 @@ describe('POST /api/app/auth/register — throttling', () => {
   })
 
   it('applies no throttling when AUTH_RATE_LIMIT_ENABLED=false', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_ENABLED: 'false', AUTH_RATE_LIMIT_REGISTER_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_ENABLED: 'false', AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1' })
 
     const statuses: number[] = []
     for (let i = 0; i < 4; i += 1) {

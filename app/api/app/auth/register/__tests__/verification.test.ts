@@ -81,7 +81,7 @@ beforeEach(() => {
 })
 
 describe('POST /api/app/auth/register — Content-Type enforcement', () => {
-  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+  withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
 
   function requestWithContentType(contentType: string | undefined) {
     const headers: Record<string, string> = {}
@@ -128,8 +128,8 @@ describe('POST /api/app/auth/register — Content-Type enforcement', () => {
 describe('POST /api/app/auth/register — verification side effects', () => {
   describe('with verification enabled', () => {
     withConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: 'verification-secret-at-least-16',
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: 'verification-secret-at-least-16',
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -202,7 +202,7 @@ describe('POST /api/app/auth/register — verification side effects', () => {
   })
 
   describe('with verification disabled', () => {
-    withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+    withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
 
     it('sends nothing and leaves the response shape untouched', async () => {
       const response = await register()

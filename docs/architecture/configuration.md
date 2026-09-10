@@ -23,7 +23,7 @@ Four properties worth understanding before you add a new variable:
   Each domain parses once per process; memoizing per-domain rather than globally means a broken
   `LLM_PROVIDER` value can't fail an unrelated database read.
 - **Set-but-invalid always throws.** Unset with a default → the default. Unset and required →
-  throws. **Set but malformed → throws, never a silent fallback.** `WEBHOOK_QUEUE_MAX_RETRIES=abc`
+  throws. **Set but malformed → throws, never a silent fallback.** `WEBHOOK_QUEUE_MAX_ATTEMPTS=abc`
   stops the server rather than quietly becoming `3`. A blank value (`FOO=`) counts as unset, not
   invalid.
 - **`assertConfig()` runs at boot**, from the root `instrumentation.ts`, producing one aggregated
@@ -77,6 +77,6 @@ pagination on the grouped-threads endpoint before the check existed — it's not
 
 ## Related
 
-- [auth.md](auth.md) — `JWT_SECRET` resolution and why it's per-call, not module-scope
+- [auth.md](auth.md) — `AUTH_JWT_SECRET` resolution and why it's per-call, not module-scope
 - [rate-limiting-and-account-security.md](rate-limiting-and-account-security.md) — `REDIS_URL`
   and the fail modes around it

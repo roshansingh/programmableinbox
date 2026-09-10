@@ -7,15 +7,15 @@ const SECRET = 'verification-secret-at-least-16'
 
 /**
  * The flag is conditionally-required configuration, on the REDIS_URL /
- * ENABLE_ASYNC_WEBHOOK_PROCESSING precedent (issue #102 §4.2). The failure
+ * ASYNC_WEBHOOK_PROCESSING_ENABLED precedent (issue #102 §4.2). The failure
  * mode being prevented is specific: an operator flips the flag, forgets the
  * secret, and the server starts anyway — signing up users and silently mailing
  * nobody.
  */
 describe('emailVerification config', () => {
   withConfigEnv({
-    ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_LINK_SECRET: undefined,
+    EMAIL_VERIFICATION_ENABLED: undefined,
+    EMAIL_LINK_SIGNING_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
@@ -31,8 +31,8 @@ describe('emailVerification config', () => {
 
   it('parses when fully configured', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: SECRET,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -42,19 +42,19 @@ describe('emailVerification config', () => {
     expect(parsed.secret?.reveal()).toBe(SECRET)
   })
 
-  it('throws naming EMAIL_LINK_SECRET when the flag is on without it', () => {
+  it('throws naming EMAIL_LINK_SIGNING_SECRET when the flag is on without it', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
+      EMAIL_VERIFICATION_ENABLED: 'true',
       APP_BASE_URL: 'https://app.example.com',
     })
 
-    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SECRET/)
+    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SIGNING_SECRET/)
   })
 
   it('throws naming APP_BASE_URL when the flag is on without it', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: SECRET,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: SECRET,
     })
 
     expect(() => parseDomain('emailVerification')).toThrow(/APP_BASE_URL/)
@@ -62,18 +62,18 @@ describe('emailVerification config', () => {
 
   it('rejects a secret that is too short rather than accepting a placeholder', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: 'short',
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: 'short',
       APP_BASE_URL: 'https://app.example.com',
     })
 
-    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SECRET/)
+    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_LINK_SIGNING_SECRET/)
   })
 
   it('rejects a relative or non-http APP_BASE_URL', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: SECRET,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: SECRET,
       APP_BASE_URL: '/app',
     })
     expect(() => parseDomain('emailVerification')).toThrow(/APP_BASE_URL/)
@@ -84,30 +84,30 @@ describe('emailVerification config', () => {
 
   /** Set-but-invalid throws; it never falls back to "feature off". */
   it('rejects a malformed flag value instead of reading it as false', () => {
-    setConfigEnv({ ENABLE_EMAIL_VERIFICATION: 'maybe' })
-    expect(() => parseDomain('emailVerification')).toThrow(/ENABLE_EMAIL_VERIFICATION/)
+    setConfigEnv({ EMAIL_VERIFICATION_ENABLED: 'maybe' })
+    expect(() => parseDomain('emailVerification')).toThrow(/EMAIL_VERIFICATION_ENABLED/)
   })
 
   it('reports both missing variables in one aggregated boot failure', () => {
-    setConfigEnv({ ENABLE_EMAIL_VERIFICATION: 'true' })
+    setConfigEnv({ EMAIL_VERIFICATION_ENABLED: 'true' })
 
     try {
       assertConfig()
       expect.unreachable('assertConfig should have thrown')
     } catch (error) {
       const message = (error as Error).message
-      expect(message).toContain('EMAIL_LINK_SECRET')
+      expect(message).toContain('EMAIL_LINK_SIGNING_SECRET')
       expect(message).toContain('APP_BASE_URL')
       expect((error as { variables: string[] }).variables).toEqual(
-        expect.arrayContaining(['EMAIL_LINK_SECRET', 'APP_BASE_URL']),
+        expect.arrayContaining(['EMAIL_LINK_SIGNING_SECRET', 'APP_BASE_URL']),
       )
     }
   })
 
   it('never prints the secret in a validation error', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: 'short',
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: 'short',
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -116,8 +116,8 @@ describe('emailVerification config', () => {
 
   it('boxes the secret so it cannot be logged by accident', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: SECRET,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -128,15 +128,15 @@ describe('emailVerification config', () => {
 
 describe('requireEmailVerification', () => {
   withConfigEnv({
-    ENABLE_EMAIL_VERIFICATION: undefined,
-    EMAIL_LINK_SECRET: undefined,
+    EMAIL_VERIFICATION_ENABLED: undefined,
+    EMAIL_LINK_SIGNING_SECRET: undefined,
     APP_BASE_URL: undefined,
   })
 
   it('returns the revealed secret and origin when configured', () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: SECRET,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: SECRET,
       APP_BASE_URL: 'https://app.example.com',
     })
 
@@ -152,13 +152,13 @@ describe('requireEmailVerification', () => {
    * rather than dereference null somewhere inside the mailer.
    */
   it('throws naming both variables when the feature was never configured', () => {
-    expect(() => requireEmailVerification()).toThrow(/EMAIL_LINK_SECRET/)
+    expect(() => requireEmailVerification()).toThrow(/EMAIL_LINK_SIGNING_SECRET/)
     expect(() => requireEmailVerification()).toThrow(/APP_BASE_URL/)
   })
 })
 
 describe('emailed link TTLs', () => {
-  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: 'false' })
+  withConfigEnv({ EMAIL_VERIFICATION_ENABLED: 'false' })
 
   it('defaults both TTLs to 30 minutes', async () => {
     const { config } = await import('@/lib/config')
@@ -175,14 +175,14 @@ describe('emailed link TTLs', () => {
   })
 
   it('rejects a TTL below the lower bound', async () => {
-    setConfigEnv({ PASSWORD_RESET_TOKEN_TTL_MINUTES: '0' })
+    setConfigEnv({ AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES: '0' })
     const { config } = await import('@/lib/config')
 
     expect(() => config.emailVerification.passwordResetTtlMinutes).toThrow()
   })
 
   it('rejects a TTL above the upper bound', async () => {
-    setConfigEnv({ PASSWORD_RESET_TOKEN_TTL_MINUTES: '10081' })
+    setConfigEnv({ AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES: '10081' })
     const { config } = await import('@/lib/config')
 
     expect(() => config.emailVerification.passwordResetTtlMinutes).toThrow()
@@ -190,8 +190,8 @@ describe('emailed link TTLs', () => {
 
   it('does not honour the old EMAIL_VERIFICATION_SECRET name as a fallback', async () => {
     setConfigEnv({
-      ENABLE_EMAIL_VERIFICATION: 'true',
-      EMAIL_LINK_SECRET: undefined,
+      EMAIL_VERIFICATION_ENABLED: 'true',
+      EMAIL_LINK_SIGNING_SECRET: undefined,
       EMAIL_VERIFICATION_SECRET: 'old-name-secret-at-least-16-chars',
       APP_BASE_URL: 'https://app.example.com',
     })
@@ -199,6 +199,6 @@ describe('emailed link TTLs', () => {
 
     // A deployment that updated only half its config must fail loudly rather
     // than quietly signing with a value the schema no longer reads.
-    expect(() => config.emailVerification.enabled).toThrow(/EMAIL_LINK_SECRET/)
+    expect(() => config.emailVerification.enabled).toThrow(/EMAIL_LINK_SIGNING_SECRET/)
   })
 })

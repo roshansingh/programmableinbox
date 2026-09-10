@@ -16,7 +16,7 @@ const optionalAddressListSchema = z.array(z.string().email()).optional()
  *
  * Only the *scheme* is enforced here — this schema also runs in the browser
  * (the automation editor), where the server's egress allowlist and the
- * `WEBHOOK_ALLOW_PRIVATE_NETWORK` dev escape hatch are not visible, so a
+ * `WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK` dev escape hatch are not visible, so a
  * client-side private-address check would disagree with the server. The
  * address/hostname blocklist is enforced at execution time by
  * `lib/security/ssrf-guard`, which is the authoritative gate.

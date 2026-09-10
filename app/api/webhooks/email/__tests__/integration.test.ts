@@ -127,7 +127,7 @@ vi.mock('@/lib/llm/enrichment', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-const WEBHOOK_SECRET = 'integration-test-secret';
+const RESEND_WEBHOOK_SECRET = 'integration-test-secret';
 
 /**
  * Builds a valid NextRequest-compatible Request for the webhook route.
@@ -217,8 +217,8 @@ async function loadRoute() {
 
 describe('Webhook Email Processing — Integration', () => {
   withConfigEnv({
-    WEBHOOK_SECRET,
-    ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true',
+    RESEND_WEBHOOK_SECRET,
+    ASYNC_WEBHOOK_PROCESSING_ENABLED: 'true',
   });
 
   beforeEach(() => {
@@ -422,10 +422,10 @@ describe('Webhook Email Processing — Integration', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Async mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=true)
+  // Async mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=true)
   // -------------------------------------------------------------------------
 
-  describe('Async mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=true)', () => {
+  describe('Async mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=true)', () => {
     it('returns 500 without enqueueing when Resend omits the received timestamp', async () => {
       const { POST } = await loadRoute();
       getEmailMock.mockResolvedValueOnce({
@@ -574,12 +574,12 @@ describe('Webhook Email Processing — Integration', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Sync mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=false)
+  // Sync mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=false)
   // -------------------------------------------------------------------------
 
-  describe('Sync mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=false)', () => {
+  describe('Sync mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=false)', () => {
     beforeEach(() => {
-      setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' });
+      setConfigEnv({ ASYNC_WEBHOOK_PROCESSING_ENABLED: 'false' });
     });
 
     it('stores the email synchronously and does not enqueue', async () => {
@@ -915,7 +915,7 @@ describe('Webhook Email Processing — Integration', () => {
   // -------------------------------------------------------------------------
   describe('Plan quota', () => {
     beforeEach(() => {
-      setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' });
+      setConfigEnv({ ASYNC_WEBHOOK_PROCESSING_ENABLED: 'false' });
     });
 
     afterEach(async () => {

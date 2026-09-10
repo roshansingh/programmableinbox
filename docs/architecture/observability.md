@@ -36,13 +36,13 @@ Two independent gates, the same shape as the [commercial layer](commercial-layer
   `ee` entry in `scripts/foss.mjs`'s `COMMERCIAL_PATHS` — no change to that array was needed,
   since `ee` already covers everything below it. A stripped Community build has no
   `ee/observability/` directory at all.
-- **Runtime**: `ENABLE_OBSERVABILITY`, default `false`, independent of `USE_COMMERCIAL` — a
+- **Runtime**: `OBSERVABILITY_ENABLED`, default `false`, independent of `COMMERCIAL_ENABLED` — a
   self-hosted EE deployment without Stripe billing wired up should still be able to turn on
   observability.
 
-Setting `ENABLE_OBSERVABILITY=true` on a Community build is inert: the code that reads
+Setting `OBSERVABILITY_ENABLED=true` on a Community build is inert: the code that reads
 `config.observability` (`ee/observability/init.ts`) does not exist in that build, so there is
-nothing to turn on. This mirrors how `USE_COMMERCIAL=true` is inert once `ee/` is deleted.
+nothing to turn on. This mirrors how `COMMERCIAL_ENABLED=true` is inert once `ee/` is deleted.
 
 ## Traces
 
@@ -76,7 +76,7 @@ Two independent pieces, split between the app and the collector:
    OpenTelemetry span via `@opentelemetry/api` (the API package only, never the SDK) and, when one
    exists, attaches `trace_id`/`span_id` to the log line. This is unconditional and
    community-safe: with no SDK registered — Community Edition, or an EE build with
-   `ENABLE_OBSERVABILITY=false` — `trace.getSpan(context.active())` returns `undefined` and the
+   `OBSERVABILITY_ENABLED=false` — `trace.getSpan(context.active())` returns `undefined` and the
    mixin is a no-op. This is still how logs and traces end up correlated even though they no
    longer share an in-process exporter — see "Trace/log correlation without a shared exporter"
    below.

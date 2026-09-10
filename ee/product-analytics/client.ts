@@ -54,7 +54,7 @@ export function getPostHogClient(): PostHog {
     // rather than the SDK throwing about an empty key.
     throw new ConfigError(
       'POSTHOG_API_KEY and POSTHOG_HOST are required to talk to PostHog. ' +
-        'ENABLE_PRODUCT_ANALYTICS is on, so instrumentation is live, but ' +
+        'PRODUCT_ANALYTICS_ENABLED is on, so instrumentation is live, but ' +
         'nothing can be captured without them.',
       ['POSTHOG_API_KEY', 'POSTHOG_HOST'],
     )

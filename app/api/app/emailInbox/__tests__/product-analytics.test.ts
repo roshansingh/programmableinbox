@@ -90,7 +90,7 @@ async function post(email = 'free@corp.com') {
 }
 
 describe('product analytics disabled (the default)', () => {
-  withConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false', EMAIL_INBOX_DOMAINS: 'corp.com' })
+  withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false', EMAIL_INBOX_ALLOWED_DOMAINS: 'corp.com' })
 
   it('creates the inbox without capturing anything or querying the count', async () => {
     const response = await post()
@@ -103,10 +103,10 @@ describe('product analytics disabled (the default)', () => {
 
 describe('product analytics enabled', () => {
   withConfigEnv({
-    ENABLE_PRODUCT_ANALYTICS: 'true',
+    PRODUCT_ANALYTICS_ENABLED: 'true',
     POSTHOG_API_KEY: 'phc_test1234567890',
     POSTHOG_HOST: 'https://us.i.posthog.com',
-    EMAIL_INBOX_DOMAINS: 'corp.com',
+    EMAIL_INBOX_ALLOWED_DOMAINS: 'corp.com',
   })
 
   it('captures inbox_created with the creator as distinct_id', async () => {

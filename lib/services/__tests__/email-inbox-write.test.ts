@@ -32,7 +32,7 @@ const SCOPE = { organizationId: 'org_1', userId: 'user_1' }
 const ALLOWED = 'someone@mail.programmableinbox.com'
 
 describe('createInbox', () => {
-  withConfigEnv({ EMAIL_INBOX_DOMAINS: 'mail.programmableinbox.com' })
+  withConfigEnv({ EMAIL_INBOX_ALLOWED_DOMAINS: 'mail.programmableinbox.com' })
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -255,7 +255,7 @@ describe('createInbox', () => {
 })
 
 describe('updateInbox under an inbox write scope', () => {
-  withConfigEnv({ EMAIL_INBOX_DOMAINS: 'mail.programmableinbox.com' })
+  withConfigEnv({ EMAIL_INBOX_ALLOWED_DOMAINS: 'mail.programmableinbox.com' })
 
   beforeEach(() => {
     vi.resetAllMocks()

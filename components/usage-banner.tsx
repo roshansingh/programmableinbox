@@ -91,7 +91,7 @@ export function UsageBanner() {
   }
 
   useEffect(() => {
-    // No plan means USE_COMMERCIAL is off, so there is nothing to meter and no
+    // No plan means COMMERCIAL_ENABLED is off, so there is nothing to meter and no
     // reason to make the request at all.
     if (!plan || !organizationId || !isAuthenticated) {
       setUsage([])

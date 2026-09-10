@@ -483,7 +483,7 @@ export interface ClientIpResult {
  *
  *     [ ...anything the client forged... , <real client IP observed by Caddy> ]
  *
- * We therefore take the entry at `length - TRUSTED_PROXY_COUNT` (rightmost by
+ * We therefore take the entry at `length - AUTH_TRUSTED_PROXY_COUNT` (rightmost by
  * default), never `split(',')[0]`. Taking the leftmost element would let any
  * attacker send `X-Forwarded-For: <random>` and get a fresh per-IP budget on
  * every request, defeating the per-IP limit entirely.
@@ -499,7 +499,7 @@ export interface ClientIpResult {
  * still bound online guessing; per-IP is the anti-spray control specifically,
  * and it cannot function without a trustworthy address.
  *
- * `TRUSTED_PROXY_COUNT=0` states outright that nothing trustworthy sits in
+ * `AUTH_TRUSTED_PROXY_COUNT=0` states outright that nothing trustworthy sits in
  * front, and short-circuits to the same result. A proxy that sets only
  * `X-Real-IP` is not supported: if `X-Forwarded-For` is absent there is no
  * evidence a trusted proxy was involved at all, so `X-Real-IP` would be just as
@@ -518,7 +518,7 @@ export function getClientIp(request: { headers: Headers }): ClientIpResult {
 
   const index = chain.length - trustedProxyCount
   // Fewer entries than declared proxies: the deployment is not shaped the way
-  // TRUSTED_PROXY_COUNT claims, so nothing in the chain is known to be appended
+  // AUTH_TRUSTED_PROXY_COUNT claims, so nothing in the chain is known to be appended
   // by a trusted hop.
   if (index < 0) return { ip: null, reason: 'chain-too-short' }
 

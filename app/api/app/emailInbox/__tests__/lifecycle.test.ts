@@ -70,11 +70,11 @@ beforeEach(() => {
   // Creation is fail-closed on the domain allowlist (issue #98): without a
   // configured domain every POST here would stop at 503 before reaching the
   // uniqueness behavior under test.
-  process.env.EMAIL_INBOX_DOMAINS = 'corp.com'
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = 'corp.com'
 })
 
 afterEach(() => {
-  delete process.env.EMAIL_INBOX_DOMAINS
+  delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 })
 
 describe('POST /api/app/emailInbox — address uniqueness (F1)', () => {

@@ -11,7 +11,7 @@ via a Docker Compose profile, and there's still no schema migration.
 > **Note for Community Edition readers**: this guide only applies to the EE/SaaS build.
 > `docs/` is not stripped by `scripts/foss.mjs` — only code under `ee/` is — so this file remains
 > visible in a Community checkout even though following it does nothing there: the code that
-> reads `ENABLE_OBSERVABILITY` lives in `ee/observability/`, which does not exist in a stripped
+> reads `OBSERVABILITY_ENABLED` lives in `ee/observability/`, which does not exist in a stripped
 > build. See [`docs/architecture/commercial-layer.md`](architecture/commercial-layer.md) for the
 > open-core split.
 
@@ -49,11 +49,11 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
    `/srv/programmableinbox/secrets/otel-collector.env`, deliberately separate from the app's
    `/srv/programmableinbox/secrets/app.env` (see [`deploy/README.md`](../deploy/README.md), Part 3 and
    Part 9), so a third-party image with a read-only mount over every container's log history never
-   sees `JWT_SECRET`, `DATABASE_URL`, or anything else it doesn't need:
+   sees `AUTH_JWT_SECRET`, `DATABASE_URL`, or anything else it doesn't need:
 
    | Variable | File | Value |
    |---|---|---|
-   | `ENABLE_OBSERVABILITY` | `app.env` | `true` |
+   | `OBSERVABILITY_ENABLED` | `app.env` | `true` |
    | `OTEL_EXPORTER_OTLP_ENDPOINT` | `app.env` | `http://otel-collector:4318` — the collector, on the internal docker network, **not** Grafana |
    | `OTEL_EXPORTER_OTLP_PROTOCOL` | `app.env` | `http/protobuf` |
    | `OTEL_EXPORTER_OTLP_HEADERS` | `app.env` | any non-empty value, e.g. `X-Local-Collector=unused` — required by `assertConfig()`, but carries no real secret since the app never talks to Grafana directly |
@@ -91,11 +91,11 @@ see [`docs/architecture/observability.md`](architecture/observability.md).
 
 ## Troubleshooting
 
-**App won't start after setting `ENABLE_OBSERVABILITY=true`.**
+**App won't start after setting `OBSERVABILITY_ENABLED=true`.**
 `assertConfig()` is refusing to boot because `OTEL_EXPORTER_OTLP_ENDPOINT` or
 `OTEL_EXPORTER_OTLP_HEADERS` is missing or malformed on the **app's** side — the startup error
 names the offending variable. Fix: fill in the missing/malformed value (any non-empty string
-satisfies `OTEL_EXPORTER_OTLP_HEADERS`), or set `ENABLE_OBSERVABILITY` back to `false`.
+satisfies `OTEL_EXPORTER_OTLP_HEADERS`), or set `OBSERVABILITY_ENABLED` back to `false`.
 
 **Traces appear in Grafana but logs don't (or vice versa).**
 The two signals take genuinely different paths now, so a failure in one doesn't imply a failure in

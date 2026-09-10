@@ -11,5 +11,5 @@ matching a condition to an external webhook. Configure automations from the
 dashboard under **Automations**.
 
 Automations run on both the synchronous and asynchronous ingestion paths, so
-behavior doesn't change based on whether `ENABLE_ASYNC_WEBHOOK_PROCESSING`
+behavior doesn't change based on whether `ASYNC_WEBHOOK_PROCESSING_ENABLED`
 is on for a given deployment.

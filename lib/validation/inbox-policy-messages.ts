@@ -16,7 +16,7 @@
 /**
  * Shown by the create dialog when it has no domains to offer.
  *
- * Since EMAIL_INBOX_DOMAINS became required and boot-asserted, the server
+ * Since EMAIL_INBOX_ALLOWED_DOMAINS became required and boot-asserted, the server
  * cannot start unconfigured — so this is reachable only before `/auth/me`
  * resolves, or if the response arrives without config. It is kept as the
  * fail-closed rendering for "we have no domain to compose an address from",

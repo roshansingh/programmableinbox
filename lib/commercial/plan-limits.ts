@@ -87,7 +87,7 @@ export const PlanLimitsSchema = z.object({
 export type PlanLimits = z.infer<typeof PlanLimitsSchema>
 
 /**
- * The limits every organization gets when `USE_COMMERCIAL=false`, and the
+ * The limits every organization gets when `COMMERCIAL_ENABLED=false`, and the
  * limits seeded for the `self_hosted` plan.
  *
  * Derived by parsing an empty object rather than written out by hand, so it

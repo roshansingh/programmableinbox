@@ -13,11 +13,11 @@ HMAC signature and a 5-minute replay window.
 
 By default, ingestion happens inline on the webhook request: the message is
 parsed, threaded, and stored before the response is sent. Setting
-`ENABLE_ASYNC_WEBHOOK_PROCESSING=true` instead queues the job to a
+`ASYNC_WEBHOOK_PROCESSING_ENABLED=true` instead queues the job to a
 Redis/BullMQ worker — useful for high-volume inboxes where inline processing
 would make the webhook response too slow. Both paths run the same
 threading, search-indexing, and automation logic; retries on the async path
-are capped by `WEBHOOK_QUEUE_MAX_RETRIES` (default `3`).
+are capped by `WEBHOOK_QUEUE_MAX_ATTEMPTS` (default `3`).
 
 ## Threading
 

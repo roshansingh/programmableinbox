@@ -18,13 +18,13 @@ concrete implementation, so the exact same code path runs whether or not `ee/` i
 | `CommercialProvider.quota` (`IQuota`) | `NoopQuota` — allows everything, counts nothing | `PostgresQuota` — atomic check-and-consume against a `usage_counters` table |
 | `CommercialProvider.metering` (`IMetering`) | `NoopMetering` — discards | still the OSS no-op; usage-based billing has no consumer yet, and `IMetering` is deliberately allowed to drop writes, which is why it can never be what enforcement reads |
 
-`ee/init.ts` is called once at boot, from root `instrumentation.ts`. With `USE_COMMERCIAL=false`
+`ee/init.ts` is called once at boot, from root `instrumentation.ts`. With `COMMERCIAL_ENABLED=false`
 (the default) it returns immediately, without configuring anything — the OSS defaults stand and
 the `plans`, `subscriptions`, and `usage_counters` tables are never queried. **Deleting `ee/`
 removes the only caller of `CommercialProvider.configure()`**, which is what makes a stripped
 build unlimited by construction, not by a flag someone has to remember to set.
 
-`USE_COMMERCIAL` replaced an earlier `ENABLE_BILLING` flag, deliberately without a compatibility
+`COMMERCIAL_ENABLED` replaced an earlier `ENABLE_BILLING` flag, deliberately without a compatibility
 alias — the old name described a narrower thing (payments) than the flag actually gates now, and
 a deployment still setting the old name fails `assertConfig()` naming the new variable, rather
 than silently starting with enforcement off.
@@ -35,7 +35,7 @@ Two different enforcement shapes, because they need different guarantees:
 
 - **Count caps** (`checkResourceLimit`, `lib/commercial/enforce.ts`) — gate *creation*: "you may
   have at most N inboxes / API keys / webhooks / automations / members." A create-time predicate
-  only — an organization already over its limit when `USE_COMMERCIAL` is switched on keeps every
+  only — an organization already over its limit when `COMMERCIAL_ENABLED` is switched on keeps every
   existing resource working; only the *next* create is refused. It's advisory against
   concurrency (two simultaneous creates can both land under the same cap), which is an accepted
   trade-off: the window is milliseconds and the harm is one extra row.
@@ -63,7 +63,7 @@ can render an accurate upsell instead of a bare error.
 
 ## Billing (Stripe)
 
-Live only when `USE_COMMERCIAL=true`. `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are then
+Live only when `COMMERCIAL_ENABLED=true`. `STRIPE_API_KEY` and `STRIPE_WEBHOOK_SIGNING_SECRET` are then
 **required and asserted at boot** — a deployment that enforces plans but cannot sell anything
 should fail loudly rather than 500 at the payment step. Both are `Secret`-boxed.
 
@@ -144,7 +144,7 @@ Neither rule can fire on the other's keys.
 # 1. Point the pro plan at a test-mode recurring price
 #    UPDATE plans SET "stripePriceId" = 'price_...' WHERE code = 'pro';
 
-# 2. Forward webhooks; this prints the STRIPE_WEBHOOK_SECRET to use
+# 2. Forward webhooks; this prints the STRIPE_WEBHOOK_SIGNING_SECRET to use
 stripe listen --forward-to localhost:4000/api/webhooks/stripe
 
 # 3. Trigger events without paying
@@ -180,7 +180,7 @@ organization back to `free` once the subscription ends.
 
 The nav link to it (`components/sidebar.tsx`, `components/mobile-sidebar.tsx`) is gated on
 `useAuth().plan` being non-null — no separate `AppConfig` flag was added, because a plan is present
-exactly when `USE_COMMERCIAL=true` *and* Stripe is configured: `assertConfig()` refuses to boot
+exactly when `COMMERCIAL_ENABLED=true` *and* Stripe is configured: `assertConfig()` refuses to boot
 otherwise (see "Billing (Stripe)" above). One check on `plan` is the whole gate.
 
 `success_url` / `cancel_url` (checkout) and `return_url` (portal) all point back at `/billing` now,
@@ -191,7 +191,7 @@ not `/settings` — this page is billing's actual home in the dashboard.
 - **Plan limits** ride `organizations[]` on `GET /api/app/auth/me`, via
   `resolveOrganizationPlans()` (`lib/commercial/org-plan.ts`) — deliberately *not* on `AppConfig`,
   which is deployment-scoped and identical for every user, whereas a plan is tenant-scoped. With
-  `USE_COMMERCIAL` off this resolves to an empty map at no per-membership cost, which the client
+  `COMMERCIAL_ENABLED` off this resolves to an empty map at no per-membership cost, which the client
   reads as "no restrictions."
 - **Live usage** is a separate, polled endpoint, `GET /api/app/usage` — plan limits change rarely
   and are fine to cache with the session; usage changes constantly and would go stale immediately
@@ -200,4 +200,4 @@ not `/settings` — this page is billing's actual home in the dashboard.
 
 ## Related
 
-- [configuration.md](configuration.md) — where `USE_COMMERCIAL` and other flags are validated
+- [configuration.md](configuration.md) — where `COMMERCIAL_ENABLED` and other flags are validated

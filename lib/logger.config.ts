@@ -112,7 +112,7 @@ export function buildLoggerConfig(): LoggerOptions {
     // Injects the active OpenTelemetry span's IDs into every log line, so a
     // trace in Grafana can jump to its matching logs. Uses only the OTel
     // *API* package, never the SDK — with no SDK registered (Community
-    // Edition, or EE with ENABLE_OBSERVABILITY off) trace.getSpan returns
+    // Edition, or EE with OBSERVABILITY_ENABLED off) trace.getSpan returns
     // undefined immediately, so this is a no-op there.
     mixin() {
       const span = trace.getSpan(context.active())

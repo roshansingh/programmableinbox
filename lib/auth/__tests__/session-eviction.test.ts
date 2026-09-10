@@ -21,7 +21,7 @@ function userRow(passwordChangedAt: Date | null) {
 }
 
 describe('session eviction on password change', () => {
-  withConfigEnv({ JWT_SECRET: SESSION_SECRET })
+  withConfigEnv({ AUTH_JWT_SECRET: SESSION_SECRET })
 
   beforeEach(() => {
     findUniqueMock.mockReset()

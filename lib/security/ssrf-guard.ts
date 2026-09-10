@@ -54,9 +54,9 @@ const DEFAULT_TIMEOUT_MS = 10_000
 const DEFAULT_MAX_REDIRECTS = 3
 
 export type SsrfGuardOptions = {
-  /** Overrides `WEBHOOK_EGRESS_ALLOWLIST`. `null` disables the allowlist. */
+  /** Overrides `WEBHOOK_EGRESS_ALLOWED_HOSTS`. `null` disables the allowlist. */
   allowlist?: readonly string[] | null
-  /** Overrides the `WEBHOOK_ALLOW_PRIVATE_NETWORK` dev escape hatch. */
+  /** Overrides the `WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK` dev escape hatch. */
   allowPrivateNetwork?: boolean
   /** Per-hop timeout in milliseconds. */
   timeoutMs?: number
@@ -88,7 +88,7 @@ export type SafeFetchInit = {
 // ---------------------------------------------------------------------------
 
 /**
- * Optional egress allowlist from `WEBHOOK_EGRESS_ALLOWLIST` (comma separated).
+ * Optional egress allowlist from `WEBHOOK_EGRESS_ALLOWED_HOSTS` (comma separated).
  * Entries match exactly, or as a domain suffix when written with a leading dot
  * (`.example.com`). When unset every public host is permitted.
  */
@@ -97,7 +97,7 @@ export function readEgressAllowlist(): string[] | null {
 }
 
 /**
- * Local-development escape hatch. `WEBHOOK_ALLOW_PRIVATE_NETWORK=true` lets
+ * Local-development escape hatch. `WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK=true` lets
  * webhooks target loopback/RFC1918 addresses so a developer can point an
  * automation at `http://127.0.0.1:3000/hook`.
  *

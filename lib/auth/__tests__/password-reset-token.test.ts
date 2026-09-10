@@ -6,10 +6,10 @@ const LINK_SECRET = 'email-link-secret-at-least-16-chars'
 const SESSION_SECRET = 'test-jwt-secret-at-least-16-chars'
 
 const ENV = {
-  ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_LINK_SECRET: LINK_SECRET,
+  EMAIL_VERIFICATION_ENABLED: 'true',
+  EMAIL_LINK_SIGNING_SECRET: LINK_SECRET,
   APP_BASE_URL: 'https://app.example.com',
-  JWT_SECRET: SESSION_SECRET,
+  AUTH_JWT_SECRET: SESSION_SECRET,
 }
 
 const CLAIMS = {
@@ -113,7 +113,7 @@ describe('password reset tokens', () => {
   // ---------------------------------------------------------------------
   // Cross-purpose confusion.
   //
-  // Both token types are signed with EMAIL_LINK_SECRET, so the signature
+  // Both token types are signed with EMAIL_LINK_SIGNING_SECRET, so the signature
   // check CANNOT reject either of these — the `purpose` claim is the only
   // thing separating them. These tests are the barrier. Do not weaken them,
   // and do not "simplify" either verifier's purpose check.

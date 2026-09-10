@@ -18,7 +18,7 @@ import type { ApiError } from "@/lib/api-client"
 
 /**
  * True only for a 404 from the request endpoint, which the route returns
- * exclusively when `ENABLE_EMAIL_VERIFICATION` is off — a deployment-level
+ * exclusively when `EMAIL_VERIFICATION_ENABLED` is off — a deployment-level
  * fact identical for every caller, never account-dependent. That is what
  * makes it safe to distinguish here without weakening the enumeration
  * protection below: every other failure (network error, 500, 502, ...) is

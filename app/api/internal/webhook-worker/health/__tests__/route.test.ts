@@ -19,7 +19,7 @@ async function loadRoute() {
 
 describe('GET /api/internal/webhook-worker/health', () => {
   // Most tests want the feature on; the one that does not overrides it below.
-  withConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true' })
+  withConfigEnv({ ASYNC_WEBHOOK_PROCESSING_ENABLED: 'true' })
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -30,7 +30,7 @@ describe('GET /api/internal/webhook-worker/health', () => {
   })
 
   it('returns 503 when async webhook processing is disabled', async () => {
-    setConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'false' })
+    setConfigEnv({ ASYNC_WEBHOOK_PROCESSING_ENABLED: 'false' })
 
     const { GET } = await loadRoute()
     const res = await GET()

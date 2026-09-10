@@ -44,7 +44,7 @@ function looksLikeApiKey(credential: string): boolean {
  * substitution class named in RFC 8725 §2.8. It also made every API-key
  * request pay a jwt.verify, reported expired JWTs as bad keys, and — because
  * getJwtSecret() throws outside verifyToken's try block — let a misconfigured
- * JWT_SECRET return 500 for perfectly valid API-key traffic. The session
+ * AUTH_JWT_SECRET return 500 for perfectly valid API-key traffic. The session
  * credential no longer even arrives in a header at all — it is read from the
  * httpOnly cookie via `sessionCookie()` below, while an API key still arrives
  * via `Authorization: Bearer` — so the two are on separate transports as well

@@ -31,8 +31,8 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 const ENABLED = {
-  ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_LINK_SECRET: 'verification-secret-at-least-16',
+  EMAIL_VERIFICATION_ENABLED: 'true',
+  EMAIL_LINK_SIGNING_SECRET: 'verification-secret-at-least-16',
   APP_BASE_URL: 'https://app.example.com',
 }
 
@@ -232,7 +232,7 @@ describe('POST /api/app/auth/verification/resend', () => {
   })
 
   describe('with verification disabled', () => {
-    withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+    withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
 
     beforeEach(() => {
       vi.resetAllMocks()

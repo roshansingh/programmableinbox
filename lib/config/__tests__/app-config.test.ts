@@ -6,27 +6,27 @@ vi.mock('@/lib/logger', () => ({
   default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }))
 
-const ORIGINAL = process.env.EMAIL_INBOX_DOMAINS
+const ORIGINAL = process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 
 /** `config` memoizes per domain, so the memo must be dropped with the env. */
 function configure(raw: string) {
-  process.env.EMAIL_INBOX_DOMAINS = raw
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = raw
   resetConfigCache()
 }
 
 afterEach(() => {
   if (ORIGINAL === undefined) {
-    delete process.env.EMAIL_INBOX_DOMAINS
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
   } else {
-    process.env.EMAIL_INBOX_DOMAINS = ORIGINAL
+    process.env.EMAIL_INBOX_ALLOWED_DOMAINS = ORIGINAL
   }
   // The verification vars are unset in the ambient test environment, so
   // deleting is the correct restore. Leaving them set would make the
   // "not required" cases order-dependent.
-  delete process.env.ENABLE_EMAIL_VERIFICATION
-  delete process.env.EMAIL_LINK_SECRET
+  delete process.env.EMAIL_VERIFICATION_ENABLED
+  delete process.env.EMAIL_LINK_SIGNING_SECRET
   delete process.env.APP_BASE_URL
-  delete process.env.ENABLE_PRODUCT_ANALYTICS
+  delete process.env.PRODUCT_ANALYTICS_ENABLED
   delete process.env.POSTHOG_API_KEY
   delete process.env.POSTHOG_HOST
   resetConfigCache()
@@ -51,8 +51,8 @@ describe('getAppConfig', () => {
 
   it('reports email verification as required when the flag is on', () => {
     configure('inbox.pibx.dev')
-    process.env.ENABLE_EMAIL_VERIFICATION = 'true'
-    process.env.EMAIL_LINK_SECRET = 'verification-secret-at-least-16'
+    process.env.EMAIL_VERIFICATION_ENABLED = 'true'
+    process.env.EMAIL_LINK_SIGNING_SECRET = 'verification-secret-at-least-16'
     process.env.APP_BASE_URL = 'https://app.pibx.dev'
     resetConfigCache()
 
@@ -70,7 +70,7 @@ describe('getAppConfig', () => {
 
   it('publishes the PostHog project key and host when product analytics is on', () => {
     configure('inbox.pibx.dev')
-    process.env.ENABLE_PRODUCT_ANALYTICS = 'true'
+    process.env.PRODUCT_ANALYTICS_ENABLED = 'true'
     process.env.POSTHOG_API_KEY = 'phc_test1234567890'
     process.env.POSTHOG_HOST = 'https://us.i.posthog.com'
     resetConfigCache()
@@ -82,15 +82,15 @@ describe('getAppConfig', () => {
   })
 
   /**
-   * The list can never be empty here — EMAIL_INBOX_DOMAINS is required and
+   * The list can never be empty here — EMAIL_INBOX_ALLOWED_DOMAINS is required and
    * `assertConfig()` refuses to boot without it, so the browser is never handed
    * a config it cannot act on. The client still defaults to `[]` before
    * `/auth/me` resolves, which is the fail-closed direction.
    */
   it('propagates the config layer’s refusal rather than reporting an empty list', () => {
-    delete process.env.EMAIL_INBOX_DOMAINS
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
     resetConfigCache()
-    expect(() => getAppConfig()).toThrow(/EMAIL_INBOX_DOMAINS/)
+    expect(() => getAppConfig()).toThrow(/EMAIL_INBOX_ALLOWED_DOMAINS/)
   })
 
   it('reflects a restart that changed the configuration', () => {
@@ -126,10 +126,10 @@ describe('getAppConfig', () => {
     const serialized = JSON.stringify(getAppConfig())
 
     for (const secret of [
-      process.env.JWT_SECRET,
-      process.env.WEBHOOK_SECRET,
+      process.env.AUTH_JWT_SECRET,
+      process.env.RESEND_WEBHOOK_SECRET,
       process.env.DATABASE_URL,
-      process.env.AUTH_RESEND_API_KEY,
+      process.env.RESEND_API_KEY,
     ]) {
       if (secret) expect(serialized).not.toContain(secret)
     }

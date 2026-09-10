@@ -16,26 +16,26 @@ afterEach(() => {
 
 describe('config accessors', () => {
   it('returns parsed schema output, not the raw string', () => {
-    process.env.WEBHOOK_SECRET = 'w'.repeat(16)
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = '7'
+    process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7'
 
     expect(config.webhooks.maxRetries).toBe(7)
     expect(typeof config.webhooks.maxRetries).toBe('number')
   })
 
   it('boxes secrets so a whole-domain log cannot leak them', () => {
-    process.env.JWT_SECRET = 'j'.repeat(32)
+    process.env.AUTH_JWT_SECRET = 'j'.repeat(32)
 
     expect(config.auth.jwtSecret).toBeInstanceOf(Secret)
     expect(JSON.stringify(config.auth)).not.toContain('j'.repeat(32))
   })
 
   it('memoizes, so a later process.env mutation cannot reintroduce a raw value', () => {
-    process.env.WEBHOOK_SECRET = 'w'.repeat(16)
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = '7'
+    process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7'
     expect(config.webhooks.maxRetries).toBe(7)
 
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = '9'
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '9'
     expect(config.webhooks.maxRetries).toBe(7)
   })
 
@@ -66,28 +66,28 @@ describe('config accessors', () => {
   })
 
   it('treats a blank variable as unset', () => {
-    process.env.WEBHOOK_SECRET = 'w'.repeat(16)
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = '   '
+    process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '   '
     expect(config.webhooks.maxRetries).toBe(3)
   })
 
   it('never includes a secret value in the thrown message', () => {
-    process.env.JWT_SECRET = 'leaky-but-too-short'.slice(0, 5)
+    process.env.AUTH_JWT_SECRET = 'leaky-but-too-short'.slice(0, 5)
 
     try {
       void config.auth.jwtSecret
       throw new Error('expected config.auth to throw')
     } catch (error) {
       const message = (error as Error).message
-      expect(message).toContain('JWT_SECRET')
+      expect(message).toContain('AUTH_JWT_SECRET')
       expect(message).not.toContain('leaky')
     }
   })
 
   it('reports every failure within a domain at once', () => {
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'abc'
-    process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = 'xyz'
-    delete process.env.WEBHOOK_SECRET
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = 'abc'
+    process.env.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = 'xyz'
+    delete process.env.RESEND_WEBHOOK_SECRET
 
     let message = ''
     try {
@@ -96,9 +96,9 @@ describe('config accessors', () => {
       message = (error as Error).message
     }
 
-    expect(message).toContain('WEBHOOK_SECRET')
-    expect(message).toContain('WEBHOOK_QUEUE_MAX_RETRIES')
-    expect(message).toContain('WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX')
+    expect(message).toContain('RESEND_WEBHOOK_SECRET')
+    expect(message).toContain('WEBHOOK_QUEUE_MAX_ATTEMPTS')
+    expect(message).toContain('WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX')
   })
 
   it('leaves REDIS_URL null when unset rather than defaulting to localhost', () => {

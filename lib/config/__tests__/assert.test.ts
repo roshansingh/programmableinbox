@@ -6,12 +6,12 @@ const originalEnv = { ...process.env }
 
 const REQUIRED_VARS = [
   'DATABASE_URL',
-  'JWT_SECRET',
-  'WEBHOOK_SECRET',
-  'AUTH_RESEND_API_KEY',
+  'AUTH_JWT_SECRET',
+  'RESEND_WEBHOOK_SECRET',
+  'RESEND_API_KEY',
   'AUTH_EMAIL_FROM',
   'AUTH_EMAIL_FROM_NAME',
-  'EMAIL_INBOX_DOMAINS',
+  'EMAIL_INBOX_ALLOWED_DOMAINS',
 ] as const
 
 /** Strips the valid baseline vitest.config.ts provides to every suite. */
@@ -22,12 +22,12 @@ function clearRequiredEnv() {
 /** The minimum environment in which every domain parses cleanly. */
 function setValidEnv() {
   process.env.DATABASE_URL = 'postgresql://u:p@h:5432/db?options=-c%20timezone%3DUTC'
-  process.env.JWT_SECRET = 'j'.repeat(32)
-  process.env.WEBHOOK_SECRET = 'w'.repeat(16)
-  process.env.AUTH_RESEND_API_KEY = 're_test_placeholder'
+  process.env.AUTH_JWT_SECRET = 'j'.repeat(32)
+  process.env.RESEND_WEBHOOK_SECRET = 'w'.repeat(16)
+  process.env.RESEND_API_KEY = 're_test_placeholder'
   process.env.AUTH_EMAIL_FROM = 'no-reply@example.com'
   process.env.AUTH_EMAIL_FROM_NAME = 'Inbox'
-  process.env.EMAIL_INBOX_DOMAINS = 'inbox.example.com'
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = 'inbox.example.com'
 }
 
 beforeEach(() => {
@@ -49,7 +49,7 @@ describe('assertConfig', () => {
   it('reports every failing variable at once, not just the first', () => {
     setValidEnv()
     process.env.LOG_LEVEL = 'warning'
-    process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'abc'
+    process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = 'abc'
     process.env.REDIS_URL = 'not-a-url'
     process.env.LLM_PROVIDER = 'anthropik'
 
@@ -61,7 +61,7 @@ describe('assertConfig', () => {
     }
 
     expect(message).toContain('LOG_LEVEL')
-    expect(message).toContain('WEBHOOK_QUEUE_MAX_RETRIES')
+    expect(message).toContain('WEBHOOK_QUEUE_MAX_ATTEMPTS')
     expect(message).toContain('REDIS_URL')
     expect(message).toContain('LLM_PROVIDER')
   })
@@ -79,9 +79,9 @@ describe('assertConfig', () => {
     }
 
     expect(variables).toContain('DATABASE_URL')
-    expect(variables).toContain('JWT_SECRET')
-    expect(variables).toContain('WEBHOOK_SECRET')
-    expect(variables).toContain('AUTH_RESEND_API_KEY')
+    expect(variables).toContain('AUTH_JWT_SECRET')
+    expect(variables).toContain('RESEND_WEBHOOK_SECRET')
+    expect(variables).toContain('RESEND_API_KEY')
   })
 
   it('throws a ConfigError carrying the offending variable names', () => {
@@ -99,7 +99,7 @@ describe('assertConfig', () => {
 
   it('requires a usable REDIS_URL when async webhook processing is enabled', () => {
     setValidEnv()
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED = 'true'
     process.env.REDIS_URL = 'http://localhost:6379'
 
     expect(() => assertConfig()).toThrow(/REDIS_URL/)
@@ -109,7 +109,7 @@ describe('assertConfig', () => {
     // The variable has no default, so "unset" is a distinct failure from
     // "malformed" and has to be caught at boot rather than at first enqueue.
     setValidEnv()
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED = 'true'
     delete process.env.REDIS_URL
 
     expect(() => assertConfig()).toThrow(/REDIS_URL is required/)
@@ -117,7 +117,7 @@ describe('assertConfig', () => {
 
   it('does not require REDIS_URL when async processing and rate limiting are both off', () => {
     setValidEnv()
-    delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING
+    delete process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED
     process.env.AUTH_RATE_LIMIT_ENABLED = 'false'
     delete process.env.REDIS_URL
 
@@ -129,7 +129,7 @@ describe('assertConfig', () => {
     // feature still gets a boot failure naming the variable, rather than a
     // silently unthrottled login endpoint.
     setValidEnv()
-    delete process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING
+    delete process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED
     delete process.env.AUTH_RATE_LIMIT_ENABLED
     delete process.env.REDIS_URL
 
@@ -149,12 +149,12 @@ describe('assertConfig', () => {
 
   it('reports both reasons when async processing and rate limiting each need Redis', () => {
     setValidEnv()
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED = 'true'
     process.env.AUTH_RATE_LIMIT_ENABLED = 'true'
     delete process.env.REDIS_URL
 
     expect(() => assertConfig()).toThrow(
-      /ENABLE_ASYNC_WEBHOOK_PROCESSING or AUTH_RATE_LIMIT_ENABLED are enabled/,
+      /ASYNC_WEBHOOK_PROCESSING_ENABLED or AUTH_RATE_LIMIT_ENABLED are enabled/,
     )
   })
 
@@ -175,7 +175,7 @@ describe('assertConfig', () => {
 
   it('accepts async webhook processing with a valid REDIS_URL', () => {
     setValidEnv()
-    process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING = 'true'
+    process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED = 'true'
     process.env.REDIS_URL = 'redis://localhost:6379'
 
     expect(() => assertConfig()).not.toThrow()
@@ -183,14 +183,14 @@ describe('assertConfig', () => {
 
   it('does not echo secret values', () => {
     setValidEnv()
-    process.env.JWT_SECRET = 'tooshort'
+    process.env.AUTH_JWT_SECRET = 'tooshort'
 
     try {
       assertConfig()
       throw new Error('expected assertConfig to throw')
     } catch (error) {
       const message = (error as Error).message
-      expect(message).toContain('JWT_SECRET')
+      expect(message).toContain('AUTH_JWT_SECRET')
       expect(message).not.toContain('tooshort')
     }
   })

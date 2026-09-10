@@ -118,7 +118,7 @@ beforeEach(() => {
 })
 
 describe('product analytics disabled (the default)', () => {
-  withConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+  withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
 
   it('creates the automation without capturing anything', async () => {
     const response = await post({ organizationId: 'org_1', name: 'My automation' })()
@@ -130,7 +130,7 @@ describe('product analytics disabled (the default)', () => {
 
 describe('product analytics enabled', () => {
   withConfigEnv({
-    ENABLE_PRODUCT_ANALYTICS: 'true',
+    PRODUCT_ANALYTICS_ENABLED: 'true',
     POSTHOG_API_KEY: 'phc_test1234567890',
     POSTHOG_HOST: 'https://us.i.posthog.com',
   })

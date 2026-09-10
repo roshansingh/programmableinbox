@@ -87,19 +87,19 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
 
   describe('WEBHOOK_QUEUE_CONFIG', () => {
     it('has default maxRetries of 3 when env var is absent', async () => {
-      delete process.env.WEBHOOK_QUEUE_MAX_RETRIES;
+      delete process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS;
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
     });
 
     it('has default concurrencyPerInbox of 5 when env var is absent', async () => {
-      delete process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX;
+      delete process.env.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX;
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(5);
     });
 
-    it('parses WEBHOOK_QUEUE_MAX_RETRIES from env', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '5';
+    it('parses WEBHOOK_QUEUE_MAX_ATTEMPTS from env', async () => {
+      process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '5';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(5);
     });
@@ -108,40 +108,40 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
     // parsePositiveInt returned the fallback for anything it could not parse,
     // so the operator got 3 retries and no indication their setting was ignored.
     it.each(['invalid', 'NaN', '-5', '0', '3.5', '1e2'])(
-      'throws on WEBHOOK_QUEUE_MAX_RETRIES=%s rather than silently using 3',
+      'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s rather than silently using 3',
       async (raw) => {
-        process.env.WEBHOOK_QUEUE_MAX_RETRIES = raw;
+        process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = raw;
         const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-        expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_RETRIES/);
+        expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
       },
     );
 
     it('rejects a value above the sanity bound', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '101';
+      process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '101';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
-      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_RETRIES/);
+      expect(() => WEBHOOK_QUEUE_CONFIG.maxRetries).toThrow(/WEBHOOK_QUEUE_MAX_ATTEMPTS/);
     });
 
-    it('treats an empty WEBHOOK_QUEUE_MAX_RETRIES as unset', async () => {
+    it('treats an empty WEBHOOK_QUEUE_MAX_ATTEMPTS as unset', async () => {
       // `FOO=` in a .env file means "not configured", not "configured badly".
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '';
+      process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.maxRetries).toBe(3);
     });
 
-    it('parses WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX from env', async () => {
-      process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = '10';
+    it('parses WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX from env', async () => {
+      process.env.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = '10';
       const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
       expect(WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toBe(10);
     });
 
     it.each(['0', '-1', 'lots', '1001'])(
-      'throws on WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=%s rather than silently using 5',
+      'throws on WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX=%s rather than silently using 5',
       async (raw) => {
-        process.env.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX = raw;
+        process.env.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = raw;
         const { WEBHOOK_QUEUE_CONFIG } = await freshImport();
         expect(() => WEBHOOK_QUEUE_CONFIG.concurrencyPerInbox).toThrow(
-          /WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX/,
+          /WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX/,
         );
       },
     );
@@ -150,7 +150,7 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
       // next build evaluates every route module, and these route modules import
       // the queue. A module-load read would fail the build instead of the
       // misconfigured deployment.
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = 'nonsense';
+      process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = 'nonsense';
       await expect(freshImport()).resolves.toBeDefined();
     });
   });
@@ -400,7 +400,7 @@ describe('Queue Client (lib/webhooks/queue.ts)', () => {
     });
 
     it('respects custom maxRetries from env', async () => {
-      process.env.WEBHOOK_QUEUE_MAX_RETRIES = '7';
+      process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS = '7';
       const { enqueueEmailWebhookJob } = await freshImport();
       await enqueueEmailWebhookJob(baseJobData);
       const opts = mockQueueAdd.mock.calls[0][2];

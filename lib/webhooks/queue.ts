@@ -50,7 +50,7 @@ export const WEBHOOK_QUEUE_NAME = "email-webhook-jobs";
  *
  * Both values keep their existing defaults when unset. What changed is invalid
  * input: the previous `parsePositiveInt` returned the fallback for anything it
- * could not parse, so `WEBHOOK_QUEUE_MAX_RETRIES=abc` was indistinguishable
+ * could not parse, so `WEBHOOK_QUEUE_MAX_ATTEMPTS=abc` was indistinguishable
  * from an unset variable. It now throws.
  */
 export const WEBHOOK_QUEUE_CONFIG = {

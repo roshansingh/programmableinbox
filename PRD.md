@@ -70,7 +70,7 @@ Defined in `prisma/schema.prisma`. Names matter — they are the contract.
 
 ### 5.3 Receiving email (Resend webhook)
 - `POST /api/webhooks/email` accepts `email.received` events from Resend.
-- HMAC validation: `x-webhook-signature` + `x-webhook-timestamp`, verified against `WEBHOOK_SECRET` using `crypto.timingSafeEqual`. **5-minute replay window** by timestamp.
+- HMAC validation: `x-webhook-signature` + `x-webhook-timestamp`, verified against `RESEND_WEBHOOK_SECRET` using `crypto.timingSafeEqual`. **5-minute replay window** by timestamp.
 - **Threading rules** (in `determineThreading`):
   1. Match `In-Reply-To` / `References` against existing `EmailMessage.messageId`.
   2. Otherwise, fallback to subject match (strip `Re:`/`Fwd:`) within the same inbox.
@@ -130,7 +130,7 @@ All routes use `lib/api-helpers.ts`:
 - Dev/start ports default to `4000`.
 
 ### 6.6 Required environment
-`DATABASE_URL`, `JWT_SECRET`, `WEBHOOK_SECRET`, `AUTH_RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`.
+`DATABASE_URL`, `AUTH_JWT_SECRET`, `RESEND_WEBHOOK_SECRET`, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`, `AUTH_EMAIL_FROM_NAME`.
 
 All environment variables are read and validated in one place, `lib/config/`, against a zod schema per domain. `assertConfig()` runs at server boot and reports every misconfigured variable at once; a value that is set but malformed is rejected rather than replaced by a default. `.env.example` lists every variable with its format, and `NEXT_PUBLIC_API_MODE` is optional (validated, but nothing branches on it).
 

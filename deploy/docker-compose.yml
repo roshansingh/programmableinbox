@@ -51,11 +51,11 @@ services:
   # Docker stdout files) to the OTLP backend an operator configures via
   # OTEL_EXPORTER_ENDPOINT/OTEL_EXPORTER_AUTH in otel-collector.env. Opt-in
   # via the `observability` profile — the app already no-ops all telemetry
-  # when ENABLE_OBSERVABILITY=false, but a container tailing every other
+  # when OBSERVABILITY_ENABLED=false, but a container tailing every other
   # service's log files is its own thing to run only when wanted. Start it
   # alongside `docker compose up -d` with
   # `docker compose --profile observability up -d` whenever
-  # ENABLE_OBSERVABILITY=true is set. See docs/observability-operator-guide.md.
+  # OBSERVABILITY_ENABLED=true is set. See docs/observability-operator-guide.md.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.158.0
     profiles: ["observability"]
@@ -71,7 +71,7 @@ services:
     # Deliberately its OWN file, not app.env: this image is a third-party
     # contrib build with a read-only mount over every container's log
     # history, so it gets only what it needs (the real OTLP backend
-    # credentials) rather than app.env's full JWT_SECRET/WEBHOOK_SECRET/
+    # credentials) rather than app.env's full AUTH_JWT_SECRET/RESEND_WEBHOOK_SECRET/
     # DATABASE_URL/AUTH_* set. See deploy/README.md Part 9.
     env_file: /srv/programmableinbox/secrets/otel-collector.env
     volumes:

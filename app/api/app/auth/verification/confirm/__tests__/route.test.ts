@@ -21,8 +21,8 @@ vi.mock('@/lib/logger', () => ({
 
 const SECRET = 'verification-secret-at-least-16'
 const ENABLED = {
-  ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_LINK_SECRET: SECRET,
+  EMAIL_VERIFICATION_ENABLED: 'true',
+  EMAIL_LINK_SIGNING_SECRET: SECRET,
   APP_BASE_URL: 'https://app.example.com',
 }
 
@@ -175,7 +175,7 @@ describe('POST /api/app/auth/verification/confirm', () => {
   })
 
   describe('with verification disabled', () => {
-    withConfigEnv({ ENABLE_EMAIL_VERIFICATION: undefined })
+    withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
 
     beforeEach(() => {
       vi.resetAllMocks()
@@ -191,11 +191,11 @@ describe('POST /api/app/auth/verification/confirm', () => {
 
     /**
      * The 404 must come before any token work: with the flag off there is no
-     * EMAIL_LINK_SECRET to verify against, and reaching the verifier
+     * EMAIL_LINK_SIGNING_SECRET to verify against, and reaching the verifier
      * would throw a ConfigError and turn this into a 500.
      */
     it('404s even when the secret is absent entirely', async () => {
-      setConfigEnv({ EMAIL_LINK_SECRET: undefined, APP_BASE_URL: undefined })
+      setConfigEnv({ EMAIL_LINK_SIGNING_SECRET: undefined, APP_BASE_URL: undefined })
 
       const response = await post({ token: 'anything' })
       expect(response.status).toBe(404)

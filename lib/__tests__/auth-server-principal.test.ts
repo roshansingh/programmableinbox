@@ -45,7 +45,7 @@ const ISSUED_AT = Math.floor(Date.now() / 1000)
 beforeEach(() => {
   vi.resetAllMocks()
   vi.resetModules()
-  // No JWT_SECRET assignment: jsonwebtoken is mocked above, so the secret only
+  // No AUTH_JWT_SECRET assignment: jsonwebtoken is mocked above, so the secret only
   // needs to be *valid*, which the baseline in vitest.config.ts guarantees.
 })
 

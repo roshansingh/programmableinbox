@@ -86,7 +86,7 @@ export function validateInboxAddress(address: string): PolicyViolation | null {
   if (!parts) return { message: INVALID_ADDRESS, status: 400 }
 
   // Compared against the list already read above rather than calling
-  // isAllowedInboxDomain, which would re-parse EMAIL_INBOX_DOMAINS a second
+  // isAllowedInboxDomain, which would re-parse EMAIL_INBOX_ALLOWED_DOMAINS a second
   // time — and re-emit the malformed-entry warning on every single request.
   if (!domains.includes(parts.domain)) {
     // Safe to echo: the same list is already published to every authenticated

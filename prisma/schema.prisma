@@ -14,7 +14,7 @@ model User {
   firstName     String?
   lastName      String?
   /// Written by POST /api/app/auth/verification/confirm (issue #102). Gated on
-  /// ENABLE_EMAIL_VERIFICATION: with the flag off nothing reads it but the
+  /// EMAIL_VERIFICATION_ENABLED: with the flag off nothing reads it but the
   /// serializer, which is why the grandfathering backfill is safe to run
   /// unconditionally.
   emailVerified Boolean  @default(false)
@@ -501,7 +501,7 @@ model BackupStatus {
   @@map("backup_status")
 }
 
-/// A commercial plan (issue #117). Only read when `USE_COMMERCIAL=true`; a
+/// A commercial plan (issue #117). Only read when `COMMERCIAL_ENABLED=true`; a
 /// self-hosted deployment resolves every organization to unlimited limits
 /// without ever querying this table.
 model Plan {

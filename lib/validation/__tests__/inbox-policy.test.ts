@@ -6,7 +6,7 @@ vi.mock('@/lib/logger', () => ({
   default: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }))
 
-const ORIGINAL = process.env.EMAIL_INBOX_DOMAINS
+const ORIGINAL = process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 
 /**
  * `config` memoizes each domain per process, so mutating the environment is
@@ -14,15 +14,15 @@ const ORIGINAL = process.env.EMAIL_INBOX_DOMAINS
  * the seam lib/config exposes for exactly this.
  */
 function configure(domains: string) {
-  process.env.EMAIL_INBOX_DOMAINS = domains
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = domains
   resetConfigCache()
 }
 
 afterEach(() => {
   if (ORIGINAL === undefined) {
-    delete process.env.EMAIL_INBOX_DOMAINS
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
   } else {
-    process.env.EMAIL_INBOX_DOMAINS = ORIGINAL
+    process.env.EMAIL_INBOX_ALLOWED_DOMAINS = ORIGINAL
   }
   resetConfigCache()
 })
@@ -34,17 +34,17 @@ describe('validateInboxAddress', () => {
   })
 
   /**
-   * There is no "unconfigured" request outcome any more: EMAIL_INBOX_DOMAINS is
+   * There is no "unconfigured" request outcome any more: EMAIL_INBOX_ALLOWED_DOMAINS is
    * required and `assertConfig()` refuses to boot without it, so an empty
    * allowlist cannot reach a handler. `lib/config/__tests__/schema.test.ts`
    * covers the boot-time rejection; what matters here is that the policy reads
    * the config layer rather than the environment directly.
    */
   it('fails loudly rather than allowing anything when the variable is unset', () => {
-    delete process.env.EMAIL_INBOX_DOMAINS
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
     resetConfigCache()
     expect(() => validateInboxAddress('anything@example.com')).toThrow(
-      /EMAIL_INBOX_DOMAINS/,
+      /EMAIL_INBOX_ALLOWED_DOMAINS/,
     )
   })
 

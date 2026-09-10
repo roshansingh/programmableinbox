@@ -15,21 +15,21 @@ import { jsonRequest } from './helpers/request'
 import { SESSION_COOKIE_NAME } from '@/lib/auth-server'
 
 const ORIGINAL = {
-  ENABLE_EMAIL_VERIFICATION: process.env.ENABLE_EMAIL_VERIFICATION,
-  EMAIL_LINK_SECRET: process.env.EMAIL_LINK_SECRET,
+  EMAIL_VERIFICATION_ENABLED: process.env.EMAIL_VERIFICATION_ENABLED,
+  EMAIL_LINK_SIGNING_SECRET: process.env.EMAIL_LINK_SIGNING_SECRET,
   APP_BASE_URL: process.env.APP_BASE_URL,
 }
 
 function enableVerification() {
-  process.env.ENABLE_EMAIL_VERIFICATION = 'true'
-  process.env.EMAIL_LINK_SECRET = 'integration-verification-secret-16'
+  process.env.EMAIL_VERIFICATION_ENABLED = 'true'
+  process.env.EMAIL_LINK_SIGNING_SECRET = 'integration-verification-secret-16'
   process.env.APP_BASE_URL = 'https://app.test.dev'
   resetConfigCache()
 }
 
 function disableVerification() {
-  delete process.env.ENABLE_EMAIL_VERIFICATION
-  delete process.env.EMAIL_LINK_SECRET
+  delete process.env.EMAIL_VERIFICATION_ENABLED
+  delete process.env.EMAIL_LINK_SIGNING_SECRET
   delete process.env.APP_BASE_URL
   resetConfigCache()
 }

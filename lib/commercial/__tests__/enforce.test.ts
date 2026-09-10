@@ -70,7 +70,7 @@ describe('checkResourceLimit', () => {
   })
 
   /**
-   * Reachable the moment USE_COMMERCIAL is switched on: an organization that
+   * Reachable the moment COMMERCIAL_ENABLED is switched on: an organization that
    * already holds three inboxes lands on `free`, which allows one. The
    * existing rows are never touched — only the next create is refused.
    */

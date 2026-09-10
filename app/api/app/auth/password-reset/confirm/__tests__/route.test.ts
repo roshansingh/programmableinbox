@@ -21,8 +21,8 @@ vi.mock('@/lib/logger', () => ({
 
 const LINK_SECRET = 'email-link-secret-at-least-16-chars'
 const ENABLED = {
-  ENABLE_EMAIL_VERIFICATION: 'true',
-  EMAIL_LINK_SECRET: LINK_SECRET,
+  EMAIL_VERIFICATION_ENABLED: 'true',
+  EMAIL_LINK_SIGNING_SECRET: LINK_SECRET,
   APP_BASE_URL: 'https://app.example.com',
 }
 
@@ -67,7 +67,7 @@ function resetMocks() {
 }
 
 describe('POST /api/app/auth/password-reset/confirm — disabled', () => {
-  withConfigEnv({ ENABLE_EMAIL_VERIFICATION: 'false' })
+  withConfigEnv({ EMAIL_VERIFICATION_ENABLED: 'false' })
   beforeEach(resetMocks)
 
   it('404s when the feature is disabled', async () => {

@@ -21,7 +21,7 @@ export const RATE_LIMIT_FAIL_MODES = ['open', 'closed'] as const
 export type LogLevel = (typeof LOG_LEVELS)[number]
 export type LlmProviderName = (typeof LLM_PROVIDERS)[number]
 
-export const DEFAULT_WEBHOOK_QUEUE_MAX_RETRIES = 3
+export const DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS = 3
 export const DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX = 5
 
 // ---------------------------------------------------------------------------
@@ -96,18 +96,18 @@ const AuthSchema = z
   .object({
     // 16 chars is well below a generated `openssl rand -base64 32` (44 chars)
     // but high enough to reject a placeholder someone typed in a hurry.
-    JWT_SECRET: zSecret({ min: 16 }),
+    AUTH_JWT_SECRET: zSecret({ min: 16 }),
   })
-  .transform((v) => ({ jwtSecret: v.JWT_SECRET }))
+  .transform((v) => ({ jwtSecret: v.AUTH_JWT_SECRET }))
 
 const EmailSchema = z
   .object({
-    AUTH_RESEND_API_KEY: zSecret(),
+    RESEND_API_KEY: zSecret(),
     AUTH_EMAIL_FROM: zNonEmpty,
     AUTH_EMAIL_FROM_NAME: zNonEmpty,
   })
   .transform((v) => ({
-    resendApiKey: v.AUTH_RESEND_API_KEY,
+    resendApiKey: v.RESEND_API_KEY,
     from: v.AUTH_EMAIL_FROM,
     fromName: v.AUTH_EMAIL_FROM_NAME,
   }))
@@ -143,17 +143,17 @@ const RedisSchema = z
 
 const WebhooksSchema = z
   .object({
-    WEBHOOK_SECRET: zSecret({ min: 8 }),
-    ENABLE_ASYNC_WEBHOOK_PROCESSING: zBool.optional(),
-    WEBHOOK_QUEUE_MAX_RETRIES: zBoundedInt(1, 100).optional(),
-    WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX: zBoundedInt(1, 1000).optional(),
+    RESEND_WEBHOOK_SECRET: zSecret({ min: 8 }),
+    ASYNC_WEBHOOK_PROCESSING_ENABLED: zBool.optional(),
+    WEBHOOK_QUEUE_MAX_ATTEMPTS: zBoundedInt(1, 100).optional(),
+    WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX: zBoundedInt(1, 1000).optional(),
   })
   .transform((v) => ({
-    secret: v.WEBHOOK_SECRET,
-    asyncProcessingEnabled: v.ENABLE_ASYNC_WEBHOOK_PROCESSING ?? false,
-    maxRetries: v.WEBHOOK_QUEUE_MAX_RETRIES ?? DEFAULT_WEBHOOK_QUEUE_MAX_RETRIES,
+    secret: v.RESEND_WEBHOOK_SECRET,
+    asyncProcessingEnabled: v.ASYNC_WEBHOOK_PROCESSING_ENABLED ?? false,
+    maxRetries: v.WEBHOOK_QUEUE_MAX_ATTEMPTS ?? DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS,
     concurrencyPerInbox:
-      v.WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX ??
+      v.WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX ??
       DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX,
   }))
 
@@ -185,13 +185,13 @@ const LlmSchema = z
 
 const SecuritySchema = z
   .object({
-    WEBHOOK_EGRESS_ALLOWLIST: z.string().optional(),
-    WEBHOOK_ALLOW_PRIVATE_NETWORK: zBool.optional(),
-    HEALTHZ_SECRET: zSecret().optional(),
+    WEBHOOK_EGRESS_ALLOWED_HOSTS: z.string().optional(),
+    WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK: zBool.optional(),
+    HEALTHZ_DETAIL_SECRET: zSecret().optional(),
     AUTOMATION_SWEEPER_SECRET: zSecret().optional(),
   })
   .transform((v) => {
-    const entries = (v.WEBHOOK_EGRESS_ALLOWLIST ?? '')
+    const entries = (v.WEBHOOK_EGRESS_ALLOWED_HOSTS ?? '')
       .split(',')
       .map((entry) => entry.trim())
       .filter((entry) => entry.length > 0)
@@ -199,8 +199,8 @@ const SecuritySchema = z
     return {
       /** Null means "no allowlist", i.e. every public host is permitted. */
       egressAllowlist: entries.length > 0 ? entries : null,
-      allowPrivateNetwork: v.WEBHOOK_ALLOW_PRIVATE_NETWORK ?? false,
-      healthzSecret: v.HEALTHZ_SECRET ?? null,
+      allowPrivateNetwork: v.WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK ?? false,
+      healthzSecret: v.HEALTHZ_DETAIL_SECRET ?? null,
       automationSweeperSecret: v.AUTOMATION_SWEEPER_SECRET ?? null,
     }
   })
@@ -224,7 +224,7 @@ const DOMAIN_PATTERN = new RegExp(`^${LDH_LABEL}(?:\\.${LDH_LABEL})+$`)
 
 const EmailInboxSchema = z
   .object({
-    EMAIL_INBOX_DOMAINS: zNonEmpty,
+    EMAIL_INBOX_ALLOWED_DOMAINS: zNonEmpty,
   })
   .transform((v, ctx) => {
     const seen = new Set<string>()
@@ -234,7 +234,7 @@ const EmailInboxSchema = z
     // Lowercased so comparison happens in the same space as the stored,
     // normalized address (`lib/email-address.ts`); otherwise a mixed-case
     // entry in `.env` would allow nothing.
-    for (const entry of v.EMAIL_INBOX_DOMAINS.split(',')) {
+    for (const entry of v.EMAIL_INBOX_ALLOWED_DOMAINS.split(',')) {
       const domain = entry.trim().toLowerCase()
       if (domain === '') continue
       if (!DOMAIN_PATTERN.test(domain)) {
@@ -249,7 +249,7 @@ const EmailInboxSchema = z
     if (malformed.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['EMAIL_INBOX_DOMAINS'],
+        path: ['EMAIL_INBOX_ALLOWED_DOMAINS'],
         message: `contains malformed domains (${malformed.join(', ')}) — each must be a dotted, ASCII hostname with no @`,
       })
       return z.NEVER
@@ -258,7 +258,7 @@ const EmailInboxSchema = z
     if (domains.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['EMAIL_INBOX_DOMAINS'],
+        path: ['EMAIL_INBOX_ALLOWED_DOMAINS'],
         message: 'must list at least one domain',
       })
       return z.NEVER
@@ -280,46 +280,46 @@ const EmailInboxSchema = z
  * described a narrower thing (payments) than the flag actually gates, and a
  * deployment still setting it must fail `assertConfig()` naming the new
  * variable rather than starting silently with enforcement off — the same
- * precedent as `EMAIL_VERIFICATION_SECRET` -> `EMAIL_LINK_SECRET`.
+ * precedent as `EMAIL_VERIFICATION_SECRET` -> `EMAIL_LINK_SIGNING_SECRET`.
  */
 const CommercialSchema = z
   .object({
-    USE_COMMERCIAL: zBool.optional(),
+    COMMERCIAL_ENABLED: zBool.optional(),
     // Stripe lives in this domain rather than its own so the conditional
     // requirement below can see the flag. A separate domain could not — each
     // parses its own env slice — and `DOMAIN_SCHEMAS` forbids a variable
-    // appearing in two of them. Same shape as ENABLE_EMAIL_VERIFICATION and
-    // its EMAIL_LINK_SECRET / APP_BASE_URL.
-    STRIPE_SECRET_KEY: zSecret().optional(),
-    STRIPE_WEBHOOK_SECRET: zSecret().optional(),
+    // appearing in two of them. Same shape as EMAIL_VERIFICATION_ENABLED and
+    // its EMAIL_LINK_SIGNING_SECRET / APP_BASE_URL.
+    STRIPE_API_KEY: zSecret().optional(),
+    STRIPE_WEBHOOK_SIGNING_SECRET: zSecret().optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.USE_COMMERCIAL) return
+    if (!v.COMMERCIAL_ENABLED) return
 
     // A deployment that turns on plan enforcement without Stripe credentials
     // cannot sell anything: checkout 500s and every subscription webhook is
     // rejected. Better one loud boot failure naming the variable than a
     // customer discovering it at the payment step.
-    for (const name of ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] as const) {
+    for (const name of ['STRIPE_API_KEY', 'STRIPE_WEBHOOK_SIGNING_SECRET'] as const) {
       if (!v[name]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [name],
-          message: 'is required when USE_COMMERCIAL is true',
+          message: 'is required when COMMERCIAL_ENABLED is true',
         })
       }
     }
   })
   .transform((v) => ({
-    enabled: v.USE_COMMERCIAL ?? false,
-    stripeSecretKey: v.STRIPE_SECRET_KEY ?? null,
-    stripeWebhookSecret: v.STRIPE_WEBHOOK_SECRET ?? null,
+    enabled: v.COMMERCIAL_ENABLED ?? false,
+    stripeSecretKey: v.STRIPE_API_KEY ?? null,
+    stripeWebhookSecret: v.STRIPE_WEBHOOK_SIGNING_SECRET ?? null,
   }))
 
 /**
  * The MCP server at `POST /api/mcp` (issue #104).
  *
- * Off by default, on the `USE_COMMERCIAL` precedent: exposing a new transport
+ * Off by default, on the `COMMERCIAL_ENABLED` precedent: exposing a new transport
  * over the same data must be a decision an operator takes, not something an
  * upgrade turns on. While off the route 404s, so a deployment that never wanted
  * it does not advertise a surface it is not watching.
@@ -337,16 +337,16 @@ const CommercialSchema = z
  */
 const McpSchema = z
   .object({
-    ENABLE_MCP: zBool.optional(),
+    MCP_ENABLED: zBool.optional(),
     MCP_ALLOWED_ORIGINS: z.string().optional(),
     // Per API key rather than per IP: the caller is identified by a credential
     // we issued, which is a stabler bucket than an address behind a shared NAT.
-    MCP_RATE_LIMIT_MAX: zBoundedInt(1, 100_000).optional(),
-    MCP_RATE_LIMIT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    MCP_RATE_LIMIT_MAX_REQUESTS: zBoundedInt(1, 100_000).optional(),
+    MCP_RATE_LIMIT_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
   })
   .transform((v, ctx) => {
     // Malformed entries throw rather than being dropped, on the
-    // EMAIL_INBOX_DOMAINS precedent and the "set but malformed → throw" rule.
+    // EMAIL_INBOX_ALLOWED_DOMAINS precedent and the "set but malformed → throw" rule.
     // Dropping is the worst option available here: `MCP_ALLOWED_ORIGINS=app.example.com`
     // would parse, contribute nothing, and every browser request from that
     // origin would 403 with no error anywhere naming the variable. The operator
@@ -382,10 +382,10 @@ const McpSchema = z
     }
 
     return {
-      enabled: v.ENABLE_MCP ?? false,
+      enabled: v.MCP_ENABLED ?? false,
       allowedOrigins,
-      rateLimitMax: v.MCP_RATE_LIMIT_MAX ?? 120,
-      rateLimitWindowS: v.MCP_RATE_LIMIT_WINDOW_S ?? 60,
+      rateLimitMax: v.MCP_RATE_LIMIT_MAX_REQUESTS ?? 120,
+      rateLimitWindowS: v.MCP_RATE_LIMIT_WINDOW_SECONDS ?? 60,
     }
   })
 
@@ -398,7 +398,7 @@ const McpSchema = z
  * not be forced through a mail round-trip it does not need.
  *
  * The two supporting variables are conditionally required, on the `REDIS_URL` /
- * `ENABLE_ASYNC_WEBHOOK_PROCESSING` precedent: null when absent, and consumers
+ * `ASYNC_WEBHOOK_PROCESSING_ENABLED` precedent: null when absent, and consumers
  * reach them through `requireEmailVerification()`, which throws naming them.
  * `assertConfig()` turns "flag on, secret missing" into one loud startup
  * failure rather than a signup that succeeds and mails nobody.
@@ -411,23 +411,23 @@ const McpSchema = z
  */
 const EmailVerificationSchema = z
   .object({
-    ENABLE_EMAIL_VERIFICATION: zBool.optional(),
-    // A distinct secret from JWT_SECRET, never the same one. See
+    EMAIL_VERIFICATION_ENABLED: zBool.optional(),
+    // A distinct secret from AUTH_JWT_SECRET, never the same one. See
     // lib/auth/verification-token.ts — a verification token presented as a
     // session credential must fail signature verification outright.
-    EMAIL_LINK_SECRET: zSecret({ min: 16 }).optional(),
+    EMAIL_LINK_SIGNING_SECRET: zSecret({ min: 16 }).optional(),
     APP_BASE_URL: zUrl(['http:', 'https:']).optional(),
     EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: zBoundedInt(1, 10080).optional(),
-    PASSWORD_RESET_TOKEN_TTL_MINUTES: zBoundedInt(1, 10080).optional(),
+    AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES: zBoundedInt(1, 10080).optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.ENABLE_EMAIL_VERIFICATION) return
+    if (!v.EMAIL_VERIFICATION_ENABLED) return
 
-    if (!v.EMAIL_LINK_SECRET) {
+    if (!v.EMAIL_LINK_SIGNING_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['EMAIL_LINK_SECRET'],
-        message: 'is required when ENABLE_EMAIL_VERIFICATION is true',
+        path: ['EMAIL_LINK_SIGNING_SECRET'],
+        message: 'is required when EMAIL_VERIFICATION_ENABLED is true',
       })
     }
 
@@ -436,16 +436,16 @@ const EmailVerificationSchema = z
         code: z.ZodIssueCode.custom,
         path: ['APP_BASE_URL'],
         message:
-          'is required when ENABLE_EMAIL_VERIFICATION is true — verification links need an absolute origin',
+          'is required when EMAIL_VERIFICATION_ENABLED is true — verification links need an absolute origin',
       })
     }
   })
   .transform((v) => ({
-    enabled: v.ENABLE_EMAIL_VERIFICATION ?? false,
-    secret: v.EMAIL_LINK_SECRET ?? null,
+    enabled: v.EMAIL_VERIFICATION_ENABLED ?? false,
+    secret: v.EMAIL_LINK_SIGNING_SECRET ?? null,
     appBaseUrl: v.APP_BASE_URL ?? null,
     tokenTtlMinutes: v.EMAIL_VERIFICATION_TOKEN_TTL_MINUTES ?? 30,
-    passwordResetTtlMinutes: v.PASSWORD_RESET_TOKEN_TTL_MINUTES ?? 30,
+    passwordResetTtlMinutes: v.AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES ?? 30,
   }))
 
 /**
@@ -468,20 +468,20 @@ const RateLimitSchema = z
   .object({
     AUTH_RATE_LIMIT_ENABLED: zBool.optional(),
 
-    AUTH_RATE_LIMIT_LOGIN_IP_MAX: zBoundedInt(1, 100_000).optional(),
-    AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S: zBoundedInt(1, 86_400).optional(),
-    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: zBoundedInt(1, 100_000).optional(),
-    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
 
-    AUTH_RATE_LIMIT_REGISTER_IP_MAX: zBoundedInt(1, 100_000).optional(),
-    AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S: zBoundedInt(1, 86_400).optional(),
-    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX: zBoundedInt(1, 100_000).optional(),
-    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
+    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS: zBoundedInt(1, 100_000).optional(),
+    AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
 
-    AUTH_LOCKOUT_THRESHOLD: zBoundedInt(1, 1_000).optional(),
-    AUTH_LOCKOUT_BASE_S: zBoundedInt(1, 86_400).optional(),
-    AUTH_LOCKOUT_MAX_S: zBoundedInt(1, 86_400).optional(),
-    AUTH_LOCKOUT_FAILURE_WINDOW_S: zBoundedInt(1, 86_400).optional(),
+    AUTH_LOCKOUT_MAX_FAILURES: zBoundedInt(1, 1_000).optional(),
+    AUTH_LOCKOUT_BASE_SECONDS: zBoundedInt(1, 86_400).optional(),
+    AUTH_LOCKOUT_MAX_SECONDS: zBoundedInt(1, 86_400).optional(),
+    AUTH_LOCKOUT_FAILURE_WINDOW_SECONDS: zBoundedInt(1, 86_400).optional(),
 
     RATE_LIMIT_TIMEOUT_MS: zBoundedInt(10, 5_000).optional(),
     RATE_LIMIT_FAIL_MODE: z.enum(RATE_LIMIT_FAIL_MODES).optional(),
@@ -491,56 +491,56 @@ const RateLimitSchema = z
      * untrustworthy and turns off per-IP limiting rather than bucketing every
      * caller together. See `getClientIp`.
      */
-    TRUSTED_PROXY_COUNT: zBoundedInt(0, 10).optional(),
+    AUTH_TRUSTED_PROXY_COUNT: zBoundedInt(0, 10).optional(),
   })
   .transform((v) => ({
     enabled: v.AUTH_RATE_LIMIT_ENABLED ?? true,
     login: {
       ip: {
-        limit: v.AUTH_RATE_LIMIT_LOGIN_IP_MAX ?? 20,
-        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S ?? 5 * 60) * 1000,
+        limit: v.AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS ?? 20,
+        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS ?? 5 * 60) * 1000,
       },
       account: {
-        limit: v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX ?? 10,
-        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S ?? 15 * 60) * 1000,
+        limit: v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS ?? 10,
+        windowMs: (v.AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_SECONDS ?? 15 * 60) * 1000,
       },
     },
     register: {
       ip: {
-        limit: v.AUTH_RATE_LIMIT_REGISTER_IP_MAX ?? 10,
-        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S ?? 60 * 60) * 1000,
+        limit: v.AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS ?? 10,
+        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_SECONDS ?? 60 * 60) * 1000,
       },
       account: {
-        limit: v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX ?? 5,
-        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S ?? 60 * 60) * 1000,
+        limit: v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS ?? 5,
+        windowMs: (v.AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_SECONDS ?? 60 * 60) * 1000,
       },
     },
     lockout: {
-      threshold: v.AUTH_LOCKOUT_THRESHOLD ?? 5,
-      baseMs: (v.AUTH_LOCKOUT_BASE_S ?? 60) * 1000,
+      threshold: v.AUTH_LOCKOUT_MAX_FAILURES ?? 5,
+      baseMs: (v.AUTH_LOCKOUT_BASE_SECONDS ?? 60) * 1000,
       /**
        * Modest by design. Per-account lockout is itself a denial-of-service
        * primitive — anyone who knows an address can trigger it — so it decays
        * rather than freezing an account indefinitely.
        */
-      maxMs: (v.AUTH_LOCKOUT_MAX_S ?? 15 * 60) * 1000,
-      failureWindowMs: (v.AUTH_LOCKOUT_FAILURE_WINDOW_S ?? 60 * 60) * 1000,
+      maxMs: (v.AUTH_LOCKOUT_MAX_SECONDS ?? 15 * 60) * 1000,
+      failureWindowMs: (v.AUTH_LOCKOUT_FAILURE_WINDOW_SECONDS ?? 60 * 60) * 1000,
     },
     timeoutMs: v.RATE_LIMIT_TIMEOUT_MS ?? 250,
     failMode: v.RATE_LIMIT_FAIL_MODE ?? 'open',
-    trustedProxyCount: v.TRUSTED_PROXY_COUNT ?? 1,
+    trustedProxyCount: v.AUTH_TRUSTED_PROXY_COUNT ?? 1,
   }))
 
 /**
  * EE-only observability: OpenTelemetry log export and tracing, shipped over
  * OTLP directly from the running container. See docs/architecture/observability.md.
  *
- * Off by default even on an EE build — not tied to `USE_COMMERCIAL`, since a
+ * Off by default even on an EE build — not tied to `COMMERCIAL_ENABLED`, since a
  * self-hosted EE deployment without Stripe billing should still be able to
- * turn this on. Setting `ENABLE_OBSERVABILITY=true` on a Community build is
+ * turn this on. Setting `OBSERVABILITY_ENABLED=true` on a Community build is
  * inert: the code that reads `config.observability` lives entirely in
  * `ee/observability/`, which `scripts/foss.mjs` deletes — same shape as
- * `USE_COMMERCIAL` on a Community build.
+ * `COMMERCIAL_ENABLED` on a Community build.
  *
  * `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` are the
  * standard OpenTelemetry SDK environment variable names, not
@@ -551,26 +551,26 @@ const RateLimitSchema = z
  */
 const ObservabilitySchema = z
   .object({
-    ENABLE_OBSERVABILITY: zBool.optional(),
+    OBSERVABILITY_ENABLED: zBool.optional(),
     OTEL_EXPORTER_OTLP_ENDPOINT: zUrl(['http:', 'https:']).optional(),
     OTEL_EXPORTER_OTLP_HEADERS: zSecret().optional(),
     OTEL_SERVICE_NAME: zNonEmpty.optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.ENABLE_OBSERVABILITY) return
+    if (!v.OBSERVABILITY_ENABLED) return
 
     for (const name of ['OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_HEADERS'] as const) {
       if (!v[name]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [name],
-          message: 'is required when ENABLE_OBSERVABILITY is true',
+          message: 'is required when OBSERVABILITY_ENABLED is true',
         })
       }
     }
   })
   .transform((v) => ({
-    enabled: v.ENABLE_OBSERVABILITY ?? false,
+    enabled: v.OBSERVABILITY_ENABLED ?? false,
     otlpEndpoint: v.OTEL_EXPORTER_OTLP_ENDPOINT ?? null,
     otlpHeaders: v.OTEL_EXPORTER_OTLP_HEADERS ?? null,
     serviceName: v.OTEL_SERVICE_NAME ?? 'programmableinbox',
@@ -580,9 +580,9 @@ const ObservabilitySchema = z
  * EE-only product analytics: PostHog session replay, autocapture, error
  * tracking, and named feature/conversion events (issue #152).
  *
- * Off by default even on an EE build — not tied to `USE_COMMERCIAL`, on the
- * `ENABLE_OBSERVABILITY` precedent this schema is modeled on directly.
- * Setting `ENABLE_PRODUCT_ANALYTICS=true` on a Community build is inert: the
+ * Off by default even on an EE build — not tied to `COMMERCIAL_ENABLED`, on the
+ * `OBSERVABILITY_ENABLED` precedent this schema is modeled on directly.
+ * Setting `PRODUCT_ANALYTICS_ENABLED=true` on a Community build is inert: the
  * code that reads `config.productAnalytics` lives entirely in
  * `ee/product-analytics/`, which `scripts/foss.mjs` deletes.
  *
@@ -606,7 +606,7 @@ const ObservabilitySchema = z
  */
 const ProductAnalyticsSchema = z
   .object({
-    ENABLE_PRODUCT_ANALYTICS: zBool.optional(),
+    PRODUCT_ANALYTICS_ENABLED: zBool.optional(),
     POSTHOG_API_KEY: zNonEmpty
       .optional()
       .refine((v) => !v || v.startsWith('phc_'), {
@@ -617,20 +617,20 @@ const ProductAnalyticsSchema = z
     POSTHOG_HOST: zUrl(['http:', 'https:']).optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.ENABLE_PRODUCT_ANALYTICS) return
+    if (!v.PRODUCT_ANALYTICS_ENABLED) return
 
     for (const name of ['POSTHOG_API_KEY', 'POSTHOG_HOST'] as const) {
       if (!v[name]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [name],
-          message: 'is required when ENABLE_PRODUCT_ANALYTICS is true',
+          message: 'is required when PRODUCT_ANALYTICS_ENABLED is true',
         })
       }
     }
   })
   .transform((v) => ({
-    enabled: v.ENABLE_PRODUCT_ANALYTICS ?? false,
+    enabled: v.PRODUCT_ANALYTICS_ENABLED ?? false,
     apiKey: v.POSTHOG_API_KEY ?? null,
     host: v.POSTHOG_HOST ?? null,
   }))
@@ -650,20 +650,20 @@ const ProductAnalyticsSchema = z
 export const DOMAIN_SCHEMAS = {
   runtime: { schema: RuntimeSchema, vars: ['NODE_ENV'] },
   db: { schema: DbSchema, vars: ['DATABASE_URL'] },
-  auth: { schema: AuthSchema, vars: ['JWT_SECRET'] },
+  auth: { schema: AuthSchema, vars: ['AUTH_JWT_SECRET'] },
   email: {
     schema: EmailSchema,
-    vars: ['AUTH_RESEND_API_KEY', 'AUTH_EMAIL_FROM', 'AUTH_EMAIL_FROM_NAME'],
+    vars: ['RESEND_API_KEY', 'AUTH_EMAIL_FROM', 'AUTH_EMAIL_FROM_NAME'],
   },
   logging: { schema: LoggingSchema, vars: ['LOG_LEVEL'] },
   redis: { schema: RedisSchema, vars: ['REDIS_URL'] },
   webhooks: {
     schema: WebhooksSchema,
     vars: [
-      'WEBHOOK_SECRET',
-      'ENABLE_ASYNC_WEBHOOK_PROCESSING',
-      'WEBHOOK_QUEUE_MAX_RETRIES',
-      'WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX',
+      'RESEND_WEBHOOK_SECRET',
+      'ASYNC_WEBHOOK_PROCESSING_ENABLED',
+      'WEBHOOK_QUEUE_MAX_ATTEMPTS',
+      'WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX',
     ],
   },
   llm: {
@@ -673,61 +673,61 @@ export const DOMAIN_SCHEMAS = {
   security: {
     schema: SecuritySchema,
     vars: [
-      'WEBHOOK_EGRESS_ALLOWLIST',
-      'WEBHOOK_ALLOW_PRIVATE_NETWORK',
-      'HEALTHZ_SECRET',
+      'WEBHOOK_EGRESS_ALLOWED_HOSTS',
+      'WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK',
+      'HEALTHZ_DETAIL_SECRET',
       'AUTOMATION_SWEEPER_SECRET',
     ],
   },
   commercial: {
     schema: CommercialSchema,
-    vars: ['USE_COMMERCIAL', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+    vars: ['COMMERCIAL_ENABLED', 'STRIPE_API_KEY', 'STRIPE_WEBHOOK_SIGNING_SECRET'],
   },
   mcp: {
     schema: McpSchema,
     vars: [
-      'ENABLE_MCP',
+      'MCP_ENABLED',
       'MCP_ALLOWED_ORIGINS',
-      'MCP_RATE_LIMIT_MAX',
-      'MCP_RATE_LIMIT_WINDOW_S',
+      'MCP_RATE_LIMIT_MAX_REQUESTS',
+      'MCP_RATE_LIMIT_WINDOW_SECONDS',
     ],
   },
-  emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_DOMAINS'] },
+  emailInbox: { schema: EmailInboxSchema, vars: ['EMAIL_INBOX_ALLOWED_DOMAINS'] },
   emailVerification: {
     schema: EmailVerificationSchema,
     vars: [
-      'ENABLE_EMAIL_VERIFICATION',
-      'EMAIL_LINK_SECRET',
+      'EMAIL_VERIFICATION_ENABLED',
+      'EMAIL_LINK_SIGNING_SECRET',
       'APP_BASE_URL',
       'EMAIL_VERIFICATION_TOKEN_TTL_MINUTES',
-      'PASSWORD_RESET_TOKEN_TTL_MINUTES',
+      'AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES',
     ],
   },
   rateLimit: {
     schema: RateLimitSchema,
     vars: [
       'AUTH_RATE_LIMIT_ENABLED',
-      'AUTH_RATE_LIMIT_LOGIN_IP_MAX',
-      'AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_S',
-      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX',
-      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_S',
-      'AUTH_RATE_LIMIT_REGISTER_IP_MAX',
-      'AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_S',
-      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX',
-      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_S',
-      'AUTH_LOCKOUT_THRESHOLD',
-      'AUTH_LOCKOUT_BASE_S',
-      'AUTH_LOCKOUT_MAX_S',
-      'AUTH_LOCKOUT_FAILURE_WINDOW_S',
+      'AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS',
+      'AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS',
+      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS',
+      'AUTH_RATE_LIMIT_LOGIN_ACCOUNT_WINDOW_SECONDS',
+      'AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS',
+      'AUTH_RATE_LIMIT_REGISTER_IP_WINDOW_SECONDS',
+      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS',
+      'AUTH_RATE_LIMIT_REGISTER_ACCOUNT_WINDOW_SECONDS',
+      'AUTH_LOCKOUT_MAX_FAILURES',
+      'AUTH_LOCKOUT_BASE_SECONDS',
+      'AUTH_LOCKOUT_MAX_SECONDS',
+      'AUTH_LOCKOUT_FAILURE_WINDOW_SECONDS',
       'RATE_LIMIT_TIMEOUT_MS',
       'RATE_LIMIT_FAIL_MODE',
-      'TRUSTED_PROXY_COUNT',
+      'AUTH_TRUSTED_PROXY_COUNT',
     ],
   },
   observability: {
     schema: ObservabilitySchema,
     vars: [
-      'ENABLE_OBSERVABILITY',
+      'OBSERVABILITY_ENABLED',
       'OTEL_EXPORTER_OTLP_ENDPOINT',
       'OTEL_EXPORTER_OTLP_HEADERS',
       'OTEL_SERVICE_NAME',
@@ -735,7 +735,7 @@ export const DOMAIN_SCHEMAS = {
   },
   productAnalytics: {
     schema: ProductAnalyticsSchema,
-    vars: ['ENABLE_PRODUCT_ANALYTICS', 'POSTHOG_API_KEY', 'POSTHOG_HOST'],
+    vars: ['PRODUCT_ANALYTICS_ENABLED', 'POSTHOG_API_KEY', 'POSTHOG_HOST'],
   },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
 

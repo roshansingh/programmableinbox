@@ -44,7 +44,7 @@ export function assertConfig(): void {
     const redisMissing = redis?.url == null
 
     const requiredBy: string[] = []
-    if (webhooks?.asyncProcessingEnabled) requiredBy.push('ENABLE_ASYNC_WEBHOOK_PROCESSING')
+    if (webhooks?.asyncProcessingEnabled) requiredBy.push('ASYNC_WEBHOOK_PROCESSING_ENABLED')
     // Unlike the queue, an unbacked limiter does not fail visibly: it returns
     // "allowed" for every request and the only symptom is a log line. Refusing
     // to boot is what makes "auth rate limiting is off" a decision rather than

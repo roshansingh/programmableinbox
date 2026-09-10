@@ -21,7 +21,7 @@ import type { PlanLimits } from './plan-limits'
  *   is `IQuota`. Metering stays fire-and-forget for billing telemetry.
  */
 
-/** The plan every organization gets when `USE_COMMERCIAL=false`. */
+/** The plan every organization gets when `COMMERCIAL_ENABLED=false`. */
 export const SELF_HOSTED_PLAN_CODE = 'self_hosted'
 
 /**

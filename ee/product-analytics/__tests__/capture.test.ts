@@ -18,7 +18,7 @@ describe('captureEvent', () => {
   })
 
   describe('disabled (the default)', () => {
-    withConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+    withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
 
     it('does not construct a PostHog client or call capture', async () => {
       const { captureEvent, PRODUCT_ANALYTICS_EVENTS } = await import('../capture')
@@ -30,7 +30,7 @@ describe('captureEvent', () => {
 
   describe('enabled', () => {
     withConfigEnv({
-      ENABLE_PRODUCT_ANALYTICS: 'true',
+      PRODUCT_ANALYTICS_ENABLED: 'true',
       POSTHOG_API_KEY: 'phc_test1234567890',
       POSTHOG_HOST: 'https://us.i.posthog.com',
     })
@@ -72,7 +72,7 @@ describe('captureEvent', () => {
 
     it('goes back to a no-op the moment the flag flips off', async () => {
       const { captureEvent, PRODUCT_ANALYTICS_EVENTS } = await import('../capture')
-      setConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+      setConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
 
       captureEvent(PRODUCT_ANALYTICS_EVENTS.inboxCreated, 'user_1')
 

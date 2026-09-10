@@ -74,7 +74,7 @@ describe('periodFor', () => {
   /**
    * An organization with no Subscription row resolves to `free`, and free has
    * no billing anniversary — so it falls back to the calendar month. This is
-   * what lets USE_COMMERCIAL be switched on without backfilling a subscription
+   * what lets COMMERCIAL_ENABLED be switched on without backfilling a subscription
    * for every existing organization first.
    */
   it('falls back to the calendar month when there is no subscription', () => {

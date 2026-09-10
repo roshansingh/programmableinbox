@@ -162,7 +162,7 @@ try {
       timestamp: request.headers.get('svix-timestamp')!,
       signature: request.headers.get('svix-signature')!,
     },
-    webhookSecret: process.env.WEBHOOK_SECRET!,
+    webhookSecret: process.env.RESEND_WEBHOOK_SECRET!,
   })
 } catch (error) {
   logger().warn({
@@ -232,7 +232,7 @@ OpenTelemetry SDK registered (Community Edition, or an EE build with observabili
 no active span, so the fields are simply absent and nothing else changes.
 
 Shipping those logs to an external backend, rather than just stdout, is an EE/SaaS feature
-controlled by `ENABLE_OBSERVABILITY`. See
+controlled by `OBSERVABILITY_ENABLED`. See
 [`docs/observability-operator-guide.md`](observability-operator-guide.md) for setup — it isn't
 duplicated here.
 

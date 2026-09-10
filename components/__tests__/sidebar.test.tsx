@@ -95,7 +95,7 @@ describe('Sidebar', () => {
   })
 
   describe('Billing link', () => {
-    /** No plan means USE_COMMERCIAL is off — self-hosted has nothing to bill. */
+    /** No plan means COMMERCIAL_ENABLED is off — self-hosted has nothing to bill. */
     it('is absent when the organization has no plan', () => {
       mockUser.current = makeUser()
       mockPlan.current = null

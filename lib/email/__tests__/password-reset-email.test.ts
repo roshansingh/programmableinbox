@@ -15,13 +15,13 @@ const USER = {
 
 describe('sendPasswordResetEmail', () => {
   withConfigEnv({
-    ENABLE_EMAIL_VERIFICATION: 'true',
-    EMAIL_LINK_SECRET: 'email-link-secret-at-least-16-chars',
+    EMAIL_VERIFICATION_ENABLED: 'true',
+    EMAIL_LINK_SIGNING_SECRET: 'email-link-secret-at-least-16-chars',
     APP_BASE_URL: 'https://app.example.com',
     AUTH_EMAIL_FROM: 'noreply@example.com',
     AUTH_EMAIL_FROM_NAME: 'Programmable Inbox',
-    AUTH_RESEND_API_KEY: 're_test_key',
-    PASSWORD_RESET_TOKEN_TTL_MINUTES: '30',
+    RESEND_API_KEY: 're_test_key',
+    AUTH_PASSWORD_RESET_TOKEN_TTL_MINUTES: '30',
   })
 
   beforeEach(() => {

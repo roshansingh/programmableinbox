@@ -10,7 +10,7 @@ import logger from '@/lib/logger'
  * Installs the commercial plan engine (issue #117 §8).
  *
  * Called once at process start from the root `instrumentation.ts`. When
- * `USE_COMMERCIAL` is off this returns without configuring anything, so the OSS
+ * `COMMERCIAL_ENABLED` is off this returns without configuring anything, so the OSS
  * defaults stay in place and the `plans`, `subscriptions` and `usage_counters`
  * tables are never read — that short-circuit lives here rather than inside
  * `DbPlanResolver`, so a self-hosted deployment never even constructs it.
@@ -25,7 +25,7 @@ import logger from '@/lib/logger'
  */
 export function initializeCommercialPlans(): void {
   if (!config.commercial.enabled) {
-    logger.info('[commercial] USE_COMMERCIAL is off — plans unlimited, plan tables unread')
+    logger.info('[commercial] COMMERCIAL_ENABLED is off — plans unlimited, plan tables unread')
     return
   }
 

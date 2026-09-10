@@ -51,25 +51,25 @@ describe('db schema', () => {
 })
 
 describe('auth schema', () => {
-  it('boxes JWT_SECRET so it cannot be serialised', () => {
+  it('boxes AUTH_JWT_SECRET so it cannot be serialised', () => {
     const secret = 'a'.repeat(32)
-    const parsed = parse('auth', { JWT_SECRET: secret })
+    const parsed = parse('auth', { AUTH_JWT_SECRET: secret })
     expect(JSON.stringify(parsed)).not.toContain(secret)
     expect(parsed.jwtSecret.reveal()).toBe(secret)
   })
 
-  it('rejects a whitespace-only JWT_SECRET', () => {
-    expect(() => parse('auth', { JWT_SECRET: '   ' })).toThrow()
+  it('rejects a whitespace-only AUTH_JWT_SECRET', () => {
+    expect(() => parse('auth', { AUTH_JWT_SECRET: '   ' })).toThrow()
   })
 
-  it('rejects a JWT_SECRET below the minimum length', () => {
-    expect(() => parse('auth', { JWT_SECRET: 'short' })).toThrow()
+  it('rejects a AUTH_JWT_SECRET below the minimum length', () => {
+    expect(() => parse('auth', { AUTH_JWT_SECRET: 'short' })).toThrow()
   })
 })
 
 describe('email schema', () => {
   const valid = {
-    AUTH_RESEND_API_KEY: 're_test',
+    RESEND_API_KEY: 're_test',
     AUTH_EMAIL_FROM: 'no-reply@example.com',
     AUTH_EMAIL_FROM_NAME: 'Inbox',
   }
@@ -120,7 +120,7 @@ describe('redis schema', () => {
 })
 
 describe('webhooks schema', () => {
-  const secret = { WEBHOOK_SECRET: 'w'.repeat(16) }
+  const secret = { RESEND_WEBHOOK_SECRET: 'w'.repeat(16) }
 
   it('defaults maxRetries to 3 and concurrency to 5 when unset', () => {
     const parsed = parse('webhooks', secret)
@@ -133,32 +133,32 @@ describe('webhooks schema', () => {
   })
 
   it.each(['abc', 'NaN', '-5', '0', '3.5'])(
-    'throws on WEBHOOK_QUEUE_MAX_RETRIES=%s instead of defaulting to 3',
+    'throws on WEBHOOK_QUEUE_MAX_ATTEMPTS=%s instead of defaulting to 3',
     (raw) => {
-      expect(() => parse('webhooks', { ...secret, WEBHOOK_QUEUE_MAX_RETRIES: raw })).toThrow()
+      expect(() => parse('webhooks', { ...secret, WEBHOOK_QUEUE_MAX_ATTEMPTS: raw })).toThrow()
     },
   )
 
-  it('throws on an out-of-range WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX', () => {
+  it('throws on an out-of-range WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX', () => {
     expect(() =>
-      parse('webhooks', { ...secret, WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX: '5000' }),
+      parse('webhooks', { ...secret, WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX: '5000' }),
     ).toThrow()
   })
 
   it('accepts the documented boolean spellings for async processing', () => {
-    expect(parse('webhooks', { ...secret, ENABLE_ASYNC_WEBHOOK_PROCESSING: 'TRUE' })
+    expect(parse('webhooks', { ...secret, ASYNC_WEBHOOK_PROCESSING_ENABLED: 'TRUE' })
       .asyncProcessingEnabled).toBe(true)
-    expect(parse('webhooks', { ...secret, ENABLE_ASYNC_WEBHOOK_PROCESSING: '1' })
+    expect(parse('webhooks', { ...secret, ASYNC_WEBHOOK_PROCESSING_ENABLED: '1' })
       .asyncProcessingEnabled).toBe(true)
   })
 
   it('throws on an unrecognised boolean instead of reading it as false', () => {
     expect(() =>
-      parse('webhooks', { ...secret, ENABLE_ASYNC_WEBHOOK_PROCESSING: 'enabled' }),
+      parse('webhooks', { ...secret, ASYNC_WEBHOOK_PROCESSING_ENABLED: 'enabled' }),
     ).toThrow()
   })
 
-  it('requires WEBHOOK_SECRET', () => {
+  it('requires RESEND_WEBHOOK_SECRET', () => {
     expect(() => parse('webhooks', {})).toThrow()
   })
 })
@@ -194,9 +194,9 @@ describe('llm schema', () => {
 })
 
 describe('security schema', () => {
-  it('parses WEBHOOK_EGRESS_ALLOWLIST into trimmed entries', () => {
+  it('parses WEBHOOK_EGRESS_ALLOWED_HOSTS into trimmed entries', () => {
     const parsed = parse('security', {
-      WEBHOOK_EGRESS_ALLOWLIST: 'hooks.example.com, .partner.io',
+      WEBHOOK_EGRESS_ALLOWED_HOSTS: 'hooks.example.com, .partner.io',
     })
     expect(parsed.egressAllowlist).toEqual(['hooks.example.com', '.partner.io'])
   })
@@ -206,20 +206,20 @@ describe('security schema', () => {
   })
 
   it('yields null for an allowlist of only separators', () => {
-    expect(parse('security', { WEBHOOK_EGRESS_ALLOWLIST: ' , , ' }).egressAllowlist).toBeNull()
+    expect(parse('security', { WEBHOOK_EGRESS_ALLOWED_HOSTS: ' , , ' }).egressAllowlist).toBeNull()
   })
 
   it('defaults allowPrivateNetwork to false', () => {
     expect(parse('security', {}).allowPrivateNetwork).toBe(false)
   })
 
-  it('rejects a non-boolean WEBHOOK_ALLOW_PRIVATE_NETWORK', () => {
-    expect(() => parse('security', { WEBHOOK_ALLOW_PRIVATE_NETWORK: 'sure' })).toThrow()
+  it('rejects a non-boolean WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK', () => {
+    expect(() => parse('security', { WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK: 'sure' })).toThrow()
   })
 
   it('boxes the operational secrets', () => {
     const parsed = parse('security', {
-      HEALTHZ_SECRET: 'hz-secret',
+      HEALTHZ_DETAIL_SECRET: 'hz-secret',
       AUTOMATION_SWEEPER_SECRET: 'sweep-secret',
     })
     expect(JSON.stringify(parsed)).not.toContain('hz-secret')
@@ -258,33 +258,33 @@ describe('commercial schema', () => {
     // Turning the flag on also demands Stripe credentials — see the
     // `stripe credentials` block below.
     const enabled = parse('commercial', {
-      USE_COMMERCIAL: 'yes',
-      STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
-      STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+      COMMERCIAL_ENABLED: 'yes',
+      STRIPE_API_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+      STRIPE_WEBHOOK_SIGNING_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
     })
     expect(enabled.enabled).toBe(true)
   })
 
   it('rejects a set-but-malformed value rather than falling back to false', () => {
-    expect(() => parse('commercial', { USE_COMMERCIAL: 'perhaps' })).toThrow()
+    expect(() => parse('commercial', { COMMERCIAL_ENABLED: 'perhaps' })).toThrow()
   })
 
   // The rename from ENABLE_BILLING is deliberately breaking, on the
-  // EMAIL_VERIFICATION_SECRET -> EMAIL_LINK_SECRET precedent: a deployment
+  // EMAIL_VERIFICATION_SECRET -> EMAIL_LINK_SIGNING_SECRET precedent: a deployment
   // still setting the old name must not silently start with enforcement off.
   // DOMAIN_SCHEMAS is the authoritative variable list, so the absence of
   // ENABLE_BILLING there is what makes assertConfig() report the new name.
   it('no longer recognises ENABLE_BILLING anywhere in the registry', () => {
     const all = Object.values(DOMAIN_SCHEMAS).flatMap((d) => d.vars as readonly string[])
     expect(all).not.toContain('ENABLE_BILLING')
-    expect(all).toContain('USE_COMMERCIAL')
+    expect(all).toContain('COMMERCIAL_ENABLED')
   })
 
   /**
    * Stripe credentials live in this domain rather than their own so the
    * "required when the flag is on" check can be a `superRefine` over both — the
-   * `ENABLE_EMAIL_VERIFICATION` / `EMAIL_LINK_SECRET` precedent. A separate
-   * domain could not see `USE_COMMERCIAL`, and the registry forbids a variable
+   * `EMAIL_VERIFICATION_ENABLED` / `EMAIL_LINK_SIGNING_SECRET` precedent. A separate
+   * domain could not see `COMMERCIAL_ENABLED`, and the registry forbids a variable
    * appearing in two domains.
    */
   describe('stripe credentials', () => {
@@ -307,22 +307,22 @@ describe('commercial schema', () => {
      * customer's checkout attempt.
      */
     it('requires the secret key once the commercial layer is on', () => {
-      expect(() => parse('commercial', { USE_COMMERCIAL: 'true', STRIPE_WEBHOOK_SECRET: WHSEC })).toThrow(
-        /STRIPE_SECRET_KEY/,
+      expect(() => parse('commercial', { COMMERCIAL_ENABLED: 'true', STRIPE_WEBHOOK_SIGNING_SECRET: WHSEC })).toThrow(
+        /STRIPE_API_KEY/,
       )
     })
 
     it('requires the webhook secret once the commercial layer is on', () => {
-      expect(() => parse('commercial', { USE_COMMERCIAL: 'true', STRIPE_SECRET_KEY: KEY })).toThrow(
-        /STRIPE_WEBHOOK_SECRET/,
+      expect(() => parse('commercial', { COMMERCIAL_ENABLED: 'true', STRIPE_API_KEY: KEY })).toThrow(
+        /STRIPE_WEBHOOK_SIGNING_SECRET/,
       )
     })
 
     it('accepts a fully configured commercial deployment', () => {
       const parsed = parse('commercial', {
-        USE_COMMERCIAL: 'true',
-        STRIPE_SECRET_KEY: KEY,
-        STRIPE_WEBHOOK_SECRET: WHSEC,
+        COMMERCIAL_ENABLED: 'true',
+        STRIPE_API_KEY: KEY,
+        STRIPE_WEBHOOK_SIGNING_SECRET: WHSEC,
       })
 
       expect(parsed.enabled).toBe(true)
@@ -337,9 +337,9 @@ describe('commercial schema', () => {
      */
     it('boxes both secrets so they cannot be logged by accident', () => {
       const parsed = parse('commercial', {
-        USE_COMMERCIAL: 'true',
-        STRIPE_SECRET_KEY: KEY,
-        STRIPE_WEBHOOK_SECRET: WHSEC,
+        COMMERCIAL_ENABLED: 'true',
+        STRIPE_API_KEY: KEY,
+        STRIPE_WEBHOOK_SIGNING_SECRET: WHSEC,
       })
 
       expect(String(parsed.stripeSecretKey)).toBe('[redacted]')

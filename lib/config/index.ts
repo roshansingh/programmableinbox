@@ -5,7 +5,7 @@ import { DOMAIN_SCHEMAS, type ConfigShape, type DomainName } from './schema'
 
 export {
   DEFAULT_WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX,
-  DEFAULT_WEBHOOK_QUEUE_MAX_RETRIES,
+  DEFAULT_WEBHOOK_QUEUE_MAX_ATTEMPTS,
   LLM_PROVIDERS,
   LOG_LEVELS,
   NODE_ENVS,
@@ -17,7 +17,7 @@ export { Secret } from './secret'
  * Thrown for any configuration failure.
  *
  * Carries the offending variable *names* so callers can report them, and never
- * the offending values — an error on `JWT_SECRET` must not print the secret.
+ * the offending values — an error on `AUTH_JWT_SECRET` must not print the secret.
  */
 export class ConfigError extends Error {
   readonly variables: readonly string[]
@@ -185,7 +185,7 @@ export function requireAppBaseUrl(): string {
  * is missing (issue #102).
  *
  * Both are `null` on `config.emailVerification` because the feature is off by
- * default, and the schema only demands them when `ENABLE_EMAIL_VERIFICATION` is
+ * default, and the schema only demands them when `EMAIL_VERIFICATION_ENABLED` is
  * true. `assertConfig()` therefore catches the ordinary misconfiguration at
  * boot; this is the guard for the path that stays reachable afterwards — a
  * caller that forgot to check `enabled` first. Same shape as
@@ -196,15 +196,15 @@ export function requireEmailVerification(): { secret: string; appBaseUrl: string
   const { secret, appBaseUrl } = config.emailVerification
   const missing: string[] = []
 
-  if (secret === null) missing.push('EMAIL_LINK_SECRET')
+  if (secret === null) missing.push('EMAIL_LINK_SIGNING_SECRET')
   if (appBaseUrl === null) missing.push('APP_BASE_URL')
 
   if (missing.length > 0) {
     throw new ConfigError(
       `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required ` +
-        'when ENABLE_EMAIL_VERIFICATION is true. There is no default: every ' +
+        'when EMAIL_VERIFICATION_ENABLED is true. There is no default: every ' +
         'emailed link — verification today, password reset next — needs a ' +
-        'signing key that is not JWT_SECRET, and an absolute origin that ' +
+        'signing key that is not AUTH_JWT_SECRET, and an absolute origin that ' +
         'does not come from the request.',
       missing,
     )
