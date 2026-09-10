@@ -29,7 +29,7 @@ const SETTINGS_ITEM = { name: "Settings", icon: Settings, href: "/settings", cur
 
 /**
  * See the matching note in sidebar.tsx: a plan is present exactly when
- * `USE_COMMERCIAL=true` and Stripe is configured, so this is the whole gate.
+ * `COMMERCIAL_ENABLED=true` and Stripe is configured, so this is the whole gate.
  */
 const BILLING_ITEM = { name: "Billing", icon: CreditCard, href: "/billing", current: false }
 

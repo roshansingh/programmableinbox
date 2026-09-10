@@ -2,7 +2,7 @@
  * The only module that signs or verifies email-verification tokens (issue
  * #102).
  *
- * `server-only` because it reads `EMAIL_LINK_SECRET` through
+ * `server-only` because it reads `EMAIL_LINK_SIGNING_SECRET` through
  * `lib/config`. A client component importing this must fail the build rather
  * than shipping a signing key to the browser.
  */
@@ -98,7 +98,7 @@ export function verifyVerificationToken(token: string): VerificationResult {
   const { purpose, userId, email } = payload as Record<string, unknown>
 
   // Load-bearing, not a backstop. lib/auth/password-reset-token.ts is the
-  // second purpose, and it is signed with the SAME key — EMAIL_LINK_SECRET —
+  // second purpose, and it is signed with the SAME key — EMAIL_LINK_SIGNING_SECRET —
   // so the signature check cannot tell the two token types apart. This
   // equality test is the only thing that can. A reset token presented here
   // would otherwise verify, and vice versa.

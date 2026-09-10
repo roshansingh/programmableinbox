@@ -67,7 +67,7 @@ delete scopes, since a rename must never itself be a privilege grant.
 Two rules apply on every inbox create/rename path (`lib/validation/inbox-policy.ts`):
 
 - **Domain allowlist** — an inbox address must be on one of the domains configured via
-  `EMAIL_INBOX_DOMAINS`. A domain we don't control can't receive mail for the inbox, so this
+  `EMAIL_INBOX_ALLOWED_DOMAINS`. A domain we don't control can't receive mail for the inbox, so this
   isn't optional.
 - **Impersonation blocklist** — `lib/security/blocked-inbox-terms.ts` checks the local part and
   display name against known brand/impersonation terms, normalizing for leetspeak and separator

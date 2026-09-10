@@ -59,11 +59,11 @@ beforeEach(() => {
   resolveUserPrincipalFromTokenMock.mockResolvedValue(PRINCIPAL)
   emailInboxFindFirstMock.mockResolvedValue(null)
   emailInboxCreateMock.mockResolvedValue(ROW)
-  process.env.EMAIL_INBOX_DOMAINS = 'inbox.example.com,mail.example.com'
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = 'inbox.example.com,mail.example.com'
 })
 
 afterEach(() => {
-  delete process.env.EMAIL_INBOX_DOMAINS
+  delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 })
 
 async function post(body: unknown) {
@@ -134,13 +134,13 @@ describe('POST /api/app/emailInbox — domain allowlist', () => {
   })
 
   /**
-   * EMAIL_INBOX_DOMAINS is required and asserted at boot, so an unconfigured
+   * EMAIL_INBOX_ALLOWED_DOMAINS is required and asserted at boot, so an unconfigured
    * server never reaches this handler. What must still hold is that the route
    * refuses rather than defaulting to "any domain" — a 500 from the config
    * layer is an acceptable answer here; a 201 is not.
    */
   it('never falls back to allowing any domain when unconfigured', async () => {
-    delete process.env.EMAIL_INBOX_DOMAINS
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 
     const response = await post({ organizationId: 'org_1', email: 'qa@gmail.com' })
 

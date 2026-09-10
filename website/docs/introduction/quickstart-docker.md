@@ -41,20 +41,20 @@ Open `.env` and fill in the values with no default:
 POSTGRES_PASSWORD=<generated password>
 
 # openssl rand -base64 32
-JWT_SECRET=<generated secret>
+AUTH_JWT_SECRET=<generated secret>
 
 # any 8+ character string is enough to boot
-WEBHOOK_SECRET=<any string>
+RESEND_WEBHOOK_SECRET=<any string>
 
 # a placeholder is fine for now — see step 5 to use a real one
-AUTH_RESEND_API_KEY=re_placeholder
+RESEND_API_KEY=re_placeholder
 
 # a domain you don't control yet is fine for exploring the UI —
 # see step 5 to receive real mail
-EMAIL_INBOX_DOMAINS=inbox.example.com
+EMAIL_INBOX_ALLOWED_DOMAINS=inbox.example.com
 ```
 
-`AUTH_RESEND_API_KEY` and `EMAIL_INBOX_DOMAINS` are validated for *shape*
+`RESEND_API_KEY` and `EMAIL_INBOX_ALLOWED_DOMAINS` are validated for *shape*
 only at startup, not checked against Resend — a placeholder boots the app
 fine. You'll need real values before any inbox can actually receive mail
 (step 5).
@@ -80,10 +80,10 @@ Once healthy, open **http://localhost:4000**.
 
 The Community Edition image doesn't ship seed data — register a new account
 directly at `/auth/register`. From there you can create an inbox (on the
-domain you set in `EMAIL_INBOX_DOMAINS`). You can then use the
+domain you set in `EMAIL_INBOX_ALLOWED_DOMAINS`). You can then use the
 [REST API](../api-reference/authentication-and-scopes) or an
 [SDK](../sdks/overview) with an API key; to use [MCP](../mcp/overview), set
-`ENABLE_MCP=true` in `.env` and restart the stack — see
+`MCP_ENABLED=true` in `.env` and restart the stack — see
 [MCP Setup](../mcp/setup) for the client-side half.
 
 ## 5. Receive real mail (optional)
@@ -95,8 +95,8 @@ To have this instance actually receive email:
    (this means the app needs to be reachable from the internet — see
    [Production Deployment](../self-hosting/production-deployment) for a
    hardened way to do that with TLS).
-3. Set `AUTH_RESEND_API_KEY` to your real Resend API key and
-   `EMAIL_INBOX_DOMAINS` to that verified domain in `.env`.
+3. Set `RESEND_API_KEY` to your real Resend API key and
+   `EMAIL_INBOX_ALLOWED_DOMAINS` to that verified domain in `.env`.
 4. `docker compose up -d` to pick up the change.
 
 Until then, everything else — the dashboard, the API, MCP tools, sending mail

@@ -419,18 +419,18 @@ describe('safeFetch', () => {
 describe('environment configuration', () => {
   // These read config repeatedly with different values inside one test. Config
   // memoizes per domain, so each change needs the memo cleared to take effect.
-  it('parses WEBHOOK_EGRESS_ALLOWLIST', () => {
-    vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', '')
+  it('parses WEBHOOK_EGRESS_ALLOWED_HOSTS', () => {
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOWED_HOSTS', '')
     resetConfigCache()
     expect(readEgressAllowlist()).toBeNull()
 
-    vi.stubEnv('WEBHOOK_EGRESS_ALLOWLIST', ' hooks.example.com , .partner.io ')
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOWED_HOSTS', ' hooks.example.com , .partner.io ')
     resetConfigCache()
     expect(readEgressAllowlist()).toEqual(['hooks.example.com', '.partner.io'])
   })
 
   it('honours the private-network escape hatch outside production only', () => {
-    vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'true')
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK', 'true')
     vi.stubEnv('NODE_ENV', 'development')
     resetConfigCache()
     expect(readAllowPrivateNetwork()).toBe(true)
@@ -440,22 +440,22 @@ describe('environment configuration', () => {
     expect(readAllowPrivateNetwork()).toBe(false)
 
     vi.stubEnv('NODE_ENV', 'development')
-    vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'false')
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK', 'false')
     resetConfigCache()
     expect(readAllowPrivateNetwork()).toBe(false)
   })
 
-  it('rejects an unrecognised WEBHOOK_ALLOW_PRIVATE_NETWORK rather than reading it as false', () => {
+  it('rejects an unrecognised WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK rather than reading it as false', () => {
     // Silently reading a typo as "off" is the safe direction here, but it also
     // means an operator who meant to enable the hatch gets no feedback.
     vi.stubEnv('NODE_ENV', 'development')
-    vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', 'yes-please')
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK', 'yes-please')
     resetConfigCache()
-    expect(() => readAllowPrivateNetwork()).toThrow(/WEBHOOK_ALLOW_PRIVATE_NETWORK/)
+    expect(() => readAllowPrivateNetwork()).toThrow(/WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK/)
   })
 
   it('blocks loopback by default when the escape hatch is off', async () => {
-    vi.stubEnv('WEBHOOK_ALLOW_PRIVATE_NETWORK', '')
+    vi.stubEnv('WEBHOOK_EGRESS_ALLOW_PRIVATE_NETWORK', '')
     const server = await startServer((_req, res) => res.end())
     const error = await expectBlocked(safeFetch(`${server.origin}/hook`, { method: 'POST' }))
     expect(error.reason).toBe('blocked_address')

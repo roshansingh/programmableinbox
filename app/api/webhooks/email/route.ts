@@ -16,7 +16,7 @@ import logger from '@/lib/logger'
 /**
  * Returns true when async (BullMQ) webhook processing is enabled.
  * When disabled, the webhook route falls back to synchronous in-request processing.
- * Controlled by the ENABLE_ASYNC_WEBHOOK_PROCESSING environment variable.
+ * Controlled by the ASYNC_WEBHOOK_PROCESSING_ENABLED environment variable.
  */
 function isAsyncWebhookProcessingEnabled(): boolean {
   return config.webhooks.asyncProcessingEnabled
@@ -328,7 +328,7 @@ export const POST = withPublic(async (request: NextRequest) => {
         signature: request.headers.get('svix-signature')!,
       },
       // No `!` needed: config.webhooks.secret is a validated non-empty
-      // string. The assertion here used to let an unset WEBHOOK_SECRET reach
+      // string. The assertion here used to let an unset RESEND_WEBHOOK_SECRET reach
       // signature verification as undefined.
       webhookSecret: config.webhooks.secret.reveal(),
     });

@@ -44,7 +44,7 @@ describe('DbPlanResolver', () => {
   }
 
   /**
-   * The property that lets USE_COMMERCIAL be switched on in production without
+   * The property that lets COMMERCIAL_ENABLED be switched on in production without
    * a backfill: every pre-existing organization has no Subscription row, and
    * must land on `free` rather than throwing or resolving to unlimited.
    */
@@ -133,7 +133,7 @@ describe('DbPlanResolver', () => {
   })
 
   /**
-   * A deployment with USE_COMMERCIAL on but no seeded plans is misconfigured.
+   * A deployment with COMMERCIAL_ENABLED on but no seeded plans is misconfigured.
    * Falling back to unlimited would hand every organization an unmetered
    * account and look like success.
    */

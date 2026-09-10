@@ -18,7 +18,7 @@ async function loadRoute() {
 }
 
 describe('GET /api/healthz', () => {
-  withConfigEnv({ HEALTHZ_SECRET: 'topsecret' })
+  withConfigEnv({ HEALTHZ_DETAIL_SECRET: 'topsecret' })
 
   beforeEach(() => {
     vi.resetAllMocks()
@@ -134,7 +134,7 @@ describe('GET /api/healthz', () => {
   })
 
   it('returns only public status fields when no healthz secret is provided', async () => {
-    setConfigEnv({ HEALTHZ_SECRET: undefined })
+    setConfigEnv({ HEALTHZ_DETAIL_SECRET: undefined })
     queryRawMock.mockResolvedValue([{ '?column?': 1 }])
     const fresh = new Date()
     findManyMock.mockResolvedValue([
@@ -153,7 +153,7 @@ describe('GET /api/healthz', () => {
   })
 
   it('returns backup details only when the healthz secret header matches', async () => {
-    setConfigEnv({ HEALTHZ_SECRET: 'topsecret' })
+    setConfigEnv({ HEALTHZ_DETAIL_SECRET: 'topsecret' })
     queryRawMock.mockResolvedValue([{ '?column?': 1 }])
     const fresh = new Date()
     findManyMock.mockResolvedValue([

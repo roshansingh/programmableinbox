@@ -167,7 +167,7 @@ export class PostgresQuota implements IQuota {
   }
 
   /**
-   * A resolved plan always has a period once `USE_COMMERCIAL` is on — the
+   * A resolved plan always has a period once `COMMERCIAL_ENABLED` is on — the
    * resolver falls back to the calendar month. The nulls are only reachable via
    * the OSS resolver, which is never paired with this class.
    */

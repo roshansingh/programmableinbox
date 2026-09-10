@@ -42,7 +42,7 @@ describe('UsageBanner', () => {
   })
 
   /**
-   * The self-hosted case. No plan means USE_COMMERCIAL is off, so there is
+   * The self-hosted case. No plan means COMMERCIAL_ENABLED is off, so there is
    * nothing to meter — and crucially the component must not even make the
    * request.
    */

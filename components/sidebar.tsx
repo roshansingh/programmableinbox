@@ -17,7 +17,7 @@ const BASE_NAVIGATION = [
 const SETTINGS_ITEM = { name: "Settings", icon: Settings, href: "/settings", current: false }
 
 /**
- * A plan is present exactly when `USE_COMMERCIAL=true` and Stripe is
+ * A plan is present exactly when `COMMERCIAL_ENABLED=true` and Stripe is
  * configured — `assertConfig()` refuses to boot otherwise (see
  * docs/architecture/commercial-layer.md) — so this one check on `plan` is the
  * whole gate. No separate config flag is needed.

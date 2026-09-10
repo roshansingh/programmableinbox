@@ -26,7 +26,7 @@ ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend w
 │ ├─ Validate HMAC signature + timestamp                     │
 │ ├─ Fetch email from Resend API                            │
 │ ├─ Determine matching inboxes (recipient address lookup)   │
-│ └─ Branch on ENABLE_ASYNC_WEBHOOK_PROCESSING flag         │
+│ └─ Branch on ASYNC_WEBHOOK_PROCESSING_ENABLED flag         │
 └──────────────┬──────────────────────────────────────────────┘
                │
         ┌──────┴──────┐
@@ -73,7 +73,7 @@ ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend w
 **Location**: `app/api/webhooks/email/route.ts`
 
 **Responsibilities**:
-- Validate HMAC signature (`x-webhook-signature`, `x-webhook-timestamp`) against `WEBHOOK_SECRET`
+- Validate HMAC signature (`x-webhook-signature`, `x-webhook-timestamp`) against `RESEND_WEBHOOK_SECRET`
 - Check timestamp is within 5-minute window (replay attack prevention)
 - Fetch email data from Resend API using `event.data.email_id`
 - Determine which inboxes match the recipient address list
@@ -81,7 +81,7 @@ ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend w
   - **Async enabled**: Enqueue one job per matching inbox, return 200 immediately
   - **Async disabled**: Process synchronously in-request (old behavior)
 
-**Key function**: `isAsyncWebhookProcessingEnabled()` checks `ENABLE_ASYNC_WEBHOOK_PROCESSING=true`
+**Key function**: `isAsyncWebhookProcessingEnabled()` checks `ASYNC_WEBHOOK_PROCESSING_ENABLED=true`
 
 **Error handling**:
 - Invalid signature → 401 (Resend retries)
@@ -117,7 +117,7 @@ ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend w
 
 **Runs in**: Same Next.js instance as webhook route (auto-started on first webhook or health check)
 
-**Concurrency**: `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` parallel jobs (default: 5)
+**Concurrency**: `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` parallel jobs (default: 5)
 
 **Job processing pipeline**:
 
@@ -134,10 +134,9 @@ ProgrammableInbox supports **asynchronous email ingestion** to decouple Resend w
 6. **On failure**: Move job to dead-letter table with error details (retries handled by task queue library)
 
 **Retry logic** (built into BullMQ):
-- Max retries: `WEBHOOK_QUEUE_MAX_RETRIES` (default: 3)
-- Total attempts: 1 initial + N retries = 4 with default
+- Total attempts (including the first, no off-by-one adjustment): `WEBHOOK_QUEUE_MAX_ATTEMPTS` (default: 4)
 - Backoff: Exponential (1s, 2s, 4s, 8s, ...)
-- After max retries exceeded: Move to `email_job_dead_letter` table
+- After the final attempt fails: Move to `email_job_dead_letter` table
 
 ### 4. Dead-Letter Queue (Database Table)
 
@@ -167,7 +166,7 @@ CREATE TABLE email_job_dead_letter (
 
 ## Data Flow: Sync vs Async
 
-### Sync Mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=false)
+### Sync Mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=false)
 
 ```
 Request arrives
@@ -192,7 +191,7 @@ Failure: 500 response, Resend retries
 - Automation latency is acceptable
 - Simple deployments (single instance)
 
-### Async Mode (ENABLE_ASYNC_WEBHOOK_PROCESSING=true)
+### Async Mode (ASYNC_WEBHOOK_PROCESSING_ENABLED=true)
 
 ```
 Request arrives
@@ -249,17 +248,17 @@ Failure: Job retried, eventually moved to DLQ if persistent
 
 **On job failure** (exception during store or dispatch):
 
-1. Job is held in Redis with retry count
+1. Job is held in Redis with attempt count
 2. BullMQ retries with exponential backoff
-3. After `WEBHOOK_QUEUE_MAX_RETRIES` + 1 attempts → job moved to `email_job_dead_letter`
+3. After `WEBHOOK_QUEUE_MAX_ATTEMPTS` attempts → job moved to `email_job_dead_letter`
 4. Operator investigates DLQ, fixes root cause, manually re-triggers
 
-**Example** (MAX_RETRIES=3):
+**Example** (default `WEBHOOK_QUEUE_MAX_ATTEMPTS=4`):
 ```
 t=0s:   Attempt 1 (initial) fails → retry in 1s
-t=1s:   Attempt 2 (retry 1) fails → retry in 2s
-t=3s:   Attempt 3 (retry 2) fails → retry in 4s
-t=7s:   Attempt 4 (retry 3) fails → move to DLQ
+t=1s:   Attempt 2 fails → retry in 2s
+t=3s:   Attempt 3 fails → retry in 4s
+t=7s:   Attempt 4 fails → move to DLQ
 ```
 
 **Failures that trigger retries**:
@@ -402,10 +401,10 @@ Load Balancer
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENABLE_ASYNC_WEBHOOK_PROCESSING` | `false` | Enable async mode (requires Redis) |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
-| `WEBHOOK_QUEUE_MAX_RETRIES` | `3` | Max retries before dead-letter |
-| `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` | `5` | Parallel job processing |
+| `ASYNC_WEBHOOK_PROCESSING_ENABLED` | `false` | Enable async mode (requires Redis) |
+| `REDIS_URL` | *(none — required when async is on)* | Redis connection string |
+| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | `4` | Total attempts (min 1, max 100) before dead-letter |
+| `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` | `5` | Parallel job processing (min 1, max 1000) |
 
 ---
 

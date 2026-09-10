@@ -73,7 +73,7 @@ export type AppConfig = {
 
 /**
  * Built per call, but the values come from `config`, which parses each domain
- * once per process. An operator changing EMAIL_INBOX_DOMAINS therefore takes
+ * once per process. An operator changing EMAIL_INBOX_ALLOWED_DOMAINS therefore takes
  * effect on restart — not on a rebuild, which is what a `NEXT_PUBLIC_*` var
  * would have required.
  *

@@ -69,7 +69,7 @@ export interface PlanLimits {
 }
 
 /**
- * Present only when the deployment runs with `USE_COMMERCIAL=true`. Its absence
+ * Present only when the deployment runs with `COMMERCIAL_ENABLED=true`. Its absence
  * is the self-hosted case and must read as "no plan restrictions".
  */
 export interface OrganizationPlan {

@@ -24,7 +24,7 @@ export { PRODUCT_ANALYTICS_EVENTS, type ProductAnalyticsEvent }
  * actually import. Nothing outside `ee/` imports this file directly.
  *
  * A no-op — no PostHog client constructed, no network call — whenever
- * `ENABLE_PRODUCT_ANALYTICS` is off, which is the default and must stay free
+ * `PRODUCT_ANALYTICS_ENABLED` is off, which is the default and must stay free
  * of any observable side effect in that state.
  *
  * Best-effort and never throws. This is telemetry, not part of the request's

@@ -34,7 +34,7 @@ const HANDLED = new Set([
  */
 export const POST = withPublic(async (request: NextRequest) => {
   // 404 rather than 503: a feature that is off should not advertise that it
-  // exists, matching how `/api/mcp` behaves when ENABLE_MCP is unset.
+  // exists, matching how `/api/mcp` behaves when MCP_ENABLED is unset.
   if (!config.commercial.enabled) {
     return NextResponse.json({ message: 'Not found' }, { status: 404 })
   }
@@ -44,7 +44,7 @@ export const POST = withPublic(async (request: NextRequest) => {
     // Unreachable: assertConfig() refuses to boot without this when the
     // commercial layer is on. Guarded anyway so a misconfiguration cannot
     // become an unverified webhook.
-    logger.error({}, 'Stripe webhook received but STRIPE_WEBHOOK_SECRET is unset')
+    logger.error({}, 'Stripe webhook received but STRIPE_WEBHOOK_SIGNING_SECRET is unset')
     return NextResponse.json({ message: 'Not configured' }, { status: 500 })
   }
 

@@ -90,7 +90,7 @@ export function resetProductAnalyticsCapture(): void {
  * No-op — no `posthog-node` import anywhere in this module, no network
  * activity — whenever nothing is registered, which is true by construction
  * on a FOSS build and true at runtime on an EE build with
- * `ENABLE_PRODUCT_ANALYTICS` off, since the registered implementation itself
+ * `PRODUCT_ANALYTICS_ENABLED` off, since the registered implementation itself
  * checks that flag on every call.
  *
  * Best-effort and never throws, independent of whatever guarantee the

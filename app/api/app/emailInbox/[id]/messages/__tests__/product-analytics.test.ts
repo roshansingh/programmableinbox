@@ -68,7 +68,7 @@ function get(query: string) {
 }
 
 describe('product analytics disabled (the default)', () => {
-  withConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+  withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
 
   it('does not capture a search request', async () => {
     const { GET } = await import('../route')
@@ -81,7 +81,7 @@ describe('product analytics disabled (the default)', () => {
 
 describe('product analytics enabled', () => {
   withConfigEnv({
-    ENABLE_PRODUCT_ANALYTICS: 'true',
+    PRODUCT_ANALYTICS_ENABLED: 'true',
     POSTHOG_API_KEY: 'phc_test1234567890',
     POSTHOG_HOST: 'https://us.i.posthog.com',
   })

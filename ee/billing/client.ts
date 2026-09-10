@@ -25,14 +25,14 @@ export function getStripe(): Stripe {
   const secretKey = config.commercial.stripeSecretKey
   if (!secretKey) {
     // Unreachable through the routes — `assertConfig()` refuses to boot when
-    // USE_COMMERCIAL is on without this, and the routes 404 when it is off. This
+    // COMMERCIAL_ENABLED is on without this, and the routes 404 when it is off. This
     // is the guard for a caller that reached here some other way, and it names
     // the variable rather than letting the SDK throw about an empty key.
     throw new ConfigError(
-      'STRIPE_SECRET_KEY is required to talk to Stripe. It has no default: ' +
-        'USE_COMMERCIAL is on, so plan enforcement is live, but nothing can be ' +
+      'STRIPE_API_KEY is required to talk to Stripe. It has no default: ' +
+        'COMMERCIAL_ENABLED is on, so plan enforcement is live, but nothing can be ' +
         'sold without it.',
-      ['STRIPE_SECRET_KEY'],
+      ['STRIPE_API_KEY'],
     )
   }
 

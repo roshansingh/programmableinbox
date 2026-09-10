@@ -142,8 +142,8 @@ describe('getClientIp', () => {
     expect(buckets[0]).toBe('203.0.113.9')
   })
 
-  it('honours TRUSTED_PROXY_COUNT for deployments with a CDN in front of Caddy', () => {
-    setConfigEnv({ TRUSTED_PROXY_COUNT: '2' })
+  it('honours AUTH_TRUSTED_PROXY_COUNT for deployments with a CDN in front of Caddy', () => {
+    setConfigEnv({ AUTH_TRUSTED_PROXY_COUNT: '2' })
     const result = getClientIp(headersOf({ 'x-forwarded-for': 'forged, 203.0.113.9, 172.16.0.2' }))
     expect(result).toEqual({ ip: '203.0.113.9', reason: null })
   })
@@ -161,15 +161,15 @@ describe('getClientIp', () => {
   })
 
   it('reports no usable IP when the chain is shorter than the trusted hop count', () => {
-    setConfigEnv({ TRUSTED_PROXY_COUNT: '3' })
+    setConfigEnv({ AUTH_TRUSTED_PROXY_COUNT: '3' })
     expect(getClientIp(headersOf({ 'x-forwarded-for': '203.0.113.9' }))).toEqual({
       ip: null,
       reason: 'chain-too-short',
     })
   })
 
-  it('treats TRUSTED_PROXY_COUNT=0 as "nothing in front is trustworthy"', () => {
-    setConfigEnv({ TRUSTED_PROXY_COUNT: '0' })
+  it('treats AUTH_TRUSTED_PROXY_COUNT=0 as "nothing in front is trustworthy"', () => {
+    setConfigEnv({ AUTH_TRUSTED_PROXY_COUNT: '0' })
     expect(getClientIp(headersOf({ 'x-forwarded-for': '203.0.113.9' }))).toEqual({
       ip: null,
       reason: 'no-trusted-proxy',
@@ -483,7 +483,7 @@ describe('lockoutDurationMs', () => {
 
 describe('recordFailure / getLockoutState / clearFailures', () => {
   beforeEach(() => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '3', AUTH_LOCKOUT_BASE_S: '60' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '3', AUTH_LOCKOUT_BASE_SECONDS: '60' })
   })
 
   it('does not lock before the threshold', async () => {

@@ -10,7 +10,7 @@ import { prisma } from './db'
  * Read through the config layer on every call rather than captured at module
  * load: `lib/auth-server` is imported (transitively) by every protected API
  * route, and Next.js evaluates those modules during `next build`, where
- * JWT_SECRET is deliberately absent (see the Dockerfile — the build stage sets
+ * AUTH_JWT_SECRET is deliberately absent (see the Dockerfile — the build stage sets
  * no secrets). A module-scope assertion would therefore fail the build instead
  * of the misconfigured deployment.
  *
@@ -50,7 +50,7 @@ export function verifyToken(token: string): { userId: string; issuedAt: number }
   if (typeof payload !== 'object' || payload === null) return null
 
   // Purpose-scoped tokens are never session credentials (issue #102 §6.1).
-  // Verification links are signed with EMAIL_LINK_SECRET, so today
+  // Verification links are signed with EMAIL_LINK_SIGNING_SECRET, so today
   // this is unreachable — the signature check above already fails. It exists
   // so that a future refactor unifying the two secrets cannot silently turn an
   // emailed link into a session token, which is the RFC 8725 §2.8 Cross-JWT
@@ -111,7 +111,7 @@ export async function resolveUserPrincipalFromToken(token: string): Promise<{
       email: true,
       // Selected here rather than fetched by `withUser` separately: the row is
       // already being read, so the verification gate costs no extra round-trip.
-      // Populated whether or not ENABLE_EMAIL_VERIFICATION is on — with the
+      // Populated whether or not EMAIL_VERIFICATION_ENABLED is on — with the
       // flag off it simply never gates anything.
       emailVerified: true,
       passwordChangedAt: true,

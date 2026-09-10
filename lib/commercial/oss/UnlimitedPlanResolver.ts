@@ -5,7 +5,7 @@ import { UNLIMITED } from '../plan-limits'
 /**
  * OSS default: every organization is on the unlimited `self_hosted` plan.
  *
- * Critically, this **never queries the database**. With `USE_COMMERCIAL=false`
+ * Critically, this **never queries the database**. With `COMMERCIAL_ENABLED=false`
  * the `plans`, `subscriptions` and `usage_counters` tables exist (they are in
  * the single shared schema) but are never read, so a self-hosted deployment
  * pays nothing for a feature it does not use — no join on the inbound email

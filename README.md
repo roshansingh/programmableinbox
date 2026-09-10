@@ -37,8 +37,8 @@ mkdir programmableinbox && cd programmableinbox
 curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/docker-compose.yml
 curl -fsSLO https://raw.githubusercontent.com/roshansingh/programmableinbox/main/.env.quickstart.example
 cp .env.quickstart.example .env
-# edit .env: set POSTGRES_PASSWORD, JWT_SECRET (openssl rand -base64 32), WEBHOOK_SECRET,
-# AUTH_RESEND_API_KEY, and EMAIL_INBOX_DOMAINS — a placeholder is fine to start exploring
+# edit .env: set POSTGRES_PASSWORD, AUTH_JWT_SECRET (openssl rand -base64 32), RESEND_WEBHOOK_SECRET,
+# RESEND_API_KEY, and EMAIL_INBOX_ALLOWED_DOMAINS — a placeholder is fine to start exploring
 
 docker compose pull
 docker compose up -d
@@ -59,7 +59,7 @@ npm install
 
 # Configure
 cp .env.example .env
-# fill in DATABASE_URL, JWT_SECRET, and the other required values — see .env.example
+# fill in DATABASE_URL, AUTH_JWT_SECRET, and the other required values — see .env.example
 
 # Set up the database
 npx prisma migrate dev

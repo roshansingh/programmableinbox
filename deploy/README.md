@@ -104,9 +104,9 @@ sudo -u deploy install -m 0600 /dev/stdin /srv/programmableinbox/secrets/app.env
 DOMAIN=inbox.example.com
 DATABASE_URL=postgresql://programmableinbox_app:<app-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
 MIGRATE_DATABASE_URL=postgresql://programmableinbox_migrator:<migrator-pw>@postgres:5432/programmableinbox?options=-c%20timezone%3DUTC
-JWT_SECRET=<random>
-WEBHOOK_SECRET=<resend-webhook-hmac>
-AUTH_RESEND_API_KEY=
+AUTH_JWT_SECRET=<random>
+RESEND_WEBHOOK_SECRET=<resend-webhook-hmac>
+RESEND_API_KEY=
 AUTH_EMAIL_FROM=
 AUTH_EMAIL_FROM_NAME=
 NEXT_PUBLIC_API_MODE=local
@@ -115,14 +115,14 @@ NEXT_PUBLIC_API_MODE=local
 # in Resend AND have its inbound route pointed at https://$DOMAIN/api/webhooks/email
 # — an inbox at an unrouted domain can never receive mail. Public config: it is
 # served to every authenticated client on /api/app/auth/me.
-EMAIL_INBOX_DOMAINS=inbox.example.com
-HEALTHZ_SECRET=              # optional; gates /api/healthz
+EMAIL_INBOX_ALLOWED_DOMAINS=inbox.example.com
+HEALTHZ_DETAIL_SECRET=              # optional; gates /api/healthz
 # LLM
 LLM_PROVIDER=
 LLM_API_KEY=
 LLM_MODEL=
 # Webhook queue / Redis  (async worker not yet wired — see Part 8; keep false for now)
-ENABLE_ASYNC_WEBHOOK_PROCESSING=false
+ASYNC_WEBHOOK_PROCESSING_ENABLED=false
 REDIS_URL=redis://redis:6379
 # Postgres — bootstrap superuser. Created by the image entrypoint; NOTHING
 # connects as it (break-glass only). Do not reuse this password anywhere else.
@@ -262,9 +262,9 @@ Point your Resend inbound webhook at:
 https://$DOMAIN/api/webhooks/email
 ```
 
-Use the same HMAC secret you set as `WEBHOOK_SECRET`.
+Use the same HMAC secret you set as `RESEND_WEBHOOK_SECRET`.
 
-**Webhook processing has two modes, set by `ENABLE_ASYNC_WEBHOOK_PROCESSING`:**
+**Webhook processing has two modes, set by `ASYNC_WEBHOOK_PROCESSING_ENABLED`:**
 
 - **`false` (recommended for now)** — mail is stored synchronously in the request. No Redis or worker needed; the `redis` service can stay up but idle. This is the reliable path today.
 - **`true` (async)** — the webhook enqueues to Redis and a BullMQ worker processes jobs. ⚠️ **The worker is not currently started by the app** (`lib/instrumentation.ts` is not at the Next.js root and the referenced `WebhookWorkerInit` layout component does not exist), so jobs would queue but never run. Do **not** enable async until the worker startup is wired (add a root `instrumentation.ts`, or a separate worker container).
@@ -285,7 +285,7 @@ One new container, `otel-collector`, gated behind the `observability` compose
 profile so it only runs when you ask for it. Its secrets live in their own
 file, not `app.env` — it's a third-party image with a read-only mount over
 every container's log history, so it only gets the two vars it actually
-needs rather than `JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
+needs rather than `AUTH_JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
 
     sudo -u deploy install -m 0600 /dev/stdin /srv/programmableinbox/secrets/otel-collector.env <<'EOF'
     OTEL_EXPORTER_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
@@ -293,7 +293,7 @@ needs rather than `JWT_SECRET`/`DATABASE_URL`/the rest of `app.env`:
     OTEL_SERVICE_NAME=programmableinbox
     EOF
 
-Then add the app's half — `ENABLE_OBSERVABILITY` and the `OTEL_EXPORTER_OTLP_*` vars (pointed at
+Then add the app's half — `OBSERVABILITY_ENABLED` and the `OTEL_EXPORTER_OTLP_*` vars (pointed at
 the collector on the internal network, not at your OTLP backend directly) — from the
 "Observability" section of `.env.example` to `/srv/programmableinbox/secrets/app.env` from Part 3. Then:
 

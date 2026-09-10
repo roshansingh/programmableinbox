@@ -3,7 +3,7 @@
 `POST /api/mcp` exposes a read-mostly email surface over the
 [Model Context Protocol](https://modelcontextprotocol.io), so an agent client (Claude Code,
 Claude Desktop, Cursor, VS Code) can read inboxes and messages using an API key. Off unless
-`ENABLE_MCP=true`; while off, the route 404s, so an instance that hasn't enabled it doesn't
+`MCP_ENABLED=true`; while off, the route 404s, so an instance that hasn't enabled it doesn't
 advertise that it exists.
 
 ## Setup
@@ -12,7 +12,7 @@ advertise that it exists.
 
 ```bash
 # .env
-ENABLE_MCP=true
+MCP_ENABLED=true
 ```
 
 Restart the server — config is parsed once per process, so a running instance won't pick this up

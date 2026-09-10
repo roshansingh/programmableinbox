@@ -12,9 +12,9 @@ vi.mock('@/lib/db', () => ({ prisma: {} }))
 import { signToken, verifyToken } from '@/lib/auth-server'
 import { resetConfigCache } from '@/lib/config'
 
-const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET
+const ORIGINAL_JWT_SECRET = process.env.AUTH_JWT_SECRET
 
-// Config memoizes per domain, so a test that changes JWT_SECRET must clear the
+// Config memoizes per domain, so a test that changes AUTH_JWT_SECRET must clear the
 // memo or it reads the previous test's parse.
 beforeEach(() => {
   resetConfigCache()
@@ -22,25 +22,25 @@ beforeEach(() => {
 
 afterEach(() => {
   if (ORIGINAL_JWT_SECRET === undefined) {
-    delete process.env.JWT_SECRET
+    delete process.env.AUTH_JWT_SECRET
   } else {
-    process.env.JWT_SECRET = ORIGINAL_JWT_SECRET
+    process.env.AUTH_JWT_SECRET = ORIGINAL_JWT_SECRET
   }
   resetConfigCache()
 })
 
 describe('auth-server JWT secret handling', () => {
-  describe('fails closed when JWT_SECRET is missing', () => {
+  describe('fails closed when AUTH_JWT_SECRET is missing', () => {
     beforeEach(() => {
-      delete process.env.JWT_SECRET
+      delete process.env.AUTH_JWT_SECRET
     })
 
-    it('signToken throws when JWT_SECRET is unset', () => {
-      expect(() => signToken({ userId: 'user_1' })).toThrow(/JWT_SECRET/)
+    it('signToken throws when AUTH_JWT_SECRET is unset', () => {
+      expect(() => signToken({ userId: 'user_1' })).toThrow(/AUTH_JWT_SECRET/)
     })
 
-    it('verifyToken throws when JWT_SECRET is unset (never silently returns null)', () => {
-      expect(() => verifyToken('any.token.value')).toThrow(/JWT_SECRET/)
+    it('verifyToken throws when AUTH_JWT_SECRET is unset (never silently returns null)', () => {
+      expect(() => verifyToken('any.token.value')).toThrow(/AUTH_JWT_SECRET/)
     })
   })
 
@@ -49,23 +49,23 @@ describe('auth-server JWT secret handling', () => {
       ['empty string', ''],
       ['whitespace only', '   '],
       ['tab/newline only', '\t\n'],
-    ])('signToken throws when JWT_SECRET is %s', (_label, value) => {
-      process.env.JWT_SECRET = value
-      expect(() => signToken({ userId: 'user_1' })).toThrow(/JWT_SECRET/)
+    ])('signToken throws when AUTH_JWT_SECRET is %s', (_label, value) => {
+      process.env.AUTH_JWT_SECRET = value
+      expect(() => signToken({ userId: 'user_1' })).toThrow(/AUTH_JWT_SECRET/)
     })
 
     it.each([
       ['empty string', ''],
       ['whitespace only', '   '],
-    ])('verifyToken throws when JWT_SECRET is %s', (_label, value) => {
-      process.env.JWT_SECRET = value
-      expect(() => verifyToken('any.token.value')).toThrow(/JWT_SECRET/)
+    ])('verifyToken throws when AUTH_JWT_SECRET is %s', (_label, value) => {
+      process.env.AUTH_JWT_SECRET = value
+      expect(() => verifyToken('any.token.value')).toThrow(/AUTH_JWT_SECRET/)
     })
   })
 
   describe('normal operation with a configured secret', () => {
     beforeEach(() => {
-      process.env.JWT_SECRET = 'a-real-secret-for-tests'
+      process.env.AUTH_JWT_SECRET = 'a-real-secret-for-tests'
     })
 
     it('round-trips a signed token', () => {
@@ -104,9 +104,9 @@ describe('auth-server JWT secret handling', () => {
     it('is not captured at module load — a first read after import still sees the env', () => {
       // This is the property that keeps `next build` working: auth-server is
       // imported transitively by every protected route, and the build evaluates
-      // those modules with no JWT_SECRET present.
+      // those modules with no AUTH_JWT_SECRET present.
       resetConfigCache()
-      process.env.JWT_SECRET = 'a-different-real-secret'
+      process.env.AUTH_JWT_SECRET = 'a-different-real-secret'
       const token = signToken({ userId: 'user_42' })
       expect(jwt.verify(token, 'a-different-real-secret')).toMatchObject({ userId: 'user_42' })
     })
@@ -117,7 +117,7 @@ describe('auth-server JWT secret handling', () => {
       // In practice nothing is lost — a deployed container cannot see a changed
       // env var without restarting anyway.
       const token = signToken({ userId: 'user_42' })
-      process.env.JWT_SECRET = 'rotated-secret-long-enough'
+      process.env.AUTH_JWT_SECRET = 'rotated-secret-long-enough'
       expect(verifyToken(token)?.userId).toBe('user_42')
 
       resetConfigCache()
@@ -151,17 +151,17 @@ describe('auth-server JWT secret handling', () => {
       return acc
     }
 
-    it('lib/auth-server.ts does not default JWT_SECRET to a literal', () => {
+    it('lib/auth-server.ts does not default AUTH_JWT_SECRET to a literal', () => {
       const source = fs.readFileSync(path.join(repoRoot, 'lib', 'auth-server.ts'), 'utf8')
-      expect(source).not.toMatch(/process\.env\.JWT_SECRET\s*(\|\||\?\?)/)
+      expect(source).not.toMatch(/process\.env\.AUTH_JWT_SECRET\s*(\|\||\?\?)/)
     })
 
-    it('no source file gives JWT_SECRET a fallback value', () => {
+    it('no source file gives AUTH_JWT_SECRET a fallback value', () => {
       const offenders = sourceFiles(repoRoot)
         .filter((file) => !file.includes(`${path.sep}__tests__${path.sep}`))
         .filter((file) => {
           const source = fs.readFileSync(file, 'utf8')
-          return /process\.env\.JWT_SECRET\s*(\|\||\?\?)/.test(source)
+          return /process\.env\.AUTH_JWT_SECRET\s*(\|\||\?\?)/.test(source)
         })
         .map((file) => path.relative(repoRoot, file))
 

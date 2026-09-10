@@ -26,7 +26,7 @@ describe('initializeProductAnalytics', () => {
 
   describe('enabled', () => {
     withConfigEnv({
-      ENABLE_PRODUCT_ANALYTICS: 'true',
+      PRODUCT_ANALYTICS_ENABLED: 'true',
       POSTHOG_API_KEY: 'phc_test1234567890',
       POSTHOG_HOST: 'https://us.i.posthog.com',
     })
@@ -49,7 +49,7 @@ describe('initializeProductAnalytics', () => {
   })
 
   describe('disabled (the default)', () => {
-    withConfigEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+    withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
 
     it('does nothing when the flag is off', async () => {
       const { initializeProductAnalytics } = await import('../init')
@@ -69,7 +69,7 @@ describe('initializeProductAnalytics', () => {
 
     it('does nothing at all — no client construction, no log line — when unset entirely', async () => {
       setConfigEnv({
-        ENABLE_PRODUCT_ANALYTICS: undefined,
+        PRODUCT_ANALYTICS_ENABLED: undefined,
         POSTHOG_API_KEY: undefined,
         POSTHOG_HOST: undefined,
       })

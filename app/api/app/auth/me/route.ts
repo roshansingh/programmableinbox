@@ -30,7 +30,7 @@ export const GET = withUser({ allowUnverified: true }, async (request: NextReque
   // correct single value for a user in two organizations. `role` already sets
   // the precedent for per-organization attributes living here.
   //
-  // A no-op when USE_COMMERCIAL is off — no lookup, and the field is simply
+  // A no-op when COMMERCIAL_ENABLED is off — no lookup, and the field is simply
   // absent, which the client reads as "no plan restrictions".
   const plans = await resolveOrganizationPlans(formatted.organizations.map((o) => o.id))
   const organizations = formatted.organizations.map((organization) => {

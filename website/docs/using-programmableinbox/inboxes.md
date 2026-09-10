@@ -10,7 +10,7 @@ Create an inbox from the dashboard (**Inboxes → New Inbox**), the API
 
 - A **local part** (the part before `@`), up to 50 characters.
 - A **domain**, chosen from the deployment's configured
-  `EMAIL_INBOX_DOMAINS` — you can't type an arbitrary domain.
+  `EMAIL_INBOX_ALLOWED_DOMAINS` — you can't type an arbitrary domain.
 - An optional **display name**, up to 100 characters.
 
 ## Guardrails on creation

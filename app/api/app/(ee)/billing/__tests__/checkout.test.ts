@@ -46,11 +46,11 @@ function principalWithRole(role: string) {
 
 describe('POST /api/app/billing/checkout', () => {
   withConfigEnv({
-    USE_COMMERCIAL: 'true',
-    STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
-    STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
-    ENABLE_EMAIL_VERIFICATION: 'true',
-    EMAIL_LINK_SECRET: 'email-link-secret-at-least-16',
+    COMMERCIAL_ENABLED: 'true',
+    STRIPE_API_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+    STRIPE_WEBHOOK_SIGNING_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+    EMAIL_VERIFICATION_ENABLED: 'true',
+    EMAIL_LINK_SIGNING_SECRET: 'email-link-secret-at-least-16',
     APP_BASE_URL: 'https://app.example.com',
   })
 
@@ -208,7 +208,7 @@ describe('POST /api/app/billing/checkout', () => {
 })
 
 describe('POST /api/app/billing/checkout with the commercial layer off', () => {
-  withConfigEnv({ USE_COMMERCIAL: 'false' })
+  withConfigEnv({ COMMERCIAL_ENABLED: 'false' })
 
   beforeEach(() => {
     vi.clearAllMocks()

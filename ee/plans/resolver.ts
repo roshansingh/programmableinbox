@@ -17,7 +17,7 @@ export const DEFAULT_PLAN_CODE = 'free'
  * Resolves an organization's plan from `subscriptions` joined to `plans`
  * (issue #117 §5).
  *
- * Only ever installed when `USE_COMMERCIAL=true` — `ee/init.ts` does not call
+ * Only ever installed when `COMMERCIAL_ENABLED=true` — `ee/init.ts` does not call
  * `CommercialProvider.configure()` otherwise, so a self-hosted deployment keeps
  * the OSS `UnlimitedPlanResolver` and never reads these tables at all.
  *
@@ -65,7 +65,7 @@ export class DbPlanResolver implements IPlanResolver {
   }
 
   /**
-   * A deployment running with `USE_COMMERCIAL=true` and no seeded plans is
+   * A deployment running with `COMMERCIAL_ENABLED=true` and no seeded plans is
    * misconfigured. Returning unlimited limits here would hand every
    * organization an unmetered account while looking like success, so this
    * throws instead — the same posture as `assertConfig()` refusing to boot on a
@@ -75,7 +75,7 @@ export class DbPlanResolver implements IPlanResolver {
     const plan = await prisma.plan.findUnique({ where: { code: DEFAULT_PLAN_CODE } })
     if (!plan) {
       throw new Error(
-        `Plan '${DEFAULT_PLAN_CODE}' is not seeded. USE_COMMERCIAL is on but the plans table has ` +
+        `Plan '${DEFAULT_PLAN_CODE}' is not seeded. COMMERCIAL_ENABLED is on but the plans table has ` +
           `no default plan, so no organization can be resolved. Run the migrations.`,
       )
     }
