@@ -102,7 +102,7 @@ export function EmailHtmlViewer({
   className,
   title = "Email message content",
 }: EmailHtmlViewerProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   const srcDoc = useMemo(() => (html ? buildEmailSrcDoc(html) : null), [html])
 

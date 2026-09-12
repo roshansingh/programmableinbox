@@ -750,7 +750,25 @@ function InboxPageContent() {
                           )}
                           {selectedMessage.metadata !== null && (
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Metadata</p>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Metadata</p>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(
+                                        JSON.stringify(selectedMessage.metadata, null, 2)
+                                      )
+                                      toast.success('Metadata copied')
+                                    } catch {
+                                      toast.error('Failed to copy metadata')
+                                    }
+                                  }}
+                                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                  aria-label="Copy metadata"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                               <pre className="text-xs font-mono bg-muted rounded p-3 leading-relaxed text-foreground whitespace-pre-wrap break-all">
                                 {JSON.stringify(selectedMessage.metadata, null, 2)}
                               </pre>
