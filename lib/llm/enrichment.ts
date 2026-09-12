@@ -83,11 +83,13 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    // categories is written only by this step — deterministic extraction at
-    // ingestion (app/api/webhooks/email/route.ts) never touches it — so a
-    // non-empty array is an accurate "the LLM already looked at this" signal.
-    // `metadata` can no longer be used for this: ingestion now always
-    // populates it with deterministically-extracted links, for every plan.
+    // categories is written only by this step — deterministic extraction,
+    // wherever a message row is created (app/api/webhooks/email/route.ts for
+    // inbound, app/api/app/emailInbox/[id]/send/route.ts for outbound), never
+    // touches it — so a non-empty array is an accurate "the LLM already
+    // looked at this" signal. `metadata` can no longer be used for this:
+    // every EmailMessage creation path now populates it with
+    // deterministically-extracted links, for every plan.
     if (message.categories.length > 0) {
       logger.info({ messageId }, '[enrichMessage] skip: already enriched')
       return true

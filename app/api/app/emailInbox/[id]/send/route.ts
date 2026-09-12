@@ -6,6 +6,9 @@ import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
+import { extractLinks } from '@/lib/email/extract-links'
+import { extractOtp } from '@/lib/email/extract-otp'
+import { classifyLinks } from '@/lib/email/cta-heuristic'
 import logger from '@/lib/logger'
 
 export const POST = withUser<{ id: string }>(async (request, principal, { params }) => {
@@ -121,6 +124,14 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     // Generate a stable Message-ID for this sent email so replies can reference it
     const sentMessageId = `<${resendId}@${inbox.email.split('@')[1]}>`
 
+    // Sent mail is listed alongside received mail, so it has to be searchable
+    // and enrichment-bearing on the same terms (issue #106; deterministic
+    // OTP/link extraction) — derived here rather than only on the webhook
+    // ingest path (app/api/webhooks/email/route.ts), same helpers, same
+    // reasoning: this data isn't gated behind the LLM plan/quota.
+    const sentBodyText = deriveBodyText({ text: text || '', html: html || '' })
+    const sentLinks = classifyLinks(extractLinks({ text: text || '', html: html || '' }))
+
     await prisma.emailMessage.create({
       data: {
         id: dbMessageId,
@@ -131,9 +142,9 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
         subject,
         text: text || '',
         html: html || '',
-        // Sent mail is listed alongside received mail, so it has to be searchable
-        // on the same terms (issue #106).
-        bodyText: deriveBodyText({ text: text || '', html: html || '' }),
+        bodyText: sentBodyText,
+        extractedOtp: extractOtp(sentBodyText),
+        metadata: { links: sentLinks, timestamps: [] },
         headers: emailHeaders,
         externalId: resendId,
         inboxEmailAddressId: inbox.id,
