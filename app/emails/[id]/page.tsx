@@ -368,15 +368,15 @@ function InboxPageContent() {
                 <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">
                   · {messages.length} {messages.length === 1 ? 'message' : 'messages'}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchData}
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSearching ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchData}
-                className="ml-auto text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSearching ? 'animate-spin' : ''}`} />
-              </Button>
             </div>
           </div>
 
