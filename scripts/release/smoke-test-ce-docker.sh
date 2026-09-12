@@ -93,8 +93,8 @@ docker compose version >/dev/null 2>&1 || {
 cleanup() {
   if [ "$KEEP" -eq 1 ]; then
     echo "==> --keep set, leaving containers up. Tear down with:"
-    echo "    docker compose -f docker-compose.yml -p ${PROJECT} --env-file ${ENV_FILE} down -v"
-    echo "    rm -rf ${WORK_DIR}"
+    echo "    docker compose -f docker-compose.yml -p ${PROJECT} --env-file \"${ENV_FILE}\" down -v --remove-orphans"
+    echo "    rm -rf \"${WORK_DIR}\""
     return
   fi
   log "Tearing down"
