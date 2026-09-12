@@ -106,7 +106,7 @@ export function ApiKeysGettingStarted({ examplePrefix }: { examplePrefix?: strin
 
         <CollapsibleContent className="border-t px-4 pt-4 pb-5 sm:px-5 data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
           <Tabs defaultValue="api">
-            <TabsList>
+            <TabsList className="border border-border bg-background">
               <TabsTrigger value="api">API</TabsTrigger>
               <TabsTrigger value="sdk">SDK</TabsTrigger>
               <TabsTrigger value="mcp">MCP</TabsTrigger>
