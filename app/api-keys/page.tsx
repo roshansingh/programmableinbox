@@ -320,7 +320,7 @@ export default function ApiKeysPage() {
             </Dialog>
           </div>
 
-          <ApiKeysGettingStarted examplePrefix={apiKeys[0]?.prefix} />
+          <ApiKeysGettingStarted apiKeys={apiKeys} />
 
           <div className="grid gap-4">
             {apiKeys.length === 0 ? (

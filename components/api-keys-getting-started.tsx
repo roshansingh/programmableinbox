@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ChevronDown, Copy, ExternalLink, Rocket } from 'lucide-react'
 import { toast } from "sonner"
@@ -8,38 +8,75 @@ import { Card } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import type { ApiKeyListItem } from "@/lib/api/api-keys.api"
 
 const DOCS_BASE_URL = "https://docs.programmableinbox.com"
 
+/**
+ * Matches the SDKs' own default host (each sdk/<lang>/README.md) - used for the very
+ * first server-rendered paint. A client component still executes that first
+ * render during hydration, and `window` isn't available yet at that point,
+ * so this has to be a constant rather than `window.location.origin` or the
+ * client's first render would mismatch the server's and React would warn.
+ * The real origin replaces it a tick later, in the effect below.
+ */
+const DEFAULT_APP_ORIGIN = "https://app.programmableinbox.com"
+
+// Generated client quick-starts (each sdk/<lang>/README.md) - copy real symbol names,
+// not a hand-waved shape, so the pasted snippet actually compiles.
 const SDK_SNIPPETS = {
   python: {
     label: "Python",
     install: "pip install programmableinbox",
-    code: 'from programmableinbox import Client\n\nclient = Client(api_key="{key}")\nclient.email_inboxes.list()',
+    code:
+      "import programmableinbox\n" +
+      "from programmableinbox.api.email_inboxes_api import EmailInboxesApi\n\n" +
+      'configuration = programmableinbox.Configuration(access_token="{key}")\n\n' +
+      "with programmableinbox.ApiClient(configuration) as api_client:\n" +
+      "    api = EmailInboxesApi(api_client)\n" +
+      "    print(api.list_email_inboxes().data)",
   },
   typescript: {
     label: "TypeScript",
     install: "npm install @programmableinbox/sdk",
-    code: 'import { ProgrammableInbox } from "@programmableinbox/sdk"\n\nconst client = new ProgrammableInbox({ apiKey: "{key}" })\nawait client.emailInboxes.list()',
+    code:
+      "import { Configuration, EmailInboxesApi } from '@programmableinbox/sdk'\n\n" +
+      "const config = new Configuration({ accessToken: '{key}' })\n" +
+      "const api = new EmailInboxesApi(config)\n" +
+      "console.log((await api.listEmailInboxes()).data)",
   },
   go: {
     label: "Go",
     install: "go get github.com/roshansingh/programmableinbox/sdk/go",
-    code: 'client := pibx.NewClient("{key}")\ninboxes, err := client.EmailInboxes.List(ctx)',
+    code:
+      "configuration := programmableinbox.NewConfiguration()\n" +
+      "client := programmableinbox.NewAPIClient(configuration)\n" +
+      'ctx := context.WithValue(context.Background(), programmableinbox.ContextAccessToken, "{key}")\n\n' +
+      "inboxes, _, err := client.EmailInboxesAPI.ListEmailInboxes(ctx).Execute()",
   },
   csharp: {
     label: "C#",
     install: "dotnet add package ProgrammableInbox.Sdk",
-    code: 'var client = new ProgrammableInboxClient("{key}");\nvar inboxes = await client.EmailInboxes.ListAsync();',
+    code:
+      "var host = Host.CreateDefaultBuilder()\n" +
+      '    .ConfigureApi((_, options) => options.AddTokens(new BearerToken("{key}")))\n' +
+      "    .Build();\n\n" +
+      "var api = host.Services.GetRequiredService<IEmailInboxesApi>();\n" +
+      "var response = await api.ListEmailInboxesAsync();\n" +
+      "Console.WriteLine(response.Ok()?.Data);",
   },
 } as const
 
 type SdkLanguage = keyof typeof SDK_SNIPPETS
 
-function CodeBlock({ code }: { code: string }) {
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code)
-    toast.success("Copied to clipboard")
+function CodeBlock({ code, label }: { code: string; label: string }) {
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      toast.success("Copied to clipboard")
+    } catch {
+      toast.error("Couldn't copy to clipboard")
+    }
   }
 
   return (
@@ -50,7 +87,7 @@ function CodeBlock({ code }: { code: string }) {
       <button
         type="button"
         onClick={handleCopy}
-        aria-label="Copy to clipboard"
+        aria-label={`Copy ${label}`}
         className="absolute top-1.5 right-1.5 rounded-md border border-border bg-card p-1.5 text-muted-foreground hover:text-foreground"
       >
         <Copy className="h-3.5 w-3.5" />
@@ -79,12 +116,23 @@ function DocsLink({ href, children }: { href: string; children: React.ReactNode 
  * unlike the empty-state card, this stays reachable after the first key is
  * created, when someone comes back not remembering how to use it.
  */
-export function ApiKeysGettingStarted({ examplePrefix }: { examplePrefix?: string }) {
+export function ApiKeysGettingStarted({ apiKeys = [] }: { apiKeys?: ApiKeyListItem[] }) {
   const [sdkLang, setSdkLang] = useState<SdkLanguage>("python")
-  const keyPlaceholder = examplePrefix ? `${examplePrefix}...` : "sk_live_..."
+  const [origin, setOrigin] = useState(DEFAULT_APP_ORIGIN)
 
-  const curlSnippet = `curl https://app.programmableinbox.com/api/v1/emailInbox \\\n  -H "Authorization: Bearer ${keyPlaceholder}"`
-  const mcpSnippet = `claude mcp add --transport http programmableinbox \\\n  https://app.programmableinbox.com/api/mcp \\\n  --header "Authorization: Bearer ${keyPlaceholder}"`
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+
+  // The curl/SDK/MCP examples all call list-inboxes, which needs
+  // email_inboxes:read - a key minted without it (message-only keys are
+  // valid) would turn the "copy and run" example into a guaranteed 403, so
+  // it's excluded from the pool this picks an example prefix from.
+  const readScopedKey = apiKeys.find((key) => key.scopes.includes("email_inboxes:read"))
+  const keyPlaceholder = readScopedKey ? `${readScopedKey.prefix}...` : "sk_live_..."
+
+  const curlSnippet = `curl ${origin}/api/v1/emailInbox \\\n  -H "Authorization: Bearer ${keyPlaceholder}"`
+  const mcpSnippet = `claude mcp add --transport http programmableinbox \\\n  ${origin}/api/mcp \\\n  --header "Authorization: Bearer ${keyPlaceholder}"`
   const sdkSnippet = SDK_SNIPPETS[sdkLang]
   const sdkCode = sdkSnippet.code.replace("{key}", keyPlaceholder)
 
@@ -113,7 +161,7 @@ export function ApiKeysGettingStarted({ examplePrefix }: { examplePrefix?: strin
             </TabsList>
 
             <TabsContent value="api" className="space-y-3 pt-3">
-              <CodeBlock code={curlSnippet} />
+              <CodeBlock code={curlSnippet} label="curl command" />
               <div className="flex flex-wrap gap-4">
                 <DocsLink href={`${DOCS_BASE_URL}/api-reference/authentication-and-scopes`}>
                   API reference
@@ -146,13 +194,13 @@ export function ApiKeysGettingStarted({ examplePrefix }: { examplePrefix?: strin
                   </button>
                 ))}
               </div>
-              <CodeBlock code={sdkSnippet.install} />
-              <CodeBlock code={sdkCode} />
+              <CodeBlock code={sdkSnippet.install} label={`${sdkSnippet.label} install command`} />
+              <CodeBlock code={sdkCode} label={`${sdkSnippet.label} example`} />
               <DocsLink href={`${DOCS_BASE_URL}/sdks/overview`}>All SDKs</DocsLink>
             </TabsContent>
 
             <TabsContent value="mcp" className="space-y-3 pt-3">
-              <CodeBlock code={mcpSnippet} />
+              <CodeBlock code={mcpSnippet} label="MCP setup command" />
               <DocsLink href={`${DOCS_BASE_URL}/mcp/setup`}>MCP setup guide</DocsLink>
             </TabsContent>
           </Tabs>
