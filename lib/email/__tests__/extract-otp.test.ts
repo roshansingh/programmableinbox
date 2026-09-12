@@ -60,6 +60,10 @@ describe('extractOtp', () => {
     expect(extractOtp('Your zip code is 94107 — update your address.')).toBeNull()
   })
 
+  it('does not extract a source code reference as an OTP', () => {
+    expect(extractOtp('Your source code: 123456')).toBeNull()
+  })
+
   it('rejects an alphanumeric token on the weak keyword tier (digits-only for bare "code"/"pin")', () => {
     expect(extractOtp('Your code: AB12CD')).toBeNull()
   })

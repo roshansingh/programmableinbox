@@ -26,6 +26,18 @@ describe('classifyLinks', () => {
     ])
   })
 
+  it('does not flag "Disclaimer" as a CTA even though it contains "claim" as a substring', () => {
+    expect(classifyLinks([{ url: 'https://example.com/legal', label: 'Disclaimer' }])).toEqual([
+      { url: 'https://example.com/legal', label: 'Disclaimer', isCta: false, ctaConfidence: 'low' },
+    ])
+  })
+
+  it('still flags "Claim your reward" as a CTA (word-boundary match, not defeated by escaping)', () => {
+    expect(classifyLinks([{ url: 'https://example.com/reward', label: 'Claim your reward' }])).toEqual([
+      { url: 'https://example.com/reward', label: 'Claim your reward', isCta: true, ctaConfidence: 'high' },
+    ])
+  })
+
   it('leaves an unrecognized label as low-confidence, defaulting isCta to false', () => {
     expect(classifyLinks([{ url: 'https://example.com/x', label: 'Our new spring collection' }])).toEqual([
       { url: 'https://example.com/x', label: 'Our new spring collection', isCta: false, ctaConfidence: 'low' },

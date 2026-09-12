@@ -17,24 +17,39 @@ const NON_CTA_KEYWORDS = [
 ]
 
 /**
+ * Whole-word/phrase matcher, not a raw substring test: `CTA_KEYWORDS`
+ * includes 'claim', and a plain `.includes()` check matched it inside
+ * "Disclaimer" (and "unclaimed"), misclassifying a footer link as a
+ * high-confidence CTA — which then never gets sent to the LLM for review,
+ * since only 'low' confidence links are (see the doc comment below).
+ */
+function toWordBoundaryPattern(keywords: string[]): RegExp {
+  const escaped = keywords.map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`\\b(?:${escaped.join('|')})\\b`, 'i')
+}
+
+const NON_CTA_PATTERN = toWordBoundaryPattern(NON_CTA_KEYWORDS)
+const CTA_PATTERN = toWordBoundaryPattern(CTA_KEYWORDS)
+
+/**
  * Keyword-based CTA classification. `ctaConfidence` records whether `isCta`
  * came from this heuristic ('low') or was later confirmed by the LLM
  * ('high') — lib/llm/enrichment.ts only sends 'low' links to the model for
- * review, and merges its judgments back by URL. A link with no anchor text
- * (a bare URL) has nothing to match against, so it's always 'low'.
+ * review, and merges its judgments back by candidate index. A link with no
+ * anchor text (a bare URL) has nothing to match against, so it's always 'low'.
  */
 export function classifyLinks(links: ExtractedLink[]): ClassifiedLink[] {
   return links.map(classify)
 }
 
 function classify(link: ExtractedLink): ClassifiedLink {
-  const label = link.label?.toLowerCase().trim() ?? ''
+  const label = link.label?.trim() ?? ''
 
   if (!label) return { ...link, isCta: false, ctaConfidence: 'low' }
-  if (NON_CTA_KEYWORDS.some((kw) => label.includes(kw))) {
+  if (NON_CTA_PATTERN.test(label)) {
     return { ...link, isCta: false, ctaConfidence: 'high' }
   }
-  if (CTA_KEYWORDS.some((kw) => label.includes(kw))) {
+  if (CTA_PATTERN.test(label)) {
     return { ...link, isCta: true, ctaConfidence: 'high' }
   }
   return { ...link, isCta: false, ctaConfidence: 'low' }

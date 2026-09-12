@@ -75,6 +75,11 @@ describe('enrichMessage', () => {
     mockConsume.mockResolvedValue({ allowed: true, limit: null, used: 0, resetsAt: null })
     mockFindUnique.mockResolvedValue(baseMessage())
     mockEnrich.mockResolvedValue(LLM_RESULT)
+    // vi.clearAllMocks() clears call history but not a mock's configured
+    // implementation, so a test that does `mockUpdate.mockRejectedValue(...)`
+    // (not `...Once`) leaves every later test's update calls rejecting too
+    // unless something resets it back — this is that reset.
+    mockUpdate.mockResolvedValue(undefined)
   })
 
   it('wraps enrichment in an OTel span named llm.enrich_message', async () => {
@@ -248,6 +253,103 @@ describe('enrichMessage', () => {
 
     const [, , candidateLinks] = mockEnrich.mock.calls[0]
     expect(candidateLinks).toEqual([{ url: 'https://example.com/x', label: 'Learn about our story' }])
+  })
+
+  it('strips query string, fragment, and credentials from a candidate URL before sending it to the provider', async () => {
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [
+            {
+              url: 'https://user:pass@example.com/verify?token=super-secret-one-time-token&utm_source=campaign#section',
+              label: 'Verify',
+              isCta: false,
+              ctaConfidence: 'low',
+            },
+          ],
+          timestamps: [],
+        },
+      }),
+    )
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    const [, , candidateLinks] = mockEnrich.mock.calls[0]
+    expect(candidateLinks).toEqual([{ url: 'https://example.com/verify', label: 'Verify' }])
+  })
+
+  it('caps an excessively long candidate URL or label before sending it to the provider', async () => {
+    const hugeUrl = `https://example.com/${'a'.repeat(500)}`
+    const hugeLabel = 'x'.repeat(500)
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [{ url: hugeUrl, label: hugeLabel, isCta: false, ctaConfidence: 'low' }],
+          timestamps: [],
+        },
+      }),
+    )
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    const [, , candidateLinks] = mockEnrich.mock.calls[0]
+    expect(candidateLinks[0].url.length).toBeLessThanOrEqual(200)
+    expect(candidateLinks[0].label?.length).toBeLessThanOrEqual(100)
+  })
+
+  it('still merges the CTA judgment onto the original (unsanitized, untruncated) stored link', async () => {
+    const realUrl = 'https://example.com/verify?token=abc123'
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [{ url: realUrl, label: 'Verify', isCta: false, ctaConfidence: 'low' }],
+          timestamps: [],
+        },
+      }),
+    )
+    mockEnrich.mockResolvedValue({
+      categories: ['Security'],
+      ctaJudgments: [{ i: 0, isCta: true }],
+      timestamps: [],
+    })
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        categories: ['Security'],
+        metadata: {
+          links: [{ url: realUrl, label: 'Verify', isCta: true, ctaConfidence: 'high' }],
+          timestamps: [],
+        },
+      },
+    })
+  })
+
+  it('treats an empty categories result as a failure, refunding quota and not persisting', async () => {
+    const { CommercialProvider } = await import('@/lib/commercial/provider')
+    mockEnrich.mockResolvedValue({ categories: [], ctaJudgments: [], timestamps: [] })
+    const { enrichMessage } = await import('../enrichment')
+
+    await expect(enrichMessage('msg-1')).resolves.toBe(false)
+
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(CommercialProvider.quota.refund).toHaveBeenCalledWith('org-1', 'llm.enrichments', 1, expect.anything())
+  })
+
+  it('a retry after an empty-categories result re-attempts (does not skip as already-enriched)', async () => {
+    // Nothing was persisted for the first attempt, so categories stays [] —
+    // confirms the retry path actually re-invokes the provider rather than
+    // silently treating the empty first attempt as done.
+    mockEnrich.mockResolvedValueOnce({ categories: [], ctaJudgments: [], timestamps: [] })
+    const { enrichMessage } = await import('../enrichment')
+    await expect(enrichMessage('msg-1')).resolves.toBe(false)
+    expect(mockEnrich).toHaveBeenCalledTimes(1)
+
+    mockEnrich.mockResolvedValueOnce({ categories: ['Security'], ctaJudgments: [], timestamps: [] })
+    await expect(enrichMessage('msg-1')).resolves.toBe(true)
+    expect(mockEnrich).toHaveBeenCalledTimes(2)
   })
 
   it('merges a CTA judgment onto the matching stored link, promoting it to high confidence', async () => {

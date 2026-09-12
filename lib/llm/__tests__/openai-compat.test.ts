@@ -188,6 +188,22 @@ describe('OpenAICompatAdapter', () => {
     )
   })
 
+  it('throws even when the truncated content happens to be syntactically valid JSON, missing required fields', async () => {
+    // The model stopped generating right after closing `categories` — that's
+    // valid JSON on its own (JSON.parse would succeed and parseEnrichmentResult
+    // would silently default the missing ctaJudgments/timestamps), but it's
+    // still an incomplete answer to a truncated generation. The check must run
+    // unconditionally on finishReason, not only inside a JSON.parse catch.
+    mockCreate.mockResolvedValue({
+      choices: [{ finish_reason: 'length', message: { content: '{"categories":["Security"]}', refusal: null } }],
+    })
+
+    const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+    const adapter = new OpenAICompatAdapter('test-key', 'gpt-4o-mini')
+
+    await expect(adapter.enrich('Hi', 'Hello', [])).rejects.toThrow(/truncated/)
+  })
+
   it('does not warn on a clean successful response', async () => {
     mockCreate.mockResolvedValue({
       choices: [

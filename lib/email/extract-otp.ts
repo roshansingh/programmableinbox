@@ -35,7 +35,7 @@ const DIGIT_TOKEN = /^\d{4,10}\b/
 const BACKWARD_PATTERN = /([A-Za-z0-9]{4,10})\s+(?:is|was)\b\s+(?:your|the|my|a\b)?\s*$/i
 
 const DISQUALIFYING_PREFIX =
-  /\b(zip|postal|area|promo|coupon|discount|referral|tracking|country|error|status)\s*$/i
+  /\b(zip|postal|area|promo|coupon|discount|referral|tracking|country|error|status|source)\s*$/i
 const PREFIX_WINDOW = 20
 
 const FORWARD_WINDOW = 40
