@@ -370,7 +370,7 @@ export default function ApiKeysPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="bg-muted rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
+                      <div className="bg-background border border-border rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
                         {apiKey.prefix}
                       </div>
                       <div className="flex flex-wrap gap-2">

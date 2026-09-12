@@ -44,7 +44,7 @@ function CodeBlock({ code }: { code: string }) {
 
   return (
     <div className="relative">
-      <pre className="bg-muted rounded-md px-3 py-2.5 pr-10 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre">
+      <pre className="bg-background border border-border rounded-md px-3 py-2.5 pr-10 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre">
         {code}
       </pre>
       <button
