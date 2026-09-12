@@ -28,10 +28,18 @@ export type CandidateLink = { url: string; label?: string }
  * is `categories` (real semantic classification) plus `ctaJudgments`, one
  * per link in the `candidateLinks` it was given (the ones the heuristic in
  * lib/email/cta-heuristic.ts couldn't classify confidently).
+ *
+ * `ctaJudgments` references a candidate by its position (`i`) in the
+ * `candidateLinks` array the provider was given, not by echoing the URL
+ * back. Tracking links routinely run 200-400+ chars; asking the model to
+ * repeat up to MAX_CTA_CANDIDATES of them verbatim can blow the output
+ * token budget on nothing but URL characters and truncate the response
+ * (see providers/openai-compat.ts and providers/anthropic.ts for how a
+ * truncated response is surfaced rather than silently swallowed).
  */
 export type LlmEnrichmentResult = {
   categories: EmailCategory[]
-  ctaJudgments: Array<{ url: string; isCta: boolean }>
+  ctaJudgments: Array<{ i: number; isCta: boolean }>
   timestamps: string[]
 }
 
@@ -47,10 +55,10 @@ export const ENRICHMENT_JSON_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          url: { type: 'string' },
+          i: { type: 'integer' },
           isCta: { type: 'boolean' },
         },
-        required: ['url', 'isCta'],
+        required: ['i', 'isCta'],
       },
     },
     timestamps: {
@@ -77,9 +85,9 @@ export function parseEnrichmentResult(raw: unknown): LlmEnrichmentResult {
         )
       : [],
     ctaJudgments: Array.isArray(obj.ctaJudgments)
-      ? (obj.ctaJudgments as Array<{ url: unknown; isCta: unknown }>)
-          .filter((j) => typeof j?.url === 'string' && typeof j?.isCta === 'boolean')
-          .map((j) => ({ url: j.url as string, isCta: j.isCta as boolean }))
+      ? (obj.ctaJudgments as Array<{ i: unknown; isCta: unknown }>)
+          .filter((j) => typeof j?.i === 'number' && Number.isInteger(j.i) && typeof j?.isCta === 'boolean')
+          .map((j) => ({ i: j.i as number, isCta: j.isCta as boolean }))
       : [],
     timestamps: Array.isArray(obj.timestamps) ? (obj.timestamps as string[]) : [],
   }

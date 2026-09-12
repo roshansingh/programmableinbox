@@ -124,11 +124,15 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
     }
     // Only links the heuristic couldn't classify confidently go to the LLM —
     // see lib/email/cta-heuristic.ts. Capped so a marketing email with dozens
-    // of tracking links doesn't blow up the prompt.
+    // of tracking links doesn't blow up the prompt. Kept as the ClassifiedLink
+    // subset (not yet narrowed to {url, label}) so its array position doubles
+    // as the index the provider references in ctaJudgments — see lib/llm/types.ts.
     const candidateLinks = storedMetadata.links
       .filter((link) => link.ctaConfidence === 'low')
       .slice(0, MAX_CTA_CANDIDATES)
-      .map((link) => (link.label ? { url: link.url, label: link.label } : { url: link.url }))
+    const candidateLinksForPrompt = candidateLinks.map((link) =>
+      link.label ? { url: link.url, label: link.label } : { url: link.url },
+    )
 
     logger.info(
       { messageId, candidateLinkCount: candidateLinks.length },
@@ -142,16 +146,18 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       const result = await provider.enrich(
         message.subject,
         message.bodyText ?? message.text,
-        candidateLinks,
+        candidateLinksForPrompt,
       )
       logger.info({ messageId, categories: result.categories }, '[enrichMessage] done')
 
-      // Patch isCta/ctaConfidence onto the matching stored link by URL —
-      // never add, remove, or reorder links here. extractedOtp isn't touched
-      // at all: it was written once, at ingestion, and this step never
-      // revisits it.
+      // Patch isCta/ctaConfidence onto the matching stored link by candidate
+      // index — never add, remove, or reorder links here. extractedOtp isn't
+      // touched at all: it was written once, at ingestion, and this step
+      // never revisits it.
       const mergedLinks = storedMetadata.links.map((link) => {
-        const judgment = result.ctaJudgments.find((j) => j.url === link.url)
+        const candidateIndex = candidateLinks.findIndex((c) => c.url === link.url)
+        if (candidateIndex === -1) return link
+        const judgment = result.ctaJudgments.find((j) => j.i === candidateIndex)
         return judgment ? { ...link, isCta: judgment.isCta, ctaConfidence: 'high' as const } : link
       })
 

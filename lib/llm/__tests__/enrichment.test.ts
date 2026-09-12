@@ -261,7 +261,7 @@ describe('enrichMessage', () => {
     )
     mockEnrich.mockResolvedValue({
       categories: ['Primary'],
-      ctaJudgments: [{ url: 'https://example.com/x', isCta: true }],
+      ctaJudgments: [{ i: 0, isCta: true }],
       timestamps: [],
     })
     const { enrichMessage } = await import('../enrichment')
@@ -273,6 +273,48 @@ describe('enrichMessage', () => {
         categories: ['Primary'],
         metadata: {
           links: [{ url: 'https://example.com/x', label: 'Learn about our story', isCta: true, ctaConfidence: 'high' }],
+          timestamps: [],
+        },
+      },
+    })
+  })
+
+  it('merges CTA judgments by candidate position, not by array order in storedMetadata.links', async () => {
+    // A high-confidence link sits before the low-confidence ones in storage,
+    // so the candidate list sent to the provider (only the low-confidence
+    // ones) has a different index order than storedMetadata.links — proves
+    // the merge keys off candidateLinks' own position, not a shared index.
+    mockFindUnique.mockResolvedValue(
+      baseMessage({
+        metadata: {
+          links: [
+            { url: 'https://example.com/verify', label: 'Verify', isCta: true, ctaConfidence: 'high' },
+            { url: 'https://example.com/a', label: 'A', isCta: false, ctaConfidence: 'low' },
+            { url: 'https://example.com/b', label: 'B', isCta: false, ctaConfidence: 'low' },
+          ],
+          timestamps: [],
+        },
+      }),
+    )
+    // candidateLinks (low-confidence only) is [a, b] — index 0 is "a", index 1 is "b".
+    mockEnrich.mockResolvedValue({
+      categories: ['Primary'],
+      ctaJudgments: [{ i: 1, isCta: true }],
+      timestamps: [],
+    })
+    const { enrichMessage } = await import('../enrichment')
+    await enrichMessage('msg-1')
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: {
+        categories: ['Primary'],
+        metadata: {
+          links: [
+            { url: 'https://example.com/verify', label: 'Verify', isCta: true, ctaConfidence: 'high' },
+            { url: 'https://example.com/a', label: 'A', isCta: false, ctaConfidence: 'low' },
+            { url: 'https://example.com/b', label: 'B', isCta: true, ctaConfidence: 'high' },
+          ],
           timestamps: [],
         },
       },

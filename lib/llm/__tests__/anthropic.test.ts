@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockCreate = vi.fn()
+const mockLoggerError = vi.fn()
 
 vi.mock('@anthropic-ai/sdk', () => {
   return {
@@ -9,22 +10,27 @@ vi.mock('@anthropic-ai/sdk', () => {
     }),
   }
 })
+vi.mock('@/lib/logger', () => ({
+  default: { info: vi.fn(), warn: vi.fn(), error: mockLoggerError },
+}))
 
 describe('AnthropicAdapter', () => {
   beforeEach(() => {
     vi.resetModules()
     mockCreate.mockReset()
+    mockLoggerError.mockReset()
   })
 
   it('returns enrichment result from tool_use response', async () => {
     mockCreate.mockResolvedValue({
+      stop_reason: 'tool_use',
       content: [
         {
           type: 'tool_use',
           name: 'enrich_email',
           input: {
             categories: ['Security'],
-            ctaJudgments: [{ url: 'https://example.com/verify', isCta: true }],
+            ctaJudgments: [{ i: 0, isCta: true }],
             timestamps: [],
           },
         },
@@ -38,11 +44,12 @@ describe('AnthropicAdapter', () => {
     ])
 
     expect(result.categories).toEqual(['Security'])
-    expect(result.ctaJudgments).toEqual([{ url: 'https://example.com/verify', isCta: true }])
+    expect(result.ctaJudgments).toEqual([{ i: 0, isCta: true }])
   })
 
-  it('includes the candidate links in the user message sent to the model', async () => {
+  it('includes the candidate links, numbered by index, in the user message sent to the model', async () => {
     mockCreate.mockResolvedValue({
+      stop_reason: 'tool_use',
       content: [{ type: 'tool_use', name: 'enrich_email', input: { categories: [], ctaJudgments: [], timestamps: [] } }],
     })
 
@@ -51,8 +58,28 @@ describe('AnthropicAdapter', () => {
     await adapter.enrich('Hi', 'Hello', [{ url: 'https://example.com/x', label: 'Learn more' }])
 
     const call = mockCreate.mock.calls[0][0]
-    expect(call.messages[0].content).toContain('https://example.com/x')
+    expect(call.messages[0].content).toContain('0: https://example.com/x')
     expect(call.messages[0].content).toContain('Learn more')
+  })
+
+  it('throws when the response was truncated before completing the tool call (stop_reason: max_tokens)', async () => {
+    mockCreate.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'tool_use', name: 'enrich_email', input: { categories: ['Security'] } }],
+    })
+
+    const { AnthropicAdapter } = await import('../providers/anthropic')
+    const adapter = new AnthropicAdapter('test-key')
+
+    // Same reasoning as OpenAICompatAdapter: a partial tool call could be
+    // silently missing ctaJudgments entries near the end with no signal that
+    // anything was dropped — the caller must refund quota and retry, not
+    // persist a partial result as if it were complete.
+    await expect(adapter.enrich('Hi', 'Hello', [])).rejects.toThrow(/truncated/)
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.objectContaining({ stopReason: 'max_tokens' }),
+      expect.stringContaining('truncated'),
+    )
   })
 
   it('returns empty result when no tool_use block in response', async () => {
