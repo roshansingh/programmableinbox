@@ -714,21 +714,21 @@ describe('Webhook Email Processing — Integration', () => {
      * write time rather than during enrichment, because enrichment is LLM-gated
      * and optional — "searchable only once enriched" would be an invisible gap.
      */
+    async function storeAndCaptureCreateData(email: object): Promise<Record<string, unknown>> {
+      const { POST } = await loadRoute()
+      const inbox = { id: 'inbox_sync', email: 'inbox@example.com', organizationId: 'org_1' }
+      inboxFindManyMock.mockResolvedValueOnce([inbox])
+      inboxFindManyMock.mockResolvedValueOnce([inbox])
+      getEmailMock.mockResolvedValueOnce({ data: email })
+      messageCreateMock.mockResolvedValueOnce({ id: 'msg_1', organizationId: 'org_1' })
+      dispatchAutomationsForEmailMock.mockResolvedValue([])
+
+      await POST(makeWebhookRequest(emailReceivedBody('em_body_text')) as any)
+
+      return (messageCreateMock.mock.calls[0][0] as { data: Record<string, unknown> }).data
+    }
+
     describe('bodyText derivation', () => {
-      async function storeAndCaptureCreateData(email: object): Promise<Record<string, unknown>> {
-        const { POST } = await loadRoute()
-        const inbox = { id: 'inbox_sync', email: 'inbox@example.com', organizationId: 'org_1' }
-        inboxFindManyMock.mockResolvedValueOnce([inbox])
-        inboxFindManyMock.mockResolvedValueOnce([inbox])
-        getEmailMock.mockResolvedValueOnce({ data: email })
-        messageCreateMock.mockResolvedValueOnce({ id: 'msg_1', organizationId: 'org_1' })
-        dispatchAutomationsForEmailMock.mockResolvedValue([])
-
-        await POST(makeWebhookRequest(emailReceivedBody('em_body_text')) as any)
-
-        return (messageCreateMock.mock.calls[0][0] as { data: Record<string, unknown> }).data
-      }
-
       it('stores the sender text part as bodyText when one was supplied', async () => {
         const data = await storeAndCaptureCreateData(
           makeResendEmail({ to: ['inbox@example.com'], text: 'the plain part' }),
@@ -755,6 +755,40 @@ describe('Webhook Email Processing — Integration', () => {
         )
 
         expect(data.bodyText).toBeNull()
+      })
+    })
+
+    describe('deterministic OTP and link extraction', () => {
+      it('stores an extractedOtp derived from the body', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({ to: ['inbox@example.com'], text: 'Your verification code is: 483920' }),
+        )
+
+        expect(data.extractedOtp).toBe('483920')
+      })
+
+      it('stores metadata.links extracted and classified from the HTML', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({
+            to: ['inbox@example.com'],
+            text: '',
+            html: '<a href="https://example.com/verify">Verify Email</a>',
+          }),
+        )
+
+        expect(data.metadata).toEqual({
+          links: [{ url: 'https://example.com/verify', label: 'Verify Email', isCta: true, ctaConfidence: 'high' }],
+          timestamps: [],
+        })
+      })
+
+      it('stores an empty links array and null extractedOtp when there is nothing to extract', async () => {
+        const data = await storeAndCaptureCreateData(
+          makeResendEmail({ to: ['inbox@example.com'], text: 'Thanks for your order.', html: '' }),
+        )
+
+        expect(data.extractedOtp).toBeNull()
+        expect(data.metadata).toEqual({ links: [], timestamps: [] })
       })
     })
 
