@@ -107,10 +107,10 @@ cat >"$ENV_FILE" <<EOF
 IMAGE_TAG=${IMAGE_TAG}
 APP_PORT=${APP_PORT}
 POSTGRES_PASSWORD=$(openssl rand -hex 16)
-JWT_SECRET=$(openssl rand -base64 32)
-WEBHOOK_SECRET=$(openssl rand -hex 16)
-AUTH_RESEND_API_KEY=re_placeholder
-EMAIL_INBOX_DOMAINS=${TEST_DOMAIN}
+AUTH_JWT_SECRET=$(openssl rand -base64 32)
+RESEND_WEBHOOK_SECRET=$(openssl rand -hex 16)
+RESEND_API_KEY=re_placeholder
+EMAIL_INBOX_ALLOWED_DOMAINS=${TEST_DOMAIN}
 EOF
 
 log "Pulling ghcr.io/roshansingh/programmableinbox-ce:${IMAGE_TAG}"
@@ -177,7 +177,9 @@ adopt_credential() {
   local body="$1"
   local token
   token="$(echo "$body" | jq -r '.data.token // empty')"
-  [ -n "$token" ] && AUTH_HEADER="$token"
+  if [ -n "$token" ]; then
+    AUTH_HEADER="$token"
+  fi
 }
 
 log "Registering ${TEST_EMAIL}"
