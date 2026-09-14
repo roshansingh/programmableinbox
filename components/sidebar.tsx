@@ -36,7 +36,7 @@ export function Sidebar() {
     ...BASE_NAVIGATION,
     ...(plan ? [BILLING_ITEM] : []),
     SETTINGS_ITEM,
-    SUPPORT_ITEM,
+    ...(plan ? [SUPPORT_ITEM] : []),
   ]
 
   return (
