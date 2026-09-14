@@ -15,6 +15,7 @@ import logger from '@/lib/logger'
  * re-exports this same map for its own (EE-internal) callers.
  *
  * Names and fire points, from the issue's phasing:
+ *   - user_signed_up          app/api/app/auth/register/route.ts POST
  *   - inbox_created           app/api/app/emailInbox/route.ts POST
  *   - second_inbox_created    same path, when the org's live count reaches 2
  *   - message_viewed          the isRead PATCH branch, messages/[messageId]
@@ -27,6 +28,7 @@ import logger from '@/lib/logger'
  *   - mcp_tool_called         every MCP tool invocation, app/api/mcp
  */
 export const PRODUCT_ANALYTICS_EVENTS = {
+  userSignedUp: 'user_signed_up',
   inboxCreated: 'inbox_created',
   secondInboxCreated: 'second_inbox_created',
   messageViewed: 'message_viewed',
@@ -90,7 +92,7 @@ export function resetProductAnalyticsCapture(): void {
  * No-op — no `posthog-node` import anywhere in this module, no network
  * activity — whenever nothing is registered, which is true by construction
  * on a FOSS build and true at runtime on an EE build with
- * `ENABLE_PRODUCT_ANALYTICS` off, since the registered implementation itself
+ * `PRODUCT_ANALYTICS_ENABLED` off, since the registered implementation itself
  * checks that flag on every call.
  *
  * Best-effort and never throws, independent of whatever guarantee the

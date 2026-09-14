@@ -46,7 +46,7 @@ export class Secret {
  * `min` characters, boxed in a {@link Secret}.
  *
  * The failure message names the constraint but never echoes the value — a
- * validation error on `JWT_SECRET` must not print the secret.
+ * validation error on `AUTH_JWT_SECRET` must not print the secret.
  */
 export function zSecret(opts: { min?: number } = {}) {
   const min = opts.min ?? 1

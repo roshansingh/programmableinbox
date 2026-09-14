@@ -8,7 +8,7 @@ title: Core Concepts
 ## Email inboxes
 
 An **email inbox** is an address you provision on a domain the deployment
-controls (`EMAIL_INBOX_DOMAINS`) — e.g. `qa@inbox.example.com`. Creating one
+controls (`EMAIL_INBOX_ALLOWED_DOMAINS`) — e.g. `qa@inbox.example.com`. Creating one
 through the dashboard, API, or MCP reserves the address; mail sent to it is
 received via webhook, stored, and made available for reading, search, and
 automations. Deleting an inbox soft-deletes its messages, but the address

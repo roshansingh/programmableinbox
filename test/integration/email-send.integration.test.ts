@@ -188,6 +188,54 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(row.bodyText).toBe('the plain part')
   })
 
+  /**
+   * Same deterministic extraction as the webhook ingest path (issue: PR #163
+   * review — outbound sends previously only set bodyText, leaving OTP/link
+   * metadata missing for sent mail).
+   */
+  it('stores extractedOtp and classified metadata.links for a sent message', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    resend.send.mockResolvedValue({ data: { id: 'resend-sent-otp' }, error: null })
+
+    await POST(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
+        method: 'POST', credential: token,
+        body: {
+          to: ['dest@test.dev'],
+          subject: 'Your code',
+          html: '<p>Your verification code is 483920.</p><p><a href="https://example.com/verify">Verify Email</a></p>',
+        },
+      }),
+      params({ id: inbox.id })
+    )
+
+    const row = await prisma.emailMessage.findFirstOrThrow({ where: { externalId: 'resend-sent-otp' } })
+    expect(row.extractedOtp).toBe('483920')
+    expect(row.metadata).toEqual({
+      links: [{ url: 'https://example.com/verify', label: 'Verify Email', isCta: true, ctaConfidence: 'high' }],
+      timestamps: [],
+    })
+  })
+
+  it('stores an empty links array and null extractedOtp when there is nothing to extract', async () => {
+    const { org, user, token } = await createOrgWithUser()
+    const inbox = await seedInbox(org.id, user.id)
+    resend.send.mockResolvedValue({ data: { id: 'resend-sent-plain-otp' }, error: null })
+
+    await POST(
+      jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
+        method: 'POST', credential: token,
+        body: { to: ['dest@test.dev'], subject: 'Hi', text: 'just saying hello' },
+      }),
+      params({ id: inbox.id })
+    )
+
+    const row = await prisma.emailMessage.findFirstOrThrow({ where: { externalId: 'resend-sent-plain-otp' } })
+    expect(row.extractedOtp).toBeNull()
+    expect(row.metadata).toEqual({ links: [], timestamps: [] })
+  })
+
   it('joins an existing thread when inReplyTo matches a prior message', async () => {
     const { org, user, token } = await createOrgWithUser()
     const inbox = await seedInbox(org.id, user.id)

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
-import { Inbox, Mail, Settings, Key, Workflow, CreditCard } from 'lucide-react'
+import { Inbox, Mail, Settings, Key, Workflow, CreditCard, LifeBuoy } from 'lucide-react'
 import { useAuth } from "@/components/auth-provider"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
@@ -17,12 +17,14 @@ const BASE_NAVIGATION = [
 const SETTINGS_ITEM = { name: "Settings", icon: Settings, href: "/settings", current: false }
 
 /**
- * A plan is present exactly when `USE_COMMERCIAL=true` and Stripe is
+ * A plan is present exactly when `COMMERCIAL_ENABLED=true` and Stripe is
  * configured — `assertConfig()` refuses to boot otherwise (see
  * docs/architecture/commercial-layer.md) — so this one check on `plan` is the
  * whole gate. No separate config flag is needed.
  */
 const BILLING_ITEM = { name: "Billing", icon: CreditCard, href: "/billing", current: false }
+
+const SUPPORT_ITEM = { name: "Support", icon: LifeBuoy, href: "/support", current: false }
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -30,7 +32,12 @@ export function Sidebar() {
   const currentOrg = user?.organizations?.[0]
   const orgName = currentOrg?.name ?? "Organization"
   const orgInitial = orgName.charAt(0).toUpperCase()
-  const navigation = [...BASE_NAVIGATION, ...(plan ? [BILLING_ITEM] : []), SETTINGS_ITEM]
+  const navigation = [
+    ...BASE_NAVIGATION,
+    ...(plan ? [BILLING_ITEM] : []),
+    SETTINGS_ITEM,
+    ...(plan ? [SUPPORT_ITEM] : []),
+  ]
 
   return (
     <div className="hidden lg:flex flex-col h-screen w-64 bg-sidebar border-r border-sidebar-border">

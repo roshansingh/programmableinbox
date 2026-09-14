@@ -5,7 +5,7 @@
 `app/api/webhooks/email/route.ts` receives `email.received` events from Resend.
 
 - **Validation**: `x-webhook-signature` + `x-webhook-timestamp` headers, checked against
-  `WEBHOOK_SECRET` with `crypto.timingSafeEqual`, inside a 5-minute replay window.
+  `RESEND_WEBHOOK_SECRET` with `crypto.timingSafeEqual`, inside a 5-minute replay window.
 - **Threading** (`determineThreading`): first tries to match `In-Reply-To` / `References`
   headers against a known `EmailMessage.messageId`; if that fails, falls back to a subject match
   (`Re:`/`Fwd:` stripped) within the same inbox. A new thread's `threadId` is the new message's

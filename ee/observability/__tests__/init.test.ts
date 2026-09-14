@@ -11,7 +11,7 @@ vi.mock('@/lib/logger', () => ({
 
 describe('initializeObservability', () => {
   withConfigEnv({
-    ENABLE_OBSERVABILITY: 'true',
+    OBSERVABILITY_ENABLED: 'true',
     OTEL_EXPORTER_OTLP_ENDPOINT: 'https://otlp-gateway.example.com/otlp',
     OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic dGVzdDp0ZXN0',
   })
@@ -38,7 +38,7 @@ describe('initializeObservability', () => {
   })
 
   it('does nothing when the flag is off', async () => {
-    setConfigEnv({ ENABLE_OBSERVABILITY: 'false' })
+    setConfigEnv({ OBSERVABILITY_ENABLED: 'false' })
     const { initializeObservability } = await import('../init')
     initializeObservability()
 

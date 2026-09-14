@@ -42,13 +42,13 @@ indefinitely by submitting wrong passwords from a single host.
 
 The production ingress (Caddy) *appends* the real client IP to any inbound `X-Forwarded-For`, so
 the chain is `[...anything a client forged..., real IP]`. The limiter reads the entry at
-`length − TRUSTED_PROXY_COUNT` from the **right**, never `split(',')[0]` — the leftmost entry is
+`length − AUTH_TRUSTED_PROXY_COUNT` from the **right**, never `split(',')[0]` — the leftmost entry is
 whatever the client sent and is trivially forgeable into a fresh rate-limit budget per request.
 IPv6 addresses bucket by `/64`, since residential ISPs commonly hand out a whole `/64` to one
 customer.
 
 When no trustworthy IP can be derived — header absent, chain shorter than expected, or
-`TRUSTED_PROXY_COUNT=0` — per-IP limiting is **skipped** rather than falling back to a shared
+`AUTH_TRUSTED_PROXY_COUNT=0` — per-IP limiting is **skipped** rather than falling back to a shared
 bucket. A shared `unknown` bucket would put every user behind a proxy-less deployment (including
 local dev) into one login budget together, which is a self-inflicted outage, not a conservative
 default. Per-account limiting and lockout are unaffected either way.
@@ -64,12 +64,12 @@ as a wrong password on a real one.
 
 ## Email verification
 
-Off unless `ENABLE_EMAIL_VERIFICATION=true`. When it's on, signup still returns a session token,
+Off unless `EMAIL_VERIFICATION_ENABLED=true`. When it's on, signup still returns a session token,
 but every `withUser` route 403s with `Email verification required` until the address is proven —
 a soft gate on API access, not a block on logging in.
 
 - **The verification token is not a session token**, by three independent checks: it's signed
-  with a dedicated key (`EMAIL_LINK_SECRET`, never the session-signing key), it carries a
+  with a dedicated key (`EMAIL_LINK_SIGNING_SECRET`, never the session-signing key), it carries a
   `{ purpose: 'email_verify', userId, email }` claim a session token doesn't have, and
   `verifyToken` rejects *any* token carrying a `purpose` claim at all when checking a session.
   This separation matters more here than it might elsewhere — a verification link travels by

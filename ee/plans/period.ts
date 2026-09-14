@@ -40,7 +40,7 @@ type SubscriptionPeriod = {
  * Everything else falls back to the calendar month:
  *
  * - **No subscription row** — an organization resolves to `free`, which has no
- *   anniversary. This is also what lets `USE_COMMERCIAL` be switched on
+ *   anniversary. This is also what lets `COMMERCIAL_ENABLED` be switched on
  *   without first backfilling a subscription for every existing organization.
  *
  * - **An expired subscription window** — if a renewal was never recorded (a

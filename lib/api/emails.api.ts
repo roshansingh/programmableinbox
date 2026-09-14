@@ -65,7 +65,11 @@ export interface EmailMessage {
   categories: string[]
   extractedOtp: string | null
   metadata: {
-    links: Array<{ url: string; label?: string; isCta: boolean }>
+    // `ctaConfidence` is optional: messages enriched before this PR have
+    // metadata.links entries in the pre-existing stored shape
+    // (`{ url, label?, isCta }`), and there is no backfill/migration for
+    // them — see lib/llm/types.ts's old EnrichmentMetadata.
+    links: Array<{ url: string; label?: string; isCta: boolean; ctaConfidence?: 'high' | 'low' }>
     timestamps: string[]
   } | null
   createdAt: string

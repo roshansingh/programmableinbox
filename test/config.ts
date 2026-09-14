@@ -13,13 +13,13 @@ import { resetConfigCache } from '@/lib/config'
  * `const originalEnv = { ...process.env }` snapshots in this repo used to be
  * exposed to. Calling this is what makes env-dependent tests order-independent.
  *
- * The valid baseline (`DATABASE_URL`, `JWT_SECRET`, …) comes from `configEnv`
+ * The valid baseline (`DATABASE_URL`, `AUTH_JWT_SECRET`, …) comes from `configEnv`
  * in `vitest.config.ts`, so overrides here only need to name what the suite
  * actually varies. Pass `undefined` to unset a variable.
  *
  * @example
  * describe('async mode', () => {
- *   withConfigEnv({ ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true' })
+ *   withConfigEnv({ ASYNC_WEBHOOK_PROCESSING_ENABLED: 'true' })
  *   // ...
  * })
  */

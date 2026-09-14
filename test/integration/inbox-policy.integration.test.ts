@@ -16,7 +16,7 @@ import { seedInbox } from './helpers/factories'
 import { jsonRequest, params } from './helpers/request'
 import { resetConfigCache } from '@/lib/config'
 
-const CONFIGURED = process.env.EMAIL_INBOX_DOMAINS
+const CONFIGURED = process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 
 function createInbox(
   credential: string,
@@ -50,7 +50,7 @@ async function inboxCount(email: string) {
 }
 
 afterEach(() => {
-  process.env.EMAIL_INBOX_DOMAINS = CONFIGURED
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = CONFIGURED
   // config memoizes per domain per process; restoring the env is only half the
   // job without dropping the memo.
   resetConfigCache()
@@ -85,13 +85,13 @@ describe('POST /api/app/emailInbox — domain allowlist', () => {
   })
 
   /**
-   * EMAIL_INBOX_DOMAINS is required and asserted at boot, so this is a degraded
+   * EMAIL_INBOX_ALLOWED_DOMAINS is required and asserted at boot, so this is a degraded
    * state a running server cannot normally be in. The property that still
    * matters against a real database is that it writes nothing — never that it
    * falls back to accepting the address.
    */
-  it('writes nothing when EMAIL_INBOX_DOMAINS is unset', async () => {
-    delete process.env.EMAIL_INBOX_DOMAINS
+  it('writes nothing when EMAIL_INBOX_ALLOWED_DOMAINS is unset', async () => {
+    delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
     resetConfigCache()
     const { token, org } = await createOrgWithUser()
 

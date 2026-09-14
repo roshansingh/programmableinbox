@@ -12,10 +12,10 @@ import { parseDomain, resetConfigCache, ConfigError } from '@/lib/config'
  * fallback" failure the config contract exists to prevent.
  */
 const VARS = [
-  'ENABLE_MCP',
+  'MCP_ENABLED',
   'MCP_ALLOWED_ORIGINS',
-  'MCP_RATE_LIMIT_MAX',
-  'MCP_RATE_LIMIT_WINDOW_S',
+  'MCP_RATE_LIMIT_MAX_REQUESTS',
+  'MCP_RATE_LIMIT_WINDOW_SECONDS',
 ] as const
 
 const ORIGINAL = Object.fromEntries(VARS.map((name) => [name, process.env[name]]))
@@ -140,9 +140,9 @@ describe('mcp config domain', () => {
   describe('the rest of the domain', () => {
     it('reads the flag and the limiter bounds', () => {
       const config = withEnv({
-        ENABLE_MCP: 'true',
-        MCP_RATE_LIMIT_MAX: '7',
-        MCP_RATE_LIMIT_WINDOW_S: '30',
+        MCP_ENABLED: 'true',
+        MCP_RATE_LIMIT_MAX_REQUESTS: '7',
+        MCP_RATE_LIMIT_WINDOW_SECONDS: '30',
       })
       expect(config.enabled).toBe(true)
       expect(config.rateLimitMax).toBe(7)
@@ -150,12 +150,12 @@ describe('mcp config domain', () => {
     })
 
     it('throws on a malformed flag rather than reading it as off', () => {
-      expect(() => withEnv({ ENABLE_MCP: 'yes-please' })).toThrow(ConfigError)
+      expect(() => withEnv({ MCP_ENABLED: 'yes-please' })).toThrow(ConfigError)
     })
 
     it('throws on a non-integer limit rather than falling back to the default', () => {
-      expect(() => withEnv({ MCP_RATE_LIMIT_MAX: 'abc' })).toThrow(ConfigError)
-      expect(() => withEnv({ MCP_RATE_LIMIT_WINDOW_S: '0' })).toThrow(ConfigError)
+      expect(() => withEnv({ MCP_RATE_LIMIT_MAX_REQUESTS: 'abc' })).toThrow(ConfigError)
+      expect(() => withEnv({ MCP_RATE_LIMIT_WINDOW_SECONDS: '0' })).toThrow(ConfigError)
     })
   })
 })

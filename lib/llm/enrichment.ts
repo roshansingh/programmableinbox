@@ -3,8 +3,49 @@ import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import logger from '@/lib/logger'
 import { getProvider } from './factory'
+import type { EnrichmentMetadata, CandidateLink } from './types'
+import type { ClassifiedLink } from '@/lib/email/cta-heuristic'
 
 const tracer = trace.getTracer('programmableinbox.llm')
+
+/** How many low-confidence links to send the LLM for CTA review per message. */
+const MAX_CTA_CANDIDATES = 10
+/** Caps on what a single candidate link contributes to the prompt (see sanitizeCandidateForPrompt). */
+const MAX_CANDIDATE_URL_LENGTH = 200
+const MAX_CANDIDATE_LABEL_LENGTH = 100
+
+/**
+ * Strips query string, fragment, and any userinfo before a candidate link's
+ * URL leaves the process for the LLM prompt, and caps both URL and label
+ * length. CTA classification only needs the origin/path/label; the query
+ * string is exactly where a tracking or one-time-token value would live
+ * (bodyText already omits hrefs entirely, for the same reason — see
+ * lib/email/extract-body-text.ts), so sending it verbatim to a third-party
+ * provider would newly disclose it. The length caps guard against a single
+ * pathological label/URL (unbounded anchor text, a huge tracking path)
+ * blowing up the prompt across up to MAX_CTA_CANDIDATES links. The
+ * *original*, untruncated link (from `candidateLinks`, not this function's
+ * output) is what the index-based merge in enrichMessageInner matches
+ * against — never this sanitized copy.
+ */
+function sanitizeCandidateForPrompt(link: ClassifiedLink): CandidateLink {
+  let url = link.url
+  try {
+    const parsed = new URL(link.url)
+    parsed.username = ''
+    parsed.password = ''
+    parsed.search = ''
+    parsed.hash = ''
+    url = parsed.toString()
+  } catch {
+    // extractLinks (lib/email/extract-links.ts) only ever stores a URL that
+    // already parsed successfully, so this is unreachable in practice — but
+    // never forward an unparseable value to the prompt unsanitized.
+  }
+  url = url.slice(0, MAX_CANDIDATE_URL_LENGTH)
+  const label = link.label?.slice(0, MAX_CANDIDATE_LABEL_LENGTH)
+  return label ? { url, label } : { url }
+}
 
 /**
  * Best-effort LLM enrichment. Never throws (so it can't fail ingestion), but
@@ -52,7 +93,15 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
   try {
     const message = await prisma.emailMessage.findUnique({
       where: { id: messageId },
-      select: { id: true, subject: true, text: true, bodyText: true, metadata: true, organizationId: true },
+      select: {
+        id: true,
+        subject: true,
+        text: true,
+        bodyText: true,
+        categories: true,
+        metadata: true,
+        organizationId: true,
+      },
     })
     if (!message) {
       logger.info({ messageId }, '[enrichMessage] skip: message not found')
@@ -71,7 +120,14 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    if (message.metadata !== null) {
+    // categories is written only by this step — deterministic extraction,
+    // wherever a message row is created (app/api/webhooks/email/route.ts for
+    // inbound, app/api/app/emailInbox/[id]/send/route.ts for outbound), never
+    // touches it — so a non-empty array is an accurate "the LLM already
+    // looked at this" signal. `metadata` can no longer be used for this:
+    // every EmailMessage creation path now populates it with
+    // deterministically-extracted links, for every plan.
+    if (message.categories.length > 0) {
       logger.info({ messageId }, '[enrichMessage] skip: already enriched')
       return true
     }
@@ -95,29 +151,77 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       return true
     }
 
-    logger.info({ messageId }, '[enrichMessage] calling provider.enrich')
+    const storedMetadata: EnrichmentMetadata = {
+      links: Array.isArray((message.metadata as { links?: unknown })?.links)
+        ? ((message.metadata as unknown as EnrichmentMetadata).links)
+        : [],
+      timestamps: Array.isArray((message.metadata as { timestamps?: unknown })?.timestamps)
+        ? ((message.metadata as unknown as EnrichmentMetadata).timestamps)
+        : [],
+    }
+    // Only links the heuristic couldn't classify confidently go to the LLM —
+    // see lib/email/cta-heuristic.ts. Capped so a marketing email with dozens
+    // of tracking links doesn't blow up the prompt. Kept as the ClassifiedLink
+    // subset (not yet narrowed to {url, label}) so its array position doubles
+    // as the index the provider references in ctaJudgments — see lib/llm/types.ts.
+    const candidateLinks = storedMetadata.links
+      .filter((link) => link.ctaConfidence === 'low')
+      .slice(0, MAX_CTA_CANDIDATES)
+    const candidateLinksForPrompt = candidateLinks.map(sanitizeCandidateForPrompt)
+
+    logger.info(
+      { messageId, candidateLinkCount: candidateLinks.length },
+      '[enrichMessage] calling provider.enrich',
+    )
     try {
       // `text` is the raw sender-provided plain-text MIME part and is empty
       // for HTML-only mail; `bodyText` is derived at ingestion (route.ts) and
       // falls back to HTML-extracted text in that case, so it's what actually
-      // contains content like an OTP for those messages.
-      const result = await provider.enrich(message.subject, message.bodyText ?? message.text)
-      logger.info(
-        { messageId, categories: result.categories, otp: result.extractedOtp },
-        '[enrichMessage] done',
+      // contains content for those messages.
+      const result = await provider.enrich(
+        message.subject,
+        message.bodyText ?? message.text,
+        candidateLinksForPrompt,
       )
+
+      // The system prompt requires "Always include at least one" category
+      // (lib/llm/prompt.ts), so an empty array here is never a legitimate
+      // answer — it's the adapters' shared fallback for a refusal, a missing
+      // tool_use block, or a non-length parse failure (see providers/*.ts).
+      // Persisting it would be indistinguishable from a genuine "checked and
+      // found nothing", permanently marking this message settled — with the
+      // categories.length > 0 check above then unable to tell a real prior
+      // attempt apart from one that never ran, so a retry (e.g. after this
+      // update succeeds but the caller's enrichedAt write fails) would bill
+      // the provider again. Throw instead, so this goes through the same
+      // refund-and-retry path as a transient provider error.
+      if (result.categories.length === 0) {
+        throw new Error('[enrichMessage] provider returned no categories')
+      }
+      logger.info({ messageId, categories: result.categories }, '[enrichMessage] done')
+
+      // Patch isCta/ctaConfidence onto the matching stored link by candidate
+      // index — never add, remove, or reorder links here. extractedOtp isn't
+      // touched at all: it was written once, at ingestion, and this step
+      // never revisits it.
+      const mergedLinks = storedMetadata.links.map((link) => {
+        const candidateIndex = candidateLinks.findIndex((c) => c.url === link.url)
+        if (candidateIndex === -1) return link
+        const judgment = result.ctaJudgments.find((j) => j.i === candidateIndex)
+        return judgment ? { ...link, isCta: judgment.isCta, ctaConfidence: 'high' as const } : link
+      })
+
       await prisma.emailMessage.update({
         where: { id: messageId },
         data: {
           categories: result.categories,
-          extractedOtp: result.extractedOtp ?? null,
-          metadata: result.metadata,
+          metadata: { links: mergedLinks, timestamps: result.timestamps },
         },
       })
     } catch (error) {
       // The unit isn't earned until the result is actually persisted: if the
-      // provider call succeeds but the update below fails, metadata stays
-      // null, so a retry would call the (billable) provider again for the
+      // provider call succeeds but the update below fails, categories stays
+      // empty, so a retry would call the (billable) provider again for the
       // same message unless this refunds the first attempt too.
       await CommercialProvider.quota.refund(message.organizationId, 'llm.enrichments', 1, plan)
       throw error

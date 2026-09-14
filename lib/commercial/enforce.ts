@@ -38,7 +38,7 @@ export type PlanDenial = {
  *   against a table it will never restrict.
  *
  * - **Caps gate creation only.** This is a create-time predicate, never a
- *   reconciler: an organization already over its limit when `USE_COMMERCIAL`
+ *   reconciler: an organization already over its limit when `COMMERCIAL_ENABLED`
  *   is switched on keeps every existing resource working and visible, and only
  *   the next create is refused.
  *

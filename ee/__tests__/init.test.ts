@@ -18,9 +18,9 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('initializeCommercialPlans', () => {
   withConfigEnv({
-    USE_COMMERCIAL: 'true',
-    STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
-    STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+    COMMERCIAL_ENABLED: 'true',
+    STRIPE_API_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+    STRIPE_WEBHOOK_SIGNING_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
   })
 
   beforeEach(() => {
@@ -114,7 +114,7 @@ describe('initializeCommercialPlans', () => {
    * plan tables at all, including for diagnostics.
    */
   it('runs no query at all when the commercial layer is off', async () => {
-    setConfigEnv({ USE_COMMERCIAL: 'false' })
+    setConfigEnv({ COMMERCIAL_ENABLED: 'false' })
     const { initializeCommercialPlans } = await import('../init')
 
     initializeCommercialPlans()

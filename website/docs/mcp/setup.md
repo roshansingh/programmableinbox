@@ -68,7 +68,7 @@ claude mcp add --transport http programmableinbox https://app.programmableinbox.
 MCP is off by default on a self-hosted deployment. In your `.env`, set:
 
 ```
-ENABLE_MCP=true
+MCP_ENABLED=true
 ```
 
 and restart the app. (See [Configuration](../self-hosting/configuration) for

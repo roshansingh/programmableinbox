@@ -163,9 +163,9 @@ async function freshImport() {
 /**
  * Builds a minimal fake BullMQ Job for a given attemptsMade / maxAttempts.
  *
- * `job.opts.attempts` mirrors what `enqueueEmailWebhookJob` sets (maxRetries+1).
- * The default here is 4 (3 retries + 1 initial), matching WEBHOOK_QUEUE_CONFIG
- * defaults.
+ * `job.opts.attempts` mirrors what `enqueueEmailWebhookJob` sets — directly
+ * `WEBHOOK_QUEUE_CONFIG.maxAttempts`, no +1. The default here is 4, matching
+ * that config default.
  */
 function makeJob(
   overrides: Partial<{
@@ -877,7 +877,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       expect(mockDeadLetterUpsert).toHaveBeenCalled();
     });
 
-    it('uses WEBHOOK_QUEUE_CONFIG.maxRetries + 1 as fallback when job.opts.attempts is undefined', async () => {
+    it('uses WEBHOOK_QUEUE_CONFIG.maxAttempts as fallback when job.opts.attempts is undefined', async () => {
       // Simulate a job whose opts.attempts is undefined (edge case in BullMQ)
       mockFindUnique.mockResolvedValueOnce(null);
       mockStoreIncomingEmail.mockRejectedValueOnce(new Error('fail'));
@@ -888,7 +888,7 @@ describe('Email Webhook Worker (lib/webhooks/worker.ts)', () => {
       const job = makeJob({ attemptsMade: 3 });
       (job as any).opts = {}; // remove `attempts` key
 
-      // Default WEBHOOK_QUEUE_CONFIG.maxRetries is 3 → maxAttempts falls back to 3+1=4
+      // Default WEBHOOK_QUEUE_CONFIG.maxAttempts is 4 → maxAttempts falls back to 4
       // attemptsMade=3 → 3+1=4 >= 4 → isFinalAttempt=true
       await capturedProcessor!(job).catch(() => {});
 

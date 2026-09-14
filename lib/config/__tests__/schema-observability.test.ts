@@ -3,7 +3,7 @@ import { parseDomain, resetConfigCache, ConfigError } from '@/lib/config'
 
 /**
  * The `observability` domain: EE-only log shipping and tracing (see
- * docs/architecture/observability.md). `ENABLE_OBSERVABILITY` is inert on a
+ * docs/architecture/observability.md). `OBSERVABILITY_ENABLED` is inert on a
  * Community build regardless of this schema's validation — the wiring that
  * reads `config.observability` lives entirely in `ee/observability/`, which
  * `scripts/foss.mjs` deletes. This schema exists so a misconfigured EE
@@ -11,7 +11,7 @@ import { parseDomain, resetConfigCache, ConfigError } from '@/lib/config'
  * conditionally-required flag in this file.
  */
 const VARS = [
-  'ENABLE_OBSERVABILITY',
+  'OBSERVABILITY_ENABLED',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'OTEL_EXPORTER_OTLP_HEADERS',
   'OTEL_SERVICE_NAME',
@@ -49,7 +49,7 @@ describe('observability config domain', () => {
 
   it('parses a complete configuration', () => {
     const config = withEnv({
-      ENABLE_OBSERVABILITY: 'true',
+      OBSERVABILITY_ENABLED: 'true',
       OTEL_EXPORTER_OTLP_ENDPOINT: 'https://otlp-gateway-prod-us-east-0.grafana.net/otlp',
       OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic dGVzdDp0ZXN0',
     })
@@ -60,7 +60,7 @@ describe('observability config domain', () => {
 
   it('boxes OTEL_EXPORTER_OTLP_HEADERS so it cannot be logged by accident', () => {
     const config = withEnv({
-      ENABLE_OBSERVABILITY: 'true',
+      OBSERVABILITY_ENABLED: 'true',
       OTEL_EXPORTER_OTLP_ENDPOINT: 'https://otlp.example.com',
       OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic dGVzdDp0ZXN0',
     })
@@ -77,14 +77,14 @@ describe('observability config domain', () => {
   })
 
   it('throws on a malformed flag rather than reading it as off', () => {
-    expect(() => withEnv({ ENABLE_OBSERVABILITY: 'yes-please' })).toThrow(ConfigError)
+    expect(() => withEnv({ OBSERVABILITY_ENABLED: 'yes-please' })).toThrow(ConfigError)
   })
 
   describe('requirements when enabled', () => {
     it('requires OTEL_EXPORTER_OTLP_ENDPOINT', () => {
       expect(() =>
         withEnv({
-          ENABLE_OBSERVABILITY: 'true',
+          OBSERVABILITY_ENABLED: 'true',
           OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic dGVzdDp0ZXN0',
         }),
       ).toThrow(ConfigError)
@@ -93,7 +93,7 @@ describe('observability config domain', () => {
     it('requires OTEL_EXPORTER_OTLP_HEADERS', () => {
       expect(() =>
         withEnv({
-          ENABLE_OBSERVABILITY: 'true',
+          OBSERVABILITY_ENABLED: 'true',
           OTEL_EXPORTER_OTLP_ENDPOINT: 'https://otlp.example.com',
         }),
       ).toThrow(ConfigError)
@@ -101,7 +101,7 @@ describe('observability config domain', () => {
 
     it('names both variables when both are missing', () => {
       try {
-        withEnv({ ENABLE_OBSERVABILITY: 'true' })
+        withEnv({ OBSERVABILITY_ENABLED: 'true' })
         expect.unreachable('should have thrown')
       } catch (error) {
         expect(error).toBeInstanceOf(ConfigError)
@@ -114,7 +114,7 @@ describe('observability config domain', () => {
     it('rejects a non-URL endpoint', () => {
       expect(() =>
         withEnv({
-          ENABLE_OBSERVABILITY: 'true',
+          OBSERVABILITY_ENABLED: 'true',
           OTEL_EXPORTER_OTLP_ENDPOINT: 'not-a-url',
           OTEL_EXPORTER_OTLP_HEADERS: 'Authorization=Basic dGVzdDp0ZXN0',
         }),
@@ -122,7 +122,7 @@ describe('observability config domain', () => {
     })
 
     it('does not demand endpoint/headers while the flag is off', () => {
-      const config = withEnv({ ENABLE_OBSERVABILITY: 'false' })
+      const config = withEnv({ OBSERVABILITY_ENABLED: 'false' })
       expect(config.otlpEndpoint).toBeNull()
       expect(config.otlpHeaders).toBeNull()
     })

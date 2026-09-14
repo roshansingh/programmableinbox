@@ -67,9 +67,9 @@ function principal() {
 
 describe('GET /api/app/billing/plans', () => {
   withConfigEnv({
-    USE_COMMERCIAL: 'true',
-    STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
-    STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+    COMMERCIAL_ENABLED: 'true',
+    STRIPE_API_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+    STRIPE_WEBHOOK_SIGNING_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
   })
 
   beforeEach(() => {
@@ -193,7 +193,7 @@ describe('GET /api/app/billing/plans', () => {
 })
 
 describe('GET /api/app/billing/plans with the commercial layer off', () => {
-  withConfigEnv({ USE_COMMERCIAL: 'false' })
+  withConfigEnv({ COMMERCIAL_ENABLED: 'false' })
 
   beforeEach(() => {
     vi.clearAllMocks()

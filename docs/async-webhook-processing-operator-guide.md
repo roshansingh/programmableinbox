@@ -47,19 +47,19 @@ Add to `.env` or deployment config:
 
 ```bash
 # Enable async webhook processing (required)
-ENABLE_ASYNC_WEBHOOK_PROCESSING=true
+ASYNC_WEBHOOK_PROCESSING_ENABLED=true
 
 # Redis connection (required if async enabled)
 REDIS_URL=redis://localhost:6379
 
 # Retry configuration (optional, defaults shown)
-WEBHOOK_QUEUE_MAX_RETRIES=3
-WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=5
+WEBHOOK_QUEUE_MAX_ATTEMPTS=4
+WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX=5
 ```
 
 ### Per-Environment Recommended Values
 
-| Env | MAX_RETRIES | Notes |
+| Env | MAX_ATTEMPTS | Notes |
 |-----|-------------|-------|
 | dev | 3 | Fast feedback on failures |
 | staging | 5 | More lenient, test recovery paths |
@@ -88,12 +88,12 @@ No manual intervention required, but ensure your orchestration allows 30-60s shu
 
 ## Configuration
 
-### Feature Flag: ENABLE_ASYNC_WEBHOOK_PROCESSING
+### Feature Flag: ASYNC_WEBHOOK_PROCESSING_ENABLED
 
 Controls sync vs. async processing:
 
-- **`true`** (default): Async enqueueing, fire-and-forget, requires Redis
-- **`false`**: Synchronous processing (old behavior), no Redis needed
+- **`true`**: Async enqueueing, fire-and-forget, requires Redis
+- **`false`** (default): Synchronous processing (old behavior), no Redis needed
 
 **Toggling**:
 - Change requires Next.js restart
@@ -101,17 +101,15 @@ Controls sync vs. async processing:
 
 ### Retry Policy
 
-#### WEBHOOK_QUEUE_MAX_RETRIES
+#### WEBHOOK_QUEUE_MAX_ATTEMPTS
 
-Max retries before dead-letter (default: 3)
+Total attempts before dead-letter, including the first (default: 4)
 
 Behavior:
-- Job gets `attempts = maxRetries + 1` total executions
-- 1 initial attempt + N retries
-- Default 3 → 1 initial + 3 retries = 4 total attempts
+- Passed straight through to BullMQ's own `attempts` option — no +1 adjustment
 - Backoff: exponential (1s, 2s, 4s, 8s, ...)
 
-Example timeline with MAX_RETRIES=3:
+Example timeline with the default MAX_ATTEMPTS=4:
 ```
 t=0:    Attempt 1 fails → retry in 1s
 t=1:    Attempt 2 fails → retry in 2s
@@ -120,7 +118,7 @@ t=7:    Attempt 4 fails → move to dead-letter
 t=7:    Job in dead-letter, stop retrying
 ```
 
-#### WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX
+#### WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX
 
 Max parallel jobs (default: 5)
 
@@ -206,7 +204,7 @@ redis-cli INFO memory | grep used_memory_human
 ```
 
 Safe limit: <500MB for typical deployments. If exceeding:
-- Increase `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` to drain faster
+- Increase `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` to drain faster
 - Or scale Redis vertically
 
 #### Dead-Letter Queue Count
@@ -246,12 +244,12 @@ Moving email em_456 to dead-letter queue after 4 attempts
 
 ### Symptom: Webhooks Return 500
 
-**Sync mode** (ENABLE_ASYNC_WEBHOOK_PROCESSING=false):
+**Sync mode** (ASYNC_WEBHOOK_PROCESSING_ENABLED=false):
 - Indicates database or automation dispatch failure
 - Check application logs for specific error
 - Resend will retry
 
-**Async mode** (ENABLE_ASYNC_WEBHOOK_PROCESSING=true):
+**Async mode** (ASYNC_WEBHOOK_PROCESSING_ENABLED=true):
 - Signature or timestamp validation failed
 - Check webhook secret matches Resend's setting
 - Check server clock is in sync (±5 min tolerance)
@@ -315,7 +313,7 @@ redis-cli ping
 
 # Check env vars are set
 echo $REDIS_URL
-echo $ENABLE_ASYNC_WEBHOOK_PROCESSING
+echo $ASYNC_WEBHOOK_PROCESSING_ENABLED
 
 # Check Next.js logs
 npm run start | grep -i worker
@@ -332,7 +330,7 @@ Queue jobs not draining:
 
 1. Check worker concurrency is >0:
    ```bash
-   echo $WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX
+   echo $WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX
    ```
 
 2. Check worker is running:
@@ -343,7 +341,7 @@ Queue jobs not draining:
 3. Increase concurrency to drain faster:
    ```bash
    # Edit .env
-   WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=20
+   WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX=20
    # Restart Next.js
    ```
 
@@ -372,7 +370,7 @@ If serving >100 webhooks/second:
 
 1. **Increase concurrency**:
    ```bash
-   WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX=20
+   WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX=20
    ```
 
 2. **Increase Redis memory**:
@@ -392,7 +390,7 @@ If webhook response must be <20ms:
 
 1. **Disable sync fallback** (no database check in enqueue path):
    ```bash
-   ENABLE_ASYNC_WEBHOOK_PROCESSING=true
+   ASYNC_WEBHOOK_PROCESSING_ENABLED=true
    # (already does this)
    ```
 
@@ -420,7 +418,7 @@ If webhook response must be <20ms:
 3. Are jobs failing? Query dead-letter count
 
 **Action**:
-- Increase `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX`
+- Increase `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX`
 - Or scale to additional Next.js instances
 - Or check for slow database/automation operations
 
@@ -498,8 +496,8 @@ For issues or questions:
 
 | Variable | Default | Min | Max | Impact |
 |----------|---------|-----|-----|--------|
-| `WEBHOOK_QUEUE_MAX_RETRIES` | 3 | 0 | 10 | Jobs abandon after N failures |
-| `WEBHOOK_QUEUE_WORKER_CONCURRENCY_PER_INBOX` | 5 | 1 | 50 | Parallel jobs; higher = faster but uses more CPU |
-| `ENABLE_ASYNC_WEBHOOK_PROCESSING` | true | — | — | If false, sync mode (requires DB on each request) |
-| `REDIS_URL` | redis://localhost:6379 | — | — | Must be reachable from all Next.js instances |
+| `WEBHOOK_QUEUE_MAX_ATTEMPTS` | 4 | 1 | 100 | Total attempts (including the first) before dead-letter |
+| `WEBHOOK_QUEUE_CONCURRENCY_PER_INBOX` | 5 | 1 | 1000 | Parallel jobs; higher = faster but uses more CPU |
+| `ASYNC_WEBHOOK_PROCESSING_ENABLED` | false | — | — | If true, requires `REDIS_URL` |
+| `REDIS_URL` | *(none)* | — | — | Required whenever async processing is on; must be reachable from all Next.js instances |
 

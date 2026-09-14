@@ -85,11 +85,11 @@ beforeEach(() => {
   // Creation is fail-closed on the domain allowlist (issue #98), so these
   // normalization tests must configure the domain they claim at or every POST
   // stops at a 503 before reaching the behavior under test.
-  process.env.EMAIL_INBOX_DOMAINS = 'corp.com'
+  process.env.EMAIL_INBOX_ALLOWED_DOMAINS = 'corp.com'
 })
 
 afterEach(() => {
-  delete process.env.EMAIL_INBOX_DOMAINS
+  delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 })
 
 async function post(body: unknown) {

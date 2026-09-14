@@ -61,15 +61,24 @@ describe('EmailHtmlViewer', () => {
     expect(document.querySelector('b')).toBeNull()
   })
 
-  it('exposes an expand control so tall emails are not permanently clipped', async () => {
+  it('renders expanded by default so the message is not clipped on open', () => {
+    render(<EmailHtmlViewer html="<p>hello</p>" />)
+
+    expect(screen.getByRole('button', { name: /collapse/i })).toBeInTheDocument()
+  })
+
+  it('exposes a collapse control that shrinks the frame, and an expand control to restore it', async () => {
     const { user } = render(<EmailHtmlViewer html="<p>hello</p>" />)
 
-    const before = getFrame().style.height
-    await user.click(screen.getByRole('button', { name: /expand/i }))
-    const after = getFrame().style.height
+    const expandedHeight = getFrame().style.height
+    await user.click(screen.getByRole('button', { name: /collapse/i }))
+    const collapsedHeight = getFrame().style.height
 
-    expect(before).not.toBe(after)
-    expect(parseInt(after, 10)).toBeGreaterThan(parseInt(before, 10))
+    expect(collapsedHeight).not.toBe(expandedHeight)
+    expect(parseInt(collapsedHeight, 10)).toBeLessThan(parseInt(expandedHeight, 10))
+
+    await user.click(screen.getByRole('button', { name: /expand/i }))
+    expect(getFrame().style.height).toBe(expandedHeight)
   })
 
   it('applies className in both the HTML and the plain-text branch', () => {

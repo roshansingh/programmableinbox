@@ -37,6 +37,7 @@ import {
   type CreatedApiKey,
 } from "@/lib/api/api-keys.api"
 import { useAuth } from "@/components/auth-provider"
+import { ApiKeysGettingStarted } from "@/components/api-keys-getting-started"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -319,6 +320,8 @@ export default function ApiKeysPage() {
             </Dialog>
           </div>
 
+          <ApiKeysGettingStarted apiKeys={apiKeys} />
+
           <div className="grid gap-4">
             {apiKeys.length === 0 ? (
               <Card>
@@ -367,7 +370,7 @@ export default function ApiKeysPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <div className="bg-muted rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
+                      <div className="bg-background border border-border rounded-md px-3 py-2 font-mono text-sm overflow-hidden">
                         {apiKey.prefix}
                       </div>
                       <div className="flex flex-wrap gap-2">

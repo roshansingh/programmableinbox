@@ -67,3 +67,45 @@ describe('MobileSidebar Billing link', () => {
     expect(labels.indexOf('Billing')).toBe(labels.indexOf('Settings') - 1)
   })
 })
+
+describe('MobileSidebar organization display', () => {
+  it('shows the org name and initial without a switcher or add-org options', () => {
+    mockUser.current = makeUser()
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    const orgName = screen.getByText('Roshan Singh', { selector: 'span' })
+    expect(orgName).toBeInTheDocument()
+    expect(orgName.closest('button')).toBeNull()
+    expect(screen.getByText('R')).toBeInTheDocument()
+    expect(screen.queryByText('Create Organization')).not.toBeInTheDocument()
+    expect(screen.queryByText('Join Organization')).not.toBeInTheDocument()
+  })
+})
+
+describe('MobileSidebar Support link', () => {
+  /** Self-hosted (no plan) has no company-run support inbox to send users to. */
+  it('is absent when the organization has no plan', () => {
+    mockUser.current = makeUser()
+    mockPlan.current = null
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    expect(screen.queryByText('Support')).not.toBeInTheDocument()
+  })
+
+  it('links to /support when the organization has a plan', () => {
+    mockUser.current = makeUser()
+    mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    expect(screen.getByText('Support').closest('a')).toHaveAttribute('href', '/support')
+  })
+
+  it('sits directly below Settings', () => {
+    mockUser.current = makeUser()
+    mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    const labels = screen.getAllByRole('link').map((link) => link.textContent)
+    expect(labels.indexOf('Support')).toBe(labels.indexOf('Settings') + 1)
+  })
+})

@@ -12,7 +12,7 @@ import logger from '@/lib/logger'
  *
  * Called once at process start from the root `instrumentation.ts`.
  *
- * A no-op unless `ENABLE_OBSERVABILITY` is true, which is what makes deleting
+ * A no-op unless `OBSERVABILITY_ENABLED` is true, which is what makes deleting
  * `ee/` (the Community build) behave identically to leaving the flag off:
  * `registerOTel()` is never called.
  *

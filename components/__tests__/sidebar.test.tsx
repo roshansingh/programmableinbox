@@ -95,7 +95,7 @@ describe('Sidebar', () => {
   })
 
   describe('Billing link', () => {
-    /** No plan means USE_COMMERCIAL is off — self-hosted has nothing to bill. */
+    /** No plan means COMMERCIAL_ENABLED is off — self-hosted has nothing to bill. */
     it('is absent when the organization has no plan', () => {
       mockUser.current = makeUser()
       mockPlan.current = null
@@ -119,6 +119,34 @@ describe('Sidebar', () => {
 
       const labels = screen.getAllByRole('link').map((link) => link.textContent)
       expect(labels.indexOf('Billing')).toBe(labels.indexOf('Settings') - 1)
+    })
+  })
+
+  describe('Support link', () => {
+    /** Self-hosted (no plan) has no company-run support inbox to send users to. */
+    it('is absent when the organization has no plan', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = null
+      render(<Sidebar />)
+
+      expect(screen.queryByText('Support')).not.toBeInTheDocument()
+    })
+
+    it('links to /support when the organization has a plan', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+      render(<Sidebar />)
+
+      expect(screen.getByText('Support').closest('a')).toHaveAttribute('href', '/support')
+    })
+
+    it('sits directly below Settings', () => {
+      mockUser.current = makeUser()
+      mockPlan.current = { code: 'free', name: 'Free', limits: {} as never }
+      render(<Sidebar />)
+
+      const labels = screen.getAllByRole('link').map((link) => link.textContent)
+      expect(labels.indexOf('Support')).toBe(labels.indexOf('Settings') + 1)
     })
   })
 })

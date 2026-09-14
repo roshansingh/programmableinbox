@@ -44,8 +44,8 @@ async function loadRoute() {
 
 describe('POST /api/webhooks/email', () => {
   withConfigEnv({
-    WEBHOOK_SECRET: 'test-webhook-secret',
-    ENABLE_ASYNC_WEBHOOK_PROCESSING: 'true',
+    RESEND_WEBHOOK_SECRET: 'test-webhook-secret',
+    ASYNC_WEBHOOK_PROCESSING_ENABLED: 'true',
   })
 
   beforeEach(() => {

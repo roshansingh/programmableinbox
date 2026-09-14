@@ -5,7 +5,7 @@ import { z } from 'zod'
  *
  * `FOO=` in a `.env` file yields `""`, which means "not configured", not
  * "configured with an invalid value" — and `.env.example` ships several such
- * lines (`JWT_SECRET=`, `WEBHOOK_SECRET=`). Without this, a missing required
+ * lines (`AUTH_JWT_SECRET=`, `RESEND_WEBHOOK_SECRET=`). Without this, a missing required
  * var would be reported as a format violation rather than as absent, and an
  * optional var with a blank line would fail the whole boot.
  *
@@ -48,7 +48,7 @@ export const zBool = z
  * The single integer coercion, bounded on both ends.
  *
  * Replaces `parsePositiveInt`, which returned its fallback for any unparseable
- * input — making `WEBHOOK_QUEUE_MAX_RETRIES=abc` indistinguishable from an
+ * input — making `WEBHOOK_QUEUE_MAX_ATTEMPTS=abc` indistinguishable from an
  * unset var.
  *
  * `z.coerce.number()` is deliberately avoided: it maps `""` to `0` and accepts

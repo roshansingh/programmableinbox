@@ -3,14 +3,14 @@ import { parseDomain, resetConfigCache, ConfigError } from '@/lib/config'
 
 /**
  * The `productAnalytics` domain: EE-only PostHog instrumentation (issue #152).
- * `ENABLE_PRODUCT_ANALYTICS` is inert on a Community build regardless of this
+ * `PRODUCT_ANALYTICS_ENABLED` is inert on a Community build regardless of this
  * schema's validation — the wiring that reads `config.productAnalytics` lives
  * entirely in `ee/product-analytics/`, which `scripts/foss.mjs` deletes. This
  * schema exists so a misconfigured EE deployment fails at boot naming the
  * variable, same as every other conditionally-required flag in this file
  * (see `schema-observability.test.ts`, the direct model for this one).
  */
-const VARS = ['ENABLE_PRODUCT_ANALYTICS', 'POSTHOG_API_KEY', 'POSTHOG_HOST'] as const
+const VARS = ['PRODUCT_ANALYTICS_ENABLED', 'POSTHOG_API_KEY', 'POSTHOG_HOST'] as const
 
 const ORIGINAL = Object.fromEntries(VARS.map((name) => [name, process.env[name]]))
 
@@ -43,7 +43,7 @@ describe('productAnalytics config domain', () => {
 
   it('parses a complete configuration', () => {
     const config = withEnv({
-      ENABLE_PRODUCT_ANALYTICS: 'true',
+      PRODUCT_ANALYTICS_ENABLED: 'true',
       POSTHOG_API_KEY: 'phc_test1234567890',
       POSTHOG_HOST: 'https://us.i.posthog.com',
     })
@@ -53,14 +53,14 @@ describe('productAnalytics config domain', () => {
   })
 
   it('throws on a malformed flag rather than reading it as off', () => {
-    expect(() => withEnv({ ENABLE_PRODUCT_ANALYTICS: 'yes-please' })).toThrow(ConfigError)
+    expect(() => withEnv({ PRODUCT_ANALYTICS_ENABLED: 'yes-please' })).toThrow(ConfigError)
   })
 
   describe('requirements when enabled', () => {
     it('requires POSTHOG_API_KEY', () => {
       expect(() =>
         withEnv({
-          ENABLE_PRODUCT_ANALYTICS: 'true',
+          PRODUCT_ANALYTICS_ENABLED: 'true',
           POSTHOG_HOST: 'https://us.i.posthog.com',
         }),
       ).toThrow(ConfigError)
@@ -69,7 +69,7 @@ describe('productAnalytics config domain', () => {
     it('requires POSTHOG_HOST', () => {
       expect(() =>
         withEnv({
-          ENABLE_PRODUCT_ANALYTICS: 'true',
+          PRODUCT_ANALYTICS_ENABLED: 'true',
           POSTHOG_API_KEY: 'phc_test1234567890',
         }),
       ).toThrow(ConfigError)
@@ -77,7 +77,7 @@ describe('productAnalytics config domain', () => {
 
     it('names both variables when both are missing', () => {
       try {
-        withEnv({ ENABLE_PRODUCT_ANALYTICS: 'true' })
+        withEnv({ PRODUCT_ANALYTICS_ENABLED: 'true' })
         expect.unreachable('should have thrown')
       } catch (error) {
         expect(error).toBeInstanceOf(ConfigError)
@@ -90,7 +90,7 @@ describe('productAnalytics config domain', () => {
     it('rejects a non-URL host', () => {
       expect(() =>
         withEnv({
-          ENABLE_PRODUCT_ANALYTICS: 'true',
+          PRODUCT_ANALYTICS_ENABLED: 'true',
           POSTHOG_API_KEY: 'phc_test1234567890',
           POSTHOG_HOST: 'not-a-url',
         }),
@@ -98,7 +98,7 @@ describe('productAnalytics config domain', () => {
     })
 
     it('does not demand key/host while the flag is off', () => {
-      const config = withEnv({ ENABLE_PRODUCT_ANALYTICS: 'false' })
+      const config = withEnv({ PRODUCT_ANALYTICS_ENABLED: 'false' })
       expect(config.apiKey).toBeNull()
       expect(config.host).toBeNull()
     })
@@ -106,7 +106,7 @@ describe('productAnalytics config domain', () => {
 
   describe('POSTHOG_API_KEY prefix', () => {
     it('rejects a Personal API Key (phx_...) even while the flag is off', () => {
-      // Checked regardless of ENABLE_PRODUCT_ANALYTICS: this value is
+      // Checked regardless of PRODUCT_ANALYTICS_ENABLED: this value is
       // published to every authenticated user via AppConfig the moment it's
       // set, whether or not capture is currently enabled.
       expect(() => withEnv({ POSTHOG_API_KEY: 'phx_admin_scoped_key' })).toThrow(ConfigError)
@@ -115,7 +115,7 @@ describe('productAnalytics config domain', () => {
     it('rejects a Personal API Key when enabling', () => {
       expect(() =>
         withEnv({
-          ENABLE_PRODUCT_ANALYTICS: 'true',
+          PRODUCT_ANALYTICS_ENABLED: 'true',
           POSTHOG_API_KEY: 'phx_admin_scoped_key',
           POSTHOG_HOST: 'https://us.i.posthog.com',
         }),
@@ -124,7 +124,7 @@ describe('productAnalytics config domain', () => {
 
     it('accepts a project key (phc_...)', () => {
       const config = withEnv({
-        ENABLE_PRODUCT_ANALYTICS: 'true',
+        PRODUCT_ANALYTICS_ENABLED: 'true',
         POSTHOG_API_KEY: 'phc_test1234567890',
         POSTHOG_HOST: 'https://us.i.posthog.com',
       })

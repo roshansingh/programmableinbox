@@ -97,7 +97,7 @@ describe('GET /api/healthz', () => {
   it('200 with the full detail payload when the correct x-healthz-secret header is provided', async () => {
     const res = await healthz(
       jsonRequest('http://localhost/api/healthz', {
-        headers: { 'x-healthz-secret': process.env.HEALTHZ_SECRET! },
+        headers: { 'x-healthz-secret': process.env.HEALTHZ_DETAIL_SECRET! },
       })
     )
     expect(res.status).toBe(200)
@@ -133,8 +133,8 @@ describe('GET /api/docs', () => {
 })
 
 describe('GET /api/internal/webhook-worker/health', () => {
-  it('503 disabled response when ENABLE_ASYNC_WEBHOOK_PROCESSING is unset', async () => {
-    expect(process.env.ENABLE_ASYNC_WEBHOOK_PROCESSING).not.toBe('true')
+  it('503 disabled response when ASYNC_WEBHOOK_PROCESSING_ENABLED is unset', async () => {
+    expect(process.env.ASYNC_WEBHOOK_PROCESSING_ENABLED).not.toBe('true')
     const res = await workerHealth()
     expect(res.status).toBe(503)
     const json = await res.json()

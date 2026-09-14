@@ -27,12 +27,12 @@ services:
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-programmableinbox}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-programmableinbox}?options=-c%20timezone%3DUTC"
       REDIS_URL: "redis://redis:6379"
-      JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET in .env, e.g. output of openssl rand -base64 32}"
-      WEBHOOK_SECRET: "${WEBHOOK_SECRET:?set WEBHOOK_SECRET in .env, any 8+ character string}"
-      AUTH_RESEND_API_KEY: "${AUTH_RESEND_API_KEY:?set AUTH_RESEND_API_KEY in .env, a placeholder is fine until you wire up real inbound mail}"
+      AUTH_JWT_SECRET: "${AUTH_JWT_SECRET:?set AUTH_JWT_SECRET in .env, e.g. output of openssl rand -base64 32}"
+      RESEND_WEBHOOK_SECRET: "${RESEND_WEBHOOK_SECRET:?set RESEND_WEBHOOK_SECRET in .env, any 8+ character string}"
+      RESEND_API_KEY: "${RESEND_API_KEY:?set RESEND_API_KEY in .env, a placeholder is fine until you wire up real inbound mail}"
       AUTH_EMAIL_FROM: "${AUTH_EMAIL_FROM:-no-reply@example.com}"
       AUTH_EMAIL_FROM_NAME: "${AUTH_EMAIL_FROM_NAME:-ProgrammableInbox}"
-      EMAIL_INBOX_DOMAINS: "${EMAIL_INBOX_DOMAINS:?set EMAIL_INBOX_DOMAINS in .env, a domain you don't own yet is fine for exploring the UI}"
+      EMAIL_INBOX_ALLOWED_DOMAINS: "${EMAIL_INBOX_ALLOWED_DOMAINS:?set EMAIL_INBOX_ALLOWED_DOMAINS in .env, a domain you don't own yet is fine for exploring the UI}"
       NEXT_PUBLIC_API_MODE: local
     # The standalone runtime image ships node_modules/prisma but not
     # node_modules/.bin, so the Prisma CLI is invoked directly (same pattern
@@ -69,7 +69,7 @@ services:
       start_period: 10s
 
   # Backs AUTH_RATE_LIMIT_ENABLED (on by default) and the async webhook queue
-  # if you later turn on ENABLE_ASYNC_WEBHOOK_PROCESSING.
+  # if you later turn on ASYNC_WEBHOOK_PROCESSING_ENABLED.
   redis:
     image: redis:7-alpine
     restart: unless-stopped

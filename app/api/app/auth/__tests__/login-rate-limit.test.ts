@@ -95,9 +95,9 @@ function rateLimitHeadersOf(response: Response) {
 /** Generous ceilings so a test only trips the limiter it is exercising. */
 withConfigEnv({
   AUTH_RATE_LIMIT_ENABLED: 'true',
-  AUTH_RATE_LIMIT_LOGIN_IP_MAX: '1000',
-  AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '1000',
-  AUTH_LOCKOUT_THRESHOLD: '1000',
+  AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '1000',
+  AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '1000',
+  AUTH_LOCKOUT_MAX_FAILURES: '1000',
 })
 
 beforeEach(() => {
@@ -215,7 +215,7 @@ describe('POST /api/app/auth/login — Content-Type enforcement', () => {
 
 describe('POST /api/app/auth/login — per-IP limiting', () => {
   it('returns 429 on the Nth attempt from one IP', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '3' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '3' })
 
     const statuses: number[] = []
     for (let i = 0; i < 4; i += 1) {
@@ -227,7 +227,7 @@ describe('POST /api/app/auth/login — per-IP limiting', () => {
   })
 
   it('rejects without running bcrypt, so one source cannot burn CPU', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '1' })
 
     await POST(makeRequest({ email: 'a@example.com', password: 'x' }))
     expect(compareMock).toHaveBeenCalledTimes(1)
@@ -239,7 +239,7 @@ describe('POST /api/app/auth/login — per-IP limiting', () => {
   })
 
   it('sends Retry-After and the RateLimit-* headers with the 429', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '1' })
     await POST(makeRequest({ email: 'a@example.com', password: 'x' }))
     const blocked = await POST(makeRequest({ email: 'b@example.com', password: 'x' }))
 
@@ -253,7 +253,7 @@ describe('POST /api/app/auth/login — per-IP limiting', () => {
   })
 
   it('cannot be bypassed by forging the leftmost X-Forwarded-For entry', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '2' })
 
     // Same real client (rightmost), three different forged prefixes.
     const statuses: number[] = []
@@ -274,7 +274,7 @@ describe('POST /api/app/auth/login — per-IP limiting', () => {
   it('is inactive, not global, when no trustworthy client IP exists', async () => {
     // Regression: an `unknown` shared bucket put every caller of a proxy-less
     // deployment into one login budget, which is an outage, not a safe default.
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '2' })
 
     const noXff = (email: string) =>
       new NextRequest('http://localhost/api/app/auth/login', {
@@ -297,7 +297,7 @@ describe('POST /api/app/auth/login — per-IP limiting', () => {
 
 describe('POST /api/app/auth/login — per-account limiting', () => {
   it('limits one account across differing source IPs when the password is wrong', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '3' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '3' })
 
     const statuses: number[] = []
     for (let i = 0; i < 4; i += 1) {
@@ -310,7 +310,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
   })
 
   it('leaves other accounts on the same IP unaffected', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '2' })
 
     for (let i = 0; i < 3; i += 1) {
       await POST(makeRequest({ email: 'user@example.com', password: 'x' }, '198.51.100.9'))
@@ -327,7 +327,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
   })
 
   it('treats address casing and padding as the same account', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '2' })
 
     await POST(makeRequest({ email: 'user@example.com', password: 'x' }, '198.51.100.1'))
     await POST(makeRequest({ email: '  USER@Example.COM ', password: 'x' }, '198.51.100.2'))
@@ -344,7 +344,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
     // an hour and keep its owner permanently unable to log in. The sliding
     // window never decays under sustained pressure, so that denial had no
     // ceiling — a worse primitive than the (capped) lockout.
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '2' })
 
     for (let i = 0; i < 5; i += 1) {
       await POST(makeRequest({ email: 'user@example.com', password: 'attacker-guess' }))
@@ -358,7 +358,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
   })
 
   it('still admits the CORRECT password while the account is locked out, and clears the lock', async () => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '2' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '2' })
 
     await POST(makeRequest({ email: 'user@example.com', password: 'g' }))
     await POST(makeRequest({ email: 'user@example.com', password: 'g' }))
@@ -375,7 +375,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
 
   it('does NOT let a correct password bypass the per-IP limit', async () => {
     // The IP limit is the CPU guard and stays absolute.
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX: '1' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '1' })
     compareMock.mockResolvedValue(true)
 
     expect((await POST(makeRequest({ email: 'user@example.com', password: 'ok' }))).status).toBe(200)
@@ -389,7 +389,7 @@ describe('POST /api/app/auth/login — per-account limiting', () => {
 
 describe('POST /api/app/auth/login — lockout', () => {
   it('locks the account after N consecutive failures', async () => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '3' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '3' })
 
     const statuses: number[] = []
     for (let i = 0; i < 4; i += 1) {
@@ -405,7 +405,7 @@ describe('POST /api/app/auth/login — lockout', () => {
   })
 
   it('releases the account once the lockout expires', async () => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '2', AUTH_LOCKOUT_BASE_S: '60' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '2', AUTH_LOCKOUT_BASE_SECONDS: '60' })
 
     // Two failures arm a 60s lock; the second still answers 401 because the
     // lock state is read before this attempt's failure is recorded.
@@ -420,7 +420,7 @@ describe('POST /api/app/auth/login — lockout', () => {
     // Failures are recorded even for throttled attempts, so continuing to
     // guess pushes your own release further out: 60s, then 120s. Harmless to
     // the account owner, who is admitted by a correct password regardless.
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '2', AUTH_LOCKOUT_BASE_S: '60' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '2', AUTH_LOCKOUT_BASE_SECONDS: '60' })
 
     await POST(makeRequest({ email: 'user@example.com', password: 'guess' }))
     await POST(makeRequest({ email: 'user@example.com', password: 'guess' }))
@@ -438,7 +438,7 @@ describe('POST /api/app/auth/login — lockout', () => {
   })
 
   it('clears the failure counter after a successful login', async () => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '3' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '3' })
 
     await POST(makeRequest({ email: 'user@example.com', password: 'guess' }))
     await POST(makeRequest({ email: 'user@example.com', password: 'guess' }))
@@ -464,7 +464,7 @@ describe('POST /api/app/auth/login — lockout', () => {
 
 describe('POST /api/app/auth/login — the 429 reveals nothing about the account', () => {
   it('produces an identical throttled response for real and unknown accounts', async () => {
-    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '2' })
+    setConfigEnv({ AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '2' })
 
     async function throttleUntilBlocked(email: string) {
       let last!: Response
@@ -485,7 +485,7 @@ describe('POST /api/app/auth/login — the 429 reveals nothing about the account
   })
 
   it('records failures for unknown addresses, so lockout is not an oracle', async () => {
-    setConfigEnv({ AUTH_LOCKOUT_THRESHOLD: '2' })
+    setConfigEnv({ AUTH_LOCKOUT_MAX_FAILURES: '2' })
     findUniqueMock.mockResolvedValue(null)
 
     await POST(makeRequest({ email: 'nobody@example.com', password: 'x' }))
@@ -524,9 +524,9 @@ describe('POST /api/app/auth/login — AUTH_RATE_LIMIT_ENABLED=false', () => {
   it('applies no throttling at all', async () => {
     setConfigEnv({
       AUTH_RATE_LIMIT_ENABLED: 'false',
-      AUTH_RATE_LIMIT_LOGIN_IP_MAX: '1',
-      AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX: '1',
-      AUTH_LOCKOUT_THRESHOLD: '1',
+      AUTH_RATE_LIMIT_LOGIN_IP_MAX_REQUESTS: '1',
+      AUTH_RATE_LIMIT_LOGIN_ACCOUNT_MAX_REQUESTS: '1',
+      AUTH_LOCKOUT_MAX_FAILURES: '1',
     })
 
     const statuses: number[] = []

@@ -25,9 +25,9 @@ const alias = {
 const configEnv = {
   NEXT_PUBLIC_API_MODE: 'local',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/test?options=-c%20timezone%3DUTC',
-  JWT_SECRET: 'test-jwt-secret-at-least-16-chars',
-  WEBHOOK_SECRET: 'test-webhook-secret',
-  AUTH_RESEND_API_KEY: 're_test_placeholder',
+  AUTH_JWT_SECRET: 'test-jwt-secret-at-least-16-chars',
+  RESEND_WEBHOOK_SECRET: 'test-webhook-secret',
+  RESEND_API_KEY: 're_test_placeholder',
   AUTH_EMAIL_FROM: 'test@example.com',
   AUTH_EMAIL_FROM_NAME: 'Test',
   // REDIS_URL has no production default on purpose (see lib/config/schema.ts).

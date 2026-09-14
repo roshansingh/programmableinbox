@@ -35,9 +35,9 @@ const SUBSCRIPTION = { id: 'sub_1', status: 'active', metadata: { organizationId
 
 describe('POST /api/webhooks/stripe', () => {
   withConfigEnv({
-    USE_COMMERCIAL: 'true',
-    STRIPE_SECRET_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
-    STRIPE_WEBHOOK_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
+    COMMERCIAL_ENABLED: 'true',
+    STRIPE_API_KEY: 'sk_test_abcdefghijklmnopqrstuvwx',
+    STRIPE_WEBHOOK_SIGNING_SECRET: 'whsec_abcdefghijklmnopqrstuvwx',
   })
 
   beforeEach(() => {
@@ -201,7 +201,7 @@ describe('POST /api/webhooks/stripe', () => {
 })
 
 describe('POST /api/webhooks/stripe with the commercial layer off', () => {
-  withConfigEnv({ USE_COMMERCIAL: 'false' })
+  withConfigEnv({ COMMERCIAL_ENABLED: 'false' })
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -210,7 +210,7 @@ describe('POST /api/webhooks/stripe with the commercial layer off', () => {
 
   /**
    * 404 rather than 503: a feature that is off should not advertise that it
-   * exists, matching `/api/mcp` under ENABLE_MCP.
+   * exists, matching `/api/mcp` under MCP_ENABLED.
    */
   it('404s without verifying anything', async () => {
     const { POST } = await import('../route')

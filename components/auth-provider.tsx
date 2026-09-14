@@ -18,7 +18,7 @@ interface AuthContextValue {
   config: AppConfig
   /**
    * The current organization's plan (issue #117 §7b), or `null` when the
-   * deployment runs without `USE_COMMERCIAL`.
+   * deployment runs without `COMMERCIAL_ENABLED`.
    *
    * **Null means "no plan restrictions", not "no access."** A self-hosted
    * install never sends this, so every consumer must treat its absence as

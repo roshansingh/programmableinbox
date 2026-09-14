@@ -35,7 +35,7 @@ export async function register() {
 
     // Product analytics (EE, issue #152): PostHog session replay,
     // autocapture and named feature/conversion events. A no-op unless
-    // ENABLE_PRODUCT_ANALYTICS is true. See ee/product-analytics/init.ts.
+    // PRODUCT_ANALYTICS_ENABLED is true. See ee/product-analytics/init.ts.
     const { initializeProductAnalytics } = await import('@/ee/product-analytics/init')
     initializeProductAnalytics()
 
@@ -44,7 +44,7 @@ export async function register() {
     // Component render function, so it re-ran on every RSC render and was
     // idempotent only by virtue of being empty.
     //
-    // A no-op unless `USE_COMMERCIAL=true`; the check lives inside so a
+    // A no-op unless `COMMERCIAL_ENABLED=true`; the check lives inside so a
     // self-hosted deployment never constructs a DB-backed resolver.
     //
     // NOTE for the stripped OSS build: this is a static import path, so

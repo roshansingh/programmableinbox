@@ -15,7 +15,7 @@ import { NoopMetering } from './oss/NoopMetering'
  * would then only be visible on *its own* copy of this class — an API route
  * handler compiled into a different chunk would read its own, never-configured
  * copy and silently fall back to the OSS defaults regardless of
- * `USE_COMMERCIAL`. `globalThis` is the one true JS global shared by the whole
+ * `COMMERCIAL_ENABLED`. `globalThis` is the one true JS global shared by the whole
  * Node.js process no matter how the bundler chunks the code.
  */
 interface CommercialProviderState {

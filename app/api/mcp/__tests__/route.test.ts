@@ -100,7 +100,7 @@ describe('POST /api/mcp', () => {
 
   describe('when disabled (the default)', () => {
     it('404s rather than advertising a surface the operator did not enable', async () => {
-      setConfigEnv({ ENABLE_MCP: 'false' })
+      setConfigEnv({ MCP_ENABLED: 'false' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
       )
@@ -108,7 +108,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('is off when the variable is simply absent', async () => {
-      setConfigEnv({ ENABLE_MCP: undefined })
+      setConfigEnv({ MCP_ENABLED: undefined })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
       )
@@ -118,7 +118,7 @@ describe('POST /api/mcp', () => {
 
   describe('authentication', () => {
     it('rejects a request with no credential, without a database lookup', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const request = new NextRequest('http://localhost:4000/api/mcp', {
         method: 'POST',
       })
@@ -131,7 +131,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('rejects a JWT by prefix, without verifying it', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest(
           { jsonrpc: '2.0', id: 1, method: 'tools/list' },
@@ -147,7 +147,7 @@ describe('POST /api/mcp', () => {
     it('rejects a revoked or unknown key', async () => {
       resolveApiKeyPrincipalMock.mockResolvedValue(null)
 
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
       )
@@ -163,7 +163,7 @@ describe('POST /api/mcp', () => {
 
   describe('origin validation', () => {
     it('serves a request with no Origin header — every supported client sends none', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
       )
@@ -171,7 +171,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('refuses a browser origin when none is allowlisted', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true', MCP_ALLOWED_ORIGINS: undefined })
+      setConfigEnv({ MCP_ENABLED: 'true', MCP_ALLOWED_ORIGINS: undefined })
       const response = await post(
         rpcRequest(
           { jsonrpc: '2.0', id: 1, method: 'tools/list' },
@@ -185,7 +185,7 @@ describe('POST /api/mcp', () => {
 
     it('serves an allowlisted origin', async () => {
       setConfigEnv({
-        ENABLE_MCP: 'true',
+        MCP_ENABLED: 'true',
         MCP_ALLOWED_ORIGINS: 'https://app.example.com',
       })
       const response = await post(
@@ -202,9 +202,9 @@ describe('POST /api/mcp', () => {
   describe('rate limiting', () => {
     it('buckets on the API key under the mcp scope', async () => {
       setConfigEnv({
-        ENABLE_MCP: 'true',
-        MCP_RATE_LIMIT_MAX: '7',
-        MCP_RATE_LIMIT_WINDOW_S: '30',
+        MCP_ENABLED: 'true',
+        MCP_RATE_LIMIT_MAX_REQUESTS: '7',
+        MCP_RATE_LIMIT_WINDOW_SECONDS: '30',
       })
       await post(rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))
 
@@ -222,7 +222,7 @@ describe('POST /api/mcp', () => {
         retryAfterSeconds: 12,
       })
 
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
       )
@@ -235,7 +235,7 @@ describe('POST /api/mcp', () => {
 
   describe('the MCP protocol itself', () => {
     it('lists every tool with its schema and honest annotations', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
       )
@@ -267,7 +267,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('answers initialize without a session', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',
@@ -304,7 +304,7 @@ describe('POST /api/mcp', () => {
         },
       ])
 
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',
@@ -326,7 +326,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('validates tool arguments against the declared schema', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',
@@ -347,7 +347,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('reports a caller-correctable tool failure as isError, not a protocol error', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',
@@ -368,7 +368,7 @@ describe('POST /api/mcp', () => {
     })
 
     it('reserves JSON-RPC errors for requests it cannot process at all', async () => {
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',
@@ -389,7 +389,7 @@ describe('POST /api/mcp', () => {
         scopes: ['email_inboxes:read'],
       })
 
-      setConfigEnv({ ENABLE_MCP: 'true' })
+      setConfigEnv({ MCP_ENABLED: 'true' })
       const response = await post(
         rpcRequest({
           jsonrpc: '2.0',

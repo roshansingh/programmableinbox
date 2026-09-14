@@ -7,6 +7,9 @@ import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { enrichMessage } from '@/lib/llm/enrichment'
 import { getResend } from '@/lib/resend'
 import { deriveBodyText } from '@/lib/email/extract-body-text'
+import { extractLinks } from '@/lib/email/extract-links'
+import { extractOtp } from '@/lib/email/extract-otp'
+import { classifyLinks } from '@/lib/email/cta-heuristic'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { withPublic } from '@/lib/auth/with-auth'
@@ -16,7 +19,7 @@ import logger from '@/lib/logger'
 /**
  * Returns true when async (BullMQ) webhook processing is enabled.
  * When disabled, the webhook route falls back to synchronous in-request processing.
- * Controlled by the ENABLE_ASYNC_WEBHOOK_PROCESSING environment variable.
+ * Controlled by the ASYNC_WEBHOOK_PROCESSING_ENABLED environment variable.
  */
 function isAsyncWebhookProcessingEnabled(): boolean {
   return config.webhooks.asyncProcessingEnabled
@@ -232,6 +235,14 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       const messageId = crypto.randomUUID()
       const threading = await determineThreading(resendEmail, messageId, inbox.id)
 
+      const bodyText = deriveBodyText({
+        text: resendEmail.text || '',
+        html: resendEmail.html || '',
+      })
+      const links = classifyLinks(
+        extractLinks({ text: resendEmail.text || '', html: resendEmail.html || '' }),
+      )
+
       message = await prisma.emailMessage.create({
         data: {
           id: messageId,
@@ -244,11 +255,17 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           html: resendEmail.html || '',
           // Derived here rather than during enrichment (issue #106): enrichment is
           // LLM-gated and optional, so deriving it there would mean a message is
-          // unsearchable until an optional step happens to run.
-          bodyText: deriveBodyText({
-            text: resendEmail.text || '',
-            html: resendEmail.html || '',
-          }),
+          // unsearchable until an optional step happens to run. The same
+          // reasoning now applies to extractedOtp and metadata.links below —
+          // deterministic extraction (lib/email/extract-otp.ts,
+          // lib/email/extract-links.ts, lib/email/cta-heuristic.ts) runs
+          // unconditionally, for every organization, so this data isn't
+          // gated behind the LLM plan/quota either. Only `categories` and
+          // LLM-confirmed CTA judgments stay gated — see
+          // lib/llm/enrichment.ts.
+          bodyText,
+          extractedOtp: extractOtp(bodyText),
+          metadata: { links, timestamps: [] },
           headers: resendEmail.headers || {},
           externalId: resendEmail.id,
           inboxEmailAddressId: inbox.id,
@@ -328,7 +345,7 @@ export const POST = withPublic(async (request: NextRequest) => {
         signature: request.headers.get('svix-signature')!,
       },
       // No `!` needed: config.webhooks.secret is a validated non-empty
-      // string. The assertion here used to let an unset WEBHOOK_SECRET reach
+      // string. The assertion here used to let an unset RESEND_WEBHOOK_SECRET reach
       // signature verification as undefined.
       webhookSecret: config.webhooks.secret.reveal(),
     });

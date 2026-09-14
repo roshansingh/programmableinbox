@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
-import type { LLMProvider, EnrichmentResult } from '../types'
+import type { LLMProvider, LlmEnrichmentResult, CandidateLink } from '../types'
 import { parseEnrichmentResult } from '../types'
-import { buildSystemPrompt } from '../prompt'
+import { buildSystemPrompt, buildUserMessage } from '../prompt'
 import logger from '@/lib/logger'
 
 export class OpenAICompatAdapter implements LLMProvider {
@@ -16,14 +16,14 @@ export class OpenAICompatAdapter implements LLMProvider {
     this.extraBody = extraBody
   }
 
-  async enrich(subject: string, bodyText: string): Promise<EnrichmentResult> {
+  async enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       max_completion_tokens: 1024,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt() },
-        { role: 'user', content: `Subject: ${subject}\n\nBody:\n${bodyText.slice(0, 4000)}` },
+        { role: 'user', content: buildUserMessage(subject, bodyText, candidateLinks) },
       ],
       ...this.extraBody,
     } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming)
@@ -46,6 +46,26 @@ export class OpenAICompatAdapter implements LLMProvider {
         { model: this.model, finishReason, refusal, contentLength: content.length },
         '[OpenAICompatAdapter] enrich response was not a clean stop — enrichment result may be empty',
       )
+    }
+
+    // finish_reason: 'length' means the budget ran out before the model
+    // finished — checked unconditionally, before attempting to parse, because
+    // a truncated response is not always syntactically broken. The model can
+    // stop mid-generation at a point that happens to close valid JSON (e.g.
+    // just `{"categories":["Security"]}`, missing ctaJudgments/timestamps) —
+    // JSON.parse would succeed on that and parseEnrichmentResult would
+    // silently default the missing fields, so checking finishReason only
+    // inside the catch block (as an earlier version of this fix did) would
+    // miss exactly that case and persist a partial result as if complete.
+    // Throw so the caller (lib/llm/enrichment.ts) takes its existing
+    // transient-failure path: refund the unit and leave the message eligible
+    // for retry, instead of quietly accepting less than what was asked for.
+    if (finishReason === 'length') {
+      logger.error(
+        { model: this.model, finishReason, contentLength: content.length },
+        '[OpenAICompatAdapter] enrichment response truncated before completion',
+      )
+      throw new Error(`OpenAICompatAdapter: response truncated (finish_reason: length, ${content.length} chars)`)
     }
 
     // Strip <think>…</think> blocks emitted by reasoning models before JSON parsing

@@ -46,6 +46,18 @@ function categoryBadgeClassName(category: string): string {
   return CATEGORY_TINTS[(index < 0 ? 0 : index) % CATEGORY_TINTS.length]
 }
 
+/**
+ * `metadata` is populated deterministically for every message at ingestion
+ * time (`{ links, timestamps: [] }`), so a bare non-null check is no longer a
+ * useful signal for "this message has enrichment data" — it's true for every
+ * message. Check for actual content instead.
+ */
+function hasMetadataContent(metadata: unknown): boolean {
+  if (typeof metadata !== 'object' || metadata === null) return false
+  const m = metadata as { links?: unknown; timestamps?: unknown }
+  return (Array.isArray(m.links) && m.links.length > 0) || (Array.isArray(m.timestamps) && m.timestamps.length > 0)
+}
+
 export default function InboxPage() {
   // useSearchParams needs a Suspense boundary to keep this page statically
   // prerenderable, the same shape /auth/verify uses for its `token` param.
@@ -332,7 +344,7 @@ function InboxPageContent() {
   const hasEnrichment = selectedMessage && (
     (selectedMessage.categories && selectedMessage.categories.length > 0) ||
     selectedMessage.extractedOtp ||
-    selectedMessage.metadata !== null
+    hasMetadataContent(selectedMessage.metadata)
   )
 
   return (
@@ -368,15 +380,15 @@ function InboxPageContent() {
                 <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">
                   · {messages.length} {messages.length === 1 ? 'message' : 'messages'}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchData}
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSearching ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchData}
-                className="ml-auto text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSearching ? 'animate-spin' : ''}`} />
-              </Button>
             </div>
           </div>
 
@@ -748,9 +760,27 @@ function InboxPageContent() {
                               </div>
                             </div>
                           )}
-                          {selectedMessage.metadata !== null && (
+                          {hasMetadataContent(selectedMessage.metadata) && (
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Metadata</p>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Metadata</p>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(
+                                        JSON.stringify(selectedMessage.metadata, null, 2)
+                                      )
+                                      toast.success('Metadata copied')
+                                    } catch {
+                                      toast.error('Failed to copy metadata')
+                                    }
+                                  }}
+                                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                                  aria-label="Copy metadata"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                               <pre className="text-xs font-mono bg-muted rounded p-3 leading-relaxed text-foreground whitespace-pre-wrap break-all">
                                 {JSON.stringify(selectedMessage.metadata, null, 2)}
                               </pre>

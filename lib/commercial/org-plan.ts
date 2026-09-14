@@ -30,7 +30,7 @@ export type OrganizationPlan = {
  * user in two organizations on different plans, and `role` already sets the
  * precedent for per-organization attributes living on the organization object.
  *
- * Returns an empty map when `USE_COMMERCIAL` is off, so a self-hosted
+ * Returns an empty map when `COMMERCIAL_ENABLED` is off, so a self-hosted
  * deployment pays no per-membership lookup on every dashboard mount for a value
  * that is always unlimited. The client reads the absence as "no plan
  * restrictions", which is exactly right there.

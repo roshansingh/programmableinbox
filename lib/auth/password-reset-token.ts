@@ -1,7 +1,7 @@
 /**
  * The only module that signs or verifies password-reset tokens.
  *
- * `server-only` because it reads `EMAIL_LINK_SECRET` through `lib/config`.
+ * `server-only` because it reads `EMAIL_LINK_SIGNING_SECRET` through `lib/config`.
  * A client component importing this must fail the build rather than shipping a
  * signing key to the browser.
  */
@@ -15,7 +15,7 @@ import { config, requireEmailVerification } from '@/lib/config'
  * before any other claim is read.
  *
  * This is the ONLY barrier between the two token types. Both are signed with
- * EMAIL_LINK_SECRET, so the signature check cannot tell a verification link
+ * EMAIL_LINK_SIGNING_SECRET, so the signature check cannot tell a verification link
  * from a reset link — one grants a boolean flip, the other grants the account.
  * If this equality test is relaxed, or any claim is read ahead of it, that
  * distinction disappears.
