@@ -9,10 +9,11 @@
 import { apiClient } from '../api-client'
 
 /**
- * A plan as the billing page displays it. Mirrors the 5 fields
- * `GET /app/billing/plans` reports — the exact set that differs between
- * `free` and `pro` today, capped there deliberately so the picker stays a
- * glance rather than a spec sheet.
+ * A plan as the billing page displays it. Mirrors the fields
+ * `GET /app/billing/plans` reports — the plan-comparison bullets shown on the
+ * pricing page (inbox/message/automation/retention limits plus the feature
+ * flags), allowlisted here the same way `AppConfig` is, so a new `PlanLimits`
+ * key is not exposed to the picker without a deliberate addition to this type.
  */
 export interface PublicPlan {
   code: string
@@ -20,8 +21,12 @@ export interface PublicPlan {
   limits: {
     emailInboxes: number | null
     incomingEmailsPerPeriod: number | null
+    automations: number | null
+    messageRetentionDays: number | null
     outboundEmail: boolean
     llmEnrichment: boolean
+    mcpAccess: boolean
+    apiV1Access: boolean
   }
   /**
    * `null` covers two cases the client does not need to tell apart: a plan

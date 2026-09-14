@@ -36,6 +36,12 @@ function formatCount(count: number | null, singular: string, plural: string): st
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
 }
 
+/** Same "count + unit" shape as `formatCount`, but "day(s)" sits before the label rather than after the count. */
+function formatRetention(days: number | null): string {
+  if (days === null) return "Unlimited data retention"
+  return `${days.toLocaleString()} ${days === 1 ? "day" : "days"} data retention`
+}
+
 /**
  * How long to wait before re-checking the session after a checkout redirect.
  *
@@ -214,8 +220,13 @@ function BillingContent() {
                                 "incoming emails / month",
                               )}
                             </li>
+                            <li>{formatCount(planSummary.limits.automations, "automation", "automations")}</li>
+                            <li>{planSummary.limits.apiV1Access ? "Full REST API" : "No REST API"}</li>
+                            <li>{planSummary.limits.mcpAccess ? "MCP access" : "No MCP access"}</li>
                             <li>{planSummary.limits.outboundEmail ? "Outbound email" : "No outbound email"}</li>
                             <li>{planSummary.limits.llmEnrichment ? "AI enrichment" : "No AI enrichment"}</li>
+                            <li>{formatRetention(planSummary.limits.messageRetentionDays)}</li>
+                            <li>Priority support</li>
                           </ul>
                           {renderAction(planSummary, isCurrent)}
                           {!isCurrent && planSummary.code === "free" && (
