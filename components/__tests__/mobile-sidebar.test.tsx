@@ -67,3 +67,34 @@ describe('MobileSidebar Billing link', () => {
     expect(labels.indexOf('Billing')).toBe(labels.indexOf('Settings') - 1)
   })
 })
+
+describe('MobileSidebar organization display', () => {
+  it('shows the org name and initial without a switcher or add-org options', () => {
+    mockUser.current = makeUser()
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    const orgName = screen.getByText('Roshan Singh', { selector: 'span' })
+    expect(orgName).toBeInTheDocument()
+    expect(orgName.closest('button')).toBeNull()
+    expect(screen.getByText('R')).toBeInTheDocument()
+    expect(screen.queryByText('Create Organization')).not.toBeInTheDocument()
+    expect(screen.queryByText('Join Organization')).not.toBeInTheDocument()
+  })
+})
+
+describe('MobileSidebar Support link', () => {
+  it('links to /support', () => {
+    mockUser.current = makeUser()
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    expect(screen.getByText('Support').closest('a')).toHaveAttribute('href', '/support')
+  })
+
+  it('sits directly below Settings', () => {
+    mockUser.current = makeUser()
+    render(<MobileSidebar open onClose={() => {}} />)
+
+    const labels = screen.getAllByRole('link').map((link) => link.textContent)
+    expect(labels.indexOf('Support')).toBe(labels.indexOf('Settings') + 1)
+  })
+})

@@ -121,4 +121,21 @@ describe('Sidebar', () => {
       expect(labels.indexOf('Billing')).toBe(labels.indexOf('Settings') - 1)
     })
   })
+
+  describe('Support link', () => {
+    it('links to /support', () => {
+      mockUser.current = makeUser()
+      render(<Sidebar />)
+
+      expect(screen.getByText('Support').closest('a')).toHaveAttribute('href', '/support')
+    })
+
+    it('sits directly below Settings', () => {
+      mockUser.current = makeUser()
+      render(<Sidebar />)
+
+      const labels = screen.getAllByRole('link').map((link) => link.textContent)
+      expect(labels.indexOf('Support')).toBe(labels.indexOf('Settings') + 1)
+    })
+  })
 })
