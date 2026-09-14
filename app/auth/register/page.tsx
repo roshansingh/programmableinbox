@@ -151,13 +151,23 @@ export default function RegisterPage() {
                 className="text-sm leading-relaxed text-muted-foreground"
               >
                 I agree to the{" "}
-                <Link href="/terms" className="text-primary hover:underline">
+                <a
+                  href="https://www.programmableinbox.com/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
                   Terms of Service
-                </Link>{" "}
+                </a>{" "}
                 and{" "}
-                <Link href="/privacy" className="text-primary hover:underline">
+                <a
+                  href="https://www.programmableinbox.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
                   Privacy Policy
-                </Link>
+                </a>
               </label>
             </div>
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
