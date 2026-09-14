@@ -7,6 +7,7 @@ import { defaultOrganizationName } from '@/lib/user-display'
 import { config } from '@/lib/config'
 import { sendVerificationEmail } from '@/lib/email/verification-email'
 import { validatePassword } from '@/lib/validation/password'
+import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import {
   accountBucket,
   consumeClientIpRateLimit,
@@ -148,6 +149,12 @@ export const POST = withPublic(async (request: NextRequest) => {
         },
       })
     })
+
+    if (config.productAnalytics.enabled) {
+      captureEvent(PRODUCT_ANALYTICS_EVENTS.userSignedUp, user.id, {
+        email: user.email,
+      })
+    }
 
     if (config.emailVerification.enabled) {
       // A send failure must NOT fail the signup (issue #102 §7.2). The account

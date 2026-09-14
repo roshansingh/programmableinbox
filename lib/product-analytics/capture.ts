@@ -15,6 +15,7 @@ import logger from '@/lib/logger'
  * re-exports this same map for its own (EE-internal) callers.
  *
  * Names and fire points, from the issue's phasing:
+ *   - user_signed_up          app/api/app/auth/register/route.ts POST
  *   - inbox_created           app/api/app/emailInbox/route.ts POST
  *   - second_inbox_created    same path, when the org's live count reaches 2
  *   - message_viewed          the isRead PATCH branch, messages/[messageId]
@@ -27,6 +28,7 @@ import logger from '@/lib/logger'
  *   - mcp_tool_called         every MCP tool invocation, app/api/mcp
  */
 export const PRODUCT_ANALYTICS_EVENTS = {
+  userSignedUp: 'user_signed_up',
   inboxCreated: 'inbox_created',
   secondInboxCreated: 'second_inbox_created',
   messageViewed: 'message_viewed',
