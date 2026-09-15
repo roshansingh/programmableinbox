@@ -103,7 +103,6 @@ describe('GET /api/app/billing/plans', () => {
           emailInboxes: 1,
           incomingEmailsPerPeriod: 300,
           automations: 1,
-          messageRetentionDays: 30,
           outboundEmail: false,
           llmEnrichment: false,
           mcpAccess: true,
@@ -117,7 +116,6 @@ describe('GET /api/app/billing/plans', () => {
           emailInboxes: 3,
           incomingEmailsPerPeriod: 2000,
           automations: 5,
-          messageRetentionDays: 90,
           // Not set on the seeded row; PlanLimitsSchema fills the permissive default.
           outboundEmail: true,
           llmEnrichment: true,

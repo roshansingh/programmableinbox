@@ -11,9 +11,14 @@ import { apiClient } from '../api-client'
 /**
  * A plan as the billing page displays it. Mirrors the fields
  * `GET /app/billing/plans` reports — the plan-comparison bullets shown on the
- * pricing page (inbox/message/automation/retention limits plus the feature
- * flags), allowlisted here the same way `AppConfig` is, so a new `PlanLimits`
- * key is not exposed to the picker without a deliberate addition to this type.
+ * pricing page (inbox/message/automation limits plus the feature flags),
+ * allowlisted here the same way `AppConfig` is, so a new `PlanLimits` key is
+ * not exposed to the picker without a deliberate addition to this type.
+ *
+ * Deliberately excludes `messageRetentionDays`: nothing in the codebase reads
+ * that limit to actually expire messages, so advertising it here would be a
+ * plan promise the app doesn't keep. Add it back only alongside real
+ * enforcement.
  */
 export interface PublicPlan {
   code: string
@@ -22,7 +27,6 @@ export interface PublicPlan {
     emailInboxes: number | null
     incomingEmailsPerPeriod: number | null
     automations: number | null
-    messageRetentionDays: number | null
     outboundEmail: boolean
     llmEnrichment: boolean
     mcpAccess: boolean
