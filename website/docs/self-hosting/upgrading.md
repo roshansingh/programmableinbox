@@ -5,12 +5,15 @@ title: Upgrading
 
 # Upgrading
 
-## Docker deployments
-
 ```bash
 docker compose pull
 docker compose up -d
 ```
+
+The `app` service's startup command runs `prisma migrate deploy` before
+starting the server (see [Quickstart (Docker)](quickstart-docker)), so this
+pull-and-restart picks up both the new image and any pending schema
+migrations in one step — there's no separate migration step to remember.
 
 Pin to a specific release rather than always taking `latest` by setting
 `IMAGE_TAG=vX.Y.Z` in `.env` before pulling. Check the
@@ -18,21 +21,10 @@ Pin to a specific release rather than always taking `latest` by setting
 for the target version for any migration or environment-variable changes
 before rolling forward.
 
-## From-source deployments
-
-```bash
-git pull
-npm install
-npx prisma migrate deploy
-npm run build
-```
-
-Restart the app process after the build completes. Run `npx prisma migrate
-deploy` (not `migrate dev`) in production — it applies pending migrations
-without prompting or generating new ones.
-
 ## Rolling back
 
 Database migrations in this project are additive by convention; check a
 release's notes for any migration explicitly marked as requiring a manual
-rollback step before reverting the application version underneath it.
+rollback step before reverting the application version underneath it. To
+roll back, set `IMAGE_TAG` in `.env` to the previous version and re-run the
+commands above.
