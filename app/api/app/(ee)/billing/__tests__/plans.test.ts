@@ -28,7 +28,9 @@ const FREE_PLAN = {
   stripePriceId: null,
   limits: {
     emailInboxes: 1,
-    incomingEmailsPerPeriod: 1000,
+    incomingEmailsPerPeriod: 300,
+    automations: 1,
+    messageRetentionDays: 30,
     outboundEmail: false,
     llmEnrichment: false,
     overQuotaBehavior: 'drop',
@@ -41,9 +43,11 @@ const PRO_PLAN = {
   name: 'Pro',
   stripePriceId: 'price_pro',
   limits: {
-    emailInboxes: 2,
-    incomingEmailsPerPeriod: 5000,
-    overQuotaBehavior: 'drop',
+    emailInboxes: 3,
+    incomingEmailsPerPeriod: 2000,
+    automations: 5,
+    messageRetentionDays: 90,
+    overQuotaBehavior: 'overage',
   },
 }
 
@@ -97,20 +101,26 @@ describe('GET /api/app/billing/plans', () => {
         name: 'Free',
         limits: {
           emailInboxes: 1,
-          incomingEmailsPerPeriod: 1000,
+          incomingEmailsPerPeriod: 300,
+          automations: 1,
           outboundEmail: false,
           llmEnrichment: false,
+          mcpAccess: true,
+          apiV1Access: true,
         },
       }),
       expect.objectContaining({
         code: 'pro',
         name: 'Pro',
         limits: {
-          emailInboxes: 2,
-          incomingEmailsPerPeriod: 5000,
+          emailInboxes: 3,
+          incomingEmailsPerPeriod: 2000,
+          automations: 5,
           // Not set on the seeded row; PlanLimitsSchema fills the permissive default.
           outboundEmail: true,
           llmEnrichment: true,
+          mcpAccess: true,
+          apiV1Access: true,
         },
       }),
     ])

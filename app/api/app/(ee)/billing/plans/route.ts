@@ -78,8 +78,11 @@ export const GET = withUser(async (_request: NextRequest) => {
         limits: {
           emailInboxes: limits.emailInboxes,
           incomingEmailsPerPeriod: limits.incomingEmailsPerPeriod,
+          automations: limits.automations,
           outboundEmail: limits.outboundEmail,
           llmEnrichment: limits.llmEnrichment,
+          mcpAccess: limits.mcpAccess,
+          apiV1Access: limits.apiV1Access,
         },
         price: await resolvePrice(row.stripePriceId),
       }

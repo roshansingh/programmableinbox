@@ -34,15 +34,31 @@ vi.mock('@/lib/api/billing.api', async (importOriginal) => {
 const FREE_PLAN = {
   code: 'free',
   name: 'Free',
-  limits: { emailInboxes: 1, incomingEmailsPerPeriod: 1000, outboundEmail: false, llmEnrichment: false },
+  limits: {
+    emailInboxes: 1,
+    incomingEmailsPerPeriod: 300,
+    automations: 1,
+    outboundEmail: false,
+    llmEnrichment: false,
+    mcpAccess: true,
+    apiV1Access: true,
+  },
   price: null,
 }
 
 const PRO_PLAN = {
   code: 'pro',
   name: 'Pro',
-  limits: { emailInboxes: 2, incomingEmailsPerPeriod: 5000, outboundEmail: true, llmEnrichment: true },
-  price: { amount: 2000, currency: 'usd', interval: 'month' },
+  limits: {
+    emailInboxes: 3,
+    incomingEmailsPerPeriod: 2000,
+    automations: 5,
+    outboundEmail: true,
+    llmEnrichment: true,
+    mcpAccess: true,
+    apiV1Access: true,
+  },
+  price: { amount: 500, currency: 'usd', interval: 'month' },
 }
 
 function userOnPlan(planCode: 'free' | 'pro') {
@@ -107,18 +123,43 @@ describe('BillingPage', () => {
     expect(await findCardTitle('Pro')).toBeInTheDocument()
   })
 
-  it('shows the 5 plan details: inboxes, incoming emails, outbound email, AI enrichment and price', async () => {
+  it('shows the plan details: inboxes, incoming emails, automations, API/MCP access, outbound email, AI enrichment and price', async () => {
     mockAuthMe(userOnPlan('free'))
     mockPlansEndpoint()
     renderWithProviders(<BillingPage />)
 
     const proCard = (await findCardTitle('Pro')).closest('[data-slot="card"]') as HTMLElement
 
-    expect(proCard).toHaveTextContent(/2.*email inboxes/i)
-    expect(proCard).toHaveTextContent(/5,000.*incoming emails/i)
+    expect(proCard).toHaveTextContent(/3.*email inboxes/i)
+    expect(proCard).toHaveTextContent(/2,000.*incoming emails/i)
+    expect(proCard).toHaveTextContent(/5.*automations/i)
+    expect(proCard).toHaveTextContent(/full rest api/i)
+    expect(proCard).toHaveTextContent(/mcp access/i)
     expect(proCard).toHaveTextContent(/outbound email/i)
     expect(proCard).toHaveTextContent(/AI enrichment/i)
-    expect(proCard).toHaveTextContent('$20.00/month')
+    expect(proCard).toHaveTextContent(/priority support/i)
+    expect(proCard).toHaveTextContent('$5.00/month')
+  })
+
+  /**
+   * A server on an older deploy than the client's JS bundle can omit fields
+   * this page now reads (issue flagged in PR #170 review). `automations`
+   * missing entirely — not `null`, genuinely absent from the JSON — must
+   * render as "Unlimited automations" rather than crash the whole card.
+   */
+  it('renders a plan payload missing the newer limit fields without crashing', async () => {
+    mockAuthMe(userOnPlan('free'))
+    const legacyFreePlan = {
+      code: 'free',
+      name: 'Free',
+      limits: { emailInboxes: 1, incomingEmailsPerPeriod: 1000, outboundEmail: false, llmEnrichment: false },
+      price: null,
+    }
+    mockPlansEndpoint([legacyFreePlan, PRO_PLAN])
+    renderWithProviders(<BillingPage />)
+
+    const freeCard = (await findCardTitle('Free')).closest('[data-slot="card"]') as HTMLElement
+    expect(freeCard).toHaveTextContent(/unlimited automations/i)
   })
 
   it('singularizes a count of exactly 1, rather than "1 email inboxes"', async () => {

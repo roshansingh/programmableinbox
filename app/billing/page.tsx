@@ -30,9 +30,15 @@ function formatPrice(price: PublicPlan["price"]): string {
  * stripping a trailing "s") because a unit like "incoming emails / month"
  * isn't a single pluralizable word — a suffix rule would need to know it's
  * "emails" specifically, inside a longer phrase.
+ *
+ * `count` accepts `undefined` in addition to the documented `number | null`
+ * because this value comes straight off an HTTP response: a server on an
+ * older deploy than the client's JS bundle can omit a field this page now
+ * expects, and treating that the same as "unlimited" fails safe instead of
+ * calling `toLocaleString()` on `undefined` and crashing the whole picker.
  */
-function formatCount(count: number | null, singular: string, plural: string): string {
-  if (count === null) return `Unlimited ${plural}`
+function formatCount(count: number | null | undefined, singular: string, plural: string): string {
+  if (count === null || count === undefined) return `Unlimited ${plural}`
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
 }
 
@@ -214,8 +220,12 @@ function BillingContent() {
                                 "incoming emails / month",
                               )}
                             </li>
+                            <li>{formatCount(planSummary.limits.automations, "automation", "automations")}</li>
+                            <li>{planSummary.limits.apiV1Access ? "Full REST API" : "No REST API"}</li>
+                            <li>{planSummary.limits.mcpAccess ? "MCP access" : "No MCP access"}</li>
                             <li>{planSummary.limits.outboundEmail ? "Outbound email" : "No outbound email"}</li>
                             <li>{planSummary.limits.llmEnrichment ? "AI enrichment" : "No AI enrichment"}</li>
+                            <li>Priority support</li>
                           </ul>
                           {renderAction(planSummary, isCurrent)}
                           {!isCurrent && planSummary.code === "free" && (
