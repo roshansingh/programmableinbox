@@ -109,8 +109,12 @@ To have this instance actually receive email:
    you've set up a real webhook.
 4. `docker compose up -d` to pick up the change.
 
-Until then, everything else — the dashboard, the API, MCP tools, sending mail
-— works against inboxes on the placeholder domain.
+Until then, everything else — the dashboard, the API, and MCP tools — works
+against inboxes on the placeholder domain. Outbound sends (the
+[send endpoint](../api-reference/authentication-and-scopes), password-reset
+and verification emails) call Resend directly and fail with a placeholder
+`RESEND_API_KEY`, so those need a real key even before you set up inbound
+mail.
 
 ## Add TLS with Caddy {#add-tls}
 
@@ -157,9 +161,12 @@ Point your domain's `A` record at the host, then verify:
 curl -fsS https://your-domain.example.com/api/healthz
 ```
 
-That's as far as this guide goes on exposing the app publicly. If you don't
-want `app`'s own port reachable directly, drop its `ports:` mapping now that
-Caddy is the ingress.
+That's as far as this guide goes on exposing the app publicly. **Now that
+Caddy is the ingress, remove `app`'s `ports: - "${APP_PORT:-4000}:4000"`
+mapping** — left in place, it publishes the app on every host interface over
+plain HTTP, which is a direct bypass around Caddy's TLS on anything but a
+local-only trial. Keep it only if `app` is meant to stay reachable at
+`localhost:4000` and nowhere else.
 
 ## Upgrading
 
@@ -184,6 +191,9 @@ docker compose down -v     # stop containers and delete the Postgres/Redis volum
 
 Postgres and Redis data live in the named volumes `postgres-data` and
 `redis-data`, so `docker compose down` alone is safe to run between sessions.
+If you've added the `caddy` service from [Add TLS with Caddy](#add-tls),
+`-v` also deletes `caddy-data` — Caddy's issued TLS certificates and state,
+not just Postgres/Redis — so avoid it on a deployment you're keeping.
 
 ## Troubleshooting
 

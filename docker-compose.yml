@@ -7,7 +7,7 @@
 #
 # Usage:
 #   cp .env.quickstart.example .env
-#   # edit .env — see https://docs.programmableinbox.com/introduction/quickstart-docker
+#   # edit .env — see https://docs.programmableinbox.com/self-hosting/quickstart-docker
 #   docker compose pull
 #   docker compose up -d
 #   # → http://localhost:4000
@@ -34,6 +34,11 @@ services:
       AUTH_EMAIL_FROM_NAME: "${AUTH_EMAIL_FROM_NAME:-ProgrammableInbox}"
       EMAIL_INBOX_ALLOWED_DOMAINS: "${EMAIL_INBOX_ALLOWED_DOMAINS:?set EMAIL_INBOX_ALLOWED_DOMAINS in .env, a domain you don't own yet is fine for exploring the UI}"
       NEXT_PUBLIC_API_MODE: local
+      # Compose only injects variables declared here — setting MCP_ENABLED in
+      # .env alone does nothing without this line. See
+      # https://docs.programmableinbox.com/mcp/setup#self-hosted.
+      MCP_ENABLED: "${MCP_ENABLED:-false}"
+      MCP_ALLOWED_ORIGINS: "${MCP_ALLOWED_ORIGINS:-}"
     # The standalone runtime image ships node_modules/prisma but not
     # node_modules/.bin, so the Prisma CLI is invoked directly (same pattern
     # deploy/docker-compose.yml's `migrate` service uses). Running the

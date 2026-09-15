@@ -45,10 +45,15 @@ docker compose up -d
 # → http://localhost:4000, register a new account at /auth/register
 ```
 
-See **[the Docker quickstart guide](https://docs.programmableinbox.com/introduction/quickstart-docker)**
+See **[the Docker quickstart guide](https://docs.programmableinbox.com/self-hosting/quickstart-docker)**
 for wiring up real inbound mail via Resend, upgrading, and troubleshooting.
 
-### From source
+### From source (development)
+
+For hacking on the codebase — hot reload and seeded test data. This isn't the
+supported way to self-host; see
+[the Docker quickstart guide](https://docs.programmableinbox.com/self-hosting/quickstart-docker)
+for that.
 
 **Requirements:** Node.js 24+, PostgreSQL 14+, and optionally Redis 6+ (only for async webhook
 processing).
