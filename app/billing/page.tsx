@@ -20,7 +20,11 @@ import { cn } from "@/lib/utils"
 /**
  * One feature row. `allowed` drives the icon — a checkmark for something the
  * plan includes, a crossmark for something it doesn't — rather than relying
- * on "No " phrasing alone, so the icon carries the meaning at a glance.
+ * on "No " phrasing alone, so the icon carries the meaning at a glance. The
+ * icon is decorative (`aria-hidden`) and the feature name is now identical
+ * for an included vs. excluded plan, so the included/excluded state is
+ * additionally exposed as `sr-only` text — otherwise a screen reader
+ * announces the same "Full REST API" either way.
  */
 function FeatureLine({ allowed, children }: { allowed: boolean; children: ReactNode }) {
   return (
@@ -30,7 +34,10 @@ function FeatureLine({ allowed, children }: { allowed: boolean; children: ReactN
       ) : (
         <X className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden />
       )}
-      <span className={cn(!allowed && "text-muted-foreground/70")}>{children}</span>
+      <span className={cn(!allowed && "text-muted-foreground/70")}>
+        <span className="sr-only">{allowed ? "Included: " : "Not included: "}</span>
+        {children}
+      </span>
     </li>
   )
 }
