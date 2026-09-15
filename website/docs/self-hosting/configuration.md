@@ -15,7 +15,7 @@ rather than failing requests one at a time later.
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string. Must include `?options=-c%20timezone%3DUTC` (or `+c+timezone...`) — see the note below. |
 | `AUTH_JWT_SECRET` | Signs session tokens. Generate with `openssl rand -base64 32`. |
-| `RESEND_WEBHOOK_SECRET` | Verifies inbound mail webhooks. |
+| `RESEND_WEBHOOK_SECRET` | Verifies inbound mail webhooks — the signing secret from the webhook you create in Resend. See [Requirements → External services](requirements#external-services). |
 | `RESEND_API_KEY` | [Resend](https://resend.com) API key, used to send auth emails and receive inbound mail. |
 | `AUTH_EMAIL_FROM` | From-address for outgoing auth emails. |
 | `AUTH_EMAIL_FROM_NAME` | Display name for outgoing auth emails. |
@@ -51,4 +51,4 @@ set.
 
 ## Next step
 
-Ready for production? See [Production Deployment](production-deployment).
+Ready to put it behind TLS? See [Add TLS with Caddy](quickstart-docker#add-tls).

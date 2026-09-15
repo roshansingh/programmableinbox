@@ -14,14 +14,15 @@ route mail with an automation, or read it in the dashboard.
 
 It's open source and self-hostable, so your mail never has to leave your own
 infrastructure. It's also reachable from an [MCP](https://modelcontextprotocol.io)
-client like Claude Code or Cursor, so an agent can read the same inbox you can.
+client like Claude Code, Codex, or GitHub Copilot, so an agent can read the
+same inbox you can.
 
 ## What it's for
 
 - **Testing and QA** — dedicated inboxes for signup flows, magic links, and
   one-time codes, without a shared team mailbox.
 - **Agent workflows** — give an LLM agent a real, addressable inbox it can
-  read via [MCP](../mcp/overview) or the [SDKs](../sdks/overview), instead
+  read via [MCP](../mcp/setup) or the [SDKs](../sdks/overview), instead
   of screen-scraping a mail client.
 - **Programmatic mail handling** — receive, thread, search, and act on
   incoming mail through a [REST API](../api-reference/authentication-and-scopes),
@@ -45,12 +46,13 @@ client like Claude Code or Cursor, so an agent can read the same inbox you can.
 
 ## Where to start
 
-- New to the project? Read [Core Concepts](introduction/core-concepts), then
-  [run it locally with Docker](introduction/quickstart-docker).
-- Deploying it yourself? Go to [Self-Hosting](../self-hosting/requirements-and-installation).
+- New to the project? Read [Core Concepts](introduction/core-concepts).
+- Want to try it without running anything yourself? Use the hosted version at
+  [app.programmableinbox.com](https://app.programmableinbox.com).
+- Deploying it yourself? Go to [Self-Hosting](../self-hosting/requirements).
 - Calling the API? Start at [Authentication & Scopes](../api-reference/authentication-and-scopes)
   or jump straight to an [SDK](../sdks/overview).
-- Wiring up an agent? See [MCP](../mcp/overview).
+- Wiring up an agent? See [MCP Setup](../mcp/setup).
 
 Open source under [AGPL-3.0](https://github.com/roshansingh/programmableinbox/blob/main/LICENSE),
 with an optional commercial layer.

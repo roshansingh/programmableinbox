@@ -10,16 +10,15 @@ const sidebars: SidebarsConfig = {
       items: [
         'introduction/overview',
         'introduction/core-concepts',
-        'introduction/quickstart-docker',
       ],
     },
     {
       type: 'category',
       label: 'Self-Hosting',
       items: [
-        'self-hosting/requirements-and-installation',
+        'self-hosting/requirements',
+        'self-hosting/quickstart-docker',
         'self-hosting/configuration',
-        'self-hosting/production-deployment',
         'self-hosting/upgrading',
       ],
     },
@@ -57,7 +56,6 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'MCP',
       items: [
-        'mcp/overview',
         'mcp/setup',
         'mcp/tool-reference',
       ],
