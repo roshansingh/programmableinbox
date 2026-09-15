@@ -1,7 +1,8 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { useSearchParams } from "next/navigation"
+import { Check, X } from "lucide-react"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,31 @@ import {
   type PublicPlan,
 } from "@/lib/api/billing.api"
 import { cn } from "@/lib/utils"
+
+/**
+ * One feature row. `allowed` drives the icon — a checkmark for something the
+ * plan includes, a crossmark for something it doesn't — rather than relying
+ * on "No " phrasing alone, so the icon carries the meaning at a glance. The
+ * icon is decorative (`aria-hidden`) and the feature name is now identical
+ * for an included vs. excluded plan, so the included/excluded state is
+ * additionally exposed as `sr-only` text — otherwise a screen reader
+ * announces the same "Full REST API" either way.
+ */
+function FeatureLine({ allowed, children }: { allowed: boolean; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2">
+      {allowed ? (
+        <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+      ) : (
+        <X className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden />
+      )}
+      <span className={cn(!allowed && "text-muted-foreground/70")}>
+        <span className="sr-only">{allowed ? "Included: " : "Not included: "}</span>
+        {children}
+      </span>
+    </li>
+  )
+}
 
 function formatPrice(price: PublicPlan["price"]): string {
   if (!price) return "Free"
@@ -209,23 +235,25 @@ function BillingContent() {
                           <CardDescription>{formatPrice(planSummary.price)}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <ul className="space-y-1 text-sm text-muted-foreground">
-                            <li>
+                          <ul className="space-y-1.5 text-sm text-muted-foreground">
+                            <FeatureLine allowed>
                               {formatCount(planSummary.limits.emailInboxes, "email inbox", "email inboxes")}
-                            </li>
-                            <li>
+                            </FeatureLine>
+                            <FeatureLine allowed>
                               {formatCount(
                                 planSummary.limits.incomingEmailsPerPeriod,
                                 "incoming email / month",
                                 "incoming emails / month",
                               )}
-                            </li>
-                            <li>{formatCount(planSummary.limits.automations, "automation", "automations")}</li>
-                            <li>{planSummary.limits.apiV1Access ? "Full REST API" : "No REST API"}</li>
-                            <li>{planSummary.limits.mcpAccess ? "MCP access" : "No MCP access"}</li>
-                            <li>{planSummary.limits.outboundEmail ? "Outbound email" : "No outbound email"}</li>
-                            <li>{planSummary.limits.llmEnrichment ? "AI enrichment" : "No AI enrichment"}</li>
-                            <li>Priority support</li>
+                            </FeatureLine>
+                            <FeatureLine allowed>
+                              {formatCount(planSummary.limits.automations, "automation", "automations")}
+                            </FeatureLine>
+                            <FeatureLine allowed={planSummary.limits.apiV1Access}>Full REST API</FeatureLine>
+                            <FeatureLine allowed={planSummary.limits.mcpAccess}>MCP access</FeatureLine>
+                            <FeatureLine allowed={planSummary.limits.outboundEmail}>Outbound email</FeatureLine>
+                            <FeatureLine allowed={planSummary.limits.llmEnrichment}>AI enrichment</FeatureLine>
+                            <FeatureLine allowed>Priority support</FeatureLine>
                           </ul>
                           {renderAction(planSummary, isCurrent)}
                           {!isCurrent && planSummary.code === "free" && (

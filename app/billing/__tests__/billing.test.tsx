@@ -142,6 +142,36 @@ describe('BillingPage', () => {
   })
 
   /**
+   * The checkmark/crossmark icons are `aria-hidden`, and a boolean feature's
+   * label text is now identical whether the plan includes it or not (no more
+   * "No outbound email"), so the included/excluded state has to be asserted
+   * through the `sr-only` status text rather than the icon or the label.
+   */
+  it('exposes included vs. excluded plan features as accessible status text', async () => {
+    mockAuthMe(userOnPlan('free'))
+    mockPlansEndpoint()
+    renderWithProviders(<BillingPage />)
+
+    const freeCard = (await findCardTitle('Free')).closest('[data-slot="card"]') as HTMLElement
+    const proCard = (await findCardTitle('Pro')).closest('[data-slot="card"]') as HTMLElement
+
+    // Free: outboundEmail and llmEnrichment are false; mcpAccess and apiV1Access are true.
+    expect(freeCard).toHaveTextContent(/not included:\s*outbound email/i)
+    expect(freeCard).toHaveTextContent(/not included:\s*AI enrichment/i)
+    expect(freeCard).toHaveTextContent(/included:\s*full rest api/i)
+    expect(freeCard).toHaveTextContent(/included:\s*mcp access/i)
+    expect(freeCard).not.toHaveTextContent(/not included:\s*full rest api/i)
+    expect(freeCard).not.toHaveTextContent(/not included:\s*mcp access/i)
+
+    // Pro: every boolean feature is true.
+    expect(proCard).toHaveTextContent(/included:\s*outbound email/i)
+    expect(proCard).toHaveTextContent(/included:\s*AI enrichment/i)
+    expect(proCard).toHaveTextContent(/included:\s*full rest api/i)
+    expect(proCard).toHaveTextContent(/included:\s*mcp access/i)
+    expect(proCard).not.toHaveTextContent(/not included/i)
+  })
+
+  /**
    * A server on an older deploy than the client's JS bundle can omit fields
    * this page now reads (issue flagged in PR #170 review). `automations`
    * missing entirely — not `null`, genuinely absent from the JSON — must
