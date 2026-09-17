@@ -4,6 +4,7 @@ import { SsrfBlockedError, safeFetch } from '@/lib/security/ssrf-guard'
 import { formatOriginalMessageDate } from '@/lib/email/format-original-message-date'
 import { claimAutoReplySlot, releaseAutoReplySlot } from './auto-reply-throttle'
 import { CommercialProvider } from '@/lib/commercial/provider'
+import { findSameServiceRecipients, isSameServiceRecipient } from '@/lib/validation/outbound-recipient-policy'
 import type { Automation, AutomationRevision, AutoReplyLedger, EmailInbox } from '@/lib/generated/prisma/client'
 import type {
   ActionNodeConfig,
@@ -127,6 +128,25 @@ async function executeForwardEmail(
 
   const gated = await checkOutboundEmailAllowed(context.input.organizationId)
   if (gated) return gated
+
+  // Defense-in-depth: save-time policy (lib/automations/outbound-policy.ts)
+  // already refuses to store a forward_email node targeting our own domain,
+  // but an automation saved before that rule existed — or whose target domain
+  // was added to EMAIL_INBOX_ALLOWED_DOMAINS afterward — can still reach here.
+  const blockedRecipients = findSameServiceRecipients([
+    ...node.config.to,
+    ...(node.config.cc ?? []),
+    ...(node.config.bcc ?? []),
+  ])
+  if (blockedRecipients.length > 0) {
+    return {
+      status: 'failed',
+      error: {
+        code: 'blocked_recipient_domain',
+        message: `Cannot forward to an address on this service's own domain: ${blockedRecipients.join(', ')}`,
+      },
+    }
+  }
 
   const originalMessageHeaderText = buildOriginalMessageHeaderText(context.input)
   const text = [node.config.prependNote, originalMessageHeaderText, context.input.bodyText]
@@ -316,6 +336,17 @@ async function executeAutoReply(
     return {
       status: 'skipped',
       output: { reason: 'loop_guard_same_sender_as_inbox' },
+    }
+  }
+
+  // Before the throttle claim, same reasoning as the plan gate above: claiming
+  // a slot for a reply that will never be sent burns the sender's cooldown for
+  // real. A same-service sender is skipped, not failed — it is not something
+  // the tenant configured, unlike a forward_email recipient.
+  if (isSameServiceRecipient(context.input.from)) {
+    return {
+      status: 'skipped',
+      output: { reason: 'blocked_recipient_domain' },
     }
   }
 

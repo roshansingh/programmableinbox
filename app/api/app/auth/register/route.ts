@@ -7,6 +7,7 @@ import { defaultOrganizationName } from '@/lib/user-display'
 import { config } from '@/lib/config'
 import { sendVerificationEmail } from '@/lib/email/verification-email'
 import { validatePassword } from '@/lib/validation/password'
+import { isSameServiceRecipient } from '@/lib/validation/outbound-recipient-policy'
 import { captureEvent, PRODUCT_ANALYTICS_EVENTS } from '@/lib/product-analytics/capture'
 import {
   accountBucket,
@@ -54,6 +55,17 @@ export const POST = withPublic(async (request: NextRequest) => {
     // which Prisma would otherwise reject at insert time with the same outcome.
     if (!email || typeof email !== 'string' || !password || typeof password !== 'string') {
       return jsonError('Email and password are required', 400)
+    }
+
+    // A domain this deployment actually receives mail at (EMAIL_INBOX_ALLOWED_DOMAINS)
+    // is one anyone could register an account on for free without ever going
+    // through inbox-creation policy — the account row exists regardless of
+    // whether an EmailInbox gets created at that address. Generic message,
+    // unlike inbox creation's domainNotAllowed(): the allowed domains are
+    // already public via /app/auth/me, but naming them specifically here would
+    // tell an unauthenticated caller which addresses double as our own inboxes.
+    if (isSameServiceRecipient(email)) {
+      return jsonError('Please register with an email address from a different provider', 400)
     }
 
     // Newly enforced. Registration previously accepted a one-character
