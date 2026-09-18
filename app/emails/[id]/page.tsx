@@ -12,6 +12,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { formatDistanceToNow } from "date-fns"
 import { getEmailInbox, getEmailMessages, deleteEmailMessage, starEmailMessage, setEmailMessageRead, type InboxEmail, type EmailMessage } from "@/lib/api/emails.api"
 import { ComposeEmailDialog } from "@/components/compose-email-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { EmailHtmlViewer } from "@/components/email-html-viewer"
 import { toast } from 'sonner'
 import { cn } from "@/lib/utils"
@@ -88,6 +89,7 @@ function InboxPageContent() {
   const [showMessageDetail, setShowMessageDetail] = useState(false)
   const [threadMessages, setThreadMessages] = useState<EmailMessage[]>([])
   const [composeOpen, setComposeOpen] = useState(false)
+  const [messagePendingDelete, setMessagePendingDelete] = useState<EmailMessage | null>(null)
   const [composeMode, setComposeMode] = useState<"reply" | "forward">("reply")
   const [composeTarget, setComposeTarget] = useState<EmailMessage | null>(null)
   const [composeSessionId, setComposeSessionId] = useState(0)
@@ -152,7 +154,6 @@ function InboxPageContent() {
   }
 
   const handleDelete = async (messageId: string) => {
-    if (!window.confirm('Delete this message? This cannot be undone.')) return
     try {
       await deleteEmailMessage(inboxId, messageId)
       toast.success('Message deleted')
@@ -608,7 +609,7 @@ function InboxPageContent() {
                             size="icon"
                             aria-label="Delete message"
                             className="h-8 w-8 text-destructive"
-                            onClick={() => handleDelete(selectedMessage.id)}
+                            onClick={() => setMessagePendingDelete(selectedMessage)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -816,6 +817,25 @@ function InboxPageContent() {
           onSent={fetchData}
         />
       )}
+
+      <ConfirmDialog
+        open={messagePendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setMessagePendingDelete(null)
+        }}
+        title="Delete this message?"
+        description={
+          <>
+            <span className="font-medium text-foreground">
+              {messagePendingDelete?.subject || '(no subject)'}
+            </span>{' '}
+            will be deleted. This cannot be undone.
+          </>
+        }
+        onConfirm={() =>
+          messagePendingDelete ? handleDelete(messagePendingDelete.id) : undefined
+        }
+      />
     </div>
   )
 }

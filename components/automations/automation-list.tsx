@@ -7,6 +7,7 @@ import { GitBranch, Loader2, Play, Square, Trash2, Workflow } from 'lucide-react
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useAuth } from '@/components/auth-provider'
 import {
   createAutomation,
@@ -24,6 +25,8 @@ export function AutomationList() {
   const [automations, setAutomations] = useState<AutomationRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [pendingAutomationId, setPendingAutomationId] = useState<string | null>(null)
+  const [automationPendingDelete, setAutomationPendingDelete] =
+    useState<AutomationRecord | null>(null)
 
   async function loadAutomations() {
     if (!organizationId) return
@@ -74,15 +77,15 @@ export function AutomationList() {
     }
   }
 
-  async function handleDelete(
+  function requestDelete(
     event: MouseEvent<HTMLButtonElement>,
     automation: AutomationRecord
   ) {
     event.stopPropagation()
-    if (!window.confirm(`Delete automation "${automation.name}"?`)) {
-      return
-    }
+    setAutomationPendingDelete(automation)
+  }
 
+  async function handleDelete(automation: AutomationRecord) {
     setPendingAutomationId(automation.id)
     try {
       await deleteAutomation(automation.id)
@@ -199,7 +202,7 @@ export function AutomationList() {
                     size="sm"
                     variant="destructive"
                     disabled={pendingAutomationId === automation.id}
-                    onClick={(event) => handleDelete(event, automation)}
+                    onClick={(event) => requestDelete(event, automation)}
                   >
                     {pendingAutomationId === automation.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -214,6 +217,26 @@ export function AutomationList() {
           </div>
         )}
       </CardContent>
+      {/* Outside the rows: each row navigates on click, and a click inside a
+          portal would bubble to it through the React tree. */}
+      <ConfirmDialog
+        open={automationPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setAutomationPendingDelete(null)
+        }}
+        title="Delete this automation?"
+        description={
+          <>
+            <span className="font-medium text-foreground">
+              {automationPendingDelete?.name}
+            </span>{' '}
+            will be deleted.
+          </>
+        }
+        onConfirm={() =>
+          automationPendingDelete ? handleDelete(automationPendingDelete) : undefined
+        }
+      />
     </Card>
   )
 }

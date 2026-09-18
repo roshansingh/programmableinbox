@@ -1,8 +1,12 @@
 import React from 'react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen } from '@/test/test-utils'
+import { render, screen, waitFor, within } from '@/test/test-utils'
 import { RunHistoryPanel } from '@/components/automations/run-history-panel'
-import { getAutomationRuns, type AutomationRunRecord } from '@/lib/api/automations.api'
+import {
+  getAutomationRuns,
+  replayAutomationRun,
+  type AutomationRunRecord,
+} from '@/lib/api/automations.api'
 
 vi.mock('@/lib/api/automations.api', () => ({
   getAutomationRuns: vi.fn(),
@@ -72,5 +76,65 @@ describe('RunHistoryPanel', () => {
 
     expect(await screen.findByText('email.received')).toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  describe('replaying a run', () => {
+    beforeEach(() => {
+      vi.mocked(getAutomationRuns).mockResolvedValue([makeRun()])
+      vi.mocked(replayAutomationRun).mockReset()
+      vi.mocked(replayAutomationRun).mockResolvedValue(undefined as never)
+    })
+
+    it('asks for confirmation in a modal, not a native dialog, before a live replay', async () => {
+      const confirmSpy = vi.mocked(window.confirm)
+      confirmSpy.mockClear()
+      const { user } = render(<RunHistoryPanel automationId="automation_1" />)
+
+      await user.click(await screen.findByRole('button', { name: 'Replay live' }))
+
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent(/webhooks, forwarded emails and auto-replies will be sent again/i)
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(replayAutomationRun).not.toHaveBeenCalled()
+    })
+
+    it('replays live once the modal is confirmed', async () => {
+      const { user } = render(<RunHistoryPanel automationId="automation_1" />)
+
+      await user.click(await screen.findByRole('button', { name: 'Replay live' }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Replay live' }))
+
+      await waitFor(() => {
+        expect(replayAutomationRun).toHaveBeenCalledWith('automation_1', 'run_1', 'live')
+      })
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+    })
+
+    it('does not replay when the modal is cancelled', async () => {
+      const { user } = render(<RunHistoryPanel automationId="automation_1" />)
+
+      await user.click(await screen.findByRole('button', { name: 'Replay live' }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+      expect(replayAutomationRun).not.toHaveBeenCalled()
+    })
+
+    it('replays a dry run immediately, with no confirmation', async () => {
+      const { user } = render(<RunHistoryPanel automationId="automation_1" />)
+
+      await user.click(await screen.findByRole('button', { name: 'Replay as dry run' }))
+
+      await waitFor(() => {
+        expect(replayAutomationRun).toHaveBeenCalledWith('automation_1', 'run_1', 'dry_run')
+      })
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
   })
 })

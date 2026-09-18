@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
+import { render, screen, waitFor, within } from '@/test/test-utils'
 import ApiKeysPage from '@/app/api-keys/page'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
@@ -148,30 +148,62 @@ describe('ApiKeysPage', () => {
     expect(screen.getByLabelText('email_inboxes:update')).not.toBeChecked()
   })
 
-  it('deletes an API key after confirmation', async () => {
-    const { user } = render(<ApiKeysPage />)
+  describe('deleting an API key', () => {
+    let deletedIds: string[]
 
-    await waitFor(() => {
-      expect(screen.getByText('Production Key')).toBeInTheDocument()
+    beforeEach(() => {
+      deletedIds = []
+      server.use(
+        http.delete('http://localhost:4000/api/app/apiKeys/:id', ({ params }) => {
+          deletedIds.push(String(params.id))
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
     })
 
-    // Open dropdown menu
-    const moreButtons = document.querySelectorAll('.lucide-more-vertical, .lucide-ellipsis-vertical')
-    if (moreButtons.length > 0) {
-      const moreBtn = moreButtons[0].closest('button')
-      if (moreBtn) {
-        await user.click(moreBtn)
-
-        await waitFor(() => {
-          expect(screen.getByText('Delete Key')).toBeInTheDocument()
-        })
-
-        await user.click(screen.getByText('Delete Key'))
-
-        await waitFor(() => {
-          expect(screen.queryByText('Production Key')).not.toBeInTheDocument()
-        })
-      }
+    async function openDeleteModal(user: ReturnType<typeof render>['user']) {
+      await user.click(await screen.findByRole('button', { name: 'Actions for Production Key' }))
+      await user.click(await screen.findByRole('menuitem', { name: /delete key/i }))
+      return screen.findByRole('alertdialog')
     }
+
+    it('asks for confirmation in a modal, not a native dialog, before deleting', async () => {
+      const confirmSpy = vi.mocked(window.confirm)
+      confirmSpy.mockClear()
+      const { user } = render(<ApiKeysPage />)
+
+      const dialog = await openDeleteModal(user)
+
+      expect(dialog).toHaveTextContent('Production Key')
+      expect(dialog).toHaveTextContent(/cannot be undone/i)
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(deletedIds).toEqual([])
+    })
+
+    it('deletes the key once the modal is confirmed', async () => {
+      const { user } = render(<ApiKeysPage />)
+
+      const dialog = await openDeleteModal(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('Production Key')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual(['key-1'])
+      expect(screen.getByText('Development Key')).toBeInTheDocument()
+    })
+
+    it('keeps the key and sends no request when the modal is cancelled', async () => {
+      const { user } = render(<ApiKeysPage />)
+
+      const dialog = await openDeleteModal(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual([])
+      expect(screen.getByText('Production Key')).toBeInTheDocument()
+    })
   })
 })
