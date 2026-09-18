@@ -81,7 +81,11 @@ beforeEach(() => {
 })
 
 describe('POST /api/app/auth/register — Content-Type enforcement', () => {
-  withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
+  // Unrelated to what this suite tests, but the route now unconditionally
+  // checks the submitted email against EMAIL_INBOX_ALLOWED_DOMAINS
+  // (outbound-recipient-domain-policy.test.ts covers that check); a domain
+  // that doesn't match 'new@example.com' keeps it inert here.
+  withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined, EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org' })
 
   function requestWithContentType(contentType: string | undefined) {
     const headers: Record<string, string> = {}
@@ -131,6 +135,7 @@ describe('POST /api/app/auth/register — verification side effects', () => {
       EMAIL_VERIFICATION_ENABLED: 'true',
       EMAIL_LINK_SIGNING_SECRET: 'verification-secret-at-least-16',
       APP_BASE_URL: 'https://app.example.com',
+      EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org',
     })
 
     it('mails the new user and stamps the cooldown timestamp', async () => {
@@ -202,7 +207,7 @@ describe('POST /api/app/auth/register — verification side effects', () => {
   })
 
   describe('with verification disabled', () => {
-    withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined })
+    withConfigEnv({ EMAIL_VERIFICATION_ENABLED: undefined, EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org' })
 
     it('sends nothing and leaves the response shape untouched', async () => {
       const response = await register()

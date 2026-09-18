@@ -9,6 +9,7 @@ import { deriveBodyText } from '@/lib/email/extract-body-text'
 import { extractLinks } from '@/lib/email/extract-links'
 import { extractOtp } from '@/lib/email/extract-otp'
 import { classifyLinks } from '@/lib/email/cta-heuristic'
+import { findSameServiceRecipients } from '@/lib/validation/outbound-recipient-policy'
 import logger from '@/lib/logger'
 
 export const POST = withUser<{ id: string }>(async (request, principal, { params }) => {
@@ -33,6 +34,29 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
   }
   if (!text && !html) {
     return jsonError('Message body (text or html) is required', 400)
+  }
+
+  const allRecipients = [...to, ...(cc || []), ...(bcc || [])]
+
+  // `to`/`cc`/`bcc` are untyped client input (straight off request.json()), so
+  // a shape like `{ to: [null] }` reaches this far unvalidated. Rejected here
+  // rather than left to fall through to Resend, whose handling of a garbage
+  // entry is undocumented and untested from this route's perspective.
+  if (allRecipients.some((recipient) => typeof recipient !== 'string' || recipient.trim() === '')) {
+    return jsonError('Recipients (to/cc/bcc) must be non-empty strings', 400)
+  }
+
+  // A domain we actually receive mail at is one anyone could mint an address
+  // on for free by naming it as a recipient here — mail forwarded there never
+  // has to leave the platform, an abuse vector plan gates and rate limits
+  // don't address. Checked before the plan/quota gate below so a blocked
+  // recipient never spends a paid quota unit to be told no.
+  const blockedRecipients = findSameServiceRecipients(allRecipients)
+  if (blockedRecipients.length > 0) {
+    return jsonError(
+      `Cannot send to an address on this service's own domain: ${blockedRecipients.join(', ')}`,
+      400,
+    )
   }
 
   // The third outbound path, alongside `forward_email` and `auto_reply`

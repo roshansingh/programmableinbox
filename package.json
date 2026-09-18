@@ -17,8 +17,8 @@
     "sdk:generate": "bash sdk/generate.sh",
     "sdk:publish": "node scripts/release/publish-sdk.mjs",
     "start": "next start --port 4000",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
+    "test:watch": "NODE_OPTIONS=--no-experimental-webstorage vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts"
   },
