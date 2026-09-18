@@ -76,7 +76,7 @@ describe('email verification, end to end', () => {
   })
 
   it('gates the dashboard until the emailed link is redeemed, then opens it', async () => {
-    const email = `verify-${Date.now()}@test.dev`
+    const email = `verify-${Date.now()}@external.test`
     const { token, user } = await signUp(email)
 
     // Signup mails the user and stamps the cooldown, but leaves them unverified.
@@ -128,7 +128,7 @@ describe('email verification, end to end', () => {
   })
 
   it('treats a second redemption of the same link as a success no-op', async () => {
-    const { user } = await signUp(`twice-${Date.now()}@test.dev`)
+    const { user } = await signUp(`twice-${Date.now()}@external.test`)
     const link = tokenFromLastSend()
 
     const first = await confirm(
@@ -160,12 +160,12 @@ describe('email verification, end to end', () => {
    * token table to sweep.
    */
   it('refuses a link issued for an address the user no longer has', async () => {
-    const { user } = await signUp(`changed-${Date.now()}@test.dev`)
+    const { user } = await signUp(`changed-${Date.now()}@external.test`)
     const link = tokenFromLastSend()
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { email: `moved-${Date.now()}@test.dev` },
+      data: { email: `moved-${Date.now()}@external.test` },
     })
 
     const res = await confirm(
@@ -189,7 +189,7 @@ describe('email verification, end to end', () => {
    * vice versa.
    */
   it('will not accept a session token as a verification link', async () => {
-    const { token } = await signUp(`confuse-${Date.now()}@test.dev`)
+    const { token } = await signUp(`confuse-${Date.now()}@external.test`)
 
     const res = await confirm(
       jsonRequest('http://localhost/api/app/auth/verification/confirm', {
@@ -204,7 +204,7 @@ describe('email verification, end to end', () => {
   })
 
   it('will not accept a verification token as a session credential', async () => {
-    await signUp(`confuse2-${Date.now()}@test.dev`)
+    await signUp(`confuse2-${Date.now()}@external.test`)
     const link = tokenFromLastSend()
 
     const res = await me(
@@ -216,7 +216,7 @@ describe('email verification, end to end', () => {
   })
 
   it('throttles resend, then allows it once the cooldown has passed', async () => {
-    const { token, user } = await signUp(`resend-${Date.now()}@test.dev`)
+    const { token, user } = await signUp(`resend-${Date.now()}@external.test`)
     expect(resend.send).toHaveBeenCalledTimes(1)
 
     const throttled = await resendVerification(
@@ -261,7 +261,7 @@ describe('email verification, end to end', () => {
   it('does not fail the signup when the mail cannot be sent', async () => {
     resend.send.mockResolvedValue({ data: null, error: { message: 'domain not verified' } })
 
-    const email = `bounce-${Date.now()}@test.dev`
+    const email = `bounce-${Date.now()}@external.test`
     const { user } = await signUp(email)
 
     const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
@@ -280,7 +280,7 @@ describe('email verification disabled', () => {
   })
 
   it('leaves signup and the dashboard exactly as they were', async () => {
-    const { token, user } = await signUp(`off-${Date.now()}@test.dev`)
+    const { token, user } = await signUp(`off-${Date.now()}@external.test`)
 
     expect(resend.send).not.toHaveBeenCalled()
     expect(user.emailVerified).toBe(false)
@@ -293,7 +293,7 @@ describe('email verification disabled', () => {
   })
 
   it('404s both verification endpoints', async () => {
-    const { token } = await signUp(`off2-${Date.now()}@test.dev`)
+    const { token } = await signUp(`off2-${Date.now()}@external.test`)
 
     const confirmRes = await confirm(
       jsonRequest('http://localhost/api/app/auth/verification/confirm', {

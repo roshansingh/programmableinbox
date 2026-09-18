@@ -11,7 +11,7 @@ describe('POST /api/app/auth/register', () => {
   it('400 when email or password is missing', async () => {
     const res = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
-      body: { email: 'nopass@test.dev' },
+      body: { email: 'nopass@external.test' },
     }))
     expect(res.status).toBe(400)
     const { message } = await res.json()
@@ -19,7 +19,7 @@ describe('POST /api/app/auth/register', () => {
   })
 
   it('creates a user + name-derived organization + owner membership, sets the session cookie', async () => {
-    const email = `register-${Date.now()}@test.dev`
+    const email = `register-${Date.now()}@external.test`
     const res = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123', firstName: 'Reg', lastName: 'User' },
@@ -49,7 +49,7 @@ describe('POST /api/app/auth/register', () => {
   })
 
   it('409 on duplicate email', async () => {
-    const email = `dupe-${Date.now()}@test.dev`
+    const email = `dupe-${Date.now()}@external.test`
     const first = await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
@@ -72,13 +72,13 @@ describe('POST /api/app/auth/login', () => {
   it('400 when email or password is missing', async () => {
     const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
-      body: { email: 'nopass@test.dev' },
+      body: { email: 'nopass@external.test' },
     }))
     expect(res.status).toBe(400)
   })
 
   it('correct creds set the session cookie and return the user', async () => {
-    const email = `login-${Date.now()}@test.dev`
+    const email = `login-${Date.now()}@external.test`
     await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
@@ -96,7 +96,7 @@ describe('POST /api/app/auth/login', () => {
   })
 
   it('401 on wrong password', async () => {
-    const email = `wrongpw-${Date.now()}@test.dev`
+    const email = `wrongpw-${Date.now()}@external.test`
     await register(jsonRequest('http://localhost/api/app/auth/register', {
       method: 'POST',
       body: { email, password: 'password123' },
@@ -114,7 +114,7 @@ describe('POST /api/app/auth/login', () => {
   it('401 on unknown email', async () => {
     const res = await login(jsonRequest('http://localhost/api/app/auth/login', {
       method: 'POST',
-      body: { email: 'no-such-user@test.dev', password: 'password123' },
+      body: { email: 'no-such-user@external.test', password: 'password123' },
     }))
     expect(res.status).toBe(401)
     const { message } = await res.json()
