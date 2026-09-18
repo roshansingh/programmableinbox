@@ -260,9 +260,10 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           // deterministic extraction (lib/email/extract-otp.ts,
           // lib/email/extract-links.ts, lib/email/cta-heuristic.ts) runs
           // unconditionally, for every organization, so this data isn't
-          // gated behind the LLM plan/quota either. Only `categories` and
-          // LLM-confirmed CTA judgments stay gated — see
-          // lib/llm/enrichment.ts.
+          // gated behind the LLM plan/quota either. Only `categories`,
+          // LLM-confirmed CTA judgments and the LLM *fallback* for an OTP this
+          // regex missed (enrichment fills extractedOtp in only while it is
+          // still null) stay gated — see lib/llm/enrichment.ts.
           bodyText,
           extractedOtp: extractOtp(bodyText),
           metadata: { links, timestamps: [] },

@@ -5,6 +5,7 @@ import logger from '@/lib/logger'
 import { getProvider } from './factory'
 import type { EnrichmentMetadata, CandidateLink } from './types'
 import type { ClassifiedLink } from '@/lib/email/cta-heuristic'
+import { acceptLlmOtp } from '@/lib/email/extract-otp'
 
 const tracer = trace.getTracer('programmableinbox.llm')
 
@@ -98,6 +99,7 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
         subject: true,
         text: true,
         bodyText: true,
+        extractedOtp: true,
         categories: true,
         metadata: true,
         organizationId: true,
@@ -178,11 +180,15 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       // for HTML-only mail; `bodyText` is derived at ingestion (route.ts) and
       // falls back to HTML-extracted text in that case, so it's what actually
       // contains content for those messages.
-      const result = await provider.enrich(
-        message.subject,
-        message.bodyText ?? message.text,
-        candidateLinksForPrompt,
-      )
+      const promptText = message.bodyText ?? message.text
+      // Only ask for an OTP when the ingestion-time regex found none.
+      // extractedOtp is written once, at insert, by nothing but that regex
+      // (see the write in app/api/webhooks/email/route.ts), so null here
+      // means "the regex missed", and a non-null value is never revisited.
+      const wantOtp = message.extractedOtp === null
+      const result = await provider.enrich(message.subject, promptText, candidateLinksForPrompt, {
+        extractOtp: wantOtp,
+      })
 
       // The system prompt requires "Always include at least one" category
       // (lib/llm/prompt.ts), so an empty array here is never a legitimate
@@ -198,12 +204,40 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       if (result.categories.length === 0) {
         throw new Error('[enrichMessage] provider returned no categories')
       }
-      logger.info({ messageId, categories: result.categories }, '[enrichMessage] done')
+
+      // The model's answer is a proposal, not a fact, and a mislabelled
+      // discount code is the failure that matters here, so two independent
+      // checks must both pass:
+      //  - the model's own classification must agree: an email it did not
+      //    tag Security is not one it believes carries a login code, however
+      //    plausible the token looks. This deliberately costs some recall (a
+      //    real code on an email tagged Primary/Notifications is dropped) for
+      //    fewer false positives;
+      //  - acceptLlmOtp must confirm the quoted evidence and the code against
+      //    the text the model was shown, with deterministic rules.
+      // A null/rejected answer is a normal "no code here", not a failure —
+      // unlike an empty categories list it must not refund and retry, since
+      // every retry would give the same answer.
+      const otpProposed = wantOtp && result.otp !== null
+      const recoveredOtp =
+        otpProposed && result.categories.includes('Security')
+          ? acceptLlmOtp({ otp: result.otp, evidence: result.otpEvidence }, promptText)
+          : null
+      // Never log the code or its evidence: the code is a live credential.
+      logger.info(
+        {
+          messageId,
+          categories: result.categories,
+          otpProposed,
+          otpRecovered: recoveredOtp !== null,
+        },
+        '[enrichMessage] done',
+      )
 
       // Patch isCta/ctaConfidence onto the matching stored link by candidate
-      // index — never add, remove, or reorder links here. extractedOtp isn't
-      // touched at all: it was written once, at ingestion, and this step
-      // never revisits it.
+      // index — never add, remove, or reorder links here. extractedOtp is
+      // written only as the fallback above, and only when the ingestion-time
+      // regex left it null; a code the regex found is never overwritten.
       const mergedLinks = storedMetadata.links.map((link) => {
         const candidateIndex = candidateLinks.findIndex((c) => c.url === link.url)
         if (candidateIndex === -1) return link
@@ -216,6 +250,9 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
         data: {
           categories: result.categories,
           metadata: { links: mergedLinks, timestamps: result.timestamps },
+          // Same update as categories on purpose: the refund-on-failure and
+          // idempotency reasoning around this write covers the OTP for free.
+          ...(recoveredOtp !== null ? { extractedOtp: recoveredOtp } : {}),
         },
       })
     } catch (error) {

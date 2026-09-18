@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import type { LLMProvider, LlmEnrichmentResult, CandidateLink } from '../types'
+import type { LLMProvider, LlmEnrichmentResult, CandidateLink, EnrichOptions } from '../types'
 import { parseEnrichmentResult } from '../types'
 import { buildSystemPrompt, buildUserMessage } from '../prompt'
 import logger from '@/lib/logger'
@@ -16,13 +16,18 @@ export class OpenAICompatAdapter implements LLMProvider {
     this.extraBody = extraBody
   }
 
-  async enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult> {
+  async enrich(
+    subject: string,
+    bodyText: string,
+    candidateLinks: CandidateLink[],
+    options: EnrichOptions = {},
+  ): Promise<LlmEnrichmentResult> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       max_completion_tokens: 1024,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: buildSystemPrompt() },
+        { role: 'system', content: buildSystemPrompt(options) },
         { role: 'user', content: buildUserMessage(subject, bodyText, candidateLinks) },
       ],
       ...this.extraBody,

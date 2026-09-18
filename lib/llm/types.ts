@@ -23,11 +23,18 @@ export type EnrichmentMetadata = {
 export type CandidateLink = { url: string; label?: string }
 
 /**
- * What the LLM provider returns. It no longer discovers links or OTPs itself
- * — those are extracted deterministically before the LLM ever runs. Its job
- * is `categories` (real semantic classification) plus `ctaJudgments`, one
+ * What the LLM provider returns. It no longer discovers links itself, and
+ * OTPs are extracted deterministically first (lib/email/extract-otp.ts). Its
+ * job is `categories` (real semantic classification) plus `ctaJudgments`, one
  * per link in the `candidateLinks` it was given (the ones the heuristic in
  * lib/email/cta-heuristic.ts couldn't classify confidently).
+ *
+ * `otp` and `otpEvidence` are the one exception, and only a fallback: they
+ * are requested (see `EnrichOptions`) solely when the regex found nothing,
+ * and are null whenever they weren't asked for or the model found no code.
+ * `otpEvidence` is the phrase the model says shows the code is a one-time
+ * code. Both are an unvalidated proposal — lib/llm/enrichment.ts must pass
+ * the pair through `acceptLlmOtp` before storing anything.
  *
  * `ctaJudgments` references a candidate by its position (`i`) in the
  * `candidateLinks` array the provider was given, not by echoing the URL
@@ -41,6 +48,8 @@ export type LlmEnrichmentResult = {
   categories: EmailCategory[]
   ctaJudgments: Array<{ i: number; isCta: boolean }>
   timestamps: string[]
+  otp: string | null
+  otpEvidence: string | null
 }
 
 export const ENRICHMENT_JSON_SCHEMA = {
@@ -65,17 +74,38 @@ export const ENRICHMENT_JSON_SCHEMA = {
       type: 'array',
       items: { type: 'string' },
     },
+    // Deliberately not in `required`: they are only asked for when the regex
+    // extractor missed, so a response without them is the normal case. Plain
+    // strings rather than ['string', 'null'] — a type array is valid JSON
+    // Schema but one more thing a provider's tool-schema validator could
+    // reject, and parseEnrichmentResult already treats absent and null alike.
+    otp: { type: 'string' },
+    otpEvidence: { type: 'string' },
   },
   required: ['categories', 'ctaJudgments', 'timestamps'],
 } as const
 
+export type EnrichOptions = {
+  /**
+   * Ask the model for a one-time code too. Set only when the regex extractor
+   * found none — otherwise the model is never shown the question, so it
+   * cannot second-guess a deterministic hit.
+   */
+  extractOtp?: boolean
+}
+
 export interface LLMProvider {
-  enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult>
+  enrich(
+    subject: string,
+    bodyText: string,
+    candidateLinks: CandidateLink[],
+    options?: EnrichOptions,
+  ): Promise<LlmEnrichmentResult>
 }
 
 export function parseEnrichmentResult(raw: unknown): LlmEnrichmentResult {
   if (typeof raw !== 'object' || raw === null) {
-    return { categories: [], ctaJudgments: [], timestamps: [] }
+    return { categories: [], ctaJudgments: [], timestamps: [], otp: null, otpEvidence: null }
   }
   const obj = raw as Record<string, unknown>
   return {
@@ -90,5 +120,7 @@ export function parseEnrichmentResult(raw: unknown): LlmEnrichmentResult {
           .map((j) => ({ i: j.i as number, isCta: j.isCta as boolean }))
       : [],
     timestamps: Array.isArray(obj.timestamps) ? (obj.timestamps as string[]) : [],
+    otp: typeof obj.otp === 'string' ? obj.otp : null,
+    otpEvidence: typeof obj.otpEvidence === 'string' ? obj.otpEvidence : null,
   }
 }
