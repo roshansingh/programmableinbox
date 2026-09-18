@@ -217,6 +217,22 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(consume).not.toHaveBeenCalled()
   })
 
+  /**
+   * `to`/`cc`/`bcc` are only checked for array shape before reaching the
+   * domain-block filter, so a non-string element (a client sending
+   * `{to: [null], ...}`) must not throw past this route's own try/catch and
+   * surface as a 500 for what is really a 400-shaped malformed request.
+   */
+  it('rejects malformed recipients with 400 rather than throwing', async () => {
+    const { POST } = await loadRoute()
+    const request = makeRequest({ to: [null] })
+
+    const response = await POST(request as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(400)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
   it('rejects a "cc" recipient on a domain this deployment owns', async () => {
     await configurePlan({ outboundEmail: true })
     const { POST } = await loadRoute()
