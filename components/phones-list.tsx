@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Phone, Copy, Trash2, ExternalLink } from 'lucide-react'
 import { CreatePhoneDialog } from "@/components/create-phone-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { getPhoneInboxes, deletePhoneInbox, type InboxPhone } from "@/lib/api/phones.api"
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
@@ -17,6 +18,7 @@ export function PhonesList() {
   const { organizationId } = useAuth()
   const [phones, setPhones] = useState<InboxPhone[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [phonePendingDelete, setPhonePendingDelete] = useState<InboxPhone | null>(null)
 
   useEffect(() => {
     if (!organizationId) return
@@ -41,10 +43,6 @@ export function PhonesList() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this phone inbox?")) {
-      return
-    }
-
     try {
       await deletePhoneInbox(id)
       setPhones(phones.filter((phone) => phone.id !== id))
@@ -176,9 +174,10 @@ export function PhonesList() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label={`Delete phone inbox ${formatPhoneNumber(phone.phoneNumber, phone.countryCode)}`}
                       onClick={(e) => {
                         e.preventDefault()
-                        handleDelete(phone.id)
+                        setPhonePendingDelete(phone)
                       }}
                       className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     >
@@ -196,6 +195,25 @@ export function PhonesList() {
         onOpenChange={setShowCreateDialog}
         organizationId={organizationId || undefined}
         onSuccess={handleRefresh}
+      />
+      {/* A sibling of the list, not a child of a row: each row is a <Link>, and a
+          click inside a portal would bubble through it and navigate away. */}
+      <ConfirmDialog
+        open={phonePendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPhonePendingDelete(null)
+        }}
+        title="Delete this phone inbox?"
+        description={
+          <>
+            <span className="font-medium text-foreground">
+              {phonePendingDelete &&
+                formatPhoneNumber(phonePendingDelete.phoneNumber, phonePendingDelete.countryCode)}
+            </span>{" "}
+            will be deleted.
+          </>
+        }
+        onConfirm={() => phonePendingDelete ? handleDelete(phonePendingDelete.id) : undefined}
       />
     </>
   )

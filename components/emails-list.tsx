@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Mail, Copy, Trash2, ExternalLink } from 'lucide-react'
 import { CreateEmailDialog } from "@/components/create-email-dialog"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { getEmailInboxes, deleteEmailInbox, type InboxEmail } from "@/lib/api/emails.api"
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
@@ -19,6 +20,7 @@ export function EmailsList() {
   const { organizationId } = useAuth()
   const [emails, setEmails] = useState<InboxEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [inboxPendingDelete, setInboxPendingDelete] = useState<InboxEmail | null>(null)
 
   useEffect(() => {
     if (!organizationId) return
@@ -43,10 +45,6 @@ export function EmailsList() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this email inbox?")) {
-      return
-    }
-
     try {
       await deleteEmailInbox(id)
       setEmails(emails.filter((email) => email.id !== id))
@@ -192,7 +190,7 @@ export function EmailsList() {
                         aria-label={`Delete inbox ${email.email}`}
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleDelete(email.id)
+                          setInboxPendingDelete(email)
                         }}
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       >
@@ -211,6 +209,20 @@ export function EmailsList() {
         onOpenChange={setShowCreateDialog}
         organizationId={organizationId || undefined}
         onSuccess={handleRefresh}
+      />
+      <ConfirmDialog
+        open={inboxPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setInboxPendingDelete(null)
+        }}
+        title="Delete this email inbox?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{inboxPendingDelete?.email}</span>{" "}
+            will be deleted along with its messages, and the address cannot be reused.
+          </>
+        }
+        onConfirm={() => inboxPendingDelete ? handleDelete(inboxPendingDelete.id) : undefined}
       />
     </>
   )

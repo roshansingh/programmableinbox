@@ -38,6 +38,7 @@ import {
 } from "@/lib/api/api-keys.api"
 import { useAuth } from "@/components/auth-provider"
 import { ApiKeysGettingStarted } from "@/components/api-keys-getting-started"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -67,6 +68,7 @@ export default function ApiKeysPage() {
   const [newKeyName, setNewKeyName] = useState("")
   const [selectedScopes, setSelectedScopes] = useState<ApiKeyScope[]>([])
   const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null)
+  const [keyPendingDelete, setKeyPendingDelete] = useState<ApiKeyListItem | null>(null)
 
   useEffect(() => {
     if (!organizationId) return
@@ -91,10 +93,6 @@ export default function ApiKeysPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this API key? This action cannot be undone.")) {
-      return
-    }
-
     try {
       await deleteApiKey(id)
       setApiKeys(apiKeys.filter((key) => key.id !== id))
@@ -352,14 +350,18 @@ export default function ApiKeysPage() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Actions for ${apiKey.name}`}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => handleDelete(apiKey.id)}
+                            onClick={() => setKeyPendingDelete(apiKey)}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete Key
@@ -392,6 +394,22 @@ export default function ApiKeysPage() {
           </div>
         </main>
       </div>
+      {/* Outside the row's dropdown: a dialog mounted inside a Radix menu is
+          torn down with it, and focus restoration can leave the page inert. */}
+      <ConfirmDialog
+        open={keyPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setKeyPendingDelete(null)
+        }}
+        title="Delete this API key?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{keyPendingDelete?.name}</span>{" "}
+            will be deleted. This action cannot be undone.
+          </>
+        }
+        onConfirm={() => keyPendingDelete ? handleDelete(keyPendingDelete.id) : undefined}
+      />
     </div>
   )
 }

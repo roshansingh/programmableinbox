@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
+import { render, screen, waitFor, within } from '@/test/test-utils'
 import { useRouter } from 'next/navigation'
 import { AutomationList } from '@/components/automations/automation-list'
 import {
@@ -121,19 +121,60 @@ describe('AutomationList', () => {
     expect(await screen.findByRole('button', { name: 'Start' })).toBeDisabled()
   })
 
-  it('deletes an automation from the list without navigating', async () => {
-    vi.mocked(getAutomations).mockResolvedValue([makeAutomation()])
-    vi.mocked(deleteAutomation).mockResolvedValue(undefined)
+  describe('deleting an automation', () => {
+    beforeEach(() => {
+      vi.mocked(getAutomations).mockResolvedValue([makeAutomation()])
+      vi.mocked(deleteAutomation).mockReset()
+      vi.mocked(deleteAutomation).mockResolvedValue(undefined)
+    })
 
-    const { user } = render(<AutomationList />)
+    it('asks for confirmation in a modal, not a native dialog, before deleting', async () => {
+      const confirmSpy = vi.mocked(window.confirm)
+      confirmSpy.mockClear()
+      const { user } = render(<AutomationList />)
 
-    await screen.findByText('Route support email')
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+      await screen.findByText('Route support email')
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(deleteAutomation).toHaveBeenCalledWith('automation_1')
-    expect(push).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(screen.queryByText('Route support email')).not.toBeInTheDocument()
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent('Route support email')
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(deleteAutomation).not.toHaveBeenCalled()
+      // Opening the modal is not a click on the row.
+      expect(push).not.toHaveBeenCalled()
+    })
+
+    it('deletes the automation once the modal is confirmed, without navigating', async () => {
+      const { user } = render(<AutomationList />)
+
+      await screen.findByText('Route support email')
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('Route support email')).not.toBeInTheDocument()
+      })
+      expect(deleteAutomation).toHaveBeenCalledWith('automation_1')
+      // The modal is portalled, but React events still bubble through the
+      // tree: confirming must not reach the row's own click-to-open handler.
+      expect(push).not.toHaveBeenCalled()
+    })
+
+    it('keeps the automation and sends no request when the modal is cancelled', async () => {
+      const { user } = render(<AutomationList />)
+
+      await screen.findByText('Route support email')
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+      expect(deleteAutomation).not.toHaveBeenCalled()
+      expect(screen.getByText('Route support email')).toBeInTheDocument()
+      expect(push).not.toHaveBeenCalled()
     })
   })
 })

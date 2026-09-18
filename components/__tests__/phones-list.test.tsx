@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
+import { render, screen, waitFor, within } from '@/test/test-utils'
 import { PhonesList } from '@/components/phones-list'
 import { server } from '@/test/mocks/server'
 import { http, HttpResponse } from 'msw'
@@ -44,20 +44,60 @@ describe('PhonesList', () => {
     ).toBeInTheDocument()
   })
 
-  it('deletes a phone inbox after confirmation', async () => {
-    const { user } = render(<PhonesList />)
+  describe('deleting a phone inbox', () => {
+    const deleteButtonName = 'Delete phone inbox +1 (555) 123-4567'
+    let deletedIds: string[]
 
-    await waitFor(() => {
-      expect(screen.getByText('+1 (555) 123-4567')).toBeInTheDocument()
+    beforeEach(() => {
+      deletedIds = []
+      server.use(
+        http.delete('http://localhost:4000/api/app/phoneInbox/:id', ({ params }) => {
+          deletedIds.push(String(params.id))
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
     })
 
-    const trashIcons = document.querySelectorAll('.lucide-trash2, .lucide-trash-2')
-    if (trashIcons.length > 0) {
-      const deleteBtn = trashIcons[0].closest('button')
-      if (deleteBtn) {
-        await user.click(deleteBtn)
-      }
-    }
+    it('asks for confirmation in a modal, not a native dialog, before deleting', async () => {
+      const confirmSpy = vi.mocked(window.confirm)
+      confirmSpy.mockClear()
+      const { user } = render(<PhonesList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent('+1 (555) 123-4567')
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(deletedIds).toEqual([])
+    })
+
+    it('deletes the phone inbox once the modal is confirmed', async () => {
+      const { user } = render(<PhonesList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('+1 (555) 123-4567')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual(['phone-1'])
+      expect(screen.getByText('+1 (555) 987-6543')).toBeInTheDocument()
+    })
+
+    it('keeps the phone inbox and sends no request when the modal is cancelled', async () => {
+      const { user } = render(<PhonesList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual([])
+      expect(screen.getByText('+1 (555) 123-4567')).toBeInTheDocument()
+    })
   })
 
   it('refreshes the phone list when Refresh is clicked', async () => {

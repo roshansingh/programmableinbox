@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
+import { render, screen, waitFor, within } from '@/test/test-utils'
 import { EmailsList } from '@/components/emails-list'
 import { mockEmails } from '@/test/mocks/fixtures/emails'
 import { server } from '@/test/mocks/server'
@@ -60,26 +60,62 @@ describe('EmailsList', () => {
     })
   })
 
-  it('deletes an email inbox after confirmation', async () => {
-    const { user } = render(<EmailsList />)
+  describe('deleting an inbox', () => {
+    const deleteButtonName = 'Delete inbox inbox-one@test.programmableinbox.com'
+    let deletedIds: string[]
 
-    await waitFor(() => {
+    beforeEach(() => {
+      deletedIds = []
+      server.use(
+        http.delete('http://localhost:4000/api/app/emailInbox/:id', ({ params }) => {
+          deletedIds.push(String(params.id))
+          return new HttpResponse(null, { status: 204 })
+        }),
+      )
+    })
+
+    it('asks for confirmation in a modal, not a native dialog, before deleting', async () => {
+      const confirmSpy = vi.mocked(window.confirm)
+      confirmSpy.mockClear()
+      const { user } = render(<EmailsList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent('inbox-one@test.programmableinbox.com')
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(deletedIds).toEqual([])
+    })
+
+    it('deletes the inbox once the modal is confirmed', async () => {
+      const { user } = render(<EmailsList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => {
+        expect(screen.queryByText('inbox-one@test.programmableinbox.com')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual(['email-1'])
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      // The neighbouring inbox is untouched.
+      expect(screen.getByText('inbox-two@test.programmableinbox.com')).toBeInTheDocument()
+    })
+
+    it('keeps the inbox and sends no request when the modal is cancelled', async () => {
+      const { user } = render(<EmailsList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      })
+      expect(deletedIds).toEqual([])
       expect(screen.getByText('inbox-one@test.programmableinbox.com')).toBeInTheDocument()
     })
-
-    // Find and click the first delete button
-    const deleteButtons = screen.getAllByRole('button').filter(btn => {
-      return btn.querySelector('svg.lucide-trash-2') || btn.querySelector('[class*="trash"]')
-    })
-
-    // Click the trash button via the SVG within it
-    const trashIcons = document.querySelectorAll('.lucide-trash2, .lucide-trash-2')
-    if (trashIcons.length > 0) {
-      const deleteBtn = trashIcons[0].closest('button')
-      if (deleteBtn) {
-        await user.click(deleteBtn)
-      }
-    }
   })
 
   it('refreshes the email list when Refresh is clicked', async () => {

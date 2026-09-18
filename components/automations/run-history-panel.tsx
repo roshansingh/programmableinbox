@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   getAutomationRuns,
   replayAutomationRun,
@@ -25,6 +26,9 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
   const [runs, setRuns] = useState<AutomationRunRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [replayingId, setReplayingId] = useState<string | null>(null)
+  // A live replay re-sends real webhooks / emails, so it always goes through an
+  // explicit confirmation step before the API call. A dry run sends nothing.
+  const [liveReplayRunId, setLiveReplayRunId] = useState<string | null>(null)
 
   async function loadRuns() {
     setIsLoading(true)
@@ -42,17 +46,6 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
   }, [automationId])
 
   async function handleReplay(runId: string, mode: AutomationReplayMode) {
-    // A live replay re-sends real webhooks / emails, so it always goes through
-    // an explicit confirmation step before the (separately confirmed) API call.
-    if (
-      mode === 'live' &&
-      !window.confirm(
-        'Replay this run for real? Webhooks, forwarded emails and auto-replies will be sent again.'
-      )
-    ) {
-      return
-    }
-
     setReplayingId(runId)
     try {
       await replayAutomationRun(automationId, runId, mode)
@@ -116,7 +109,7 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
                     size="sm"
                     title="Replay for real — re-sends webhooks and emails"
                     aria-label="Replay live"
-                    onClick={() => handleReplay(run.id, 'live')}
+                    onClick={() => setLiveReplayRunId(run.id)}
                     disabled={replayingId === run.id}
                   >
                     <Zap className="h-4 w-4 text-destructive" />
@@ -127,6 +120,18 @@ export function RunHistoryPanel({ automationId }: { automationId: string }) {
           ))
         )}
       </CardContent>
+      <ConfirmDialog
+        open={liveReplayRunId !== null}
+        onOpenChange={(open) => {
+          if (!open) setLiveReplayRunId(null)
+        }}
+        title="Replay this run for real?"
+        description="Webhooks, forwarded emails and auto-replies will be sent again."
+        confirmLabel="Replay live"
+        onConfirm={() =>
+          liveReplayRunId ? handleReplay(liveReplayRunId, 'live') : undefined
+        }
+      />
     </Card>
   )
 }
