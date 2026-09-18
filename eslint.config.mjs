@@ -85,6 +85,7 @@ export default tseslint.config(
       'instrumentation.foss.ts',
       'vitest.config.ts',
       'vitest.integration.config.ts',
+      'vitest.eval.config.ts',
       'eslint.config.mjs',
       'test/**',
       'scripts/**',
