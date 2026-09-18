@@ -82,6 +82,36 @@ describe('Report.render', () => {
     expect(report.render()).not.toContain('should not appear')
   })
 
+  it('shows informational diffs of a passing run under Details, without its notes', () => {
+    const report = new Report()
+    report.record(
+      rec({
+        caseId: 'security/otp',
+        mode: 'withLlm',
+        status: 'pass',
+        informational: [{ path: 'metadata.timestamps[0]', expected: 'in 10 min', actual: 'in 10 minutes' }],
+        notes: ['should not appear'],
+      }),
+    )
+
+    const text = report.render()
+
+    expect(text).toContain('Details')
+    expect(text).toContain('PASS  security/otp [withLlm]')
+    expect(text).toContain('(informational) metadata.timestamps[0]: expected "in 10 min" → actual "in 10 minutes"')
+    expect(text).not.toContain('should not appear')
+  })
+
+  it('prints no Details block for a passing run with no informational diffs', () => {
+    const report = new Report()
+    report.record(rec({ status: 'pass', notes: ['should not appear'] }))
+
+    const text = report.render()
+
+    expect(text).not.toContain('Details')
+    expect(text).not.toContain('PASS  otp [withoutLlm]')
+  })
+
   it('lists generated files and reminds the reader to review them', () => {
     const report = new Report()
     report.record(rec({ caseId: 'promo', status: 'generated', notes: ['wrote cases/promo/output.json'] }))

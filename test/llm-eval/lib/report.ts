@@ -47,14 +47,20 @@ export class Report {
       )
     }
 
-    const detailed = this.records.filter((record) => record.status === 'fail' || record.status === 'generated')
+    // FAIL and GENERATED always get details. A PASS gets a block only when it
+    // has informational diffs (printed, never failing) — and then only those
+    // diffs, not its notes.
+    const detailed = this.records.filter(
+      (record) => record.status === 'fail' || record.status === 'generated' || record.informational.length > 0,
+    )
     if (detailed.length > 0) {
       lines.push('', 'Details')
       for (const record of detailed) {
+        const showNotes = record.status === 'fail' || record.status === 'generated'
         lines.push(`${record.status.toUpperCase()}  ${record.caseId} [${record.mode}]`)
         for (const diff of record.failures) lines.push(`    ${formatDiff(diff)}`)
         for (const diff of record.informational) lines.push(`    (informational) ${formatDiff(diff)}`)
-        for (const note of record.notes) lines.push(`    ${note}`)
+        if (showNotes) for (const note of record.notes) lines.push(`    ${note}`)
       }
     }
 

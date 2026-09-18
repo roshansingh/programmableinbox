@@ -12,7 +12,7 @@ It uses **no database**. The only thing faked is the two Prisma calls
 
 ```bash
 npm run eval:email            # run every case, compare, print a report
-npm run eval:email:update     # regenerate output.json for every case (deliberate)
+npm run eval:email:update     # regenerate output.json for every case (deliberate; see below)
 npm run eval:email:selftest   # unit tests for the harness itself (no LLM)
 ```
 
@@ -21,6 +21,10 @@ exported variables. With no `LLM_PROVIDER`, the `withLlm` run is reported as
 SKIPPED and the `withoutLlm` run still executes. `.env` is never read.
 A provider other than `ollama` also needs `LLM_API_KEY`; with the key blank the
 `withLlm` run is skipped.
+
+`eval:email:update` regenerates every section it runs. With an LLM configured
+that includes `withLlm`, so it overwrites human-reviewed `withLlm` baselines with
+fresh, non-deterministic model output — review the result before committing.
 
 ## Add a case
 
@@ -41,13 +45,19 @@ exercises the HTML-only path.
 | Field | `withoutLlm` | `withLlm` |
 |---|---|---|
 | `extractedOtp` | exact | exact |
-| `metadata.links` (url, label, isCta, ctaConfidence) | exact | exact |
+| `metadata.links` (url, label, isCta, ctaConfidence) | exact | exact, **including** the `isCta`/`ctaConfidence` the model sets on low-confidence links |
 | `categories` | exact | same **set** (order ignored) |
 | `metadata.timestamps` | exact | printed, **never fails** |
 
+In a `withLlm` run, enrichment rewrites `isCta` and forces `ctaConfidence` to
+`high` on every low-confidence link the model judged, so a model flip of a link
+judgment fails the run. That is intentional.
+
 A stored section is never overwritten by a normal run. If `output.json` is
 missing, or is missing a section (e.g. it was created before an LLM was
-configured), only the missing section is generated.
+configured), only the missing section is generated. Writing one section leaves
+the other section's contents untouched, but unknown top-level keys added to
+`output.json` by hand are dropped the next time any section is written.
 
 ## Reading the report
 
@@ -55,7 +65,9 @@ Each case shows `withoutLlm` and `withLlm` as PASS / FAIL / GENERATED /
 SKIPPED, then totals per run, then details for every FAIL and GENERATED run: the
 diffs (`path: expected … → actual …`), what the model proposed (code, evidence,
 categories) next to what was stored, and the start of the text the model saw.
-The process exits non-zero if anything FAILED.
+Informational diffs (the `withLlm` timestamps) are shown under Details even when
+the run PASSES; a passing run with none gets no details. The process exits
+non-zero if anything FAILED.
 
 A `withLlm` run whose provider call failed (bad key, network, no categories
 returned) FAILS and writes nothing — it never generates a baseline.

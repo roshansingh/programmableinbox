@@ -29,9 +29,12 @@ const asSortedSet = (value: unknown): unknown =>
 /**
  * The comparison rules.
  *  - withoutLlm: fully deterministic, so any difference fails.
- *  - withLlm: strict on the fields the model does not decide freely
- *    (extractedOtp, links), an unordered-set comparison for categories, and
- *    timestamps are printed but never fail — the model words them freely.
+ *  - withLlm: extractedOtp and links are compared exactly. Links include the
+ *    `isCta`/`ctaConfidence` the model sets on low-confidence links (enrichment
+ *    rewrites `isCta` and forces `ctaConfidence: 'high'` on each one it judged),
+ *    so a model flip of a link judgment fails the run — intentionally.
+ *    Categories are an unordered-set comparison, and timestamps are printed but
+ *    never fail — the model words them freely.
  */
 export function compareSnapshots(mode: RunMode, expected: Snapshot, actual: Snapshot): Comparison {
   if (mode === 'withoutLlm') {

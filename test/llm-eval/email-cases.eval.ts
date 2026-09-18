@@ -50,7 +50,7 @@ const configuredLlmEnv = Object.fromEntries(
 // swallows it and would surface as a misleading failure.
 const llmProvider = configuredLlmEnv.LLM_PROVIDER
 const llmConfigured =
-  Boolean(llmProvider) && (llmProvider === 'ollama' || Boolean(configuredLlmEnv.LLM_API_KEY))
+  Boolean(llmProvider) && (llmProvider === 'ollama' || Boolean(configuredLlmEnv.LLM_API_KEY?.trim()))
 const llmSkipNote =
   llmProvider && !llmConfigured
     ? `LLM_PROVIDER=${llmProvider} is set but LLM_API_KEY is empty (set it in .env.eval)`
@@ -59,6 +59,7 @@ const update = process.env.EVAL_UPDATE === '1'
 const modelLabel = `${configuredLlmEnv.LLM_PROVIDER ?? 'none'}:${configuredLlmEnv.LLM_MODEL ?? 'default'}`
 
 const report = new Report()
+let runToken = 0
 
 function setLlm(enabled: boolean): void {
   for (const key of LLM_ENV_KEYS) {
@@ -85,10 +86,17 @@ function assertRunIsGenuine(mode: RunMode, settled: boolean): void {
     return
   }
   if (!settled || recorder.errors.length > 0) {
+    // Most specific cause first: a provider error the recorder saw; else the
+    // provider was never called (getProvider threw on bad config, which
+    // enrichMessage swallows); else it was called and the result was unusable.
+    const reason =
+      recorder.errors.length > 0
+        ? recorder.errors.join('; ')
+        : recorder.calls.length === 0
+          ? 'the provider was never reached — check the LLM_PROVIDER / LLM_API_KEY / LLM_BASE_URL configuration'
+          : 'the model returned no categories, or the write failed'
     throw new Error(
-      `LLM enrichment did not complete: ${
-        recorder.errors.join('; ') || 'the model returned no categories, or the write failed'
-      }. Nothing was written to output.json.`,
+      `LLM enrichment did not complete: ${reason.replace(/\.+$/, '')}. Nothing was written to output.json.`,
     )
   }
   if (recorder.calls.length !== 1) {
@@ -166,6 +174,11 @@ async function runCaseBody(
     return
   }
 
+  // Vitest fails a timed-out test but does not cancel its promise, so a run can
+  // resume after the next test has reset the shared recorder and store. The
+  // token lets it notice it was superseded before it can read that state.
+  const token = ++runToken
+
   setLlm(mode === 'withLlm')
   recorder.reset()
   store.clear()
@@ -178,10 +191,15 @@ async function runCaseBody(
   store.insert(row)
 
   const settled = await enrichMessage(row.id)
+  if (token !== runToken) {
+    throw new Error(
+      `${c.id} [${mode}]: this run was superseded, most likely by a timeout, and its result was discarded. Nothing was written to output.json.`,
+    )
+  }
   assertRunIsGenuine(mode, settled)
 
   const actual = toSnapshot(store.get(row.id)!)
-  const notes = mode === 'withLlm' ? llmNotes(row.bodyText) : [`body text seen: ${JSON.stringify((row.bodyText ?? '').slice(0, 200))}`]
+  const notes = llmNotes(row.bodyText)
 
   if (action === 'generate') {
     writeSection(

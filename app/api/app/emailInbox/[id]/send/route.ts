@@ -124,7 +124,7 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     // Sent mail is listed alongside received mail, so it has to be searchable
     // and enrichment-bearing on the same terms (issue #106; deterministic
     // OTP/link extraction) — derived here rather than only on the webhook
-    // ingest path (app/api/webhooks/email/route.ts), same helpers, same
+    // ingest path (app/api/webhooks/email/route.ts), same helper, same
     // reasoning: this data isn't gated behind the LLM plan/quota.
     const {
       bodyText: sentBodyText,
