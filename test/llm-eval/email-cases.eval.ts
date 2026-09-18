@@ -10,7 +10,7 @@ import { Report } from './lib/report'
 import { recorder, store } from './lib/shared'
 import { planAction, readStoredOutput, toSection, writeSection } from './lib/stored-output'
 import { RUN_MODES } from './lib/types'
-import type { CaseDir, RunMode } from './lib/types'
+import type { CaseDir, RunMode, RunRecord } from './lib/types'
 
 // The one thing faked: the two Prisma calls enrichMessage makes. Everything
 // else — extraction, prompt, provider adapter, acceptLlmOtp, the Security
@@ -112,13 +112,49 @@ function llmNotes(bodyText: string | null): string[] {
   return notes
 }
 
+/**
+ * Every (case, mode) that executes is recorded exactly once, including runs
+ * that throw: a failure that only reached Vitest's error output would leave the
+ * printed report (per-case lines and totals) saying nothing failed. The inner
+ * function records through `record`, so the catch below can tell whether a
+ * record already exists (a compare failure records, then throws) and never
+ * adds a second one.
+ */
 async function runCase(c: CaseDir, mode: RunMode, skip: () => void): Promise<void> {
+  let recorded = false
+  const record = (run: RunRecord): void => {
+    recorded = true
+    report.record(run)
+  }
+  try {
+    await runCaseBody(c, mode, skip, record)
+  } catch (error) {
+    if (!recorded) {
+      record({
+        caseId: c.id,
+        mode,
+        status: 'fail',
+        failures: [],
+        informational: [],
+        notes: [error instanceof Error ? error.message : String(error)],
+      })
+    }
+    throw error
+  }
+}
+
+async function runCaseBody(
+  c: CaseDir,
+  mode: RunMode,
+  skip: () => void,
+  record: (run: RunRecord) => void,
+): Promise<void> {
   const stored = readStoredOutput(c.outputPath)
   const action = planAction({ stored, mode, llmConfigured, update })
   const relOutput = path.relative(process.cwd(), c.outputPath)
 
   if (action === 'skip') {
-    report.record({
+    record({
       caseId: c.id,
       mode,
       status: 'skipped',
@@ -153,7 +189,7 @@ async function runCase(c: CaseDir, mode: RunMode, skip: () => void): Promise<voi
       mode,
       toSection(actual, { at: new Date().toISOString(), model: mode === 'withLlm' ? modelLabel : null }),
     )
-    report.record({
+    record({
       caseId: c.id,
       mode,
       status: 'generated',
@@ -169,7 +205,7 @@ async function runCase(c: CaseDir, mode: RunMode, skip: () => void): Promise<voi
 
   const { failures, informational } = compareSnapshots(mode, expected, actual)
   const failed = failures.length > 0
-  report.record({ caseId: c.id, mode, status: failed ? 'fail' : 'pass', failures, informational, notes })
+  record({ caseId: c.id, mode, status: failed ? 'fail' : 'pass', failures, informational, notes })
 
   if (failed) {
     throw new Error(
