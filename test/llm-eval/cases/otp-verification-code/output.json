@@ -1,0 +1,27 @@
+{
+  "withoutLlm": {
+    "extractedOtp": "483920",
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://example.com/verify",
+          "label": "Verify email",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-18T21:00:54.529Z",
+      "model": null
+    }
+  }
+}
