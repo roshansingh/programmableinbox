@@ -12,9 +12,10 @@ import { planAction, readStoredOutput, toSection, writeSection } from './lib/sto
 import { RUN_MODES } from './lib/types'
 import type { CaseDir, RunMode, RunRecord } from './lib/types'
 
-// The one thing faked: the two Prisma calls enrichMessage makes. Everything
-// else — extraction, prompt, provider adapter, acceptLlmOtp, the Security
-// gate, the CTA merge — is the real code.
+// The one thing faked: the Prisma calls enrichMessage makes (see
+// lib/row-store.ts for exactly which). Everything else — extraction, prompt,
+// provider adapter, acceptLlmOtp, the Security gate, the CTA merge — is the
+// real code.
 vi.mock('@/lib/db', async () => {
   const { store } = await import('./lib/shared')
   return { prisma: store.prismaShim() }

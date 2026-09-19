@@ -4,8 +4,10 @@ Runs each `email.html` under `cases/` through the **real** ingestion extraction
 and the **real** LLM enrichment step, twice — once with no LLM, once with an
 LLM — and compares the result with the `output.json` stored beside it.
 
-It uses **no database**. The only thing faked is the two Prisma calls
-`enrichMessage` makes, backed by an in-memory row. It is **not** part of
+It uses **no database**. The only thing faked is the handful of Prisma calls
+`enrichMessage` makes (`findUnique`, `update`, the guarded `updateMany` and the
+array form of `$transaction`), backed by an in-memory row. If `enrichMessage`
+starts making another Prisma call, `lib/row-store.ts` must learn it too. It is **not** part of
 `npm test` and makes real LLM calls (cost, and some run-to-run variance).
 
 ## Run it
