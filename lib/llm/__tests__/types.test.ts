@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { parseEnrichmentResult, buildEnrichmentJsonSchema } from '../types'
+import {
+  parseEnrichmentResult,
+  buildEnrichmentJsonSchema,
+  EMAIL_CATEGORIES,
+  EMAIL_CATEGORY_DEFINITIONS,
+} from '../types'
+import { buildSystemPrompt } from '../prompt'
 
 describe('parseEnrichmentResult otp', () => {
   it('passes a string otp through', () => {
@@ -86,5 +92,59 @@ describe('buildEnrichmentJsonSchema', () => {
   it('does not share mutable state between variants', () => {
     buildEnrichmentJsonSchema({ extractOtp: true })
     expect(buildEnrichmentJsonSchema().properties).not.toHaveProperty('otp')
+  })
+})
+
+// "Updates" was retired: it overlapped Notifications, Receipts and Support, and
+// in practice pulled login/reset mail away from Security. Messages classified
+// before the change keep the label (the column is free-form), but nothing may
+// offer it or accept it again.
+describe('the retired "Updates" category', () => {
+  it('is not in the category list, the tool schema enum, or the system prompt', () => {
+    const schema = buildEnrichmentJsonSchema()
+
+    expect(EMAIL_CATEGORIES as readonly string[]).not.toContain('Updates')
+    expect(schema.properties.categories.items.enum).not.toContain('Updates')
+    expect(buildSystemPrompt()).not.toMatch(/\bUpdates\b/)
+  })
+
+  it('is dropped from a model response that still returns it, keeping the valid ones', () => {
+    const result = parseEnrichmentResult({ categories: ['Security', 'Updates'] })
+
+    expect(result.categories).toEqual(['Security'])
+  })
+
+  it('leaves no categories when it was the only one returned, which enrichMessage treats as a retryable failure', () => {
+    expect(parseEnrichmentResult({ categories: ['Updates'] }).categories).toEqual([])
+  })
+})
+
+// The definitions are what the model reads to decide a label, so they are what
+// makes the same email get the same category run after run.
+describe('EMAIL_CATEGORY_DEFINITIONS', () => {
+  it.each([...EMAIL_CATEGORIES])('%s has a non-empty, single-line definition', (category) => {
+    const definition = EMAIL_CATEGORY_DEFINITIONS[category]
+
+    expect(definition.trim()).not.toBe('')
+    expect(definition).not.toMatch(/\n/)
+    expect(definition.length).toBeLessThanOrEqual(140)
+  })
+
+  it('defines Security as the home of sign-in mail: verification codes, password resets and login alerts', () => {
+    const security = EMAIL_CATEGORY_DEFINITIONS.Security
+
+    expect(security).toMatch(/verification/i)
+    expect(security).toMatch(/password reset/i)
+    expect(security).toMatch(/sign-in|login/i)
+  })
+
+  // "bot" made Agents overlap Notifications: routine no-reply alerts are also
+  // sent by bots, and the prompt allows two labels, so the model could tag
+  // nearly any automated email as Agents. The boundary has to be stated.
+  it('keeps Agents apart from Notifications: no "bot", and routine service notifications are excluded', () => {
+    const agents = EMAIL_CATEGORY_DEFINITIONS.Agents
+
+    expect(agents).not.toMatch(/\bbots?\b/i)
+    expect(agents).toMatch(/not routine service notifications/i)
   })
 })
