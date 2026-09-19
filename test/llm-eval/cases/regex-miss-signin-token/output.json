@@ -10,5 +10,19 @@
       "at": "2026-09-18T21:00:54.533Z",
       "model": null
     }
+  },
+  "withLlm": {
+    "extractedOtp": "A1B2C3",
+    "categories": [
+      "Security"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-19T20:02:42.672Z",
+      "model": "openai:gpt-4o-mini"
+    }
   }
 }

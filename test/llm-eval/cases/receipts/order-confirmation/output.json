@@ -23,5 +23,34 @@
       "at": "2026-09-19T02:05:11.884Z",
       "model": null
     }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Receipts"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/orders/48291345",
+          "label": "View your order",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/track/1Z999AA10123456784",
+          "label": "Track your package",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Friday"
+      ]
+    },
+    "_generated": {
+      "at": "2026-09-19T20:02:41.782Z",
+      "model": "openai:gpt-4o-mini"
+    }
   }
 }

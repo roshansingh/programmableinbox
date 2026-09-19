@@ -23,5 +23,32 @@
       "at": "2026-09-19T02:10:15.323Z",
       "model": null
     }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Security"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://app.example.com/reset?token=abc123abc123",
+          "label": "Reset password",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://example.com/help",
+          "label": "help center",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-19T20:02:43.490Z",
+      "model": "openai:gpt-4o-mini"
+    }
   }
 }

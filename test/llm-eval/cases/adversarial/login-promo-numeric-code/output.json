@@ -23,5 +23,32 @@
       "at": "2026-09-19T02:05:06.818Z",
       "model": null
     }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/login",
+          "label": "Log in to your account",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-19T20:02:39.378Z",
+      "model": "openai:gpt-4o-mini"
+    }
   }
 }
