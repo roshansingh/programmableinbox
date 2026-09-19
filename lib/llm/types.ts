@@ -1,12 +1,43 @@
 import type { ClassifiedLink } from '@/lib/email/cta-heuristic'
 
-export const EMAIL_CATEGORIES = [
-  'Primary', 'Promotions', 'Social', 'Updates', 'Receipts', 'Finance',
-  'Travel', 'Support', 'Newsletters', 'Communities', 'Security', 'Scheduling',
-  'Applications', 'Notifications', 'Education', 'Agents', 'Urgent', 'Spam',
-] as const
+/**
+ * Every category the classifier may assign, each with the one-line meaning the
+ * model is given for it (see buildSystemPrompt).
+ *
+ * The definitions are what make the labels consistent. Given bare names the
+ * model guesses where the boundaries are, and it guessed differently from run
+ * to run: sign-in and password-reset mail was labelled with a vague catch-all
+ * instead of Security. Write each as what sets the category apart from its
+ * neighbours, keep it to one line, and do not mention one-time codes or OTPs
+ * (the default prompt must not raise that question — see prompt.test.ts).
+ *
+ * This map is the single source of truth: a category cannot exist without a
+ * definition, and the key order here is the order of EMAIL_CATEGORIES, which
+ * the UI uses to pick each badge's colour.
+ */
+export const EMAIL_CATEGORY_DEFINITIONS = {
+  Primary: 'Correspondence written by a person to the recipient; use only when nothing more specific fits.',
+  Promotions: 'Marketing offers, sales, discounts and coupons meant to drive a purchase.',
+  Social: 'Activity from social networks and messaging platforms: follows, mentions, comments and friend requests.',
+  Receipts: 'Proof of a completed purchase or payment: order confirmations, invoices, and shipping or delivery notices.',
+  Finance: 'Banking, cards, investments, statements, taxes and billing alerts about money held or owed.',
+  Travel: 'Bookings, itineraries, boarding passes, hotel and rental confirmations, and trip changes.',
+  Support: "Help-desk tickets and replies from a company's customer support team.",
+  Newsletters: 'Recurring editorial content or digests from a publication, author or company; not a sales pitch.',
+  Communities: 'Forum, group and community digests and discussion activity, such as Discord, Slack or Reddit.',
+  Security: 'Sign-in and account-safety mail: verification and login codes, password resets, sign-in alerts and two-factor prompts.',
+  Scheduling: 'Calendar invites, meeting and appointment requests, confirmations, reminders and reschedules.',
+  Applications: 'Job, school or program applications: submission receipts, interview requests and decisions.',
+  Notifications: 'Automated system alerts and account activity that fit no more specific category.',
+  Education: 'Courses, classes, learning platforms and school or training communications.',
+  Agents: 'Messages sent by, or addressed to, an AI agent or bot, including agent-to-agent traffic.',
+  Urgent: 'Needs the reader to act soon: deadlines, outages, fraud or payment-failure warnings. May accompany another category.',
+  Spam: 'Unsolicited junk, scams and phishing from senders with no legitimate relationship to the recipient.',
+} as const
 
-export type EmailCategory = typeof EMAIL_CATEGORIES[number]
+export type EmailCategory = keyof typeof EMAIL_CATEGORY_DEFINITIONS
+
+export const EMAIL_CATEGORIES = Object.keys(EMAIL_CATEGORY_DEFINITIONS) as readonly EmailCategory[]
 
 /**
  * The persisted shape of EmailMessage.metadata. `links` is populated

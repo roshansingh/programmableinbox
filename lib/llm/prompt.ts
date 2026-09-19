@@ -1,5 +1,14 @@
-import { EMAIL_CATEGORIES } from './types'
+import { EMAIL_CATEGORIES, EMAIL_CATEGORY_DEFINITIONS } from './types'
 import type { CandidateLink, EnrichOptions } from './types'
+
+/**
+ * One line per category: its exact name and what it means. The model labels
+ * from these meanings, so the same email gets the same label run after run;
+ * see EMAIL_CATEGORY_DEFINITIONS for why and for how to write one.
+ */
+const CATEGORY_MENU = EMAIL_CATEGORIES.map(
+  (category) => `- ${category}: ${EMAIL_CATEGORY_DEFINITIONS[category]}`,
+).join('\n')
 
 /**
  * The rule the model sees only when the regex extractor already missed
@@ -18,7 +27,7 @@ export function buildSystemPrompt(options: EnrichOptions = {}): string {
   return `You are an email analysis assistant. Analyze the email and return structured JSON.
 
 CATEGORIES — select 1-2 that best describe the email (use exact names):
-${EMAIL_CATEGORIES.join(', ')}
+${CATEGORY_MENU}
 
 RULES:
 - categories: Pick 1-2 from the list above. Always include at least one.

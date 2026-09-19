@@ -1,5 +1,35 @@
 import { describe, it, expect } from 'vitest'
 import { buildSystemPrompt } from '../prompt'
+import { EMAIL_CATEGORIES, EMAIL_CATEGORY_DEFINITIONS } from '../types'
+
+/** The lines the model reads as its category menu: everything between the heading and RULES. */
+function categoryMenu(prompt: string): string[] {
+  return prompt
+    .slice(prompt.indexOf('CATEGORIES'), prompt.indexOf('RULES:'))
+    .split('\n')
+    .slice(1)
+    .filter((line) => line.trim() !== '')
+}
+
+describe('buildSystemPrompt category definitions', () => {
+  it('gives the model every category with its one-line definition, so it labels from meanings and not just names', () => {
+    const prompt = buildSystemPrompt()
+
+    for (const category of EMAIL_CATEGORIES) {
+      expect(prompt).toContain(`- ${category}: ${EMAIL_CATEGORY_DEFINITIONS[category]}`)
+    }
+  })
+
+  it('offers exactly the categories the schema allows, one per line and in the same order', () => {
+    const names = categoryMenu(buildSystemPrompt()).map((line) => line.split(':')[0])
+
+    expect(names).toEqual(EMAIL_CATEGORIES.map((category) => `- ${category}`))
+  })
+
+  it('shows the same category menu whether or not a code is being requested, so labels do not depend on that question', () => {
+    expect(categoryMenu(buildSystemPrompt({ extractOtp: true }))).toEqual(categoryMenu(buildSystemPrompt()))
+  })
+})
 
 describe('buildSystemPrompt', () => {
   it('says nothing about one-time codes by default, so a regex hit is never second-guessed', () => {
