@@ -144,6 +144,54 @@ describe('acceptLlmOtp', () => {
       expect(accept('851079', sentence)).toBeNull()
     })
 
+    // A digits-only token gets the looser qualifier+noun rule, and "log in" is
+    // a qualifier, so a coupon that happens to be six digits used to read as a
+    // login code. The commerce words are what tell the two apart.
+    it.each([
+      'Log in today and use code 202020 at checkout',
+      'Sign in and use code 202020 in your cart',
+      'Log in to your account and use code 202020 for free shipping',
+      'Sign in to redeem code 202020',
+      'Log in for savings: use code 202020',
+      'Sign in to see deals with code 202020',
+      'Log in today: code 202020 unlocks this offer',
+    ])('rejects a digits-only coupon dressed as a login prompt: "%s"', (sentence) => {
+      expect(accept('202020', sentence)).toBeNull()
+    })
+
+    // The signal has to belong to the code, not merely sit in the same quoted
+    // phrase: the evidence can run to 200 characters and several sentences.
+    describe('the signal must be in the sentence that prints the code', () => {
+      it('rejects a token whose sentence has no signal, even when an earlier sentence does', () => {
+        const body = 'Security alert: our app supports OTP. Also use SAVE20 at checkout.'
+        expect(accept('SAVE20', body)).toBeNull()
+      })
+
+      it('rejects a digits-only token in a sentence of its own after a signal sentence', () => {
+        const body = 'Our app supports OTP sign-in. Your seat 202020 is confirmed.'
+        expect(accept('202020', body)).toBeNull()
+      })
+
+      it('rejects a digits-only token when the qualifier and the noun are in different sentences', () => {
+        const body = 'Sign in to your account. Your seat code is 202020.'
+        expect(accept('202020', body)).toBeNull()
+      })
+
+      it('accepts the code when its own sentence carries the signal, whatever else is quoted', () => {
+        const body = 'Our app supports OTP sign-in. Your one-time code is 851079. It expires soon.'
+        expect(accept('851079', body)).toBe('851079')
+      })
+
+      it('is satisfied by any occurrence of the code that has a signal in its own sentence', () => {
+        const body = 'Seat 851079 is yours. Your one-time code is 851079.'
+        expect(accept('851079', body)).toBe('851079')
+      })
+
+      it('does not treat a colon as the end of a sentence', () => {
+        expect(accept('851079', 'Your verification code: 851079')).toBe('851079')
+      })
+    })
+
     // Mirrors extractOtp(): a token with letters (SAVE20, SPRING25) is the
     // shape of a marketing code, so it needs the unambiguous compound phrase,
     // whereas digits-only tokens get the looser rule.

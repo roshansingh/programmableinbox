@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseEnrichmentResult, ENRICHMENT_JSON_SCHEMA } from '../types'
+import { parseEnrichmentResult, buildEnrichmentJsonSchema } from '../types'
 
 describe('parseEnrichmentResult otp', () => {
   it('passes a string otp through', () => {
@@ -45,18 +45,46 @@ describe('parseEnrichmentResult otpEvidence', () => {
   })
 })
 
-describe('ENRICHMENT_JSON_SCHEMA otp', () => {
+describe('buildEnrichmentJsonSchema', () => {
+  // The otp fields are the fallback's question. A request that is not asking
+  // must not show them: an Anthropic tool definition is part of the prompt, so
+  // a schema that lists `otp` invites the model to volunteer one and spends
+  // output tokens on an answer the caller then discards.
+  it('leaves otp and otpEvidence out unless the caller asks for a code', () => {
+    for (const schema of [buildEnrichmentJsonSchema(), buildEnrichmentJsonSchema({}), buildEnrichmentJsonSchema({ extractOtp: false })]) {
+      expect(schema.properties).not.toHaveProperty('otp')
+      expect(schema.properties).not.toHaveProperty('otpEvidence')
+    }
+  })
+
+  it('keeps the classification fields in every variant', () => {
+    for (const extractOtp of [false, true]) {
+      const schema = buildEnrichmentJsonSchema({ extractOtp })
+      expect(Object.keys(schema.properties)).toEqual(
+        expect.arrayContaining(['categories', 'ctaJudgments', 'timestamps']),
+      )
+      expect(schema.required).toEqual(['categories', 'ctaJudgments', 'timestamps'])
+    }
+  })
+
   // Plain optional strings rather than ['string', 'null']: a type array is
   // valid JSON Schema but is one more thing a provider's tool-schema
   // validator could reject, and the parser already turns absent and null
   // into the same thing.
-  it('describes otp and otpEvidence as plain strings', () => {
-    expect(ENRICHMENT_JSON_SCHEMA.properties.otp).toEqual({ type: 'string' })
-    expect(ENRICHMENT_JSON_SCHEMA.properties.otpEvidence).toEqual({ type: 'string' })
+  it('describes otp and otpEvidence as plain strings when asked', () => {
+    const schema = buildEnrichmentJsonSchema({ extractOtp: true })
+    expect(schema.properties.otp).toEqual({ type: 'string' })
+    expect(schema.properties.otpEvidence).toEqual({ type: 'string' })
   })
 
-  it('does not require either, since most requests never ask for an otp', () => {
-    expect(ENRICHMENT_JSON_SCHEMA.required).not.toContain('otp')
-    expect(ENRICHMENT_JSON_SCHEMA.required).not.toContain('otpEvidence')
+  it('does not require either, since a response without them is the normal case', () => {
+    const { required } = buildEnrichmentJsonSchema({ extractOtp: true })
+    expect(required).not.toContain('otp')
+    expect(required).not.toContain('otpEvidence')
+  })
+
+  it('does not share mutable state between variants', () => {
+    buildEnrichmentJsonSchema({ extractOtp: true })
+    expect(buildEnrichmentJsonSchema().properties).not.toHaveProperty('otp')
   })
 })
