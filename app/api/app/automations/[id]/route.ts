@@ -87,7 +87,10 @@ export const PATCH = withUser(async (request, principal, { params }: RouteContex
     }
   }
 
-  let revisionId = automation.activeRevisionId
+  // Set only when this request creates a revision. `automation` was read at
+  // the top, so writing its `activeRevisionId` back from a name or status
+  // update would undo a graph save that committed in between.
+  let createdRevisionId: string | null = null
   if (nextConfig || nextLayout) {
     const latestRevision = automation.revisions[0]
     const revision = await prisma.automationRevision.create({
@@ -100,14 +103,14 @@ export const PATCH = withUser(async (request, principal, { params }: RouteContex
         createdByUserId: principal.userId,
       },
     })
-    revisionId = revision.id
+    createdRevisionId = revision.id
   }
 
   const updated = await prisma.automation.update({
     where: { id: automation.id },
     data: {
       ...shellData,
-      activeRevisionId: revisionId,
+      ...(createdRevisionId ? { activeRevisionId: createdRevisionId } : {}),
     },
     include: {
       activeRevision: true,
