@@ -6,6 +6,10 @@ import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/
 import { validateAutomationGraph } from '@/lib/automations/validation'
 import { findForwardEmailDomainViolations } from '@/lib/automations/outbound-policy'
 import {
+  AUTOMATION_NAME_TOO_LONG_MESSAGE,
+  MAX_AUTOMATION_NAME_LENGTH,
+} from '@/lib/automations/name'
+import {
   formatAutomationRecord,
   loadAutomationForUser,
   readJsonObject,
@@ -36,6 +40,9 @@ export const PATCH = withUser(async (request, principal, { params }: RouteContex
     const trimmedName = parsed.body.name.trim()
     if (!trimmedName) {
       return jsonError('name must not be empty', 400)
+    }
+    if (trimmedName.length > MAX_AUTOMATION_NAME_LENGTH) {
+      return jsonError(AUTOMATION_NAME_TOO_LONG_MESSAGE, 400)
     }
     shellData.name = trimmedName
   }

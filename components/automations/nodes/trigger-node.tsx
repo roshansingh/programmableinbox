@@ -6,6 +6,7 @@ import { BellRing, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { nodeCardClasses } from './node-styles'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ALL_BLOCK_KEYS } from '@/lib/automations/block-catalog'
 import { NodePicker } from '@/components/automations/node-picker'
@@ -13,7 +14,8 @@ import { useAutomationEditor } from '@/components/automations/automation-editor-
 
 export function TriggerNode({ id, data, selected }: NodeProps) {
   const { onPickBlock } = useAutomationEditor()
-  const nodeData = data as { label: string; subtitle: string }
+  const nodeData = data as { label: string; subtitle: string; issues?: string[] }
+  const issues = nodeData.issues ?? []
   const [open, setOpen] = useState(false)
 
   return (
@@ -21,7 +23,10 @@ export function TriggerNode({ id, data, selected }: NodeProps) {
       className="group/node relative"
       data-selected={selected ? 'true' : 'false'}
     >
-      <Card className={`min-w-52 border-2 ${selected ? 'border-primary' : 'border-border'} bg-card shadow-sm`}>
+      <Card
+        title={issues.length > 0 ? issues.join('\n') : undefined}
+        className={`min-w-52 ${nodeCardClasses({ selected: !!selected, invalid: issues.length > 0 })} bg-card shadow-sm`}
+      >
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useAuth } from '@/components/auth-provider'
+import { CreateAutomationDialog } from '@/components/automations/create-automation-dialog'
 import {
-  createAutomation,
   deleteAutomation,
   getAutomations,
   updateAutomation,
@@ -24,6 +24,7 @@ export function AutomationList() {
   const { organizationId } = useAuth()
   const [automations, setAutomations] = useState<AutomationRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [pendingAutomationId, setPendingAutomationId] = useState<string | null>(null)
   const [automationPendingDelete, setAutomationPendingDelete] =
     useState<AutomationRecord | null>(null)
@@ -43,20 +44,6 @@ export function AutomationList() {
   useEffect(() => {
     loadAutomations()
   }, [organizationId])
-
-  async function handleCreate() {
-    if (!organizationId) return
-    try {
-      const created = await createAutomation({
-        organizationId,
-        name: `Automation ${automations.length + 1}`,
-      })
-      toast.success('Automation created')
-      router.push(`/automations/${created.id}`)
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to create automation')
-    }
-  }
 
   async function handleToggleStatus(
     event: MouseEvent<HTMLButtonElement>,
@@ -124,7 +111,7 @@ export function AutomationList() {
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
-            <Button onClick={handleCreate} size="sm">
+            <Button onClick={() => setIsCreateDialogOpen(true)} size="sm">
               <Plus className="mr-2 h-4 w-4" />
               Create
             </Button>
@@ -139,7 +126,7 @@ export function AutomationList() {
             <p className="mb-4 text-sm text-muted-foreground">
               Create your first automation to start routing incoming email.
             </p>
-            <Button onClick={handleCreate}>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Automation
             </Button>
@@ -217,6 +204,15 @@ export function AutomationList() {
           </div>
         )}
       </CardContent>
+      {organizationId && (
+        <CreateAutomationDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          organizationId={organizationId}
+          defaultName={`Automation ${automations.length + 1}`}
+          onCreated={(created) => router.push(`/automations/${created.id}`)}
+        />
+      )}
       {/* Outside the rows: each row navigates on click, and a click inside a
           portal would bubble to it through the React tree. */}
       <ConfirmDialog

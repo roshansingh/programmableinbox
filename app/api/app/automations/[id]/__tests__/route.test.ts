@@ -92,4 +92,70 @@ describe('PATCH /api/app/automations/[id]', () => {
     expect(automationRevisionCreateMock).not.toHaveBeenCalled()
     expect(automationUpdateMock).not.toHaveBeenCalled()
   })
+
+  describe('renaming', () => {
+    function patchName(name: string) {
+      return async () => {
+        const { PATCH } = await loadRoute()
+        return PATCH(
+          new NextRequest('http://localhost/api/app/automations/automation_1', {
+            method: 'PATCH',
+            body: JSON.stringify({ name }),
+            headers: { 'content-type': 'application/json', cookie: 'session=token' },
+          }) as any,
+          { params: Promise.resolve({ id: 'automation_1' }) },
+        )
+      }
+    }
+
+    beforeEach(() => {
+      // Echo what was written over the stored row, as Prisma would.
+      automationUpdateMock.mockImplementation(async ({ data }: { data: object }) => ({
+        ...(await automationFindFirstMock()),
+        ...data,
+      }))
+    })
+
+    it('saves the trimmed name without creating a revision', async () => {
+      const response = await patchName('  Renamed automation  ')()
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.data.name).toBe('Renamed automation')
+      // A rename is not a graph edit: minting a revision would bump the
+      // revision number and clutter history for a label change.
+      expect(automationRevisionCreateMock).not.toHaveBeenCalled()
+      expect(automationUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { name: 'Renamed automation', activeRevisionId: 'rev_1' },
+        }),
+      )
+    })
+
+    it('accepts a name of exactly 100 characters', async () => {
+      const response = await patchName('a'.repeat(100))()
+
+      expect(response.status).toBe(200)
+      expect(automationUpdateMock).toHaveBeenCalledOnce()
+    })
+
+    it('rejects a name of 101 characters without writing', async () => {
+      const response = await patchName('a'.repeat(101))()
+      const body = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(body.message).toBe('name must be 100 characters or fewer')
+      expect(automationRevisionCreateMock).not.toHaveBeenCalled()
+      expect(automationUpdateMock).not.toHaveBeenCalled()
+    })
+
+    it('measures the cap after trimming, so padding cannot push a valid name over it', async () => {
+      const response = await patchName(`  ${'a'.repeat(100)}  `)()
+
+      expect(response.status).toBe(200)
+      expect(automationUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ name: 'a'.repeat(100) }) }),
+      )
+    })
+  })
 })
