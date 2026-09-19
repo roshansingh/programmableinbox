@@ -68,3 +68,4 @@ describe('extractOtp', () => {
     expect(extractOtp('Your code: AB12CD')).toBeNull()
   })
 })
+

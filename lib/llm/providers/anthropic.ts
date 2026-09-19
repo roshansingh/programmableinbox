@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { LLMProvider, LlmEnrichmentResult, CandidateLink } from '../types'
-import { ENRICHMENT_JSON_SCHEMA, parseEnrichmentResult } from '../types'
+import type { LLMProvider, LlmEnrichmentResult, CandidateLink, EnrichOptions } from '../types'
+import { buildEnrichmentJsonSchema, parseEnrichmentResult } from '../types'
 import { buildSystemPrompt, buildUserMessage } from '../prompt'
 import logger from '@/lib/logger'
 
@@ -13,19 +13,28 @@ export class AnthropicAdapter implements LLMProvider {
     this.model = model
   }
 
-  async enrich(subject: string, bodyText: string, candidateLinks: CandidateLink[]): Promise<LlmEnrichmentResult> {
+  async enrich(
+    subject: string,
+    bodyText: string,
+    candidateLinks: CandidateLink[],
+    options: EnrichOptions = {},
+  ): Promise<LlmEnrichmentResult> {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      system: buildSystemPrompt(),
+      system: buildSystemPrompt(options),
       messages: [
         { role: 'user', content: buildUserMessage(subject, bodyText, candidateLinks) },
       ],
       tools: [
         {
           name: 'enrich_email',
-          description: 'Classify email categories and judge which candidate links are calls to action',
-          input_schema: ENRICHMENT_JSON_SCHEMA as unknown as Anthropic.Tool['input_schema'],
+          // Both the description and the schema mention a one-time code only
+          // when this request asks for one — see buildEnrichmentJsonSchema.
+          description: options.extractOtp
+            ? 'Classify email categories, judge which candidate links are calls to action, and report a one-time code if the email contains one'
+            : 'Classify email categories and judge which candidate links are calls to action',
+          input_schema: buildEnrichmentJsonSchema(options) as unknown as Anthropic.Tool['input_schema'],
         },
       ],
       tool_choice: { type: 'tool', name: 'enrich_email' },

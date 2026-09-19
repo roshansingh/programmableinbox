@@ -72,6 +72,74 @@ describe('OpenAICompatAdapter', () => {
     expect(userMessage).not.toContain('Candidate links')
   })
 
+  describe('otp fallback', () => {
+    const systemMessage = (call: { messages: Array<{ role: string; content: string }> }) =>
+      call.messages.find((m) => m.role === 'system')!.content
+
+    it('does not ask for an otp unless extractOtp is set', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ categories: ['Security'], ctaJudgments: [], timestamps: [] }) } }],
+      })
+
+      const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+      const result = await new OpenAICompatAdapter('test-key', 'gpt-4o-mini').enrich('Hi', 'Hello', [])
+
+      expect(systemMessage(mockCreate.mock.calls[0][0])).not.toMatch(/\botp\b/i)
+      expect(result.otp).toBeNull()
+    })
+
+    it('adds the otp rule to the system prompt when extractOtp is set', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ categories: ['Security'], ctaJudgments: [], timestamps: [] }) } }],
+      })
+
+      const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+      await new OpenAICompatAdapter('test-key', 'gpt-4o-mini').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(systemMessage(mockCreate.mock.calls[0][0])).toMatch(/- otp:/)
+    })
+
+    it('returns the otp and its evidence from the JSON response', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                categories: ['Security'],
+                ctaJudgments: [],
+                timestamps: [],
+                otp: '851079',
+                otpEvidence: 'Your code is 851079',
+              }),
+            },
+          },
+        ],
+      })
+
+      const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+      const result = await new OpenAICompatAdapter('test-key', 'gpt-4o-mini').enrich(
+        'Hi',
+        'Your code is 851079',
+        [],
+        { extractOtp: true },
+      )
+
+      expect(result.otp).toBe('851079')
+      expect(result.otpEvidence).toBe('Your code is 851079')
+    })
+
+    it('asks for the evidence phrase when extractOtp is set', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ categories: ['Security'], ctaJudgments: [], timestamps: [] }) } }],
+      })
+
+      const { OpenAICompatAdapter } = await import('../providers/openai-compat')
+      await new OpenAICompatAdapter('test-key', 'gpt-4o-mini').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(systemMessage(mockCreate.mock.calls[0][0])).toMatch(/- otpEvidence:/)
+    })
+  })
+
   it('passes baseURL when provided and omits it when not', async () => {
     const { OpenAICompatAdapter } = await import('../providers/openai-compat')
 

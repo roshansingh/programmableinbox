@@ -93,6 +93,98 @@ describe('AnthropicAdapter', () => {
     expect(result.ctaJudgments).toEqual([])
   })
 
+  describe('otp fallback', () => {
+    const toolResult = (input: Record<string, unknown>) => ({
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', name: 'enrich_email', input }],
+    })
+
+    it('does not ask for an otp unless extractOtp is set', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      const result = await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [])
+
+      expect(mockCreate.mock.calls[0][0].system).not.toMatch(/\botp\b/i)
+      expect(result.otp).toBeNull()
+    })
+
+    it('adds the otp rule to the system prompt when extractOtp is set', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(mockCreate.mock.calls[0][0].system).toMatch(/- otp:/)
+    })
+
+    it('returns the otp and its evidence from the tool call', async () => {
+      mockCreate.mockResolvedValue(
+        toolResult({
+          categories: ['Security'],
+          ctaJudgments: [],
+          timestamps: [],
+          otp: '123 456',
+          otpEvidence: 'Your code is 123 456',
+        }),
+      )
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      const result = await new AnthropicAdapter('test-key').enrich('Hi', 'Your code is 123 456', [], {
+        extractOtp: true,
+      })
+
+      expect(result.otp).toBe('123 456')
+      expect(result.otpEvidence).toBe('Your code is 123 456')
+    })
+
+    it('asks for the evidence phrase when extractOtp is set', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(mockCreate.mock.calls[0][0].system).toMatch(/- otpEvidence:/)
+    })
+
+    it('keeps the otp fields and the mention of a code out of the tool definition when not asked', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Primary'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: false })
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [])
+
+      for (const [request] of mockCreate.mock.calls) {
+        const tool = request.tools[0]
+        expect(tool.input_schema.properties).not.toHaveProperty('otp')
+        expect(tool.input_schema.properties).not.toHaveProperty('otpEvidence')
+        expect(tool.description).not.toMatch(/code|otp|password/i)
+      }
+    })
+
+    it('mentions the one-time code in the tool description only when asked', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(mockCreate.mock.calls[0][0].tools[0].description).toMatch(/one-time code/i)
+    })
+
+    it('advertises otp in the tool schema without making it required', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      const schema = mockCreate.mock.calls[0][0].tools[0].input_schema
+      expect(schema.properties.otp).toEqual({ type: 'string' })
+      expect(schema.properties.otpEvidence).toEqual({ type: 'string' })
+      expect(schema.required).not.toContain('otp')
+      expect(schema.required).not.toContain('otpEvidence')
+    })
+  })
+
   it('uses provided model when specified', async () => {
     mockCreate.mockResolvedValue({
       content: [
