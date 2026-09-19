@@ -5,10 +5,7 @@ import { toOwnerScope } from '@/lib/services/scope'
 import { jsonSuccess, jsonError, jsonPlanDenial } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { getResend } from '@/lib/resend'
-import { deriveBodyText } from '@/lib/email/extract-body-text'
-import { extractLinks } from '@/lib/email/extract-links'
-import { extractOtp } from '@/lib/email/extract-otp'
-import { classifyLinks } from '@/lib/email/cta-heuristic'
+import { deriveIngestionFields } from '@/lib/email/derive-ingestion-fields'
 import { findSameServiceRecipients } from '@/lib/validation/outbound-recipient-policy'
 import logger from '@/lib/logger'
 
@@ -151,10 +148,13 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
     // Sent mail is listed alongside received mail, so it has to be searchable
     // and enrichment-bearing on the same terms (issue #106; deterministic
     // OTP/link extraction) — derived here rather than only on the webhook
-    // ingest path (app/api/webhooks/email/route.ts), same helpers, same
+    // ingest path (app/api/webhooks/email/route.ts), same helper, same
     // reasoning: this data isn't gated behind the LLM plan/quota.
-    const sentBodyText = deriveBodyText({ text: text || '', html: html || '' })
-    const sentLinks = classifyLinks(extractLinks({ text: text || '', html: html || '' }))
+    const {
+      bodyText: sentBodyText,
+      extractedOtp: sentOtp,
+      links: sentLinks,
+    } = deriveIngestionFields({ text: text || '', html: html || '' })
 
     await prisma.emailMessage.create({
       data: {
@@ -167,7 +167,7 @@ export const POST = withUser<{ id: string }>(async (request, principal, { params
         text: text || '',
         html: html || '',
         bodyText: sentBodyText,
-        extractedOtp: extractOtp(sentBodyText),
+        extractedOtp: sentOtp,
         metadata: { links: sentLinks, timestamps: [] },
         headers: emailHeaders,
         externalId: resendId,

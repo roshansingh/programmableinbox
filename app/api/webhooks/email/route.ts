@@ -6,10 +6,7 @@ import { dispatchAutomationsForEmail } from '@/lib/automations/dispatcher'
 import { getEmailWebhookWorker } from '@/lib/webhooks/worker'
 import { enrichMessage } from '@/lib/llm/enrichment'
 import { getResend } from '@/lib/resend'
-import { deriveBodyText } from '@/lib/email/extract-body-text'
-import { extractLinks } from '@/lib/email/extract-links'
-import { extractOtp } from '@/lib/email/extract-otp'
-import { classifyLinks } from '@/lib/email/cta-heuristic'
+import { deriveIngestionFields } from '@/lib/email/derive-ingestion-fields'
 import { isUniqueViolation } from '@/lib/api-helpers'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { withPublic } from '@/lib/auth/with-auth'
@@ -235,13 +232,10 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       const messageId = crypto.randomUUID()
       const threading = await determineThreading(resendEmail, messageId, inbox.id)
 
-      const bodyText = deriveBodyText({
+      const { bodyText, extractedOtp, links } = deriveIngestionFields({
         text: resendEmail.text || '',
         html: resendEmail.html || '',
       })
-      const links = classifyLinks(
-        extractLinks({ text: resendEmail.text || '', html: resendEmail.html || '' }),
-      )
 
       message = await prisma.emailMessage.create({
         data: {
@@ -265,7 +259,7 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
           // regex missed (enrichment fills extractedOtp in only while it is
           // still null) stay gated — see lib/llm/enrichment.ts.
           bodyText,
-          extractedOtp: extractOtp(bodyText),
+          extractedOtp,
           metadata: { links, timestamps: [] },
           headers: resendEmail.headers || {},
           externalId: resendEmail.id,
