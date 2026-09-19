@@ -1,5 +1,8 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { resetConfigCache } from '@/lib/config'
+
+const ORIGINAL_ALLOWED_DOMAINS = process.env.EMAIL_INBOX_ALLOWED_DOMAINS
 
 const resolveUserPrincipalFromTokenMock = vi.fn()
 const inboxFindFirstMock = vi.fn()
@@ -26,11 +29,11 @@ vi.mock('@/lib/resend', () => ({ getResend: () => ({ emails: { send: sendMock } 
 
 const INBOX = { id: 'inbox_1', email: 'me@mail.example.com', organizationId: 'org_1', userId: 'user_1' }
 
-function makeRequest() {
+function makeRequest(overrides: Record<string, unknown> = {}) {
   return new NextRequest('http://localhost:3000/api/app/emailInbox/inbox_1/send', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie: 'session=token' },
-    body: JSON.stringify({ to: ['dest@example.com'], subject: 'Hi', text: 'Hello' }),
+    body: JSON.stringify({ to: ['dest@example.com'], subject: 'Hi', text: 'Hello', ...overrides }),
   })
 }
 
@@ -71,6 +74,8 @@ async function configurePlan(
 describe('POST /api/app/emailInbox/[id]/send', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.EMAIL_INBOX_ALLOWED_DOMAINS = 'mail.example.com'
+    resetConfigCache()
     resolveUserPrincipalFromTokenMock.mockResolvedValue({
       kind: 'user',
       userId: 'user_1',
@@ -85,6 +90,12 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
   afterEach(async () => {
     const { CommercialProvider } = await import('@/lib/commercial/provider')
     CommercialProvider.reset()
+    if (ORIGINAL_ALLOWED_DOMAINS === undefined) {
+      delete process.env.EMAIL_INBOX_ALLOWED_DOMAINS
+    } else {
+      process.env.EMAIL_INBOX_ALLOWED_DOMAINS = ORIGINAL_ALLOWED_DOMAINS
+    }
+    resetConfigCache()
   })
 
   it('sends under the unlimited OSS default', async () => {
@@ -184,6 +195,64 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(response.status).toBe(500)
     expect(sendMock).toHaveBeenCalled()
     expect(refund).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A domain we actually receive mail at is one anyone could mint an address
+   * on for free by naming it as a recipient — mail forwarded there never has
+   * to leave the platform, which is an abuse vector rate limits and plan
+   * gates don't address. Checked before the plan/quota gate, same ordering
+   * rationale as authorization-before-billing: a blocked recipient shouldn't
+   * consume a paid quota unit to be told no.
+   */
+  it('rejects a "to" recipient on a domain this deployment owns', async () => {
+    const { consume } = await configurePlan({ outboundEmail: true })
+    const { POST } = await loadRoute()
+    const request = makeRequest({ to: ['abuse@mail.example.com'] })
+
+    const response = await POST(request as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(400)
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(consume).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `to`/`cc`/`bcc` are only checked for array shape before reaching the
+   * domain-block filter, so a non-string element (a client sending
+   * `{to: [null], ...}`) must not throw past this route's own try/catch and
+   * surface as a 500 for what is really a 400-shaped malformed request.
+   */
+  it('rejects malformed recipients with 400 rather than throwing', async () => {
+    const { POST } = await loadRoute()
+    const request = makeRequest({ to: [null] })
+
+    const response = await POST(request as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(400)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a "cc" recipient on a domain this deployment owns', async () => {
+    await configurePlan({ outboundEmail: true })
+    const { POST } = await loadRoute()
+    const request = makeRequest({ cc: ['abuse@mail.example.com'] })
+
+    const response = await POST(request as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(400)
+    expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a "bcc" recipient on a domain this deployment owns', async () => {
+    await configurePlan({ outboundEmail: true })
+    const { POST } = await loadRoute()
+    const request = makeRequest({ bcc: ['abuse@mail.example.com'] })
+
+    const response = await POST(request as any, { params: Promise.resolve({ id: 'inbox_1' }) })
+
+    expect(response.status).toBe(400)
+    expect(sendMock).not.toHaveBeenCalled()
   })
 
   it('does not consult a plan for an inbox the caller does not own', async () => {

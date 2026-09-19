@@ -80,6 +80,10 @@ withConfigEnv({
   AUTH_RATE_LIMIT_ENABLED: 'true',
   AUTH_RATE_LIMIT_REGISTER_IP_MAX_REQUESTS: '1000',
   AUTH_RATE_LIMIT_REGISTER_ACCOUNT_MAX_REQUESTS: '1000',
+  // Unrelated to what this suite tests, but the route now unconditionally
+  // checks the submitted email against EMAIL_INBOX_ALLOWED_DOMAINS; a domain
+  // that doesn't match this file's example.com fixtures keeps it inert here.
+  EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org',
 })
 
 beforeEach(() => {

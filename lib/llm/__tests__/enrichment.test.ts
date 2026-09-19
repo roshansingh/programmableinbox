@@ -15,6 +15,8 @@ const mockGetProvider = vi.fn()
 const mockResolve = vi.fn()
 const mockFindUnique = vi.fn()
 const mockUpdate = vi.fn()
+const mockUpdateMany = vi.fn()
+const mockTransaction = vi.fn()
 
 /** Builds a resolved plan with `llmEnrichment` set as given. */
 function planWithEnrichment(enabled: boolean) {
@@ -39,7 +41,8 @@ vi.mock('@/lib/commercial/provider', () => ({
 }))
 vi.mock('@/lib/db', () => ({
   prisma: {
-    emailMessage: { findUnique: mockFindUnique, update: mockUpdate },
+    emailMessage: { findUnique: mockFindUnique, update: mockUpdate, updateMany: mockUpdateMany },
+    $transaction: mockTransaction,
   },
 }))
 
@@ -94,6 +97,10 @@ describe('enrichMessage', () => {
     // (not `...Once`) leaves every later test's update calls rejecting too
     // unless something resets it back — this is that reset.
     mockUpdate.mockResolvedValue(undefined)
+    mockUpdateMany.mockResolvedValue({ count: 1 })
+    // Array form only: the operations were already started when they were
+    // passed in, so all that is left to model is "they settle together".
+    mockTransaction.mockImplementation((ops: Array<Promise<unknown>>) => Promise.all(ops))
   })
 
   it('wraps enrichment in an OTel span named llm.enrich_message', async () => {
@@ -512,21 +519,102 @@ describe('enrichMessage', () => {
       })
     })
 
-    it('stores a code the model found, in the same update as categories', async () => {
+    it('stores a code the model found, in the same transaction as categories', async () => {
       mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: SENTENCE }))
       mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
       const { enrichMessage } = await import('../enrichment')
 
       await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
-      expect(mockUpdate).toHaveBeenCalledTimes(1)
+      expect(mockTransaction).toHaveBeenCalledTimes(1)
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: 'msg-1' },
-        data: {
-          categories: ['Security'],
-          metadata: { links: [], timestamps: [] },
-          extractedOtp: '851079',
-        },
+        data: { categories: ['Security'], metadata: { links: [], timestamps: [] } },
+      })
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { id: 'msg-1', extractedOtp: null },
+        data: { extractedOtp: '851079' },
+      })
+    })
+
+    // Two jobs for one message can both read extractedOtp === null and both be
+    // handed a (different) accepted code; the guard is what makes "write once
+    // while null" true at the database rather than only in this process.
+    it('only writes the code while extractedOtp is still null, so a concurrent enrichment cannot replace it', async () => {
+      mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: SENTENCE }))
+      mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
+      const { enrichMessage } = await import('../enrichment')
+      await enrichMessage('msg-1')
+
+      expect(mockUpdate.mock.calls[0][0].data).not.toHaveProperty('extractedOtp')
+      expect(mockUpdateMany.mock.calls[0][0].where).toEqual({ id: 'msg-1', extractedOtp: null })
+    })
+
+    it('still settles when the guard matches nothing because another job stored a code first', async () => {
+      mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: SENTENCE }))
+      mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
+      mockUpdateMany.mockResolvedValue({ count: 0 })
+      const { CommercialProvider } = await import('@/lib/commercial/provider')
+      const { enrichMessage } = await import('../enrichment')
+
+      await expect(enrichMessage('msg-1')).resolves.toBe(true)
+      expect(CommercialProvider.quota.refund).not.toHaveBeenCalled()
+    })
+
+    it('refunds and reports a transient failure when the transaction fails, as a failed update does', async () => {
+      mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: SENTENCE }))
+      mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
+      mockTransaction.mockRejectedValue(new Error('db down'))
+      const { CommercialProvider } = await import('@/lib/commercial/provider')
+      const { enrichMessage } = await import('../enrichment')
+
+      await expect(enrichMessage('msg-1')).resolves.toBe(false)
+      expect(CommercialProvider.quota.refund).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not open a transaction when there is no code to store', async () => {
+      const { enrichMessage } = await import('../enrichment')
+      await enrichMessage('msg-1')
+
+      expect(mockTransaction).not.toHaveBeenCalled()
+      expect(mockUpdateMany).not.toHaveBeenCalled()
+      expect(mockUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    // The provider is shown at most MAX_PROMPT_BODY_LENGTH characters. The
+    // grounding check has to read those same characters, or a code the model
+    // never saw could be "found" in the tail it was not shown.
+    describe('the text the model saw is the text the code is checked against', () => {
+      const filler = 'lorem ipsum dolor sit amet '.repeat(300) // ~8100 chars, well past the cap
+
+      it('sends the provider no more than the cap', async () => {
+        mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: `${filler}${SENTENCE}` }))
+        const { enrichMessage } = await import('../enrichment')
+        const { MAX_PROMPT_BODY_LENGTH } = await import('../prompt')
+        await enrichMessage('msg-1')
+
+        expect(mockEnrich.mock.calls[0][1].length).toBeLessThanOrEqual(MAX_PROMPT_BODY_LENGTH)
+      })
+
+      it('drops a code that appears only after the cut, even with a well-formed evidence phrase', async () => {
+        mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: `${filler}${SENTENCE}` }))
+        mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
+        const { enrichMessage } = await import('../enrichment')
+
+        await expect(enrichMessage('msg-1')).resolves.toBe(true)
+
+        expect(mockUpdateMany).not.toHaveBeenCalled()
+        expect(mockUpdate.mock.calls[0][0].data).not.toHaveProperty('extractedOtp')
+        expect(mockUpdate.mock.calls[0][0].data.categories).toEqual(['Security'])
+      })
+
+      it('still accepts a code that sits inside the cap of a long body', async () => {
+        mockFindUnique.mockResolvedValue(baseMessage({ text: '', bodyText: `${SENTENCE}. ${filler}` }))
+        mockEnrich.mockResolvedValue(otpResult('851079', SENTENCE))
+        const { enrichMessage } = await import('../enrichment')
+        await enrichMessage('msg-1')
+
+        expect(mockUpdateMany.mock.calls[0][0].data.extractedOtp).toBe('851079')
       })
     })
 
@@ -537,7 +625,7 @@ describe('enrichMessage', () => {
       const { enrichMessage } = await import('../enrichment')
       await enrichMessage('msg-1')
 
-      expect(mockUpdate.mock.calls[0][0].data.extractedOtp).toBe('851079')
+      expect(mockUpdateMany.mock.calls[0][0].data.extractedOtp).toBe('851079')
     })
 
     it('checks the code against the same text the model was shown (text when bodyText is null)', async () => {
@@ -546,7 +634,7 @@ describe('enrichMessage', () => {
       const { enrichMessage } = await import('../enrichment')
       await enrichMessage('msg-1')
 
-      expect(mockUpdate.mock.calls[0][0].data.extractedOtp).toBe('851079')
+      expect(mockUpdateMany.mock.calls[0][0].data.extractedOtp).toBe('851079')
     })
 
     it('drops a code that is not in the body, but still saves the classification', async () => {
@@ -557,7 +645,7 @@ describe('enrichMessage', () => {
       await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
       const { data } = mockUpdate.mock.calls[0][0]
-      expect(data).not.toHaveProperty('extractedOtp')
+      expect(mockUpdateMany).not.toHaveBeenCalled()
       expect(data.categories).toEqual(['Security'])
     })
 
@@ -573,7 +661,7 @@ describe('enrichMessage', () => {
       const { enrichMessage } = await import('../enrichment')
       await enrichMessage('msg-1')
 
-      expect(mockUpdate.mock.calls[0][0].data).not.toHaveProperty('extractedOtp')
+      expect(mockUpdateMany).not.toHaveBeenCalled()
     })
 
     it('treats "no code found" as a normal answer: no refund, no retry, nothing stored', async () => {
@@ -612,7 +700,7 @@ describe('enrichMessage', () => {
         await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
         const { data } = mockUpdate.mock.calls[0][0]
-        expect(data).not.toHaveProperty('extractedOtp')
+        expect(mockUpdateMany).not.toHaveBeenCalled()
         expect(data.categories).toEqual(['Security'])
       })
     })
@@ -629,7 +717,7 @@ describe('enrichMessage', () => {
         await expect(enrichMessage('msg-1')).resolves.toBe(true)
 
         const { data } = mockUpdate.mock.calls[0][0]
-        expect(data).not.toHaveProperty('extractedOtp')
+        expect(mockUpdateMany).not.toHaveBeenCalled()
         expect(data.categories).toEqual(['Promotions'])
       })
 
@@ -638,7 +726,7 @@ describe('enrichMessage', () => {
         const { enrichMessage } = await import('../enrichment')
         await enrichMessage('msg-1')
 
-        expect(mockUpdate.mock.calls[0][0].data.extractedOtp).toBe('851079')
+        expect(mockUpdateMany.mock.calls[0][0].data.extractedOtp).toBe('851079')
       })
     })
 

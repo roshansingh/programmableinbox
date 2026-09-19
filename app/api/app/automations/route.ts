@@ -5,6 +5,7 @@ import { CommercialProvider } from '@/lib/commercial/provider'
 import { withUser } from '@/lib/auth/with-auth'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
+import { findForwardEmailDomainViolations } from '@/lib/automations/outbound-policy'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 // Aliased: the POST handler below already binds a local `config` for the
 // automation's own config document (parseAutomationConfig /
@@ -89,6 +90,15 @@ export const POST = withUser(async (request, principal) => {
     layout = parsed.body.layout ? parseAutomationLayout(parsed.body.layout) : createDefaultAutomationLayout(config)
   } catch {
     return jsonError('Invalid automation layout', 400)
+  }
+
+  const domainViolations = findForwardEmailDomainViolations(config)
+  if (domainViolations.length > 0) {
+    return jsonError(
+      "Forward-email action cannot target an address on this service's own domain: " +
+        domainViolations.flatMap((v) => v.addresses).join(', '),
+      400,
+    )
   }
 
   // Plan gates, after the config and layout are judged so a malformed

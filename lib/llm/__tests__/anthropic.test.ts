@@ -147,6 +147,30 @@ describe('AnthropicAdapter', () => {
       expect(mockCreate.mock.calls[0][0].system).toMatch(/- otpEvidence:/)
     })
 
+    it('keeps the otp fields and the mention of a code out of the tool definition when not asked', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Primary'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: false })
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [])
+
+      for (const [request] of mockCreate.mock.calls) {
+        const tool = request.tools[0]
+        expect(tool.input_schema.properties).not.toHaveProperty('otp')
+        expect(tool.input_schema.properties).not.toHaveProperty('otpEvidence')
+        expect(tool.description).not.toMatch(/code|otp|password/i)
+      }
+    })
+
+    it('mentions the one-time code in the tool description only when asked', async () => {
+      mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
+
+      const { AnthropicAdapter } = await import('../providers/anthropic')
+      await new AnthropicAdapter('test-key').enrich('Hi', 'Hello', [], { extractOtp: true })
+
+      expect(mockCreate.mock.calls[0][0].tools[0].description).toMatch(/one-time code/i)
+    })
+
     it('advertises otp in the tool schema without making it required', async () => {
       mockCreate.mockResolvedValue(toolResult({ categories: ['Security'], ctaJudgments: [], timestamps: [] }))
 

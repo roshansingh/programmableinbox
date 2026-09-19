@@ -4,6 +4,7 @@ import { jsonError, jsonSuccess } from '@/lib/api-helpers'
 import { withUser } from '@/lib/auth/with-auth'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
 import { validateAutomationGraph } from '@/lib/automations/validation'
+import { findForwardEmailDomainViolations } from '@/lib/automations/outbound-policy'
 import {
   formatAutomationRecord,
   loadAutomationForUser,
@@ -52,6 +53,20 @@ export const PATCH = withUser(async (request, principal, { params }: RouteContex
       nextConfig ?? (automation.activeRevision ? parseAutomationConfig(automation.activeRevision.config) : null)
   } catch {
     return jsonError('Invalid automation config or layout', 400)
+  }
+
+  // Only when the caller is actually submitting a new config — re-checking
+  // the automation's already-saved config on every PATCH (e.g. a bare rename)
+  // would block an unrelated edit on an automation that predates this rule.
+  if (nextConfig) {
+    const domainViolations = findForwardEmailDomainViolations(nextConfig)
+    if (domainViolations.length > 0) {
+      return jsonError(
+        "Forward-email action cannot target an address on this service's own domain: " +
+          domainViolations.flatMap((v) => v.addresses).join(', '),
+        400,
+      )
+    }
   }
 
   if (shellData.isActive === true) {

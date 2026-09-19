@@ -135,12 +135,38 @@ const EVIDENCE_DISQUALIFIERS = new RegExp(
     '\\b(?:promo(?:tion(?:al)?)?|coupon|discount|voucher|referral|gift\\s?card|zip|postal|tracking|invoice)\\b',
     '\\b(?:order|reference|confirmation|account|booking|case|ticket)\\s*(?:number|no\\b|id\\b|#)',
     '%\\s*off\\b',
+    // Shopping-flow words. "Log in" is an OTP qualifier, so without these a
+    // digits-only coupon reads as a login code: "Log in today and use code
+    // 202020 at checkout". Kept to words that mark a discount or a basket, not
+    // "purchase" or "payment", which a genuine card-confirmation code names.
+    '\\b(?:checkout|cart|shipping|redeem(?:ed|ing)?|savings?|sales?|deals?|offers?)\\b',
   ].join('|'),
   'i',
 )
 const DISQUALIFYING_NEARBY = new RegExp(`\\b(?:${DISQUALIFYING_TERMS})\\b`, 'i')
 
 const collapseWhitespace = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+// A sentence ends at ./!/? followed by whitespace (or the end of the text), so
+// a colon, a decimal point and a hyphenated code do not split one.
+const SENTENCE_BREAK = /[.!?]\s/g
+const SENTENCE_END = /[.!?](?=\s|$)/
+
+/**
+ * The sentence of `text` that contains [start, end), clipped to [lo, hi). The
+ * signal that makes a token a one-time code has to be *this* sentence, not
+ * merely somewhere in the up-to-200-character phrase the model quoted, or a
+ * sentence about OTP support could vouch for a marketing token printed next
+ * to it.
+ */
+const sentenceAround = (text: string, start: number, end: number, lo: number, hi: number) => {
+  const breaks = [...text.slice(lo, start).matchAll(SENTENCE_BREAK)]
+  const last = breaks[breaks.length - 1]
+  const from = last ? lo + (last.index ?? 0) + last[0].length : lo
+  const next = SENTENCE_END.exec(text.slice(end, hi))
+  const to = next ? end + (next.index ?? 0) + 1 : hi
+  return text.slice(from, to)
+}
 
 const hasOtpSignal = (sentence: string, code: string) => {
   if (OTP_SIGNAL_STANDALONE.test(sentence) || OTP_SIGNAL_COMPOUND.test(sentence)) return true
@@ -158,11 +184,13 @@ const hasOtpSignal = (sentence: string, code: string) => {
  *    at least one digit).
  * 2. The model quoted the phrase that justifies it (`evidence`), and that
  *    phrase really is in the body — so it cannot fabricate a context.
- * 3. The phrase is short (a sentence, not the email), reads as a one-time
- *    code (unambiguously so if the code contains letters), and does not read
- *    as a promo, order number or the like.
+ * 3. The phrase is short (not the email) and does not read as a promo, a
+ *    basket/checkout prompt, an order number or the like.
  * 4. The code is printed inside that phrase, on token boundaries, so a
- *    hallucinated code or the middle of a longer number never qualifies.
+ *    hallucinated code or the middle of a longer number never qualifies, and
+ *    the *sentence it is printed in* reads as a one-time code (unambiguously
+ *    so if the code contains letters). A signal in a neighbouring sentence of
+ *    the same phrase does not count.
  * 5. No disqualifying word (promo, zip, source, ...) sits just before the
  *    code in the body — the same list extractOtp() refuses.
  *
@@ -183,7 +211,7 @@ export function acceptLlmOtp(
 
   const evidence = collapseWhitespace(proposal.evidence)
   if (evidence === '' || evidence.length > LLM_OTP_EVIDENCE_MAX_LENGTH) return null
-  if (!hasOtpSignal(evidence, code) || EVIDENCE_DISQUALIFIERS.test(evidence)) return null
+  if (EVIDENCE_DISQUALIFIERS.test(evidence)) return null
 
   const body = collapseWhitespace(bodyText)
   const evidenceStart = body.indexOf(evidence)
@@ -198,6 +226,8 @@ export function acceptLlmOtp(
   for (const match of body.matchAll(printed)) {
     const start = match.index ?? 0
     if (start < evidenceStart || start + match[0].length > evidenceEnd) continue
+    const sentence = sentenceAround(body, start, start + match[0].length, evidenceStart, evidenceEnd)
+    if (!hasOtpSignal(sentence, code)) continue
     const before = body.slice(Math.max(0, start - LLM_OTP_CONTEXT_WINDOW), start)
     if (!DISQUALIFYING_NEARBY.test(before)) return code
   }

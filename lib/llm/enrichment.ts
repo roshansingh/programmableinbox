@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import logger from '@/lib/logger'
 import { getProvider } from './factory'
+import { MAX_PROMPT_BODY_LENGTH } from './prompt'
 import type { EnrichmentMetadata, CandidateLink } from './types'
 import type { ClassifiedLink } from '@/lib/email/cta-heuristic'
 import { acceptLlmOtp } from '@/lib/email/extract-otp'
@@ -180,7 +181,12 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       // for HTML-only mail; `bodyText` is derived at ingestion (route.ts) and
       // falls back to HTML-extracted text in that case, so it's what actually
       // contains content for those messages.
-      const promptText = message.bodyText ?? message.text
+      //
+      // Cut once, here, and hand this exact string to both the provider and
+      // acceptLlmOtp below. buildUserMessage would truncate on its own, but
+      // then the grounding check would run against a longer string than the
+      // model was shown.
+      const promptText = (message.bodyText ?? message.text).slice(0, MAX_PROMPT_BODY_LENGTH)
       // Only ask for an OTP when the ingestion-time regex found none.
       // extractedOtp is written once, at insert, by nothing but that regex
       // (see the write in app/api/webhooks/email/route.ts), so null here
@@ -236,8 +242,8 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
 
       // Patch isCta/ctaConfidence onto the matching stored link by candidate
       // index — never add, remove, or reorder links here. extractedOtp is
-      // written only as the fallback above, and only when the ingestion-time
-      // regex left it null; a code the regex found is never overwritten.
+      // written only as the fallback above, and only while it is still null; a
+      // code the regex found (or another job stored first) is never overwritten.
       const mergedLinks = storedMetadata.links.map((link) => {
         const candidateIndex = candidateLinks.findIndex((c) => c.url === link.url)
         if (candidateIndex === -1) return link
@@ -245,16 +251,38 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
         return judgment ? { ...link, isCta: judgment.isCta, ctaConfidence: 'high' as const } : link
       })
 
-      await prisma.emailMessage.update({
+      const saveClassification = prisma.emailMessage.update({
         where: { id: messageId },
         data: {
           categories: result.categories,
           metadata: { links: mergedLinks, timestamps: result.timestamps },
-          // Same update as categories on purpose: the refund-on-failure and
-          // idempotency reasoning around this write covers the OTP for free.
-          ...(recoveredOtp !== null ? { extractedOtp: recoveredOtp } : {}),
         },
       })
+      if (recoveredOtp === null) {
+        await saveClassification
+      } else {
+        // One transaction with the categories on purpose: the
+        // refund-on-failure and idempotency reasoning around this write covers
+        // the OTP for free, which two independent statements would not (the
+        // second failing would leave the message "already enriched" and the
+        // code lost).
+        //
+        // Guarded on extractedOtp still being null because wantOtp was read
+        // before the provider call, and the worker can run two enrichments of
+        // one message at once (duplicate delivery, a retry overlapping the
+        // original). Both can read null and be handed different accepted
+        // codes; without the guard the later write silently replaces the
+        // earlier one. With it, "write once while null" holds in the database
+        // rather than only in this process. A count of 0 is therefore a
+        // normal outcome (another job stored a code first), not a failure.
+        await prisma.$transaction([
+          saveClassification,
+          prisma.emailMessage.updateMany({
+            where: { id: messageId, extractedOtp: null },
+            data: { extractedOtp: recoveredOtp },
+          }),
+        ])
+      }
     } catch (error) {
       // The unit isn't earned until the result is actually persisted: if the
       // provider call succeeds but the update below fails, categories stays

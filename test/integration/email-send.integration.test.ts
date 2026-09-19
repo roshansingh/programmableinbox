@@ -33,7 +33,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const res = await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${otherInbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hi', text: 'body' },
+        body: { to: ['dest@external.test'], subject: 'Hi', text: 'body' },
       }),
       params({ id: otherInbox.id })
     )
@@ -79,7 +79,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const res = await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], text: 'body' },
+        body: { to: ['dest@external.test'], text: 'body' },
       }),
       params({ id: inbox.id })
     )
@@ -96,7 +96,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const res = await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hi' },
+        body: { to: ['dest@external.test'], subject: 'Hi' },
       }),
       params({ id: inbox.id })
     )
@@ -112,7 +112,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const res = await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hello there', text: 'body text' },
+        body: { to: ['dest@external.test'], subject: 'Hello there', text: 'body text' },
       }),
       params({ id: inbox.id })
     )
@@ -125,7 +125,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(resend.send).toHaveBeenCalledWith(
       expect.objectContaining({
         from: inbox.email,
-        to: ['dest@test.dev'],
+        to: ['dest@external.test'],
         subject: 'Hello there',
         text: 'body text',
       })
@@ -135,7 +135,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     expect(row.organizationId).toBe(org.id)
     expect(row.inboxEmailAddressId).toBe(inbox.id)
     expect(row.from).toBe(inbox.email)
-    expect(row.to).toEqual(['dest@test.dev'])
+    expect(row.to).toEqual(['dest@external.test'])
     expect(row.subject).toBe('Hello there')
     expect(row.text).toBe('body text')
     expect(row.parentMessageId).toBeNull()
@@ -157,7 +157,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: {
-          to: ['dest@test.dev'],
+          to: ['dest@external.test'],
           subject: 'Receipt',
           html: '<html><head><style>.x{color:red}</style></head><body><p>Order 4471 confirmed</p></body></html>',
         },
@@ -179,7 +179,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hi', text: 'the plain part' },
+        body: { to: ['dest@external.test'], subject: 'Hi', text: 'the plain part' },
       }),
       params({ id: inbox.id })
     )
@@ -202,7 +202,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: {
-          to: ['dest@test.dev'],
+          to: ['dest@external.test'],
           subject: 'Your code',
           html: '<p>Your verification code is 483920.</p><p><a href="https://example.com/verify">Verify Email</a></p>',
         },
@@ -226,7 +226,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hi', text: 'just saying hello' },
+        body: { to: ['dest@external.test'], subject: 'Hi', text: 'just saying hello' },
       }),
       params({ id: inbox.id })
     )
@@ -242,7 +242,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
 
     const parent = await prisma.emailMessage.create({
       data: {
-        from: 'someone@test.dev',
+        from: 'someone@external.test',
         to: [inbox.email],
         cc: [], bcc: [],
         subject: 'Original subject',
@@ -262,7 +262,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
         body: {
-          to: ['someone@test.dev'],
+          to: ['someone@external.test'],
           subject: 'Re: Original subject',
           text: 'reply body',
           inReplyTo: '<parent-1@test.dev>',
@@ -286,7 +286,7 @@ describe('POST /api/app/emailInbox/[id]/send', () => {
     const res = await POST(
       jsonRequest(`http://localhost/api/app/emailInbox/${inbox.id}/send`, {
         method: 'POST', credential: token,
-        body: { to: ['dest@test.dev'], subject: 'Hello there', text: 'body text' },
+        body: { to: ['dest@external.test'], subject: 'Hello there', text: 'body text' },
       }),
       params({ id: inbox.id })
     )

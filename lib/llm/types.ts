@@ -52,38 +52,57 @@ export type LlmEnrichmentResult = {
   otpEvidence: string | null
 }
 
-export const ENRICHMENT_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    categories: {
-      type: 'array',
-      items: { type: 'string', enum: [...EMAIL_CATEGORIES] },
-    },
-    ctaJudgments: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          i: { type: 'integer' },
-          isCta: { type: 'boolean' },
-        },
-        required: ['i', 'isCta'],
-      },
-    },
-    timestamps: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-    // Deliberately not in `required`: they are only asked for when the regex
-    // extractor missed, so a response without them is the normal case. Plain
-    // strings rather than ['string', 'null'] — a type array is valid JSON
-    // Schema but one more thing a provider's tool-schema validator could
-    // reject, and parseEnrichmentResult already treats absent and null alike.
-    otp: { type: 'string' },
-    otpEvidence: { type: 'string' },
+const ENRICHMENT_SCHEMA_PROPERTIES = {
+  categories: {
+    type: 'array',
+    items: { type: 'string', enum: [...EMAIL_CATEGORIES] },
   },
-  required: ['categories', 'ctaJudgments', 'timestamps'],
+  ctaJudgments: {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        i: { type: 'integer' },
+        isCta: { type: 'boolean' },
+      },
+      required: ['i', 'isCta'],
+    },
+  },
+  timestamps: {
+    type: 'array',
+    items: { type: 'string' },
+  },
 } as const
+
+// Deliberately not in `required`: they are only asked for when the regex
+// extractor missed, so a response without them is the normal case. Plain
+// strings rather than ['string', 'null'] — a type array is valid JSON
+// Schema but one more thing a provider's tool-schema validator could
+// reject, and parseEnrichmentResult already treats absent and null alike.
+const OTP_SCHEMA_PROPERTIES = {
+  otp: { type: 'string' },
+  otpEvidence: { type: 'string' },
+} as const
+
+/**
+ * The tool/response schema for one enrichment request. The otp fields are
+ * included only when the request asks for a code (`extractOtp`): a schema is
+ * part of the prompt for tool-calling providers, so listing them on a request
+ * that did not ask would invite the model to volunteer a code the caller
+ * discards, and spend output tokens doing it. This is what keeps the
+ * "fallback only" contract on `EnrichOptions.extractOtp` true for the schema
+ * as well as for the system prompt (lib/llm/prompt.ts).
+ */
+export function buildEnrichmentJsonSchema(options: EnrichOptions = {}) {
+  return {
+    type: 'object',
+    properties: {
+      ...ENRICHMENT_SCHEMA_PROPERTIES,
+      ...(options.extractOtp === true ? OTP_SCHEMA_PROPERTIES : {}),
+    },
+    required: ['categories', 'ctaJudgments', 'timestamps'],
+  } as const
+}
 
 export type EnrichOptions = {
   /**

@@ -29,10 +29,18 @@ Respond with JSON only, no prose. Match this structure exactly:
 {"categories":["..."],"ctaJudgments":[{"i":0,"isCta":true}],"timestamps":["..."]${otp ? ',"otp":"...","otpEvidence":"..."' : ''}}`
 }
 
+/**
+ * How much of the body the provider is shown. Exported so the caller can cut
+ * the text *once*, before the provider call, and hold the OTP grounding check
+ * (acceptLlmOtp) to exactly the characters the model saw — a check against the
+ * full body would accept a code from a tail the model never read.
+ */
+export const MAX_PROMPT_BODY_LENGTH = 4000
+
 export function buildUserMessage(subject: string, bodyText: string, candidateLinks: CandidateLink[]): string {
   const linksSection =
     candidateLinks.length > 0
       ? `\n\nCandidate links:\n${candidateLinks.map((l, i) => `${i}: ${l.url}${l.label ? ` ("${l.label}")` : ''}`).join('\n')}`
       : ''
-  return `Subject: ${subject}\n\nBody:\n${bodyText.slice(0, 4000)}${linksSection}`
+  return `Subject: ${subject}\n\nBody:\n${bodyText.slice(0, MAX_PROMPT_BODY_LENGTH)}${linksSection}`
 }

@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import type { ActionNodeConfig, EmailAutomationInput } from '@/lib/automations/types'
+import { withConfigEnv } from '@/test/config'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { UNLIMITED, type PlanLimits } from '@/lib/commercial/plan-limits'
 import { formatOriginalMessageDate } from '@/lib/email/format-original-message-date'
@@ -104,6 +105,12 @@ function configurePlan(overrides: Partial<PlanLimits>) {
  * leave a free account able to send from a domain we own via the dashboard.
  */
 describe('outbound email plan gate', () => {
+  // Unrelated to what this suite tests, but executeForwardEmail/executeAutoReply
+  // now unconditionally read EMAIL_INBOX_ALLOWED_DOMAINS for the same-service
+  // recipient gate (lib/automations/__tests__/outbound-recipient-runtime-gate.test.ts
+  // covers that behavior); a domain no fixture address matches keeps it inert here.
+  withConfigEnv({ EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.com' })
+
   beforeEach(() => {
     vi.clearAllMocks()
     sendMock.mockResolvedValue({ data: { id: 'resend-1' }, error: null })

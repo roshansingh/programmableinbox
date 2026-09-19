@@ -78,7 +78,14 @@ beforeEach(() => {
 })
 
 describe('product analytics disabled (the default)', () => {
-  withConfigEnv({ PRODUCT_ANALYTICS_ENABLED: 'false', EMAIL_VERIFICATION_ENABLED: undefined })
+  // Unrelated to what this suite tests, but the route now unconditionally
+  // checks the submitted email against EMAIL_INBOX_ALLOWED_DOMAINS; a domain
+  // that doesn't match 'new@example.com' keeps it inert here.
+  withConfigEnv({
+    PRODUCT_ANALYTICS_ENABLED: 'false',
+    EMAIL_VERIFICATION_ENABLED: undefined,
+    EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org',
+  })
 
   it('registers the user without capturing anything', async () => {
     const response = await register()
@@ -94,6 +101,7 @@ describe('product analytics enabled', () => {
     POSTHOG_API_KEY: 'phc_test1234567890',
     POSTHOG_HOST: 'https://us.i.posthog.com',
     EMAIL_VERIFICATION_ENABLED: undefined,
+    EMAIL_INBOX_ALLOWED_DOMAINS: 'owned.example.org',
   })
 
   it('captures user_signed_up with the new user as distinct_id', async () => {
