@@ -137,4 +137,14 @@ describe('EMAIL_CATEGORY_DEFINITIONS', () => {
     expect(security).toMatch(/password reset/i)
     expect(security).toMatch(/sign-in|login/i)
   })
+
+  // "bot" made Agents overlap Notifications: routine no-reply alerts are also
+  // sent by bots, and the prompt allows two labels, so the model could tag
+  // nearly any automated email as Agents. The boundary has to be stated.
+  it('keeps Agents apart from Notifications: no "bot", and routine service notifications are excluded', () => {
+    const agents = EMAIL_CATEGORY_DEFINITIONS.Agents
+
+    expect(agents).not.toMatch(/\bbots?\b/i)
+    expect(agents).toMatch(/not routine service notifications/i)
+  })
 })

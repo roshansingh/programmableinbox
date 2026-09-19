@@ -28,9 +28,9 @@ export const EMAIL_CATEGORY_DEFINITIONS = {
   Security: 'Sign-in and account-safety mail: verification and login codes, password resets, sign-in alerts and two-factor prompts.',
   Scheduling: 'Calendar invites, meeting and appointment requests, confirmations, reminders and reschedules.',
   Applications: 'Job, school or program applications: submission receipts, interview requests and decisions.',
-  Notifications: 'Automated system alerts and account activity that fit no more specific category.',
+  Notifications: 'Automated system alerts and account-activity notices that fit no more specific category.',
   Education: 'Courses, classes, learning platforms and school or training communications.',
-  Agents: 'Messages sent by, or addressed to, an AI agent or bot, including agent-to-agent traffic.',
+  Agents: 'Mail sent by or addressed to an AI agent or assistant, including agent-to-agent traffic; not routine service notifications.',
   Urgent: 'Needs the reader to act soon: deadlines, outages, fraud or payment-failure warnings. May accompany another category.',
   Spam: 'Unsolicited junk, scams and phishing from senders with no legitimate relationship to the recipient.',
 } as const
