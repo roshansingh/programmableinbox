@@ -6,6 +6,7 @@ import { resetProviderCache } from '@/lib/llm/factory'
 import { buildRow, toSnapshot } from './lib/build-row'
 import { compareSnapshots, formatDiff } from './lib/compare'
 import { discoverCases } from './lib/discover'
+import { resolveLlmPreflight } from './lib/llm-preflight'
 import { Report } from './lib/report'
 import { recorder, store } from './lib/shared'
 import { planAction, readStoredOutput, toSection, writeSection } from './lib/stored-output'
@@ -45,17 +46,9 @@ type LlmEnvKey = (typeof LLM_ENV_KEYS)[number]
 const configuredLlmEnv = Object.fromEntries(
   LLM_ENV_KEYS.map((key) => [key, process.env[key]]),
 ) as Record<LlmEnvKey, string | undefined>
-// Mirrors lib/config/schema.ts: every provider except ollama needs an API key.
-// "Provider set, key blank" (an unedited .env.eval.example) is treated as not
-// configured: otherwise config would throw inside enrichMessage, which
-// swallows it and would surface as a misleading failure.
-const llmProvider = configuredLlmEnv.LLM_PROVIDER
-const llmConfigured =
-  Boolean(llmProvider) && (llmProvider === 'ollama' || Boolean(configuredLlmEnv.LLM_API_KEY?.trim()))
-const llmSkipNote =
-  llmProvider && !llmConfigured
-    ? `LLM_PROVIDER=${llmProvider} is set but LLM_API_KEY is empty (set it in .env.eval)`
-    : 'LLM not configured: set LLM_PROVIDER (and LLM_API_KEY) in .env.eval'
+const preflight = resolveLlmPreflight(configuredLlmEnv)
+const llmConfigured = preflight.status === 'configured'
+const llmSkipNote = preflight.note
 const update = process.env.EVAL_UPDATE === '1'
 const modelLabel = `${configuredLlmEnv.LLM_PROVIDER ?? 'none'}:${configuredLlmEnv.LLM_MODEL ?? 'default'}`
 
@@ -158,6 +151,12 @@ async function runCaseBody(
   skip: () => void,
   record: (run: RunRecord) => void,
 ): Promise<void> {
+  // Before planAction: an invalid provider must fail here, not fall into its
+  // "not configured" skip, or a typo in LLM_PROVIDER reads as a healthy run.
+  if (mode === 'withLlm' && preflight.status === 'invalid') {
+    throw new Error(`${c.id} [withLlm]: ${preflight.note}. Fix it in .env.eval.`)
+  }
+
   const stored = readStoredOutput(c.outputPath)
   const action = planAction({ stored, mode, llmConfigured, update })
   const relOutput = path.relative(process.cwd(), c.outputPath)

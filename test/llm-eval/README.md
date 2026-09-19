@@ -22,7 +22,9 @@ LLM settings come from `.env.eval` (copy `.env.eval.example`; git-ignored) or
 exported variables. With no `LLM_PROVIDER`, the `withLlm` run is reported as
 SKIPPED and the `withoutLlm` run still executes. `.env` is never read.
 A provider other than `ollama` also needs `LLM_API_KEY`; with the key blank the
-`withLlm` run is skipped.
+`withLlm` run is skipped. A `LLM_PROVIDER` that is not one of `anthropic`,
+`openai`, `openrouter` or `ollama` is a failure, not a skip, whatever the key
+holds: a typo must not look like an unconfigured run.
 
 `eval:email:update` regenerates every section it runs. With an LLM configured
 that includes `withLlm`, so it overwrites human-reviewed `withLlm` baselines with
