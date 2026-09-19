@@ -54,6 +54,7 @@ import { RunHistoryPanel } from './run-history-panel'
 import { NodeConfigSheet } from './node-config-sheet'
 import { AUTOMATION_BLOCK_MIME, PaletteSidebar } from './palette-sidebar'
 import { AutomationEditorContextProvider } from './automation-editor-context'
+import { EditableAutomationName } from './editable-automation-name'
 
 const nodeTypes: NodeTypes = {
   triggerNode: TriggerNode,
@@ -79,7 +80,6 @@ function AutomationEditorInner({
   const [configDirty, setConfigDirty] = useState(false)
   const [layoutDirty, setLayoutDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isSavingLayout, setIsSavingLayout] = useState(false)
   const [isDryRunning, setIsDryRunning] = useState(false)
   const [isDuplicating, setIsDuplicating] = useState(false)
   const [activeTab, setActiveTab] = useState('flow')
@@ -87,6 +87,10 @@ function AutomationEditorInner({
 
   const reactFlow = useReactFlow()
 
+  // Keyed on the saved graph (its revision), not `updatedAt`: every PATCH
+  // stamps a new `updatedAt`, so a rename or a Start/Stop toggle would reset
+  // the canvas from the server copy and silently discard unsaved edits. Every
+  // graph save mints a new revision, so those still reset here.
   useEffect(() => {
     const nextConfig = automation.config as AutomationConfig
     const nextLayout = automation.layout as AutomationLayout
@@ -98,17 +102,32 @@ function AutomationEditorInner({
     setConfigDirty(false)
     setLayoutDirty(false)
     setSelectedNodeId(null)
-  }, [automation.id, automation.updatedAt])
+  }, [automation.id, automation.activeRevisionId])
 
   const selectedNode = useMemo(
     () => (selectedNodeId ? getConfigNode(config, selectedNodeId) : null),
     [config, selectedNodeId]
   )
-  const displayedNodes = useMemo(
-    () => nodes.map((n) => ({ ...n, selected: n.id === selectedNodeId })),
-    [nodes, selectedNodeId]
-  )
   const validation = useMemo(() => validateAutomationGraph(config), [config])
+  // Issues that name a block, so that block can be outlined. Issues about the
+  // graph as a whole or a single connection stay in the Validation card.
+  const issuesByNodeId = useMemo(() => {
+    const byNode = new Map<string, string[]>()
+    for (const issue of validation.issues) {
+      if (!issue.nodeId) continue
+      byNode.set(issue.nodeId, [...(byNode.get(issue.nodeId) ?? []), issue.message])
+    }
+    return byNode
+  }, [validation])
+  const displayedNodes = useMemo(
+    () =>
+      nodes.map((n) => ({
+        ...n,
+        selected: n.id === selectedNodeId,
+        data: { ...n.data, issues: issuesByNodeId.get(n.id) ?? [] },
+      })),
+    [nodes, selectedNodeId, issuesByNodeId]
+  )
 
   function onNodesChange(changes: NodeChange[]) {
     setNodes((current) => {
@@ -278,17 +297,14 @@ function AutomationEditorInner({
     setConfigDirty(true)
   }
 
-  async function saveLayoutOnly() {
-    setIsSavingLayout(true)
+  // Sends only the name. Config or layout in this payload would mint a new
+  // revision, and would also flush canvas edits the user has not chosen to save.
+  async function renameAutomation(name: string) {
     try {
-      const latestLayout = updateLayoutFromNodes(layout, nodes)
-      const updated = await updateAutomation(automation.id, { layout: latestLayout })
-      onAutomationChange(updated)
-      toast.success('Layout saved')
+      onAutomationChange(await updateAutomation(automation.id, { name }))
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to save layout')
-    } finally {
-      setIsSavingLayout(false)
+      toast.error(error?.message || 'Failed to rename automation')
+      throw error
     }
   }
 
@@ -408,7 +424,9 @@ function AutomationEditorInner({
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
-              <CardTitle className="text-2xl">{automation.name}</CardTitle>
+              <CardTitle className="text-2xl">
+                <EditableAutomationName name={automation.name} onRename={renameAutomation} />
+              </CardTitle>
               <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                 <Badge variant="secondary">{automation.status}</Badge>
                 <span>Revision {automation.activeRevisionNumber ?? 'draft'}</span>
@@ -445,10 +463,6 @@ function AutomationEditorInner({
               >
                 <Play className="mr-2 h-4 w-4" />
                 Dry Run
-              </Button>
-              <Button variant="outline" onClick={saveLayoutOnly} disabled={isSavingLayout || !layoutDirty}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Layout
               </Button>
               <Button
                 onClick={saveAutomation}

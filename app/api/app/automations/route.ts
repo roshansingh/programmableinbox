@@ -6,6 +6,10 @@ import { withUser } from '@/lib/auth/with-auth'
 import { createDefaultAutomationConfig, createDefaultAutomationLayout } from '@/lib/automations/definitions'
 import { parseAutomationConfig, parseAutomationLayout } from '@/lib/automations/serialization'
 import { findForwardEmailDomainViolations } from '@/lib/automations/outbound-policy'
+import {
+  AUTOMATION_NAME_TOO_LONG_MESSAGE,
+  MAX_AUTOMATION_NAME_LENGTH,
+} from '@/lib/automations/name'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 // Aliased: the POST handler below already binds a local `config` for the
 // automation's own config document (parseAutomationConfig /
@@ -63,6 +67,9 @@ export const POST = withUser(async (request, principal) => {
   const name = typeof parsed.body.name === 'string' && parsed.body.name.trim() ? parsed.body.name.trim() : null
   if (!name) {
     return jsonError('name is required', 400)
+  }
+  if (name.length > MAX_AUTOMATION_NAME_LENGTH) {
+    return jsonError(AUTOMATION_NAME_TOO_LONG_MESSAGE, 400)
   }
 
   const description =

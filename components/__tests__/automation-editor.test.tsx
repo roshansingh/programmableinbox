@@ -256,7 +256,41 @@ describe('AutomationEditor', () => {
       ])
     })
 
-    expect(screen.getByRole('button', { name: 'Save Layout' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save Automation' })).toBeDisabled()
+  })
+
+  it('offers one save button, and it saves a moved node with the rest of the graph', async () => {
+    const automation = makeAutomation()
+    const triggerId = automation.config.trigger.id
+    vi.mocked(updateAutomation).mockResolvedValue(automation)
+
+    const { user } = render(
+      <AutomationEditor automation={automation} onAutomationChange={vi.fn()} />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Save Layout' })).not.toBeInTheDocument()
+
+    const onNodesChange = latestReactFlowProps?.onNodesChange as
+      | ((changes: Array<Record<string, unknown>>) => void)
+      | undefined
+    expect(screen.getByRole('button', { name: 'Save Automation' })).toBeDisabled()
+    act(() => {
+      onNodesChange?.([{ id: triggerId, type: 'position', position: { x: 10, y: 10 } }])
+    })
+    // A move alone is enough to enable it. (The mocked `applyNodeChanges`
+    // above ignores the change, so the saved coordinates are not asserted.)
+    await user.click(screen.getByRole('button', { name: 'Save Automation' }))
+
+    await waitFor(() => {
+      expect(updateAutomation).toHaveBeenCalledWith(
+        'automation_1',
+        expect.objectContaining({
+          config: expect.any(Object),
+          layout: expect.objectContaining({ positions: expect.any(Object) }),
+        })
+      )
+    })
+    expect(updateAutomation).toHaveBeenCalledTimes(1)
   })
 
   it('keeps node-connection validity rules from the previous editor', async () => {
@@ -581,5 +615,253 @@ describe('AutomationEditor', () => {
     expect(
       await screen.findByText('Dry run complete: 2/2 message(s) would trigger an action, 1 failed')
     ).toBeInTheDocument()
+  })
+
+  describe('renaming', () => {
+    async function startRenaming(automation = makeAutomation(), onAutomationChange = vi.fn()) {
+      const utils = render(
+        <AutomationEditor automation={automation} onAutomationChange={onAutomationChange} />
+      )
+      await utils.user.click(screen.getByRole('button', { name: 'Rename automation' }))
+      const input = screen.getByRole('textbox', { name: 'Automation name' })
+      return { ...utils, input, automation, onAutomationChange }
+    }
+
+    it('turns the title into an input holding the current name', async () => {
+      const { input } = await startRenaming()
+
+      expect(input).toHaveValue('Test Automation')
+      expect(input).toHaveFocus()
+      expect(updateAutomation).not.toHaveBeenCalled()
+    })
+
+    it('saves the new name on Enter, sending only the name', async () => {
+      const renamed = makeAutomation({ name: 'Billing router' })
+      vi.mocked(updateAutomation).mockResolvedValue(renamed)
+      const { user, input, onAutomationChange } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, '  Billing router  {Enter}')
+
+      await waitFor(() => {
+        expect(onAutomationChange).toHaveBeenCalledWith(renamed)
+      })
+      // Exactly `{ name }`: sending config or layout would mint a revision.
+      expect(updateAutomation).toHaveBeenCalledWith('automation_1', { name: 'Billing router' })
+      expect(updateAutomation).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('textbox', { name: 'Automation name' })).not.toBeInTheDocument()
+    })
+
+    it('does not send a second request when focus leaves while the first is still in flight', async () => {
+      let resolveSave: (value: ReturnType<typeof makeAutomation>) => void = () => {}
+      vi.mocked(updateAutomation).mockReturnValue(
+        new Promise((resolve) => {
+          resolveSave = resolve
+        })
+      )
+      const { user, input } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, 'Slow name{Enter}')
+      await user.tab()
+
+      expect(updateAutomation).toHaveBeenCalledTimes(1)
+      resolveSave(makeAutomation({ name: 'Slow name' }))
+      await waitFor(() => {
+        expect(screen.queryByRole('textbox', { name: 'Automation name' })).not.toBeInTheDocument()
+      })
+    })
+
+    it('saves on blur', async () => {
+      vi.mocked(updateAutomation).mockResolvedValue(makeAutomation({ name: 'Blur named' }))
+      const { user, input } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, 'Blur named')
+      await user.tab()
+
+      await waitFor(() => {
+        expect(updateAutomation).toHaveBeenCalledWith('automation_1', { name: 'Blur named' })
+      })
+    })
+
+    it('discards the edit on Escape without a request', async () => {
+      const { user, input, onAutomationChange } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, 'Never saved{Escape}')
+
+      expect(screen.queryByRole('textbox', { name: 'Automation name' })).not.toBeInTheDocument()
+      expect(screen.getByText('Test Automation')).toBeInTheDocument()
+      expect(updateAutomation).not.toHaveBeenCalled()
+      expect(onAutomationChange).not.toHaveBeenCalled()
+    })
+
+    it('does not send a request when the name is unchanged', async () => {
+      const { user, input } = await startRenaming()
+
+      await user.type(input, '{Enter}')
+
+      expect(updateAutomation).not.toHaveBeenCalled()
+      expect(screen.queryByRole('textbox', { name: 'Automation name' })).not.toBeInTheDocument()
+    })
+
+    it('reverts to the saved name instead of saving a blank one', async () => {
+      const { user, input } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, '   {Enter}')
+
+      expect(updateAutomation).not.toHaveBeenCalled()
+      expect(screen.getByText('Test Automation')).toBeInTheDocument()
+    })
+
+    it('stops the name at 100 characters', async () => {
+      const { user, input } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, 'a'.repeat(105))
+
+      expect(input).toHaveValue('a'.repeat(100))
+    })
+
+    it('keeps the input open with the typed name when the save fails', async () => {
+      vi.mocked(updateAutomation).mockRejectedValue(new Error('Server said no'))
+      const { user, input, onAutomationChange } = await startRenaming()
+
+      await user.clear(input)
+      await user.type(input, 'Doomed name{Enter}')
+
+      await waitFor(() => {
+        expect(updateAutomation).toHaveBeenCalledTimes(1)
+      })
+      expect(onAutomationChange).not.toHaveBeenCalled()
+      expect(screen.getByRole('textbox', { name: 'Automation name' })).toHaveValue('Doomed name')
+    })
+
+    it('keeps unsaved canvas changes pending after the rename comes back from the server', async () => {
+      const automation = makeAutomation()
+      // The page feeds the saved record back in, and the server stamps a new
+      // updatedAt on every PATCH — a stub `onAutomationChange` hides that.
+      vi.mocked(updateAutomation).mockResolvedValue({
+        ...automation,
+        name: 'Renamed',
+        updatedAt: '2026-05-11T00:00:00.000Z',
+      })
+      function StatefulEditor() {
+        const [current, setCurrent] = React.useState<any>(automation)
+        return <AutomationEditor automation={current} onAutomationChange={setCurrent} />
+      }
+      const { user } = render(<StatefulEditor />)
+
+      const onNodesChange = latestReactFlowProps?.onNodesChange as
+        | ((changes: Array<Record<string, unknown>>) => void)
+        | undefined
+      act(() => {
+        onNodesChange?.([
+          { id: automation.config.trigger.id, type: 'position', position: { x: 10, y: 10 } },
+        ])
+      })
+      expect(screen.getByRole('button', { name: 'Save Automation' })).toBeEnabled()
+
+      await user.click(screen.getByRole('button', { name: 'Rename automation' }))
+      const input = screen.getByRole('textbox', { name: 'Automation name' })
+      await user.clear(input)
+      await user.type(input, 'Renamed{Enter}')
+
+      expect(await screen.findByText('Renamed')).toBeInTheDocument()
+      expect(updateAutomation).toHaveBeenCalledWith('automation_1', { name: 'Renamed' })
+      // The rename must not have thrown the pending move away.
+      expect(screen.getByRole('button', { name: 'Save Automation' })).toBeEnabled()
+    })
+  })
+
+  describe('invalid blocks', () => {
+    function nodeEl(id: string) {
+      return screen.getByTestId('react-flow').querySelector(`[data-id="${id}"]`) as HTMLElement
+    }
+    function isOutlined(id: string) {
+      return nodeEl(id).querySelector('.border-destructive') !== null
+    }
+    function disconnectedAutomation() {
+      const config = createDefaultAutomationConfig()
+      config.edges = []
+      return makeAutomation({ config })
+    }
+
+    it('outlines the blocks the validation issues point at, and only those', () => {
+      render(<AutomationEditor automation={disconnectedAutomation()} onAutomationChange={vi.fn()} />)
+
+      expect(isOutlined('action_webhook')).toBe(true)
+      expect(isOutlined('condition_subject')).toBe(true)
+      // The trigger is the graph's root: nothing is wrong with it.
+      expect(isOutlined('trigger_email_received')).toBe(false)
+    })
+
+    it('says what is wrong with an outlined block on hover', () => {
+      render(<AutomationEditor automation={disconnectedAutomation()} onAutomationChange={vi.fn()} />)
+
+      expect(
+        within(nodeEl('action_webhook')).getByTitle('node action_webhook is disconnected')
+      ).toBeInTheDocument()
+    })
+
+    it('outlines nothing when the graph is valid', () => {
+      render(<AutomationEditor automation={makeAutomation()} onAutomationChange={vi.fn()} />)
+
+      expect(screen.getByTestId('react-flow').querySelector('.border-destructive')).toBeNull()
+    })
+
+    it('outlines a block whose own configuration is invalid', () => {
+      const config = createDefaultAutomationConfig()
+      config.nodes = config.nodes.map((node: any) =>
+        node.id === 'action_webhook'
+          ? {
+              id: 'action_webhook',
+              type: 'action' as const,
+              version: 1 as const,
+              actionType: 'forward_email' as const,
+              config: { type: 'forward_email_config' as const, version: 1 as const, to: [] },
+            }
+          : node
+      )
+      render(<AutomationEditor automation={makeAutomation({ config })} onAutomationChange={vi.fn()} />)
+
+      expect(isOutlined('action_webhook')).toBe(true)
+      expect(isOutlined('condition_subject')).toBe(false)
+      expect(isOutlined('trigger_email_received')).toBe(false)
+    })
+
+    it('outlines a trigger that has an incoming connection', () => {
+      const config = createDefaultAutomationConfig()
+      config.edges = [
+        ...config.edges,
+        {
+          id: 'edge_back_to_trigger',
+          type: 'edge' as const,
+          version: 1 as const,
+          sourceNodeId: 'condition_subject',
+          targetNodeId: 'trigger_email_received',
+          sourceHandle: 'next' as const,
+        },
+      ]
+      render(<AutomationEditor automation={makeAutomation({ config })} onAutomationChange={vi.fn()} />)
+
+      expect(isOutlined('trigger_email_received')).toBe(true)
+    })
+
+    it('clears the outline as soon as the problem is fixed', () => {
+      render(<AutomationEditor automation={disconnectedAutomation()} onAutomationChange={vi.fn()} />)
+      expect(isOutlined('condition_subject')).toBe(true)
+
+      const onConnect = latestReactFlowProps?.onConnect as (c: any) => void
+      act(() => {
+        onConnect({ source: 'trigger_email_received', target: 'condition_subject' })
+      })
+
+      expect(isOutlined('condition_subject')).toBe(false)
+      // Still unconnected, so still flagged.
+      expect(isOutlined('action_webhook')).toBe(true)
+    })
   })
 })

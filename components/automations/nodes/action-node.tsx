@@ -4,11 +4,16 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Zap } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { nodeCardClasses } from './node-styles'
 
 export function ActionNode({ data, selected }: NodeProps) {
-  const nodeData = data as { label: string; subtitle: string }
+  const nodeData = data as { label: string; subtitle: string; issues?: string[] }
+  const issues = nodeData.issues ?? []
   return (
-    <Card className={`min-w-64 border-2 ${selected ? 'border-primary' : 'border-border'} bg-card shadow-sm`}>
+    <Card
+      title={issues.length > 0 ? issues.join('\n') : undefined}
+      className={`min-w-64 ${nodeCardClasses({ selected: !!selected, invalid: issues.length > 0 })} bg-card shadow-sm`}
+    >
       <Handle
         type="target"
         position={Position.Left}

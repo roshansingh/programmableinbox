@@ -4,6 +4,7 @@ import { jsonError, jsonSuccess } from '@/lib/api-helpers'
 import { withUser } from '@/lib/auth/with-auth'
 import { parseAutomationConfig } from '@/lib/automations/serialization'
 import { findForwardEmailDomainViolations } from '@/lib/automations/outbound-policy'
+import { duplicateAutomationName } from '@/lib/automations/name'
 import { formatAutomationRecord, loadAutomationForUser } from '../../_utils'
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -37,7 +38,7 @@ export const POST = withUser(async (request, principal, { params }: RouteContext
     data: {
       organizationId: automation.organizationId,
       inboxId: automation.inboxId,
-      name: `${automation.name} Copy`,
+      name: duplicateAutomationName(automation.name),
       description: automation.description,
       isActive: false,
       revisions: {
