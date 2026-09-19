@@ -1,0 +1,27 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/orders/48291345",
+          "label": "View your order",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/track/1Z999AA10123456784",
+          "label": "Track your package",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-19T02:05:11.884Z",
+      "model": null
+    }
+  }
+}
