@@ -1,0 +1,100 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://bank.example.com/activity",
+          "label": "Review activity",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://bank.example.com/report-fraud",
+          "label": "This wasn't me",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:40.071Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Finance"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://bank.example.com/activity",
+          "label": "Review activity",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://bank.example.com/report-fraud",
+          "label": "This wasn't me",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 12 at 3:41 PM"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Finance"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://bank.example.com/activity": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 3
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 2
+          }
+        ],
+        "https://bank.example.com/report-fraud": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:43.853Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

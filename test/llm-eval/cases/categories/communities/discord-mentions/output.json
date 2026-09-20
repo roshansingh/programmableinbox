@@ -1,0 +1,98 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://chat.example.com/channels/1029/general",
+          "label": "Open Discord",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://chat.example.com/settings/notifications",
+          "label": "Notification settings",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:25.059Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Social"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://chat.example.com/channels/1029/general",
+          "label": "Open Discord",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://chat.example.com/settings/notifications",
+          "label": "Notification settings",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Social"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://chat.example.com/channels/1029/general": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://chat.example.com/settings/notifications": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 4
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 1
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:28.196Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

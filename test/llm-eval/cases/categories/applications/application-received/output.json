@@ -1,0 +1,48 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:18.576Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Applications"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": [
+        "over the next two weeks"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Applications"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:21.679Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

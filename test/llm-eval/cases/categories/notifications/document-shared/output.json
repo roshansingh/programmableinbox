@@ -1,0 +1,83 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://docs.example.com/d/1x2y3z",
+          "label": "Open",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:54.356Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Primary"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://docs.example.com/d/1x2y3z",
+          "label": "Open",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 3
+        },
+        {
+          "value": [
+            "Primary",
+            "Social"
+          ],
+          "count": 1
+        },
+        {
+          "value": [
+            "Social"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://docs.example.com/d/1x2y3z": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:57.205Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://scheduler.example.com/jordan/partnership",
+          "label": "Pick a time",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:11.989Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://scheduler.example.com/jordan/partnership",
+          "label": "Pick a time",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Scheduling"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://scheduler.example.com/jordan/partnership": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:15.263Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

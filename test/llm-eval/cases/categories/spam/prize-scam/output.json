@@ -1,0 +1,79 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "http://prize-claim-now.example.net/win?id=88213",
+          "label": "Claim now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:30.952Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "http://prize-claim-now.example.net/win?id=88213",
+          "label": "Claim now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "2 hours"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 3
+        },
+        {
+          "value": [
+            "Promotions",
+            "Urgent"
+          ],
+          "count": 2
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "http://prize-claim-now.example.net/win?id=88213": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:34.034Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

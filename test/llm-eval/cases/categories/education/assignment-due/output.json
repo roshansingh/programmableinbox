@@ -1,0 +1,80 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://learn.example.com/courses/db101/assignments/3",
+          "label": "Submit assignment",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:32.975Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Education",
+      "Urgent"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://learn.example.com/courses/db101/assignments/3",
+          "label": "Submit assignment",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Friday at 11:59 PM"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Education",
+            "Urgent"
+          ],
+          "count": 3
+        },
+        {
+          "value": [
+            "Education"
+          ],
+          "count": 2
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://learn.example.com/courses/db101/assignments/3": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:36.519Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

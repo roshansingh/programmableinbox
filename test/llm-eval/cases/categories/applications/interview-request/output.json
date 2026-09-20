@@ -1,0 +1,78 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://recruiting.example.com/schedule/8f3a",
+          "label": "Choose a time",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:21.681Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Applications",
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://recruiting.example.com/schedule/8f3a",
+          "label": "Choose a time",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Applications",
+            "Scheduling"
+          ],
+          "count": 4
+        },
+        {
+          "value": [
+            "Applications"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://recruiting.example.com/schedule/8f3a": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:25.054Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

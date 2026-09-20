@@ -1,0 +1,73 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://hotels.example.com/reservation/58203917",
+          "label": "View reservation",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:45.819Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Travel"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://hotels.example.com/reservation/58203917",
+          "label": "View reservation",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Tuesday, October 14 from 3:00 PM",
+        "Friday, October 17 by 11:00 AM"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Travel"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://hotels.example.com/reservation/58203917": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:49.881Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

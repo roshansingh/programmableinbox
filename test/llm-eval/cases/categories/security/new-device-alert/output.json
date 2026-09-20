@@ -1,0 +1,93 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://accounts.example.com/confirm-device",
+          "label": "Yes, it was me",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://accounts.example.com/secure",
+          "label": "Secure your account",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:18.778Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Security"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://accounts.example.com/confirm-device",
+          "label": "Yes, it was me",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://accounts.example.com/secure",
+          "label": "Secure your account",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 12 at 9:14 AM"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://accounts.example.com/confirm-device": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://accounts.example.com/secure": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:22.645Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

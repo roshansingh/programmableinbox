@@ -1,0 +1,93 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://clinic.example.com/confirm/8821",
+          "label": "Confirm appointment",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://clinic.example.com/reschedule/8821",
+          "label": "Reschedule",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:11.357Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://clinic.example.com/confirm/8821",
+          "label": "Confirm appointment",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://clinic.example.com/reschedule/8821",
+          "label": "Reschedule",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 13 at 9:30 AM"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Scheduling"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://clinic.example.com/confirm/8821": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://clinic.example.com/reschedule/8821": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:41:14.639Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

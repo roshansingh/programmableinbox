@@ -1,0 +1,112 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://fieldnotes.example.com/subscribe",
+          "label": "Subscribe",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://fieldnotes.example.com/share/slow-software",
+          "label": "Share",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://fieldnotes.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:47.900Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Newsletters"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://fieldnotes.example.com/subscribe",
+          "label": "Subscribe",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://fieldnotes.example.com/share/slow-software",
+          "label": "Share",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://fieldnotes.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Newsletters"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://fieldnotes.example.com/subscribe": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://fieldnotes.example.com/share/slow-software": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://fieldnotes.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:40:51.059Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}
