@@ -23,6 +23,7 @@
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "eval:email": "vitest run --config vitest.eval.config.ts --project llm-cases",
     "eval:email:update": "EVAL_UPDATE=1 vitest run --config vitest.eval.config.ts --project llm-cases",
+    "eval:email:bench": "vitest run --config vitest.eval.config.ts --project llm-bench",
     "eval:email:selftest": "vitest run --config vitest.eval.config.ts --project llm-selftest"
   },
   "dependencies": {

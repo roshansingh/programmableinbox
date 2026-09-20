@@ -30,6 +30,37 @@ holds: a typo must not look like an unconfigured run.
 that includes `withLlm`, so it overwrites human-reviewed `withLlm` baselines with
 fresh, non-deterministic model output — review the result before committing.
 
+## Benchmark a model
+
+`eval:email` guards a baseline; it cannot tell you which model to run. To compare
+models, run each through every case once and measure it against the stored
+`gpt-4o-mini` baselines and the authors' `intent.json`:
+
+```bash
+LLM_PROVIDER=ollama LLM_API_KEY= LLM_MODEL=qwen3:8b \
+  BENCH_OUT=out/qwen3-8b.json npm run eval:email:bench
+node test/llm-eval/scripts/bench-table.mjs out/*.json    # one comparison table
+```
+
+The blank `LLM_API_KEY=` matters for a local model: `.env.eval` usually holds an
+OpenAI key, and a shell value (even empty) wins over the file, so the key is not
+sent to your local server. `BENCH_LIMIT=N` runs only the first N cases (for a
+model too slow for all of them); `BENCH_TIMEOUT_MS` (default 180000) gives up on
+one call. Nothing here fails because a model is bad. What is measured:
+
+- **usable**: a valid answer came back. A model that fails to answer scores as a
+  miss on every rate, so it cannot look good by not answering.
+- **cats=baseline / mode / intent / covers intent**: how the categories compare
+  with what `gpt-4o-mini` said (any answer its baseline saw / its most common
+  answer) and with the authors' intent (exactly / including every intended one).
+- **false OTP**: the model's OTP fallback stored a code where none was intended.
+  Codes the regex found are excluded: they do not depend on the model.
+- **links agree**: judgements of the links the heuristic could not classify.
+- **latency and tokens/call**: wall-clock per call and the mean prompt and
+  completion tokens, so speed on other hardware can be estimated.
+
+Latency is only valid for the machine it ran on: measure on the target server.
+
 ## Add a case
 
 1. Create a folder anywhere under `cases/` (grouping folders are fine) holding
