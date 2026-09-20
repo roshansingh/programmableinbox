@@ -1,0 +1,116 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://billing.example.com/update-payment",
+          "label": "Update payment method",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://billing.example.com/invoices/2026-09",
+          "label": "view the invoice",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://example.com/support",
+          "label": "contact support",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:32:53.061Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Finance",
+      "Urgent"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://billing.example.com/update-payment",
+          "label": "Update payment method",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://billing.example.com/invoices/2026-09",
+          "label": "view the invoice",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://example.com/support",
+          "label": "contact support",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 24"
+      ]
+    },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Finance",
+            "Urgent"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://billing.example.com/update-payment": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://billing.example.com/invoices/2026-09": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://example.com/support": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:32:57.179Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}
