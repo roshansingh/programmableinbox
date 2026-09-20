@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { EMAIL_CATEGORIES, type EmailCategory } from '@/lib/llm/types'
-import type { Snapshot } from './types'
+import type { Observed, Snapshot } from './types'
 
 /**
  * What the case's author says is correct, independent of any model. Report-only:
@@ -51,11 +51,13 @@ export function readIntent(file: string | null): Intent | null {
 const sortedSet = (values: readonly string[]): string[] => [...new Set(values)].sort()
 
 /** Human-readable lines where the baseline differs from what the author intended. */
-export function intentDisagreements(intent: Intent, baseline: Snapshot): string[] {
+export function intentDisagreements(intent: Intent, baseline: Snapshot & { observed?: Observed }): string[] {
   const lines: string[] = []
-  // An empty category list means the LLM never ran (a withoutLlm-only baseline),
-  // not that it answered "nothing": there is nothing to compare.
-  if (baseline.categories.length > 0) {
+  // An empty category list from a baseline with no recorded samples means the
+  // LLM never ran (a withoutLlm-only baseline): there is nothing to compare. A
+  // withLlm baseline *did* run, so an empty most-common answer is a real
+  // disagreement, not an absence.
+  if (baseline.categories.length > 0 || baseline.observed !== undefined) {
     const want = sortedSet(intent.categories)
     const got = sortedSet(baseline.categories)
     if (JSON.stringify(want) !== JSON.stringify(got)) {

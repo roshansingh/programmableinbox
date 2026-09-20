@@ -11,6 +11,7 @@ import { intentDisagreements, readIntent } from './lib/intent'
 import { resolveLlmPreflight } from './lib/llm-preflight'
 import { aggregateSamples, unstableFields } from './lib/observed'
 import { Report } from './lib/report'
+import { classifyLlmRun } from './lib/run-outcome'
 import { collectSamples, parseSamples } from './lib/samples'
 import { recorder, store } from './lib/shared'
 import { planAction, readStoredOutput, toSection, writeSection } from './lib/stored-output'
@@ -77,36 +78,26 @@ function setLlm(enabled: boolean): void {
 /**
  * enrichMessage swallows provider errors and returns `false`, so a bad API key
  * would otherwise look like "the model found nothing" and generate a bogus
- * baseline. Refuse to record a run that is not what its label claims.
+ * baseline. Refuse to record a run that is not what its label claims (see
+ * classifyLlmRun). The one exception is a model that answered but gave no valid
+ * category: that is a possible answer, so it is returned, not thrown.
  */
-function assertRunIsGenuine(mode: RunMode, settled: boolean): void {
+function assertRunIsGenuine(mode: RunMode, settled: boolean): 'ok' | 'no-categories' {
   if (mode === 'withoutLlm') {
     if (recorder.calls.length > 0 || recorder.errors.length > 0) {
       throw new Error(
         'The "withoutLlm" run reached the LLM provider: LLM_* leaked into it, so it is not a deterministic-only baseline.',
       )
     }
-    return
+    return 'ok'
   }
-  if (!settled || recorder.errors.length > 0) {
-    // Most specific cause first: a provider error the recorder saw; else the
-    // provider was never called (getProvider threw on bad config, which
-    // enrichMessage swallows); else it was called and the result was unusable.
-    const reason =
-      recorder.errors.length > 0
-        ? recorder.errors.join('; ')
-        : recorder.calls.length === 0
-          ? 'the provider was never reached — check the LLM_PROVIDER / LLM_API_KEY / LLM_BASE_URL configuration'
-          : 'the model returned no categories, or the write failed'
+  const outcome = classifyLlmRun({ settled, errors: recorder.errors, calls: recorder.calls })
+  if (outcome.kind === 'failed') {
     throw new Error(
-      `LLM enrichment did not complete: ${reason.replace(/\.+$/, '')}. Nothing was written to output.json.`,
+      `LLM enrichment did not complete: ${outcome.reason.replace(/\.+$/, '')}. Nothing was written to output.json.`,
     )
   }
-  if (recorder.calls.length !== 1) {
-    throw new Error(
-      `Expected exactly one provider call in the "withLlm" run, saw ${recorder.calls.length}. Is LLM_PROVIDER valid?`,
-    )
-  }
+  return outcome.kind
 }
 
 function llmNotes(bodyText: string | null): string[] {

@@ -77,4 +77,16 @@ describe('intentDisagreements', () => {
   it('skips categories when the baseline has none (a withoutLlm-only baseline: the LLM never ran)', () => {
     expect(intentDisagreements({ categories: ['Travel'], otp: null }, snap({ categories: [] }))).toEqual([])
   })
+
+  it('does not skip categories for a withLlm baseline whose most common answer was "none"', () => {
+    const observed = {
+      categories: [{ value: [] as string[], count: 3 }, { value: ['Travel'], count: 2 }],
+      extractedOtp: [{ value: null, count: 5 }],
+      links: {},
+    }
+
+    expect(intentDisagreements({ categories: ['Travel'], otp: null }, { ...snap({ categories: [] }), observed })).toEqual([
+      'categories: intended ["Travel"], baseline []',
+    ])
+  })
 })

@@ -79,9 +79,16 @@ Existing folders keep working unchanged.
 - **Generation.** `eval:email:update`, or a case with no stored section, runs
   `withLlm` `EVAL_SAMPLES` times per case, each a full `enrichMessage` on a
   fresh row, so the existing "exactly one provider call per run" guard holds per
-  sample. If **any** sample fails (provider error, no categories), nothing is
-  written for that case and the failure is reported. A baseline is never built
-  from a partial set.
+  sample. If **any** sample fails with a provider error, or the provider is
+  unreachable, nothing is written for that case and the failure is reported. A
+  baseline is never built from a partial set.
+  A model answer with **no valid category** is *not* such a failure. Enrichment
+  throws on it (production refunds and retries), but the eval records it as an
+  observed answer (`categories: []`), because it happens at a real rate: on the
+  plain-text notification case `gpt-4o-mini` answered "Correspondence", a name
+  not in the list, in 2 of 12 calls, so a strict rule made that case impossible
+  to baseline (5 samples all succeed only ~40% of the time). This is
+  `classifyLlmRun` in `lib/run-outcome.ts`.
 
 **Stated limit:** this detects *new* behaviour, not a shift in probability. A
 regression that moves an answer from 80% to 30% of runs still passes, with a
