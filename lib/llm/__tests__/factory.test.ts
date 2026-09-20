@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { MAX_COMPLETION_TOKENS } from '../types'
 
 vi.mock('../providers/anthropic', () => ({
   AnthropicAdapter: vi.fn().mockImplementation(function (key: string, model: string) {
@@ -65,16 +66,27 @@ describe('getProvider', () => {
     expect(provider.baseURL).toBe('http://localhost:11434/v1')
   })
 
-  // Ollama's OpenAI-compatible /v1 endpoint ignores the native `think: false`
-  // (measured on 0.32.5: ~1,300 chars of hidden reasoning per call regardless),
-  // and honours `reasoning_effort: 'none'` instead. Asserting the body pins the
-  // flag that actually works, so it cannot silently become a no-op again.
-  it('turns thinking off for ollama with the flag /v1 honours', async () => {
+  // Ollama's OpenAI-compatible /v1 endpoint silently ignores two things the
+  // adapter would otherwise rely on, so each is pinned to the name it honours
+  // (measured on 0.32.5). Asserting the whole body keeps any of them from
+  // quietly becoming a no-op again:
+  //  - `think: false` -> ~1,300 chars of hidden reasoning per call regardless;
+  //    `reasoning_effort: 'none'` is what turns it off.
+  //  - `max_completion_tokens` -> asking for 50 tokens returned 75, so a
+  //    runaway generation was unbounded (one stalled the server for 5 minutes);
+  //    `max_tokens` is enforced.
+  //  - temperature is unset, which Ollama samples at 1.0: 4 distinct outputs
+  //    across 5 identical requests. 0 makes an extraction repeatable.
+  it('sends the ollama request body that /v1 actually honours', async () => {
     vi.stubEnv('LLM_PROVIDER', 'ollama')
     vi.stubEnv('LLM_API_KEY', '')
     const { getProvider } = await import('../factory')
     const provider = getProvider() as any
-    expect(provider.extraBody).toEqual({ reasoning_effort: 'none' })
+    expect(provider.extraBody).toEqual({
+      reasoning_effort: 'none',
+      max_tokens: MAX_COMPLETION_TOKENS,
+      temperature: 0,
+    })
   })
 
   it('sends no extra request body to providers that are not ollama', async () => {
