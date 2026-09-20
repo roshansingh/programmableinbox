@@ -10,7 +10,11 @@ export interface CaseDir {
   /** Path relative to the cases root, with `/` separators. */
   id: string
   dir: string
-  htmlPath: string
+  /** At least one of `htmlPath` and `textPath` is non-null: that is what makes a folder a case. */
+  htmlPath: string | null
+  textPath: string | null
+  subjectPath: string | null
+  intentPath: string | null
   outputPath: string
 }
 
