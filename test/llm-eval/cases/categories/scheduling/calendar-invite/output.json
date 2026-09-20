@@ -32,7 +32,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:14.644Z",
+      "at": "2026-09-20T03:49:48.326Z",
       "model": null
     }
   },
@@ -69,23 +69,23 @@
         }
       ],
       "timestamps": [
-        "October 14, 2026, 3:00 – 3:45 PM (PDT)"
+        "Tuesday, October 14, 2026, 3:00 – 3:45 PM (PDT)"
       ]
     },
-    "samples": 5,
+    "samples": 10,
     "observed": {
       "categories": [
         {
           "value": [
             "Scheduling"
           ],
-          "count": 5
+          "count": 10
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 10
         }
       ],
       "links": {
@@ -95,14 +95,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 6
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://calendar.example.com/rsvp?r=no": [
@@ -111,14 +111,14 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 4
+            "count": 5
           },
           {
             "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 1
+            "count": 5
           }
         ],
         "https://calendar.example.com/rsvp?r=maybe": [
@@ -127,14 +127,14 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 4
+            "count": 5
           },
           {
             "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 1
+            "count": 5
           }
         ],
         "https://meet.example.com/abc-defg-hij": [
@@ -143,13 +143,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 10
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:18.775Z",
+      "at": "2026-09-20T03:49:56.861Z",
       "model": "openai:gpt-4o-mini"
     }
   }

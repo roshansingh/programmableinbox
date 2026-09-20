@@ -50,7 +50,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:28.201Z",
+      "at": "2026-09-20T03:49:04.273Z",
       "model": null
     }
   },
@@ -106,20 +106,20 @@
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 12,
     "observed": {
       "categories": [
         {
           "value": [
             "Communities"
           ],
-          "count": 5
+          "count": 12
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 12
         }
       ],
       "links": {
@@ -129,14 +129,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 8
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://forum.example.com/r/selfhosted/comments/4d5e6f": [
@@ -145,14 +145,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 8
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://forum.example.com/r/selfhosted/comments/7g8h9i": [
@@ -161,14 +161,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 8
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://forum.example.com/r/selfhosted/comments/0j1k2l": [
@@ -177,14 +177,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 8
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://forum.example.com/r/selfhosted/comments/3m4n5o": [
@@ -193,14 +193,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 8
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 4
           }
         ],
         "https://forum.example.com/unsubscribe": [
@@ -209,13 +209,20 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 12
           }
         ],
         "https://forum.example.com/settings/email": [
           {
             "value": {
               "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 7
+          },
+          {
+            "value": {
+              "isCta": true,
               "ctaConfidence": "high"
             },
             "count": 3
@@ -225,20 +232,13 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 1
-          },
-          {
-            "value": {
-              "isCta": true,
-              "ctaConfidence": "high"
-            },
-            "count": 1
+            "count": 2
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:32.970Z",
+      "at": "2026-09-20T03:49:15.889Z",
       "model": "openai:gpt-4o-mini"
     }
   }

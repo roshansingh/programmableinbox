@@ -32,7 +32,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:01.418Z",
+      "at": "2026-09-20T03:49:23.867Z",
       "model": null
     }
   },
@@ -72,20 +72,20 @@
         "September 30"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
           "value": [
             "Promotions"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -95,7 +95,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://rewards.example.com/balance": [
@@ -104,7 +104,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://rewards.example.com/unsubscribe": [
@@ -113,7 +113,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://rewards.example.com/preferences": [
@@ -122,13 +122,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:04.863Z",
+      "at": "2026-09-20T03:49:29.410Z",
       "model": "openai:gpt-4o-mini"
     }
   }

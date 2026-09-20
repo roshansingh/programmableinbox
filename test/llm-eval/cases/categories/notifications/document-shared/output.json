@@ -14,7 +14,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:54.356Z",
+      "at": "2026-09-20T03:48:48.458Z",
       "model": null
     }
   },
@@ -34,25 +34,26 @@
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 12,
     "observed": {
       "categories": [
         {
           "value": [
             "Primary"
           ],
-          "count": 3
+          "count": 6
         },
         {
           "value": [
             "Primary",
             "Social"
           ],
-          "count": 1
+          "count": 5
         },
         {
           "value": [
-            "Social"
+            "Communities",
+            "Primary"
           ],
           "count": 1
         }
@@ -60,7 +61,7 @@
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 12
         }
       ],
       "links": {
@@ -70,13 +71,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 12
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:57.205Z",
+      "at": "2026-09-20T03:48:55.711Z",
       "model": "openai:gpt-4o-mini"
     }
   }

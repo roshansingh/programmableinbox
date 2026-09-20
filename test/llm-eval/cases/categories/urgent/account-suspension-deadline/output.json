@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:49.883Z",
+      "at": "2026-09-20T03:49:59.307Z",
       "model": null
     }
   },
@@ -50,7 +50,7 @@
         "September 1"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
@@ -58,13 +58,13 @@
             "Finance",
             "Urgent"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -74,7 +74,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://example.com/support": [
@@ -83,13 +83,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:54.264Z",
+      "at": "2026-09-20T03:50:06.928Z",
       "model": "openai:gpt-4o-mini"
     }
   }

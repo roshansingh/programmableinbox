@@ -14,14 +14,14 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:30.952Z",
+      "at": "2026-09-20T03:49:16.133Z",
       "model": null
     }
   },
   "withLlm": {
     "extractedOtp": null,
     "categories": [
-      "Promotions"
+      "Spam"
     ],
     "metadata": {
       "links": [
@@ -33,30 +33,36 @@
         }
       ],
       "timestamps": [
-        "2 hours"
+        "next 2 hours"
       ]
     },
-    "samples": 5,
+    "samples": 13,
     "observed": {
       "categories": [
         {
           "value": [
+            "Spam"
+          ],
+          "count": 6
+        },
+        {
+          "value": [
             "Promotions"
           ],
-          "count": 3
+          "count": 4
         },
         {
           "value": [
             "Promotions",
             "Urgent"
           ],
-          "count": 2
+          "count": 3
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 13
         }
       ],
       "links": {
@@ -66,13 +72,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 13
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:34.034Z",
+      "at": "2026-09-20T03:49:25.243Z",
       "model": "openai:gpt-4o-mini"
     }
   }

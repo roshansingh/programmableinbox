@@ -60,7 +60,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:33:00.768Z",
+      "at": "2026-09-20T03:49:13.812Z",
       "model": null
     }
   },
@@ -90,20 +90,20 @@
         {
           "url": "https://shop.example.com/women",
           "label": "Shop women",
-          "isCta": false,
-          "ctaConfidence": "low"
+          "isCta": true,
+          "ctaConfidence": "high"
         },
         {
           "url": "https://shop.example.com/men",
           "label": "Shop men",
-          "isCta": false,
-          "ctaConfidence": "low"
+          "isCta": true,
+          "ctaConfidence": "high"
         },
         {
           "url": "https://shop.example.com/home",
           "label": "Shop home",
-          "isCta": false,
-          "ctaConfidence": "low"
+          "isCta": true,
+          "ctaConfidence": "high"
         },
         {
           "url": "https://shop.example.com/preferences",
@@ -125,24 +125,24 @@
         }
       ],
       "timestamps": [
-        "Sunday at midnight",
-        "Sunday at 11:59 PM ET"
+        "Ends Sunday at midnight",
+        "Sale prices end Sunday at 11:59 PM ET"
       ]
     },
-    "samples": 5,
+    "samples": 11,
     "observed": {
       "categories": [
         {
           "value": [
             "Promotions"
           ],
-          "count": 5
+          "count": 11
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 11
         }
       ],
       "links": {
@@ -152,7 +152,23 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
+            "count": 7
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
             "count": 4
+          }
+        ],
+        "https://shop.example.com/flash-sale": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 10
           },
           {
             "value": {
@@ -162,70 +178,61 @@
             "count": 1
           }
         ],
-        "https://shop.example.com/flash-sale": [
-          {
-            "value": {
-              "isCta": true,
-              "ctaConfidence": "high"
-            },
-            "count": 5
-          }
-        ],
         "https://shop.example.com/flash-sale?utm_source=email": [
           {
             "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 11
           }
         ],
         "https://shop.example.com/women": [
           {
             "value": {
-              "isCta": false,
-              "ctaConfidence": "low"
-            },
-            "count": 3
-          },
-          {
-            "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
           }
         ],
         "https://shop.example.com/men": [
           {
             "value": {
-              "isCta": false,
-              "ctaConfidence": "low"
-            },
-            "count": 3
-          },
-          {
-            "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
           }
         ],
         "https://shop.example.com/home": [
           {
             "value": {
-              "isCta": false,
-              "ctaConfidence": "low"
-            },
-            "count": 3
-          },
-          {
-            "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
           }
         ],
         "https://shop.example.com/preferences": [
@@ -234,7 +241,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 11
           }
         ],
         "https://shop.example.com/unsubscribe": [
@@ -243,7 +250,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 11
           }
         ],
         "https://shop.example.com/privacy": [
@@ -252,13 +259,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 11
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:33:05.060Z",
+      "at": "2026-09-20T03:49:23.864Z",
       "model": "openai:gpt-4o-mini"
     }
   }

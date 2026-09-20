@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Security"
+  ],
+  "otp": "837412",
+  "note": "a spaced code with no qualifier word before \"Code\": both the regex and the LLM guard miss it (known gap)"
+}

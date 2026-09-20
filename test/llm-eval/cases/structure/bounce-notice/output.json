@@ -1,0 +1,66 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:00.247Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Notifications",
+      "Primary"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": [
+        "Tue, 9 Sep 2026 16:12:03 -0400"
+      ]
+    },
+    "samples": 14,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Notifications",
+            "Primary"
+          ],
+          "count": 5
+        },
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 4
+        },
+        {
+          "value": [
+            "Notifications"
+          ],
+          "count": 3
+        },
+        {
+          "value": [],
+          "count": 2
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 14
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:09.478Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

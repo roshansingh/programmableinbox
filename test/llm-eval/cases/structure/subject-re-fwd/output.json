@@ -1,0 +1,62 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:51.462Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Finance",
+      "Primary"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": [
+        "September"
+      ]
+    },
+    "samples": 17,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Finance",
+            "Primary"
+          ],
+          "count": 8
+        },
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 8
+        },
+        {
+          "value": [
+            "Finance"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 17
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:51:02.302Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

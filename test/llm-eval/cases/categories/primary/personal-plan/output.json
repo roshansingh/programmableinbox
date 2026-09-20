@@ -7,7 +7,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:57.208Z",
+      "at": "2026-09-20T03:48:55.717Z",
       "model": null
     }
   },
@@ -20,33 +20,37 @@
       "links": [],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 19,
     "observed": {
       "categories": [
         {
           "value": [
             "Primary"
           ],
-          "count": 3
+          "count": 11
         },
         {
           "value": [
             "Primary",
             "Scheduling"
           ],
-          "count": 2
+          "count": 5
+        },
+        {
+          "value": [],
+          "count": 3
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 19
         }
       ],
       "links": {}
     },
     "_generated": {
-      "at": "2026-09-20T03:40:59.990Z",
+      "at": "2026-09-20T03:49:06.185Z",
       "model": "openai:gpt-4o-mini"
     }
   }

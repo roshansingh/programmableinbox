@@ -210,7 +210,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:33:19.604Z",
+      "at": "2026-09-20T03:50:22.297Z",
       "model": null
     }
   },
@@ -426,20 +426,20 @@
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
           "value": [
             "Promotions"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -449,7 +449,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/summer": [
@@ -458,7 +458,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/1?utm_source=email&utm_campaign=summer-edit": [
@@ -467,7 +467,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/2?utm_source=email&utm_campaign=summer-edit": [
@@ -476,7 +476,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/3?utm_source=email&utm_campaign=summer-edit": [
@@ -485,7 +485,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/4?utm_source=email&utm_campaign=summer-edit": [
@@ -494,7 +494,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/5?utm_source=email&utm_campaign=summer-edit": [
@@ -503,7 +503,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/6?utm_source=email&utm_campaign=summer-edit": [
@@ -512,7 +512,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/7?utm_source=email&utm_campaign=summer-edit": [
@@ -521,7 +521,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/8?utm_source=email&utm_campaign=summer-edit": [
@@ -530,7 +530,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/9?utm_source=email&utm_campaign=summer-edit": [
@@ -539,7 +539,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/10?utm_source=email&utm_campaign=summer-edit": [
@@ -548,7 +548,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/11?utm_source=email&utm_campaign=summer-edit": [
@@ -557,7 +557,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/12?utm_source=email&utm_campaign=summer-edit": [
@@ -566,7 +566,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/13?utm_source=email&utm_campaign=summer-edit": [
@@ -575,7 +575,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/14?utm_source=email&utm_campaign=summer-edit": [
@@ -584,7 +584,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/15?utm_source=email&utm_campaign=summer-edit": [
@@ -593,7 +593,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/16?utm_source=email&utm_campaign=summer-edit": [
@@ -602,7 +602,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/17?utm_source=email&utm_campaign=summer-edit": [
@@ -611,7 +611,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/18?utm_source=email&utm_campaign=summer-edit": [
@@ -620,7 +620,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/19?utm_source=email&utm_campaign=summer-edit": [
@@ -629,7 +629,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/20?utm_source=email&utm_campaign=summer-edit": [
@@ -638,7 +638,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/21?utm_source=email&utm_campaign=summer-edit": [
@@ -647,7 +647,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/22?utm_source=email&utm_campaign=summer-edit": [
@@ -656,7 +656,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/23?utm_source=email&utm_campaign=summer-edit": [
@@ -665,7 +665,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/p/24?utm_source=email&utm_campaign=summer-edit": [
@@ -674,7 +674,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/facebook": [
@@ -683,7 +683,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/instagram": [
@@ -692,7 +692,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/x": [
@@ -701,7 +701,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/pinterest": [
@@ -710,7 +710,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/tiktok": [
@@ -719,7 +719,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://social.example.com/youtube": [
@@ -728,7 +728,7 @@
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/preferences": [
@@ -737,7 +737,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/unsubscribe": [
@@ -746,7 +746,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/privacy": [
@@ -755,13 +755,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:33:22.875Z",
+      "at": "2026-09-20T03:50:27.820Z",
       "model": "openai:gpt-4o-mini"
     }
   }

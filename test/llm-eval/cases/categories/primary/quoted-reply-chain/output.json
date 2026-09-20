@@ -7,7 +7,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:32:57.182Z",
+      "at": "2026-09-20T03:49:06.189Z",
       "model": null
     }
   },
@@ -21,10 +21,12 @@
       "links": [],
       "timestamps": [
         "6pm Friday",
-        "8 on Saturday"
+        "Saturday",
+        "Tue, Sep 9, 2026 at 4:12 PM",
+        "Mon, Sep 8, 2026 at 9:40 AM"
       ]
     },
-    "samples": 5,
+    "samples": 10,
     "observed": {
       "categories": [
         {
@@ -32,19 +34,25 @@
             "Primary",
             "Scheduling"
           ],
-          "count": 5
+          "count": 7
+        },
+        {
+          "value": [
+            "Scheduling"
+          ],
+          "count": 3
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 10
         }
       ],
       "links": {}
     },
     "_generated": {
-      "at": "2026-09-20T03:33:00.758Z",
+      "at": "2026-09-20T03:49:13.802Z",
       "model": "openai:gpt-4o-mini"
     }
   }

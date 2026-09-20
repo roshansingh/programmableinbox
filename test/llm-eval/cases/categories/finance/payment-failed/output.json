@@ -26,7 +26,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:32:53.061Z",
+      "at": "2026-09-20T03:49:48.859Z",
       "model": null
     }
   },
@@ -61,7 +61,7 @@
         "September 24"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
@@ -69,13 +69,13 @@
             "Finance",
             "Urgent"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -85,7 +85,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://billing.example.com/invoices/2026-09": [
@@ -94,7 +94,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://example.com/support": [
@@ -103,13 +103,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:32:57.179Z",
+      "at": "2026-09-20T03:49:56.479Z",
       "model": "openai:gpt-4o-mini"
     }
   }

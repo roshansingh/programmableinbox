@@ -7,7 +7,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:15.268Z",
+      "at": "2026-09-20T03:48:39.213Z",
       "model": null
     }
   },
@@ -20,26 +20,32 @@
       "links": [],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 11,
     "observed": {
       "categories": [
         {
           "value": [
             "Agents"
           ],
-          "count": 5
+          "count": 9
+        },
+        {
+          "value": [
+            "Notifications"
+          ],
+          "count": 2
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 11
         }
       ],
       "links": {}
     },
     "_generated": {
-      "at": "2026-09-20T03:40:18.573Z",
+      "at": "2026-09-20T03:48:46.010Z",
       "model": "openai:gpt-4o-mini"
     }
   }

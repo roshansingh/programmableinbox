@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:40.071Z",
+      "at": "2026-09-20T03:49:29.841Z",
       "model": null
     }
   },
@@ -48,20 +48,34 @@
         "September 12 at 3:41 PM"
       ]
     },
-    "samples": 5,
+    "samples": 24,
     "observed": {
       "categories": [
         {
           "value": [
             "Finance"
           ],
-          "count": 5
+          "count": 21
+        },
+        {
+          "value": [
+            "Finance",
+            "Receipts"
+          ],
+          "count": 2
+        },
+        {
+          "value": [
+            "Finance",
+            "Urgent"
+          ],
+          "count": 1
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 24
         }
       ],
       "links": {
@@ -71,14 +85,14 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 3
+            "count": 13
           },
           {
             "value": {
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 2
+            "count": 11
           }
         ],
         "https://bank.example.com/report-fraud": [
@@ -87,13 +101,20 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 21
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 3
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:43.853Z",
+      "at": "2026-09-20T03:49:48.854Z",
       "model": "openai:gpt-4o-mini"
     }
   }

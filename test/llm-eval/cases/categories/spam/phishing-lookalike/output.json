@@ -14,7 +14,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:33:08.462Z",
+      "at": "2026-09-20T03:49:09.840Z",
       "model": null
     }
   },
@@ -33,11 +33,9 @@
           "ctaConfidence": "high"
         }
       ],
-      "timestamps": [
-        "24 hours"
-      ]
+      "timestamps": []
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
@@ -45,13 +43,13 @@
             "Security",
             "Urgent"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -61,13 +59,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:33:11.741Z",
+      "at": "2026-09-20T03:49:16.127Z",
       "model": "openai:gpt-4o-mini"
     }
   }

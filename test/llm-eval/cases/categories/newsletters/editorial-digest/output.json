@@ -50,7 +50,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:44.907Z",
+      "at": "2026-09-20T03:49:56.484Z",
       "model": null
     }
   },
@@ -108,20 +108,20 @@
         "September 12"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
           "value": [
             "Newsletters"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -131,7 +131,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/a/commute": [
@@ -140,7 +140,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/a/tomatoes": [
@@ -149,7 +149,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/a/four-day": [
@@ -158,7 +158,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/a/books": [
@@ -167,7 +167,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/unsubscribe": [
@@ -176,7 +176,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://dispatch.example.com/preferences": [
@@ -185,13 +185,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:47.893Z",
+      "at": "2026-09-20T03:50:01.606Z",
       "model": "openai:gpt-4o-mini"
     }
   }

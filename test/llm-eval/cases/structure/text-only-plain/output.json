@@ -18,14 +18,14 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:33:22.879Z",
+      "at": "2026-09-20T03:51:02.305Z",
       "model": null
     }
   },
   "withLlm": {
     "extractedOtp": null,
     "categories": [
-      "Notifications"
+      "Primary"
     ],
     "metadata": {
       "links": [
@@ -42,24 +42,44 @@
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 22,
     "observed": {
       "categories": [
         {
           "value": [
+            "Primary"
+          ],
+          "count": 11
+        },
+        {
+          "value": [
             "Notifications"
           ],
-          "count": 4
+          "count": 6
         },
         {
           "value": [],
+          "count": 3
+        },
+        {
+          "value": [
+            "Notifications",
+            "Primary"
+          ],
+          "count": 1
+        },
+        {
+          "value": [
+            "Notifications",
+            "Support"
+          ],
           "count": 1
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 22
         }
       ],
       "links": {
@@ -69,14 +89,14 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 4
+            "count": 19
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 1
+            "count": 3
           }
         ],
         "https://example.com/support": [
@@ -85,20 +105,20 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 4
+            "count": 19
           },
           {
             "value": {
               "isCta": false,
               "ctaConfidence": "low"
             },
-            "count": 1
+            "count": 3
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:36:49.529Z",
+      "at": "2026-09-20T03:51:19.207Z",
       "model": "openai:gpt-4o-mini"
     }
   }

@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:04.866Z",
+      "at": "2026-09-20T03:49:29.414Z",
       "model": null
     }
   },
@@ -48,20 +48,20 @@
         "2:14 PM"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
           "value": [
             "Receipts"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -71,7 +71,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://shop.example.com/orders/48291345": [
@@ -80,13 +80,13 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:08.228Z",
+      "at": "2026-09-20T03:49:35.914Z",
       "model": "openai:gpt-4o-mini"
     }
   }

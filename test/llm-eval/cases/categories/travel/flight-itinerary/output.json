@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:41.447Z",
+      "at": "2026-09-20T03:49:39.039Z",
       "model": null
     }
   },
@@ -49,20 +49,20 @@
         "October 21 at 13:30"
       ]
     },
-    "samples": 5,
+    "samples": 16,
     "observed": {
       "categories": [
         {
           "value": [
             "Travel"
           ],
-          "count": 5
+          "count": 16
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 16
         }
       ],
       "links": {
@@ -72,7 +72,14 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 15
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 1
           }
         ],
         "https://air.example.com/check-in": [
@@ -81,13 +88,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 16
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:45.815Z",
+      "at": "2026-09-20T03:49:51.705Z",
       "model": "openai:gpt-4o-mini"
     }
   }

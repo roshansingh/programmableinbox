@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:51.064Z",
+      "at": "2026-09-20T03:48:35.312Z",
       "model": null
     }
   },
@@ -46,20 +46,32 @@
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 18,
     "observed": {
       "categories": [
         {
           "value": [
             "Notifications"
           ],
-          "count": 5
+          "count": 14
+        },
+        {
+          "value": [
+            "Support"
+          ],
+          "count": 3
+        },
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 1
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 18
         }
       ],
       "links": {
@@ -69,7 +81,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 18
           }
         ],
         "https://git.example.com/acme/api/commit/3fa9c1": [
@@ -78,7 +90,7 @@
               "isCta": false,
               "ctaConfidence": "high"
             },
-            "count": 4
+            "count": 17
           },
           {
             "value": {
@@ -91,7 +103,7 @@
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:54.354Z",
+      "at": "2026-09-20T03:48:48.450Z",
       "model": "openai:gpt-4o-mini"
     }
   }

@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:41:11.357Z",
+      "at": "2026-09-20T03:49:42.302Z",
       "model": null
     }
   },
@@ -48,20 +48,20 @@
         "September 13 at 9:30 AM"
       ]
     },
-    "samples": 5,
+    "samples": 9,
     "observed": {
       "categories": [
         {
           "value": [
             "Scheduling"
           ],
-          "count": 5
+          "count": 9
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 9
         }
       ],
       "links": {
@@ -71,7 +71,7 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ],
         "https://clinic.example.com/reschedule/8821": [
@@ -80,13 +80,13 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 9
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:41:14.639Z",
+      "at": "2026-09-20T03:49:48.322Z",
       "model": "openai:gpt-4o-mini"
     }
   }

@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-20T03:40:25.059Z",
+      "at": "2026-09-20T03:48:57.013Z",
       "model": null
     }
   },
@@ -41,25 +41,25 @@
           "url": "https://chat.example.com/settings/notifications",
           "label": "Notification settings",
           "isCta": false,
-          "ctaConfidence": "low"
+          "ctaConfidence": "high"
         }
       ],
       "timestamps": []
     },
-    "samples": 5,
+    "samples": 11,
     "observed": {
       "categories": [
         {
           "value": [
             "Social"
           ],
-          "count": 5
+          "count": 11
         }
       ],
       "extractedOtp": [
         {
           "value": null,
-          "count": 5
+          "count": 11
         }
       ],
       "links": {
@@ -69,29 +69,29 @@
               "isCta": true,
               "ctaConfidence": "high"
             },
-            "count": 5
+            "count": 11
           }
         ],
         "https://chat.example.com/settings/notifications": [
           {
             "value": {
               "isCta": false,
-              "ctaConfidence": "low"
+              "ctaConfidence": "high"
             },
-            "count": 4
+            "count": 6
           },
           {
             "value": {
               "isCta": false,
-              "ctaConfidence": "high"
+              "ctaConfidence": "low"
             },
-            "count": 1
+            "count": 5
           }
         ]
       }
     },
     "_generated": {
-      "at": "2026-09-20T03:40:28.196Z",
+      "at": "2026-09-20T03:49:04.268Z",
       "model": "openai:gpt-4o-mini"
     }
   }
