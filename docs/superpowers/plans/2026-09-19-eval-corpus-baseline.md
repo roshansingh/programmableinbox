@@ -1875,3 +1875,16 @@ git merge --no-ff worktree-eval-corpus -m "Merge eval corpus: multi-sample basel
 Do **not** push. The `worktree-ollama-reasoning-effort` branch is unrelated and stays unmerged.
 
 - [ ] **Step 5: Verify on `main`** — run `npm run test` and `npm run eval:email:selftest` in the original checkout; both must pass.
+
+---
+
+## Implementation notes: where the build deviated from this plan
+
+Recorded after execution (2026-09-19). Each deviation was forced by a measurement, and the spec was updated to match.
+
+1. **Adaptive sampling replaced the fixed `EVAL_SAMPLES=5`** (Tasks 5, 7, 8). With 5 samples, 5 of 29 freshly baselined cases failed on the very next run (~15%). `collectUntilStable` now samples until 8 consecutive runs add no new answer (`PATIENCE`), capped by `EVAL_SAMPLES` (default 30): 695 samples for 65 cases, 44 stable at 9, noisiest 24. The plan's Task 5 `collectSamples` remains, used for `withoutLlm`.
+2. **Confirm-before-failing** (`compareWithRetries`, `EVAL_RETRIES`, default 2) was added; the plan had no retry step. Across three acceptance runs two comparisons needed one retry.
+3. **A model answer with no valid category is recorded, not fatal** (`classifyLlmRun`, `lib/run-outcome.ts`). The plan's all-or-nothing rule made `structure/text-only-plain` impossible to baseline: `gpt-4o-mini` answers a plain-text notification with a category outside the list ("Correspondence") in ~2 of 12 calls. Provider errors still abort without writing. `intentDisagreements` no longer skips categories for a `withLlm` baseline whose most common answer is empty.
+4. **`intent.json` was also written for the seven pre-existing cases** (Task 8), which the spec did not require; it is what surfaces `security/spaced-signin-code`.
+5. **Two intents corrected after review:** `education/assignment-due` gained `Urgent` (the definition says "deadlines"), and the `otp/digit-per-table-cell` note now says it is a regression guard, not a gap (the body-text extraction already joins the cells).
+6. **Waves were not paused for review.** The spec's "pause after wave 1" was superseded by the instruction to implement and merge; each wave was reviewed against the report before committing instead.
