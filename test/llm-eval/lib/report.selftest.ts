@@ -134,4 +134,62 @@ describe('Report.render', () => {
     expect(text.match(/Skipped 3 run\(s\): LLM not configured/g)).toHaveLength(1)
     expect(text).not.toContain('SKIPPED  a [withLlm]')
   })
+
+  it('shows the warnings of a passing run under Details', () => {
+    const report = new Report()
+    report.record(
+      rec({
+        caseId: 'receipts/order',
+        mode: 'withLlm',
+        status: 'pass',
+        warnings: ['metadata.links[https://x/track]: {"isCta":false} was seen in 1/5 baseline samples'],
+        notes: ['should not appear'],
+      }),
+    )
+
+    const text = report.render()
+
+    expect(text).toContain('PASS  receipts/order [withLlm]')
+    expect(text).toContain('(warning) metadata.links[https://x/track]: {"isCta":false} was seen in 1/5 baseline samples')
+    expect(text).not.toContain('should not appear')
+  })
+
+  it('lists unstable baselines', () => {
+    const report = new Report()
+    report.record(rec({}))
+    report.recordBaseline('receipts/order', { unstable: ['categories (2 answers)'], intent: [] })
+
+    const text = report.render()
+
+    expect(text).toContain('Unstable baselines')
+    expect(text).toContain('receipts/order: categories (2 answers)')
+  })
+
+  it('lists where the baseline disagrees with intent, and says it never fails a run', () => {
+    const report = new Report()
+    report.record(rec({}))
+    report.recordBaseline('otp/booking-confirmation-code', {
+      unstable: [],
+      intent: ['otp: intended null, baseline "HK7X2M"'],
+    })
+
+    const text = report.render()
+
+    expect(text).toContain('Baseline vs intent')
+    expect(text).toContain('never fails a run')
+    expect(text).toContain('otp/booking-confirmation-code')
+    expect(text).toContain('otp: intended null, baseline "HK7X2M"')
+    expect(report.hasFailures()).toBe(false)
+  })
+
+  it('prints neither section when nothing is unstable or in disagreement', () => {
+    const report = new Report()
+    report.record(rec({}))
+    report.recordBaseline('a', { unstable: [], intent: [] })
+
+    const text = report.render()
+
+    expect(text).not.toContain('Unstable baselines')
+    expect(text).not.toContain('Baseline vs intent')
+  })
 })

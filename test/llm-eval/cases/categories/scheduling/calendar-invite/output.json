@@ -1,0 +1,156 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://calendar.example.com/rsvp?r=yes",
+          "label": "Yes",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://calendar.example.com/rsvp?r=no",
+          "label": "No",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://calendar.example.com/rsvp?r=maybe",
+          "label": "Maybe",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://meet.example.com/abc-defg-hij",
+          "label": "Join with Google Meet",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:48.326Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://calendar.example.com/rsvp?r=yes",
+          "label": "Yes",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://calendar.example.com/rsvp?r=no",
+          "label": "No",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://calendar.example.com/rsvp?r=maybe",
+          "label": "Maybe",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://meet.example.com/abc-defg-hij",
+          "label": "Join with Google Meet",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Tuesday, October 14, 2026, 3:00 – 3:45 PM (PDT)"
+      ]
+    },
+    "samples": 10,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Scheduling"
+          ],
+          "count": 10
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 10
+        }
+      ],
+      "links": {
+        "https://calendar.example.com/rsvp?r=yes": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 4
+          }
+        ],
+        "https://calendar.example.com/rsvp?r=no": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://calendar.example.com/rsvp?r=maybe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://meet.example.com/abc-defg-hij": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 10
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:56.861Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

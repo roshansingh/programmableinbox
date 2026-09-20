@@ -1,0 +1,72 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://recruiting.example.com/schedule/8f3a",
+          "label": "Choose a time",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:51.041Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Applications",
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://recruiting.example.com/schedule/8f3a",
+          "label": "Choose a time",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Applications",
+            "Scheduling"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://recruiting.example.com/schedule/8f3a": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:57.006Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

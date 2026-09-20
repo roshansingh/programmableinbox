@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Security"
+  ],
+  "otp": "482913",
+  "note": "the code comes first and a brand name sits between \"your\" and \"verification code\": the regex misses it (known gap)"
+}

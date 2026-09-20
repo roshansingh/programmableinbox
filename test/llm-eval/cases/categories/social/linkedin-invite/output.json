@@ -1,0 +1,168 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://social.example.com/invite/accept?id=8f3a",
+          "label": "Accept",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/in/jordan-lee",
+          "label": "View profile",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/in/jordan-lee?utm_source=email",
+          "label": "View on LinkedIn",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/help",
+          "label": "Help",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:00.202Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Social"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://social.example.com/invite/accept?id=8f3a",
+          "label": "Accept",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/in/jordan-lee",
+          "label": "View profile",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/in/jordan-lee?utm_source=email",
+          "label": "View on LinkedIn",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/help",
+          "label": "Help",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 13,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Social"
+          ],
+          "count": 13
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 13
+        }
+      ],
+      "links": {
+        "https://social.example.com/invite/accept?id=8f3a": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 13
+          }
+        ],
+        "https://social.example.com/in/jordan-lee": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 12
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 1
+          }
+        ],
+        "https://social.example.com/in/jordan-lee?utm_source=email": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 13
+          }
+        ],
+        "https://social.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 13
+          }
+        ],
+        "https://social.example.com/help": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 12
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 1
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:09.837Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

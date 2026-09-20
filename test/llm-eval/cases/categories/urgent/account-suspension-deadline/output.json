@@ -1,0 +1,96 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://billing.example.com/update",
+          "label": "Update billing",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://example.com/support",
+          "label": "support",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:59.307Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Finance",
+      "Urgent"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://billing.example.com/update",
+          "label": "Update billing",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://example.com/support",
+          "label": "support",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "October 3",
+        "September 1"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Finance",
+            "Urgent"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://billing.example.com/update": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://example.com/support": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:06.928Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

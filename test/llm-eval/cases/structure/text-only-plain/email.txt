@@ -1,0 +1,11 @@
+Hi Sam,
+
+Your data export is ready. Download it here (the link expires in 24 hours):
+https://app.example.com/exports/9f3a1c
+
+The archive contains your projects, comments and settings as JSON files.
+
+If you didn't request this export, ignore this message or contact
+https://example.com/support and we'll look into it.
+
+- The Acme team

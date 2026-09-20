@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Security"
+  ],
+  "otp": "K9M2X7",
+  "note": "the token sits past the 4,000-character prompt cap so the model never sees it (known limit)"
+}

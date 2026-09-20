@@ -7,7 +7,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-18T21:00:54.533Z",
+      "at": "2026-09-20T03:49:10.106Z",
       "model": null
     }
   },
@@ -20,8 +20,26 @@
       "links": [],
       "timestamps": []
     },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "A1B2C3",
+          "count": 9
+        }
+      ],
+      "links": {}
+    },
     "_generated": {
-      "at": "2026-09-19T20:02:42.672Z",
+      "at": "2026-09-20T03:49:18.237Z",
       "model": "openai:gpt-4o-mini"
     }
   }
