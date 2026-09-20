@@ -131,3 +131,28 @@ describe('planAction', () => {
     expect(planAction({ stored: storedOutput, mode, llmConfigured, update })).toBe(expected)
   })
 })
+
+describe('toSection with samples', () => {
+  const snap: Snapshot = {
+    extractedOtp: null,
+    categories: ['Travel'],
+    metadata: { links: [], timestamps: [] },
+  }
+  const meta = { at: '2026-09-19T00:00:00.000Z', model: 'openai:gpt-4o-mini' }
+
+  it('adds samples and observed before _generated', () => {
+    const observed = {
+      categories: [{ value: ['Travel'], count: 5 }],
+      extractedOtp: [{ value: null, count: 5 }],
+      links: {},
+    }
+    const section = toSection(snap, meta, { samples: 5, observed })
+
+    expect(Object.keys(section)).toEqual(['extractedOtp', 'categories', 'metadata', 'samples', 'observed', '_generated'])
+    expect(section.samples).toBe(5)
+  })
+
+  it('is unchanged when there are no extras', () => {
+    expect(Object.keys(toSection(snap, meta))).toEqual(['extractedOtp', 'categories', 'metadata', '_generated'])
+  })
+})
