@@ -41,8 +41,10 @@ fresh, non-deterministic model output — review the result before committing.
    `{ "categories": ["Security"], "otp": "483920", "note": "why" }` (`otp` is
    `null` when there is no code). It is report-only and never fails a run; the
    report lists every case whose baseline disagrees with it.
-4. Run `npm run eval:email`. The first run **generates** `output.json`: the
-   `withLlm` section from `EVAL_SAMPLES` runs (default 5).
+4. Run `npm run eval:email`. The first run **generates** `output.json`. The
+   `withLlm` section keeps sampling until 8 consecutive runs add no new answer
+   (at most `EVAL_SAMPLES`, default 30), so a stable case costs 9 calls and a
+   noisy one more.
 5. **Review it.** It is only what the system did. Read the "Unstable baselines"
    and "Baseline vs intent" sections of the report.
 
@@ -67,6 +69,17 @@ not fail it (a single-sample baseline left most runs red: `gpt-4o-mini`
 disagreed with its own baseline). An answer the baseline saw in under half its
 samples passes with a `(warning)`. This detects *new* behaviour, not a shift in
 probability. A section with no `observed` (an older file) is compared exactly.
+
+Even so, a stochastic model occasionally draws an answer its baseline has not
+seen yet (measured: about 15% of cases on the next run with only 5 samples). So a
+failing `withLlm` comparison is **repeated up to `EVAL_RETRIES` (default 2) more
+times and fails only if every attempt fails**; a pass after a failure is shown
+as `(warning) passed on attempt N of M`. Set `EVAL_RETRIES=0` for strict
+single-attempt comparison. `withoutLlm` is deterministic and never retries.
+
+A model answer with no valid category (e.g. a name that is not in the list) is
+recorded as an ordinary answer (`categories: []`); a provider error is not, and
+aborts baseline generation without writing anything.
 
 In a `withLlm` run, enrichment rewrites `isCta` and forces `ctaConfidence` to
 `high` on every low-confidence link the model judged, which is why link state is

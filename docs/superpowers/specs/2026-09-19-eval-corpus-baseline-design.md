@@ -20,7 +20,7 @@ limit.
 
 | # | Decision | Why |
 |---|---|---|
-| D1 | Baselines are **multi-sample**: `EVAL_SAMPLES` (default 5) provider runs per case, stored as observed answers with counts | Measured 2026-09-19: re-running the 7 existing cases 5 times against baselines `gpt-4o-mini` had itself generated reproduced 32 of 35 case-runs, yet **3 of the 5 runs were red** with no regression. Receipts' "Track your package" `isCta` flipped in 3 of 5 runs (the stored baseline was the *minority* answer); password-reset gained a second category `Primary` in 1 of 5. The OpenAI adapter sets no temperature, so this variance is production behaviour. |
+| D1 | Baselines are **multi-sample and adaptive**: sampling continues until 8 consecutive runs add no new answer (at most `EVAL_SAMPLES`, default 30), stored as observed answers with counts. A failing comparison is **confirmed by retrying** (`EVAL_RETRIES`, default 2) before it is reported | Measured 2026-09-19: re-running the 7 existing cases 5 times against baselines `gpt-4o-mini` had itself generated reproduced 32 of 35 case-runs, yet **3 of the 5 runs were red** with no regression. Receipts' "Track your package" `isCta` flipped in 3 of 5 runs (the stored baseline was the *minority* answer); password-reset gained a second category `Primary` in 1 of 5. The OpenAI adapter sets no temperature, so this variance is production behaviour. **A fixed 5 samples was then found insufficient at corpus scale**: on the next run 5 of 29 freshly baselined cases failed (~15%), because rarer answers (a skipped link judgement, an extra category) had not been drawn yet. Hence adaptive sampling (effort goes to the noisy fields) plus retries (a rare draw from the normal tail is not a regression). |
 | D2 | Each case may carry an **intent** file (author's correct answer), **report-only** | A baseline records what the code does, so known bugs would become "expected". The intent report keeps them visible without blocking a run. |
 | D3 | Baseline generator is `gpt-4o-mini` at production settings (no temperature override) | It is the production model; the eval exists to detect change from it. |
 
@@ -77,9 +77,12 @@ Existing folders keep working unchanged.
   half the baseline samples; and an "Unstable cases" list (any field with more
   than one observed value).
 - **Generation.** `eval:email:update`, or a case with no stored section, runs
-  `withLlm` `EVAL_SAMPLES` times per case, each a full `enrichMessage` on a
-  fresh row, so the existing "exactly one provider call per run" guard holds per
-  sample. If **any** sample fails with a provider error, or the provider is
+  `withLlm` repeatedly per case, each a full `enrichMessage` on a fresh row, so
+  the existing "exactly one provider call per run" guard holds per sample.
+  Sampling stops once `PATIENCE` (8) consecutive samples add no new answer key
+  (`answerKeys`: the category set, the OTP, each link state), and never exceeds
+  `EVAL_SAMPLES` (30). A fully stable case therefore costs 9 samples; a noisy one
+  keeps going. If **any** sample fails with a provider error, or the provider is
   unreachable, nothing is written for that case and the failure is reported. A
   baseline is never built from a partial set.
   A model answer with **no valid category** is *not* such a failure. Enrichment
@@ -89,10 +92,18 @@ Existing folders keep working unchanged.
   not in the list, in 2 of 12 calls, so a strict rule made that case impossible
   to baseline (5 samples all succeed only ~40% of the time). This is
   `classifyLlmRun` in `lib/run-outcome.ts`.
+- **Confirm before failing.** A `withLlm` comparison that fails is repeated up to
+  `EVAL_RETRIES` (2) more times (`compareWithRetries`) and is reported as a
+  failure only if *every* attempt fails. A pass after a failure stays visible as
+  a `(warning)` naming the attempt and the failing fields. `withoutLlm` is
+  deterministic and gets one attempt. An error thrown by an attempt (a provider
+  failure) is not retried.
 
-**Stated limit:** this detects *new* behaviour, not a shift in probability. A
+**Stated limits:** this detects *new* behaviour, not a shift in probability. A
 regression that moves an answer from 80% to 30% of runs still passes, with a
-warning.
+warning. Retrying adds a second blind spot: a change that makes the model give an
+unseen answer only some of the time (per attempt probability p) escapes with
+probability 1 − p³. `EVAL_RETRIES=0` restores strict single-attempt comparison.
 
 ## 3. Intent report (never fails a run)
 
@@ -156,9 +167,10 @@ preheader, tracking pixel, 30+ links, past the 4,000-character cap),
   `structure/long-marketing-template`). **Pause for review** of realism and style.
 - **Wave 2:** the remaining 29 category cases. **Wave 3:** the remaining 21 cases
   (13 `otp`, 8 `structure`). 8 + 29 + 21 = the 58 new cases.
-- **Cost** (estimate): a full baseline is about 325 calls, roughly 0.5M input
-  tokens, about $0.10. Each subsequent eval run is about $0.02. Only synthetic
-  emails are sent to OpenAI.
+- **Cost** (estimate): a full baseline is roughly 700-1,000 calls (stable cases
+  9, noisy ones up to 30), about $0.15-0.25. Each subsequent eval run is about
+  $0.03 (65 calls, plus retries for the few that fail). Only synthetic emails are
+  sent to OpenAI.
 
 ## 6. Testing
 
@@ -171,7 +183,8 @@ generation with a fake provider, and the all-or-nothing failure rule.
 **Acceptance:** `npm test` and `npm run eval:email:selftest` green; three
 consecutive `gpt-4o-mini` runs against freshly generated baselines, with no
 failures in at least two of three. Any failure is investigated as baseline
-under-sampling (raise `EVAL_SAMPLES` for that case) or a real change.
+under-sampling (regenerate that case with a higher `EVAL_SAMPLES`) or a real
+change.
 
 ## Known gaps the corpus will surface (follow-ups, not fixed here)
 

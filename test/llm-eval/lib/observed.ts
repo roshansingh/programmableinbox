@@ -55,6 +55,22 @@ export function aggregateSamples(samples: Snapshot[]): { snapshot: Snapshot; sam
   return { snapshot, samples: samples.length, observed: { categories, extractedOtp, links } }
 }
 
+/**
+ * One key per answer in a snapshot: the category set, the OTP, and each link's
+ * state. Two snapshots share a key exactly when they gave the same answer for
+ * that field, so a key never seen before is a new answer. Sampling uses this to
+ * decide when a baseline has stopped learning anything (collectUntilStable).
+ */
+export function answerKeys(snapshot: Snapshot): string[] {
+  return [
+    `categories=${JSON.stringify(sortedSet(snapshot.categories))}`,
+    `otp=${JSON.stringify(snapshot.extractedOtp)}`,
+    ...snapshot.metadata.links.map(
+      (link) => `link ${link.url}=${JSON.stringify({ isCta: link.isCta, ctaConfidence: link.ctaConfidence })}`,
+    ),
+  ]
+}
+
 /** The fields the model did not answer consistently while the baseline was generated. */
 export function unstableFields(observed: Observed): string[] {
   const fields: string[] = []

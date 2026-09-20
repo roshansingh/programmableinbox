@@ -2,6 +2,7 @@ import path from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { enrichMessage } from '@/lib/llm/enrichment'
 import { resetProviderCache } from '@/lib/llm/factory'
+import { compareWithRetries } from './lib/attempts'
 import { buildRow, toSnapshot } from './lib/build-row'
 import { readCaseInput } from './lib/case-input'
 import { formatDiff } from './lib/compare'
@@ -9,10 +10,10 @@ import { compareSection } from './lib/compare-observed'
 import { discoverCases } from './lib/discover'
 import { intentDisagreements, readIntent } from './lib/intent'
 import { resolveLlmPreflight } from './lib/llm-preflight'
-import { aggregateSamples, unstableFields } from './lib/observed'
+import { aggregateSamples, answerKeys, unstableFields } from './lib/observed'
 import { Report } from './lib/report'
 import { classifyLlmRun } from './lib/run-outcome'
-import { collectSamples, parseSamples } from './lib/samples'
+import { PATIENCE, collectSamples, collectUntilStable, parseRetries, parseSamples } from './lib/samples'
 import { recorder, store } from './lib/shared'
 import { planAction, readStoredOutput, toSection, writeSection } from './lib/stored-output'
 import { RUN_MODES } from './lib/types'
@@ -55,9 +56,14 @@ const preflight = resolveLlmPreflight(configuredLlmEnv)
 const llmConfigured = preflight.status === 'configured'
 const llmSkipNote = preflight.note
 const update = process.env.EVAL_UPDATE === '1'
-// A withLlm baseline is several samples, not one: gpt-4o-mini disagrees with
-// its own single-sample baseline often enough to leave most runs red.
+// A withLlm baseline is many samples, not one: gpt-4o-mini disagrees with its
+// own single-sample baseline often enough to leave most runs red. Sampling
+// stops once PATIENCE consecutive samples add no new answer, and never exceeds
+// `samples`.
 const samples = parseSamples(process.env.EVAL_SAMPLES)
+// A failing withLlm comparison is repeated this many more times before it is
+// reported: a rare draw from the model's normal tail is not a regression.
+const retries = parseRetries(process.env.EVAL_RETRIES)
 // vitest.eval.config.ts allows this long for one provider call.
 const CALL_TIMEOUT_MS = 120_000
 const modelLabel = `${configuredLlmEnv.LLM_PROVIDER ?? 'none'}:${configuredLlmEnv.LLM_MODEL ?? 'default'}`
@@ -207,10 +213,14 @@ async function runCaseBody(
   }
 
   if (action === 'generate') {
-    // withoutLlm is deterministic: one run. withLlm: `samples` runs, all of
-    // which must succeed or nothing is written (collectSamples rejects on the
+    // withoutLlm is deterministic: one run. withLlm keeps sampling until
+    // PATIENCE consecutive runs add no new answer (at most `samples`), and every
+    // run must succeed or nothing is written (both collectors reject on the
     // first failure, before writeSection is reached).
-    const runs = await collectSamples(mode === 'withLlm' ? samples : 1, runOnce)
+    const runs =
+      mode === 'withLlm'
+        ? await collectUntilStable({ max: samples, patience: PATIENCE }, runOnce, (run) => answerKeys(run.actual))
+        : await collectSamples(1, runOnce)
     const last = runs[runs.length - 1]
     const meta = { at: new Date().toISOString(), model: mode === 'withLlm' ? modelLabel : null }
     let section: StoredSection
@@ -232,13 +242,19 @@ async function runCaseBody(
     return
   }
 
-  const { actual, bodyText } = await runOnce()
-  const notes = llmNotes(bodyText)
-
   const expected = stored?.[mode]
   if (!expected) throw new Error(`unreachable: "compare" planned without a stored ${mode} section`)
 
-  const { failures, informational, warnings } = compareSection(mode, expected, actual)
+  // withLlm is stochastic, so a failing comparison is confirmed by repeating it
+  // (compareWithRetries); withoutLlm is deterministic and gets one attempt.
+  let bodyText: string | null = null
+  const { comparison } = await compareWithRetries(mode === 'withLlm' ? retries : 0, async () => {
+    const run = await runOnce()
+    bodyText = run.bodyText
+    return compareSection(mode, expected, run.actual)
+  })
+  const notes = llmNotes(bodyText)
+  const { failures, informational, warnings } = comparison
   const failed = failures.length > 0
   record({
     caseId: c.id,

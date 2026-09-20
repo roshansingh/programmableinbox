@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregateSamples, unstableFields } from './observed'
+import { aggregateSamples, answerKeys, unstableFields } from './observed'
 import type { Snapshot } from './types'
 
 const link = (url: string, isCta: boolean, ctaConfidence: 'high' | 'low' = 'high') => ({
@@ -91,6 +91,30 @@ describe('aggregateSamples', () => {
 
     expect(snapshot.metadata.timestamps).toEqual(['first'])
     expect(snapshot.metadata.links[0].label).toBe('view')
+  })
+})
+
+describe('answerKeys', () => {
+  it('names each answer: the category set, the otp and every link state', () => {
+    const keys = answerKeys(snap({ categories: ['Urgent', 'Finance'], extractedOtp: 'A11111' }))
+
+    expect(keys).toEqual([
+      'categories=["Finance","Urgent"]',
+      'otp="A11111"',
+      'link https://x.example/view={"isCta":true,"ctaConfidence":"high"}',
+    ])
+  })
+
+  it('is identical for answers that only differ in category order or duplicates', () => {
+    expect(answerKeys(snap({ categories: ['B', 'A'] }))).toEqual(answerKeys(snap({ categories: ['A', 'B', 'A'] })))
+  })
+
+  it('differs when a single link state differs', () => {
+    const a = answerKeys(snap())
+    const b = answerKeys(snap({ metadata: { links: [link('https://x.example/view', false)], timestamps: [] } }))
+
+    expect(a).not.toEqual(b)
+    expect(a.filter((k) => !b.includes(k))).toEqual(['link https://x.example/view={"isCta":true,"ctaConfidence":"high"}'])
   })
 })
 
