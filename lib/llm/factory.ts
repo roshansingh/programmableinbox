@@ -66,6 +66,11 @@ function buildProvider(): LLMProvider | null {
     case 'openrouter':
       return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl)
     case 'ollama':
-      return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl, { think: false })
+      // `reasoning_effort: 'none'`, not `think: false`. `think` is native
+      // /api/chat only; this adapter talks to the OpenAI-compatible /v1
+      // endpoint, which ignores it — qwen3:0.6b still emitted ~1,300 chars of
+      // hidden reasoning per call on Ollama 0.32.5 (~3s, up to ~11s, against
+      // ~0.5s with this flag).
+      return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl, { reasoning_effort: 'none' })
   }
 }

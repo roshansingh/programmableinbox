@@ -7,8 +7,13 @@ vi.mock('../providers/anthropic', () => ({
 }))
 
 vi.mock('../providers/openai-compat', () => ({
-  OpenAICompatAdapter: vi.fn().mockImplementation(function (key: string, model: string, baseURL: string | undefined) {
-    return { _type: 'openai-compat', key, model, baseURL }
+  OpenAICompatAdapter: vi.fn().mockImplementation(function (
+    key: string,
+    model: string,
+    baseURL: string | undefined,
+    extraBody: Record<string, unknown> | undefined,
+  ) {
+    return { _type: 'openai-compat', key, model, baseURL, extraBody }
   }),
 }))
 
@@ -58,6 +63,26 @@ describe('getProvider', () => {
     const provider = getProvider() as any
     expect(provider._type).toBe('openai-compat')
     expect(provider.baseURL).toBe('http://localhost:11434/v1')
+  })
+
+  // Ollama's OpenAI-compatible /v1 endpoint ignores the native `think: false`
+  // (measured on 0.32.5: ~1,300 chars of hidden reasoning per call regardless),
+  // and honours `reasoning_effort: 'none'` instead. Asserting the body pins the
+  // flag that actually works, so it cannot silently become a no-op again.
+  it('turns thinking off for ollama with the flag /v1 honours', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'ollama')
+    vi.stubEnv('LLM_API_KEY', '')
+    const { getProvider } = await import('../factory')
+    const provider = getProvider() as any
+    expect(provider.extraBody).toEqual({ reasoning_effort: 'none' })
+  })
+
+  it('sends no extra request body to providers that are not ollama', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'openai')
+    vi.stubEnv('LLM_API_KEY', 'sk-openai')
+    const { getProvider } = await import('../factory')
+    const provider = getProvider() as any
+    expect(provider.extraBody).toBeUndefined()
   })
 
   it('uses LLM_BASE_URL override for ollama', async () => {
