@@ -7,6 +7,7 @@ import { summarize, type BenchOutcome, type BenchRef, type BenchRun } from './li
 import { buildRow, toSnapshot } from './lib/build-row'
 import { readCaseInput } from './lib/case-input'
 import { discoverCases } from './lib/discover'
+import { Inflight } from './lib/inflight'
 import { readIntent } from './lib/intent'
 import { resolveLlmPreflight } from './lib/llm-preflight'
 import { classifyLlmRun } from './lib/run-outcome'
@@ -78,8 +79,13 @@ const cases = limit === undefined ? allCases : allCases.slice(0, limit)
 const runs: BenchRun[] = []
 const refs: Record<string, BenchRef> = {}
 let runToken = 0
+// A call that outlives its limit is abandoned, not cancelled: it keeps running,
+// and writes to the shared recorder and token counter when it returns. The next
+// case waits for it (see Inflight) instead of resetting state under it.
+const inflight = new Inflight()
 
 async function benchOne(id: string, input: ReturnType<typeof readCaseInput>): Promise<BenchRun> {
+  await inflight.settled()
   const token = ++runToken
   resetProviderCache()
   recorder.reset()
@@ -94,7 +100,7 @@ async function benchOne(id: string, input: ReturnType<typeof readCaseInput>): Pr
   const started = performance.now()
   let timer: NodeJS.Timeout | undefined
   const raced = await Promise.race([
-    enrichMessage(row.id).then((settled) => ({ kind: 'done' as const, settled })),
+    inflight.track(enrichMessage(row.id)).then((settled) => ({ kind: 'done' as const, settled })),
     new Promise<{ kind: 'timeout' }>((resolve) => {
       timer = setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs)
     }),

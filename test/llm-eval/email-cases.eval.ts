@@ -8,6 +8,7 @@ import { readCaseInput } from './lib/case-input'
 import { formatDiff } from './lib/compare'
 import { compareSection } from './lib/compare-observed'
 import { discoverCases } from './lib/discover'
+import { Inflight } from './lib/inflight'
 import { intentDisagreements, readIntent } from './lib/intent'
 import { resolveLlmPreflight } from './lib/llm-preflight'
 import { aggregateSamples, answerKeys, unstableFields } from './lib/observed'
@@ -70,6 +71,8 @@ const modelLabel = `${configuredLlmEnv.LLM_PROVIDER ?? 'none'}:${configuredLlmEn
 
 const report = new Report()
 let runToken = 0
+// Provider calls that a timed-out test walked away from but did not cancel.
+const inflight = new Inflight()
 
 function setLlm(enabled: boolean): void {
   for (const key of LLM_ENV_KEYS) {
@@ -180,15 +183,19 @@ async function runCaseBody(
     return
   }
 
-  // Vitest fails a timed-out test but does not cancel its promise, so a run can
-  // resume after the next test has reset the shared recorder and store. The
-  // token lets it notice it was superseded before it can read that state.
+  // Vitest fails a timed-out test but does not cancel its promise, so the
+  // provider call is still running when the next test starts. Two defences:
+  // the token lets the abandoned run notice it was superseded before it can
+  // read shared state, and runOnce waits for it to finish (inflight) before the
+  // recorder and store are reset, so its late write cannot land in the next
+  // case's state and a single-slot local server is not still busy with it.
   const token = ++runToken
   const input = readCaseInput(c)
 
   // One full ingestion + enrichment pass over a fresh row. Sequential by
   // design: the recorder and the row store are shared singletons.
   const runOnce = async (): Promise<{ actual: Snapshot; bodyText: string | null }> => {
+    await inflight.settled()
     setLlm(mode === 'withLlm')
     recorder.reset()
     store.clear()
@@ -202,7 +209,7 @@ async function runCaseBody(
     })
     store.insert(row)
 
-    const settled = await enrichMessage(row.id)
+    const settled = await inflight.track(enrichMessage(row.id))
     if (token !== runToken) {
       throw new Error(
         `${c.id} [${mode}]: this run was superseded, most likely by a timeout, and its result was discarded. Nothing was written to output.json.`,
