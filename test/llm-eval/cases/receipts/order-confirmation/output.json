@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-19T02:05:11.884Z",
+      "at": "2026-09-20T03:30:36.035Z",
       "model": null
     }
   },
@@ -40,7 +40,7 @@
         {
           "url": "https://shop.example.com/track/1Z999AA10123456784",
           "label": "Track your package",
-          "isCta": true,
+          "isCta": false,
           "ctaConfidence": "high"
         }
       ],
@@ -48,8 +48,52 @@
         "Friday"
       ]
     },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Receipts"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://shop.example.com/orders/48291345": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://shop.example.com/track/1Z999AA10123456784": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 3
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 2
+          }
+        ]
+      }
+    },
     "_generated": {
-      "at": "2026-09-19T20:02:41.782Z",
+      "at": "2026-09-20T03:30:39.959Z",
       "model": "openai:gpt-4o-mini"
     }
   }

@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-19T02:05:06.818Z",
+      "at": "2026-09-20T03:30:23.576Z",
       "model": null
     }
   },
@@ -46,8 +46,45 @@
       ],
       "timestamps": []
     },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 5
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://shop.example.com/login": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://shop.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
     "_generated": {
-      "at": "2026-09-19T20:02:39.378Z",
+      "at": "2026-09-20T03:30:28.696Z",
       "model": "openai:gpt-4o-mini"
     }
   }

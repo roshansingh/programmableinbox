@@ -20,7 +20,7 @@
       "timestamps": []
     },
     "_generated": {
-      "at": "2026-09-19T02:10:15.323Z",
+      "at": "2026-09-20T03:30:43.598Z",
       "model": null
     }
   },
@@ -46,8 +46,52 @@
       ],
       "timestamps": []
     },
+    "samples": 5,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security"
+          ],
+          "count": 4
+        },
+        {
+          "value": [
+            "Primary",
+            "Security"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 5
+        }
+      ],
+      "links": {
+        "https://app.example.com/reset?token=abc123abc123": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ],
+        "https://example.com/help": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 5
+          }
+        ]
+      }
+    },
     "_generated": {
-      "at": "2026-09-19T20:02:43.490Z",
+      "at": "2026-09-20T03:30:46.771Z",
       "model": "openai:gpt-4o-mini"
     }
   }

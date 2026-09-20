@@ -1,0 +1,5 @@
+{
+  "categories": ["Security"],
+  "otp": "A1B2C3",
+  "note": "the regex misses \"sign-in token\"; the LLM fallback should recover it"
+}
