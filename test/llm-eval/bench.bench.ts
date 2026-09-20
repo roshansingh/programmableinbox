@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { enrichMessage } from '@/lib/llm/enrichment'
@@ -13,6 +12,7 @@ import { resolveLlmPreflight } from './lib/llm-preflight'
 import { classifyLlmRun } from './lib/run-outcome'
 import { recorder, store } from './lib/shared'
 import { readStoredOutput } from './lib/stored-output'
+import { writeJsonFile } from './lib/write-json'
 
 /**
  * Benchmarks ONE configured model (LLM_PROVIDER / LLM_MODEL, from the shell or
@@ -133,7 +133,7 @@ async function benchOne(id: string, input: ReturnType<typeof readCaseInput>): Pr
 function writeResult(): ReturnType<typeof summarize> {
   const summary = summarize(runs, refs)
   const result = { label, provider: provider ?? null, model: model ?? null, at: new Date().toISOString(), cases: runs.length, summary, runs }
-  if (process.env.BENCH_OUT) fs.writeFileSync(process.env.BENCH_OUT, `${JSON.stringify(result, null, 2)}\n`)
+  if (process.env.BENCH_OUT) writeJsonFile(process.env.BENCH_OUT, result)
   return summary
 }
 
