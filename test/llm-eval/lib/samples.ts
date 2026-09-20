@@ -1,4 +1,4 @@
-/** The most provider runs a withLlm baseline may take. Sampling usually stops sooner (see PATIENCE). */
+/** Maximum number of provider calls per case when generating a withLlm baseline. Sampling usually stops sooner (see PATIENCE). */
 export const DEFAULT_SAMPLES = 30
 
 /**
@@ -15,9 +15,10 @@ export const PATIENCE = 8
 export const DEFAULT_RETRIES = 2
 
 /**
- * `EVAL_SAMPLES`: the most provider runs a withLlm baseline may take. Parsed
- * from a string handed in, so no `process.env` read lives in a library module.
- * Bounded so a typo cannot turn one command into hundreds of API calls.
+ * `EVAL_SAMPLES`: the maximum number of provider calls per case when generating
+ * a withLlm baseline. Parsed from a string handed in, so no `process.env` read
+ * lives in a library module. Bounded so a typo cannot turn one command into
+ * hundreds of API calls.
  */
 export function parseSamples(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === '') return DEFAULT_SAMPLES
