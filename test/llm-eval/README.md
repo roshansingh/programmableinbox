@@ -32,30 +32,45 @@ fresh, non-deterministic model output — review the result before committing.
 
 ## Add a case
 
-1. Create a folder anywhere under `cases/` (grouping folders are fine) and put
-   one file in it: `email.html`.
-2. Run `npm run eval:email`. The first run **generates** `output.json` from what
-   the system found and reports the case as GENERATED.
-3. **Review it.** The generated file is only what the system did, not what is
-   right. Correct any wrong value (e.g. set `extractedOtp` to `null` for a
-   promo email), then commit it. From then on it is the expected result.
+1. Create a folder anywhere under `cases/` (grouping folders are fine) holding
+   `email.html`, `email.txt`, or both (a multipart message: as in live
+   ingestion, a non-empty text part is used as the body).
+2. Optional `subject.txt`: one line. Without it the subject is the HTML
+   `<title>`, then the folder name.
+3. Add `intent.json` — what is *correct*, independent of any model:
+   `{ "categories": ["Security"], "otp": "483920", "note": "why" }` (`otp` is
+   `null` when there is no code). It is report-only and never fails a run; the
+   report lists every case whose baseline disagrees with it.
+4. Run `npm run eval:email`. The first run **generates** `output.json`: the
+   `withLlm` section from `EVAL_SAMPLES` runs (default 5).
+5. **Review it.** It is only what the system did. Read the "Unstable baselines"
+   and "Baseline vs intent" sections of the report.
 
-The email has no envelope, so the subject shown to the LLM is the HTML
-`<title>` (or the folder name), and there is no separate text part — this
-exercises the HTML-only path.
+Cases are grouped by folder: `cases/categories/<category>/<variant>` (one or
+more emails per category), `cases/otp/<variant>` (code-extraction traps and
+formats) and `cases/structure/<variant>` (long templates, text-only, multipart,
+image-only, bounces).
 
 ## What is compared
 
 | Field | `withoutLlm` | `withLlm` |
 |---|---|---|
-| `extractedOtp` | exact | exact |
-| `metadata.links` (url, label, isCta, ctaConfidence) | exact | exact, **including** the `isCta`/`ctaConfidence` the model sets on low-confidence links |
-| `categories` | exact | same **set** (order ignored) |
+| `extractedOtp` | exact | a value the baseline saw |
+| `metadata.links` (url, label, isCta, ctaConfidence) | exact | url and label exact; `isCta`/`ctaConfidence` a state the baseline saw for that link |
+| `categories` | exact | a **set** the baseline saw (order ignored) |
 | `metadata.timestamps` | exact | printed, **never fails** |
 
+A `withLlm` baseline records every answer the model gave across its samples
+(`observed`, with counts) alongside the most frequent one. A run passes when
+each field is a value the baseline **saw**, so ordinary run-to-run variance does
+not fail it (a single-sample baseline left most runs red: `gpt-4o-mini`
+disagreed with its own baseline). An answer the baseline saw in under half its
+samples passes with a `(warning)`. This detects *new* behaviour, not a shift in
+probability. A section with no `observed` (an older file) is compared exactly.
+
 In a `withLlm` run, enrichment rewrites `isCta` and forces `ctaConfidence` to
-`high` on every low-confidence link the model judged, so a model flip of a link
-judgment fails the run. That is intentional.
+`high` on every low-confidence link the model judged, which is why link state is
+compared at all.
 
 A stored section is never overwritten by a normal run. If `output.json` is
 missing, or is missing a section (e.g. it was created before an LLM was

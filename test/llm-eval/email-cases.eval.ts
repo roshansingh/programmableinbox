@@ -1,17 +1,21 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { enrichMessage } from '@/lib/llm/enrichment'
 import { resetProviderCache } from '@/lib/llm/factory'
 import { buildRow, toSnapshot } from './lib/build-row'
-import { compareSnapshots, formatDiff } from './lib/compare'
+import { readCaseInput } from './lib/case-input'
+import { formatDiff } from './lib/compare'
+import { compareSection } from './lib/compare-observed'
 import { discoverCases } from './lib/discover'
+import { intentDisagreements, readIntent } from './lib/intent'
 import { resolveLlmPreflight } from './lib/llm-preflight'
+import { aggregateSamples, unstableFields } from './lib/observed'
 import { Report } from './lib/report'
+import { collectSamples, parseSamples } from './lib/samples'
 import { recorder, store } from './lib/shared'
 import { planAction, readStoredOutput, toSection, writeSection } from './lib/stored-output'
 import { RUN_MODES } from './lib/types'
-import type { CaseDir, RunMode, RunRecord } from './lib/types'
+import type { CaseDir, RunMode, RunRecord, Snapshot, StoredSection } from './lib/types'
 
 // The one thing faked: the Prisma calls enrichMessage makes (see
 // lib/row-store.ts for exactly which). Everything else — extraction, prompt,
@@ -50,6 +54,11 @@ const preflight = resolveLlmPreflight(configuredLlmEnv)
 const llmConfigured = preflight.status === 'configured'
 const llmSkipNote = preflight.note
 const update = process.env.EVAL_UPDATE === '1'
+// A withLlm baseline is several samples, not one: gpt-4o-mini disagrees with
+// its own single-sample baseline often enough to leave most runs red.
+const samples = parseSamples(process.env.EVAL_SAMPLES)
+// vitest.eval.config.ts allows this long for one provider call.
+const CALL_TIMEOUT_MS = 120_000
 const modelLabel = `${configuredLlmEnv.LLM_PROVIDER ?? 'none'}:${configuredLlmEnv.LLM_MODEL ?? 'default'}`
 
 const report = new Report()
@@ -178,52 +187,77 @@ async function runCaseBody(
   // resume after the next test has reset the shared recorder and store. The
   // token lets it notice it was superseded before it can read that state.
   const token = ++runToken
+  const input = readCaseInput(c)
 
-  setLlm(mode === 'withLlm')
-  recorder.reset()
-  store.clear()
+  // One full ingestion + enrichment pass over a fresh row. Sequential by
+  // design: the recorder and the row store are shared singletons.
+  const runOnce = async (): Promise<{ actual: Snapshot; bodyText: string | null }> => {
+    setLlm(mode === 'withLlm')
+    recorder.reset()
+    store.clear()
 
-  const row = buildRow({
-    id: `${c.id}:${mode}`,
-    caseId: c.id,
-    html: fs.readFileSync(c.htmlPath, 'utf8'),
-  })
-  store.insert(row)
+    const row = buildRow({
+      id: `${c.id}:${mode}`,
+      caseId: c.id,
+      html: input.html,
+      text: input.text,
+      subject: input.subject,
+    })
+    store.insert(row)
 
-  const settled = await enrichMessage(row.id)
-  if (token !== runToken) {
-    throw new Error(
-      `${c.id} [${mode}]: this run was superseded, most likely by a timeout, and its result was discarded. Nothing was written to output.json.`,
-    )
+    const settled = await enrichMessage(row.id)
+    if (token !== runToken) {
+      throw new Error(
+        `${c.id} [${mode}]: this run was superseded, most likely by a timeout, and its result was discarded. Nothing was written to output.json.`,
+      )
+    }
+    assertRunIsGenuine(mode, settled)
+    return { actual: toSnapshot(store.get(row.id)!), bodyText: row.bodyText }
   }
-  assertRunIsGenuine(mode, settled)
-
-  const actual = toSnapshot(store.get(row.id)!)
-  const notes = llmNotes(row.bodyText)
 
   if (action === 'generate') {
-    writeSection(
-      c.outputPath,
-      mode,
-      toSection(actual, { at: new Date().toISOString(), model: mode === 'withLlm' ? modelLabel : null }),
-    )
+    // withoutLlm is deterministic: one run. withLlm: `samples` runs, all of
+    // which must succeed or nothing is written (collectSamples rejects on the
+    // first failure, before writeSection is reached).
+    const runs = await collectSamples(mode === 'withLlm' ? samples : 1, runOnce)
+    const last = runs[runs.length - 1]
+    const meta = { at: new Date().toISOString(), model: mode === 'withLlm' ? modelLabel : null }
+    let section: StoredSection
+    if (mode === 'withLlm') {
+      const aggregate = aggregateSamples(runs.map((run) => run.actual))
+      section = toSection(aggregate.snapshot, meta, { samples: aggregate.samples, observed: aggregate.observed })
+    } else {
+      section = toSection(last.actual, meta)
+    }
+    writeSection(c.outputPath, mode, section)
     record({
       caseId: c.id,
       mode,
       status: 'generated',
       failures: [],
       informational: [],
-      notes: [`wrote ${relOutput}`, ...notes],
+      notes: [`wrote ${relOutput}${mode === 'withLlm' ? ` (${runs.length} samples)` : ''}`, ...llmNotes(last.bodyText)],
     })
     return
   }
 
+  const { actual, bodyText } = await runOnce()
+  const notes = llmNotes(bodyText)
+
   const expected = stored?.[mode]
   if (!expected) throw new Error(`unreachable: "compare" planned without a stored ${mode} section`)
 
-  const { failures, informational } = compareSnapshots(mode, expected, actual)
+  const { failures, informational, warnings } = compareSection(mode, expected, actual)
   const failed = failures.length > 0
-  record({ caseId: c.id, mode, status: failed ? 'fail' : 'pass', failures, informational, notes })
+  record({
+    caseId: c.id,
+    mode,
+    status: failed ? 'fail' : 'pass',
+    failures,
+    informational,
+    warnings: warnings ?? [],
+    notes,
+  })
 
   if (failed) {
     throw new Error(
@@ -237,6 +271,18 @@ const cases = discoverCases(CASES_ROOT)
 describe('email extraction cases', () => {
   // console.log is swallowed under this setup; stdout.write is not.
   afterAll(() => {
+    // Facts about the stored baselines, read from disk after every run has had
+    // its chance to write one. Informational: none of it can fail the run.
+    for (const c of cases) {
+      const stored = readStoredOutput(c.outputPath)
+      const baseline = stored?.withLlm ?? stored?.withoutLlm
+      if (!baseline) continue
+      const intent = readIntent(c.intentPath)
+      report.recordBaseline(c.id, {
+        unstable: baseline.observed ? unstableFields(baseline.observed) : [],
+        intent: intent ? intentDisagreements(intent, baseline) : [],
+      })
+    }
     process.stdout.write(`${report.render()}\n`)
   })
 
@@ -244,10 +290,16 @@ describe('email extraction cases', () => {
     expect(cases.length, `no case folders under ${CASES_ROOT}`).toBeGreaterThan(0)
   })
 
+  it('has a valid intent.json wherever one exists', () => {
+    for (const c of cases) readIntent(c.intentPath)
+  })
+
   for (const c of cases) {
     describe(c.id, () => {
       for (const mode of RUN_MODES) {
-        it(mode, async (ctx) => {
+        // A generating withLlm run makes `samples` sequential calls.
+        const timeout = mode === 'withLlm' ? CALL_TIMEOUT_MS * samples : CALL_TIMEOUT_MS
+        it(mode, { timeout }, async (ctx) => {
           await runCase(c, mode, () => ctx.skip())
         })
       }
