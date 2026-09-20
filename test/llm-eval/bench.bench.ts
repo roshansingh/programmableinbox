@@ -119,11 +119,21 @@ async function benchOne(id: string, input: ReturnType<typeof readCaseInput>): Pr
   }
 }
 
+/**
+ * Written after every case, not only at the end: a slow model (a CPU server
+ * can take a quarter of an hour) must not lose its results if the process is
+ * interrupted. The last write wins, so a finished run is always complete.
+ */
+function writeResult(): ReturnType<typeof summarize> {
+  const summary = summarize(runs, refs)
+  const result = { label, provider: provider ?? null, model: model ?? null, at: new Date().toISOString(), cases: runs.length, summary, runs }
+  if (process.env.BENCH_OUT) fs.writeFileSync(process.env.BENCH_OUT, `${JSON.stringify(result, null, 2)}\n`)
+  return summary
+}
+
 describe(`benchmark ${label}`, () => {
   afterAll(() => {
-    const summary = summarize(runs, refs)
-    const result = { label, provider: provider ?? null, model: model ?? null, at: new Date().toISOString(), cases: runs.length, summary, runs }
-    if (process.env.BENCH_OUT) fs.writeFileSync(process.env.BENCH_OUT, `${JSON.stringify(result, null, 2)}\n`)
+    const summary = writeResult()
     const pct = (n: number, d = summary.cases) => `${n}/${d} (${d === 0 ? 0 : Math.round((100 * n) / d)}%)`
     process.stdout.write(
       [
@@ -150,6 +160,7 @@ describe(`benchmark ${label}`, () => {
       const input = readCaseInput(c)
       refs[c.id] = { intent: readIntent(c.intentPath), baseline: readStoredOutput(c.outputPath)?.withLlm ?? null }
       runs.push(await benchOne(c.id, input))
+      writeResult()
     })
   }
 })
