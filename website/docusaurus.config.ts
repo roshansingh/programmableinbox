@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'ProgrammableInbox',
   tagline: 'A secondary inbox built for developers.',
-  favicon: 'img/favicon.ico',
+  favicon: 'https://www.programmableinbox.com/favicon.png',
 
   url: 'https://docs.programmableinbox.com',
   baseUrl: '/',
@@ -71,6 +71,10 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: 'ProgrammableInbox',
+      logo: {
+        alt: 'ProgrammableInbox logo',
+        src: 'https://www.programmableinbox.com/pibx_logo_64.png',
+      },
       items: [
         {
           href: 'https://github.com/roshansingh/programmableinbox',

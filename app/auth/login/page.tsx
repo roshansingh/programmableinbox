@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Inbox } from 'lucide-react'
 import { signIn } from "@/lib/api/auth.api"
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
@@ -46,9 +45,11 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-              <Inbox className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img
+              src="https://www.programmableinbox.com/pibx_logo_64.png"
+              alt="Programmable Inbox"
+              className="h-12 w-12"
+            />
           </div>
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>
