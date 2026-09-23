@@ -37,6 +37,9 @@ export function ProductAnalyticsProvider() {
       api_host: config.posthogHost,
       autocapture: true,
       capture_exceptions: true,
+      ui_host: 'https://us.posthog.com',
+      defaults: '2026-05-30',
+      person_profiles: 'identified_only',
       // Email bodies, an API-key-reveal-once flow and auth-adjacent forms
       // all render in this app, so every input is masked by default.
       // Two elements carry additional, explicit masking on top of this —
