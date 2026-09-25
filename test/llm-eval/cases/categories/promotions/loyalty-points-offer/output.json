@@ -1,0 +1,135 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://rewards.example.com/redeem",
+          "label": "Redeem points",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://rewards.example.com/balance",
+          "label": "view balance",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://rewards.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://rewards.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:23.867Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://rewards.example.com/redeem",
+          "label": "Redeem points",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://rewards.example.com/balance",
+          "label": "view balance",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://rewards.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://rewards.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 30"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://rewards.example.com/redeem": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://rewards.example.com/balance": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://rewards.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://rewards.example.com/preferences": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:29.410Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "withoutLlm": {
+    "extractedOtp": "4821",
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:14.370Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": "4821",
+    "categories": [
+      "Primary"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": [
+        "Saturday",
+        "7"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "4821",
+          "count": 9
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:18.999Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

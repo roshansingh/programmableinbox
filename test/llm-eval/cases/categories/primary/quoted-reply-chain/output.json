@@ -1,0 +1,59 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:06.189Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Primary",
+      "Scheduling"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": [
+        "6pm Friday",
+        "Saturday",
+        "Tue, Sep 9, 2026 at 4:12 PM",
+        "Mon, Sep 8, 2026 at 9:40 AM"
+      ]
+    },
+    "samples": 10,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Primary",
+            "Scheduling"
+          ],
+          "count": 7
+        },
+        {
+          "value": [
+            "Scheduling"
+          ],
+          "count": 3
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 10
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:13.802Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

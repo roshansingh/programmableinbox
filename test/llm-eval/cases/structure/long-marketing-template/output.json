@@ -1,0 +1,768 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/summer",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/1?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 1",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/2?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 2",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/3?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 3",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/4?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 4",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/5?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 5",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/6?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 6",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/7?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 7",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/8?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 8",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/9?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 9",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/10?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 10",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/11?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 11",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/12?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 12",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/13?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 13",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/14?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 14",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/15?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 15",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/16?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 16",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/17?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 17",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/18?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 18",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/19?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 19",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/20?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 20",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/21?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 21",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/22?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 22",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/23?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 23",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/24?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 24",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/facebook",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/instagram",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/x",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/pinterest",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/tiktok",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/youtube",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/privacy",
+          "label": "Privacy policy",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:22.297Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/summer",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/1?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 1",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/2?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 2",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/3?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 3",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/4?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 4",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/5?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 5",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/6?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 6",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/7?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 7",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/8?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 8",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/9?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 9",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/10?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 10",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/11?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 11",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/12?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 12",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/13?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 13",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/14?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 14",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/15?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 15",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/16?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 16",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/17?utm_source=email&utm_campaign=summer-edit",
+          "label": "Linen shirt No. 17",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/18?utm_source=email&utm_campaign=summer-edit",
+          "label": "Wide-leg trousers No. 18",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/19?utm_source=email&utm_campaign=summer-edit",
+          "label": "Canvas tote No. 19",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/20?utm_source=email&utm_campaign=summer-edit",
+          "label": "Leather sandals No. 20",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/21?utm_source=email&utm_campaign=summer-edit",
+          "label": "Straw hat No. 21",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/22?utm_source=email&utm_campaign=summer-edit",
+          "label": "Cotton dress No. 22",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/23?utm_source=email&utm_campaign=summer-edit",
+          "label": "Stoneware mug No. 23",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/p/24?utm_source=email&utm_campaign=summer-edit",
+          "label": "Beeswax candle No. 24",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/facebook",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/instagram",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/x",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/pinterest",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/tiktok",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/youtube",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/privacy",
+          "label": "Privacy policy",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://shop.example.com/": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/summer": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/1?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/2?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/3?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/4?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/5?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/6?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/7?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/8?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/9?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/10?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/11?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/12?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/13?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/14?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/15?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/16?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/17?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/18?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/19?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/20?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/21?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/22?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/23?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/p/24?utm_source=email&utm_campaign=summer-edit": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/facebook": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/instagram": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/x": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/pinterest": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/tiktok": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/youtube": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/preferences": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/privacy": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:27.820Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

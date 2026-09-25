@@ -1,0 +1,9 @@
+Your message to friend@example.org couldn't be delivered.
+
+friend@example.org: 550 5.1.1 The email account that you tried to reach does not
+exist. Please try double-checking the recipient's email address for typos or
+unnecessary spaces.
+
+----- Original message -----
+Subject: Saturday
+Date: Tue, 9 Sep 2026 16:12:03 -0400

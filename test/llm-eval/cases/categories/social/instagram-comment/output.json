@@ -1,0 +1,140 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://social.example.com/p/CxY12/comments",
+          "label": "View comment",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/open",
+          "label": "Open Instagram",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/help",
+          "label": "Help",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:50.188Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Social"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://social.example.com/p/CxY12/comments",
+          "label": "View comment",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/open",
+          "label": "Open Instagram",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://social.example.com/help",
+          "label": "Help",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 15,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Social"
+          ],
+          "count": 15
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 15
+        }
+      ],
+      "links": {
+        "https://social.example.com/p/CxY12/comments": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 15
+          }
+        ],
+        "https://social.example.com/open": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 15
+          }
+        ],
+        "https://social.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 15
+          }
+        ],
+        "https://social.example.com/help": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 4
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:00.198Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

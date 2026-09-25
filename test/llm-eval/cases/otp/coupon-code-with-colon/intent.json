@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Promotions"
+  ],
+  "otp": null,
+  "note": "'code: 482913' is a discount, but the regex stores it as an OTP (known gap)"
+}

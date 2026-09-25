@@ -1,0 +1,72 @@
+{
+  "withoutLlm": {
+    "extractedOtp": "837412",
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "http://acme-secure-login.example.net/verify",
+          "label": "Verify your identity",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:30.367Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": "837412",
+    "categories": [
+      "Security",
+      "Urgent"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "http://acme-secure-login.example.net/verify",
+          "label": "Verify your identity",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security",
+            "Urgent"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "837412",
+          "count": 9
+        }
+      ],
+      "links": {
+        "http://acme-secure-login.example.net/verify": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:35.940Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

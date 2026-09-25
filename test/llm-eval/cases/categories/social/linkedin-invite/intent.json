@@ -1,0 +1,5 @@
+{
+  "categories": ["Social"],
+  "otp": null,
+  "note": "the button 'View on LinkedIn' is the main action but the CTA heuristic marks it non-CTA with high confidence (known gap)"
+}

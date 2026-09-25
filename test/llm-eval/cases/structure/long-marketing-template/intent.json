@@ -1,0 +1,5 @@
+{
+  "categories": ["Promotions"],
+  "otp": null,
+  "note": "10 KB+ template: body text passes the 4,000-character prompt cap and there are more than 10 low-confidence links (image-only links first), so neither reaches the model"
+}

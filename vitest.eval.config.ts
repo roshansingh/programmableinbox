@@ -36,6 +36,21 @@ export default defineConfig({
         resolve: { alias },
       },
       {
+        // Benchmarks one configured model over every case (test/llm-eval/bench.bench.ts).
+        // Not part of `eval:email`: it measures a model, it does not guard a baseline.
+        test: {
+          name: 'llm-bench',
+          include: ['test/llm-eval/**/*.bench.ts'],
+          environment: 'node',
+          globals: true,
+          // A slow local model can take a while per call; the runner enforces its own per-case limit.
+          testTimeout: 600_000,
+          hookTimeout: 60_000,
+          env: { LOG_LEVEL: 'silent' },
+        },
+        resolve: { alias },
+      },
+      {
         test: {
           name: 'llm-selftest',
           include: ['test/llm-eval/**/*.selftest.ts'],

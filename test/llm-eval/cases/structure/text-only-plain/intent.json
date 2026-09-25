@@ -1,0 +1,5 @@
+{
+  "categories": ["Notifications"],
+  "otp": null,
+  "note": "plain-text mail with bare URLs: exercises the text link-extraction path"
+}
