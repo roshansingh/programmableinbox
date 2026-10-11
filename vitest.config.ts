@@ -81,6 +81,7 @@ export default defineConfig({
             'lib/**/__tests__/**/*.test.*',
             'ee/**/__tests__/**/*.test.*',
             'scripts/__tests__/**/*.test.*',
+            'sdk/testing/src/**/__tests__/**/*.test.*',
           ],
           environment: 'node',
           globals: true,
