@@ -29,6 +29,14 @@ const otpRoute = (id: string) => ({
   }),
 })
 
+const nowRoute = (id: string) => ({
+  [`GET /api/v1/emailInbox/${id}/messages`]: () => ({
+    status: 200,
+    headers: { date: DATE },
+    body: { data: { messages: [], nextCursor: null, hasMore: false } },
+  }),
+})
+
 describe('pibxTasks', () => {
   it('registers the four tasks', () => {
     const tasks = register({ env: { PIBX_API_KEY: 'sk_live_x' } })
@@ -41,7 +49,7 @@ describe('pibxTasks', () => {
   })
 
   it('pibx:now returns the server time as ISO, using the inbox from config.env', async () => {
-    stub = await startStub(otpRoute('inbx_cfg'))
+    stub = await startStub(nowRoute('inbx_cfg'))
     const tasks = register({
       env: { PIBX_API_KEY: 'sk_live_cfg', PIBX_BASE_URL: stub.url, PIBX_INBOX_ID: 'inbx_cfg' },
     })
@@ -49,12 +57,12 @@ describe('pibxTasks', () => {
   })
 
   it('pibx:now prefers an inboxId in its argument', async () => {
-    stub = await startStub(otpRoute('inbx_arg'))
+    stub = await startStub(nowRoute('inbx_arg'))
     const tasks = register({
       env: { PIBX_API_KEY: 'sk_live_cfg', PIBX_BASE_URL: stub.url, PIBX_INBOX_ID: 'inbx_cfg' },
     })
     await tasks['pibx:now']({ inboxId: 'inbx_arg' })
-    expect(stub.requests[0].path).toBe('/api/v1/emailInbox/inbx_arg/otp')
+    expect(stub.requests[0].path).toBe('/api/v1/emailInbox/inbx_arg/messages')
   })
 
   it('reads key and base URL from config.env and returns just the code string', async () => {

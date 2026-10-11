@@ -19,9 +19,9 @@ cy.pibxOtp({ after: () => cy.contains('button', 'Continue').click() }).then((cod
 })
 ```
 
-You never handle timestamps: `otpAfter` / `pibxOtp` read the PIBX server's clock, run your
-action, then wait only for mail that arrived **after** that moment, so a code left over from a
-previous run can never be returned.
+You never handle timestamps: `otpAfter` / `pibxOtp` read the PIBX server's clock (and the
+newest mail already in the inbox), run your action, then wait only for mail that arrived **after**
+that moment, so a code left over from a previous run can never be returned.
 
 ## Install
 
@@ -38,7 +38,7 @@ Three variables cover everything. Set them in your shell, CI secrets, or (Cypres
 
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
-| `PIBX_API_KEY` | yes | — | An `sk_live_…` key. Needs the `email_messages:read` scope. |
+| `PIBX_API_KEY` | yes | — | An `sk_live_…` key. Needs `email_messages:read`; `createInbox` additionally needs `email_inboxes:create`. |
 | `PIBX_INBOX_ID` | for the shortcuts | — | The inbox your test account uses. Passing `inboxId` per call overrides it. |
 | `PIBX_BASE_URL` | no | `https://app.programmableinbox.com` | Point at a self-hosted instance. |
 | `PIBX_POLL_INTERVAL_MS` | no | `5000` | How often to check for mail. Raise it to send fewer requests. |
@@ -111,7 +111,7 @@ const { otp, message } = await pibx.otpAfter(() => sendTheEmail(), { from: 'exam
 | `otpAfter(trigger, { inboxId?, from?, timeoutMs?, pollIntervalMs? })` | `{ otp, message }` |
 | `messageAfter(trigger, { subject?, from?, ... })` | `message` |
 | `waitForOtp({ since, ... })` / `waitForMessage({ since, ... })` | as above, with an explicit `since` |
-| `serverNow(inboxId?)` | the server's time, ISO |
+| `serverNow(inboxId?)` | a boundary no earlier than the server's time, ISO: its clock, moved past any mail already in the inbox |
 | `createInbox({ email, name? })` | the inbox |
 
 ### Timing

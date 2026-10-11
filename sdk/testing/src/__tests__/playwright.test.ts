@@ -38,22 +38,21 @@ describe('pibxFixtures', () => {
   })
 
   it('otpAfter uses the pibxInboxId option and server time', async () => {
-    let n = 0
     stub = await startStub({
-      'GET /api/v1/emailInbox/inbx_pw/otp': () => {
-        n++
-        return n === 1
-          ? { status: 404, headers: { date: 'Sun, 11 Oct 2026 10:00:00 GMT' }, body: {} }
-          : {
-              status: 200,
-              body: {
-                data: {
-                  otp: '246810',
-                  message: { id: 'm', subject: 's', from: 'f', extractedOtp: '246810', createdAt: '2026-10-11T10:00:04Z' },
-                },
-              },
-            }
-      },
+      'GET /api/v1/emailInbox/inbx_pw/messages': () => ({
+        status: 200,
+        headers: { date: 'Sun, 11 Oct 2026 10:00:00 GMT' },
+        body: { data: { messages: [], nextCursor: null, hasMore: false } },
+      }),
+      'GET /api/v1/emailInbox/inbx_pw/otp': () => ({
+        status: 200,
+        body: {
+          data: {
+            otp: '246810',
+            message: { id: 'm', subject: 's', from: 'f', extractedOtp: '246810', createdAt: '2026-10-11T10:00:04Z' },
+          },
+        },
+      }),
     })
     const pibx = await resolvePibx({ pibxApiKey: 'sk_live_pw', pibxBaseUrl: stub.url, pibxInboxId: 'inbx_pw' })
     let triggered = false

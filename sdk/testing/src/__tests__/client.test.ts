@@ -214,7 +214,9 @@ describe('server diagnostics', () => {
   })
 
   it('serverNow throws on an unknown inbox so otpAfter never runs the trigger', async () => {
-    stub = await startStub({ [OTP]: () => ({ status: 404, body: { message: 'Not found' } }) })
+    stub = await startStub({
+      'GET /api/v1/emailInbox/inbx_1/messages': () => ({ status: 404, body: { message: 'Not found' } }),
+    })
     const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
     let ran = false
     await expect(
@@ -423,16 +425,67 @@ describe('default inbox', () => {
 describe('serverNow and otpAfter', () => {
   const DATE = 'Sun, 11 Oct 2026 10:00:00 GMT'
   const OTP_PATH = 'GET /api/v1/emailInbox/inbx_1/otp'
+  const MSG_PATH = 'GET /api/v1/emailInbox/inbx_1/messages'
+  const list = (messages: unknown[]) => ({ data: { messages, nextCursor: null, hasMore: false } })
+  const mail = (id: string, createdAt: string) => ({
+    id, subject: 'Hi', from: 'a@b.c', extractedOtp: null, createdAt,
+  })
 
-  it('serverNow returns the response Date header as an ISO string', async () => {
-    stub = await startStub({ [OTP_PATH]: () => ({ status: 404, headers: { date: DATE }, body: {} }) })
+  it('serverNow returns the response Date header as an ISO string when the inbox is empty', async () => {
+    stub = await startStub({ [MSG_PATH]: () => ({ status: 200, headers: { date: DATE }, body: list([]) }) })
     const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
     expect(await client.serverNow('inbx_1')).toBe('2026-10-11T10:00:00.000Z')
-    expect(stub.requests[0].query).toMatchObject({ withinMinutes: '1' })
+    expect(stub.requests[0].query).toMatchObject({ limit: '1', grouped: 'false' })
+  })
+
+  it('serverNow moves past mail created in the same second as the Date header', async () => {
+    // Date has one-second precision: mail created at .750 of that second would
+    // otherwise satisfy `createdAt >= since` and be returned as fresh.
+    stub = await startStub({
+      [MSG_PATH]: () => ({
+        status: 200,
+        headers: { date: DATE },
+        body: list([mail('stale', '2026-10-11T10:00:00.750Z')]),
+      }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    expect(await client.serverNow('inbx_1')).toBe('2026-10-11T10:00:00.751Z')
+  })
+
+  it('serverNow keeps the Date header when the newest mail is older', async () => {
+    stub = await startStub({
+      [MSG_PATH]: () => ({
+        status: 200,
+        headers: { date: DATE },
+        body: list([mail('old', '2026-10-11T09:00:00.000Z')]),
+      }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    expect(await client.serverNow('inbx_1')).toBe('2026-10-11T10:00:00.000Z')
+  })
+
+  it('otpAfter does not return a code that arrived earlier in the same second as server time', async () => {
+    let otpCalls = 0
+    stub = await startStub({
+      [MSG_PATH]: () => ({
+        status: 200,
+        headers: { date: DATE },
+        body: list([mail('stale', '2026-10-11T10:00:00.750Z')]),
+      }),
+      [OTP_PATH]: () => {
+        otpCalls++
+        return otpCalls < 3
+          ? { status: 200, body: otpBody('000000', '2026-10-11T10:00:00.750Z') }
+          : { status: 200, body: otpBody('654321', '2026-10-11T10:00:05.000Z') }
+      },
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const res = await client.otpAfter(() => {}, { inboxId: 'inbx_1', ...fast })
+    expect(res.otp).toBe('654321')
   })
 
   it('serverNow throws PibxAuthError on 403', async () => {
-    stub = await startStub({ [OTP_PATH]: () => ({ status: 403, body: {} }) })
+    stub = await startStub({ [MSG_PATH]: () => ({ status: 403, body: {} }) })
     const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
     await expect(client.serverNow('inbx_1')).rejects.toBeInstanceOf(PibxAuthError)
   })
@@ -441,7 +494,7 @@ describe('serverNow and otpAfter', () => {
     const client = createPibxClient({
       apiKey: KEY,
       baseUrl: 'http://stub',
-      fetch: async () => new Response('{}', { status: 404 }),
+      fetch: async () => new Response(JSON.stringify(list([])), { status: 200 }),
     })
     await expect(client.serverNow('inbx_1')).rejects.toBeInstanceOf(PibxHttpError)
   })
@@ -449,10 +502,10 @@ describe('serverNow and otpAfter', () => {
   it('otpAfter reads server time, then runs the trigger, then waits, skipping a code older than server time', async () => {
     let n = 0
     stub = await startStub({
+      [MSG_PATH]: () => ({ status: 200, headers: { date: DATE }, body: list([]) }),
       [OTP_PATH]: () => {
         n++
-        if (n === 1) return { status: 404, headers: { date: DATE }, body: {} }
-        if (n === 2) return { status: 200, body: otpBody('000000', '2026-10-11T09:59:00Z') }
+        if (n === 1) return { status: 200, body: otpBody('000000', '2026-10-11T09:59:00Z') }
         return { status: 200, body: otpBody('654321', '2026-10-11T10:00:05Z') }
       },
     })
@@ -469,7 +522,7 @@ describe('serverNow and otpAfter', () => {
   })
 
   it('otpAfter never runs the trigger when the server-time lookup fails', async () => {
-    stub = await startStub({ [OTP_PATH]: () => ({ status: 401, body: {} }) })
+    stub = await startStub({ [MSG_PATH]: () => ({ status: 401, body: {} }) })
     const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
     let ran = false
     await expect(
@@ -481,18 +534,93 @@ describe('serverNow and otpAfter', () => {
   it('messageAfter waits for a message created after server time', async () => {
     let n = 0
     stub = await startStub({
-      [OTP_PATH]: () => ({ status: 404, headers: { date: DATE }, body: {} }),
-      'GET /api/v1/emailInbox/inbx_1/messages': () => {
+      [MSG_PATH]: () => {
         n++
-        const createdAt = n === 1 ? '2026-10-11T09:00:00Z' : '2026-10-11T10:00:03Z'
-        return {
-          status: 200,
-          body: { data: { messages: [{ id: `m${n}`, subject: 'Hi', from: 'a@b.c', extractedOtp: null, createdAt }] } },
-        }
+        if (n === 1) return { status: 200, headers: { date: DATE }, body: list([]) }
+        const createdAt = n === 2 ? '2026-10-11T09:00:00Z' : '2026-10-11T10:00:03Z'
+        return { status: 200, body: list([mail(`m${n}`, createdAt)]) }
       },
     })
     const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
     const m = await client.messageAfter(() => {}, { inboxId: 'inbx_1', ...fast })
-    expect(m.id).toBe('m2')
+    expect(m.id).toBe('m3')
+  })
+})
+
+describe('waitForMessage pagination and shape', () => {
+  const MSG = 'GET /api/v1/emailInbox/inbx_1/messages'
+  const mail = (id: string, subject: string | null, createdAt: string) => ({
+    id, subject, from: 'a@b.c', extractedOtp: null, createdAt,
+  })
+
+  it('follows nextCursor to find a match beyond the first page', async () => {
+    stub = await startStub({
+      [MSG]: (_req, url) =>
+        url.searchParams.get('cursor') === 'c1'
+          ? {
+              status: 200,
+              body: { data: { messages: [mail('hit', 'Reset your password', '2026-10-11T10:00:02Z')], nextCursor: null, hasMore: false } },
+            }
+          : {
+              status: 200,
+              body: { data: { messages: [mail('other', 'Welcome', '2026-10-11T10:00:03Z')], nextCursor: 'c1', hasMore: true } },
+            },
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const m = await client.waitForMessage({
+      inboxId: 'inbx_1', since: '2026-10-11T10:00:00Z', subject: 'reset', ...fast,
+    })
+    expect(m.id).toBe('hit')
+    expect(stub.requests.map((r) => r.query.cursor)).toEqual([undefined, 'c1'])
+  })
+
+  it('stops paging once a page reaches mail older than since', async () => {
+    stub = await startStub({
+      [MSG]: () => ({
+        status: 200,
+        body: { data: { messages: [mail('old', 'x', '2026-10-11T08:00:00Z')], nextCursor: 'c1', hasMore: true } },
+      }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    await expect(
+      client.waitForMessage({ inboxId: 'inbx_1', since: '2026-10-11T10:00:00Z', pollIntervalMs: 5, timeoutMs: 30 }),
+    ).rejects.toBeInstanceOf(PibxTimeoutError)
+    expect(stub.requests.every((r) => r.query.cursor === undefined)).toBe(true)
+  })
+
+  it.each([
+    ['a null element', [null]],
+    ['a missing createdAt', [{ id: 'm', subject: 'x', from: 'a@b.c' }]],
+    ['a non-string subject', [{ id: 'm', subject: 5, from: 'a@b.c', createdAt: '2026-10-11T10:00:05Z' }]],
+  ])('reports %s as PibxHttpError, not a timeout', async (_label, messages) => {
+    stub = await startStub({
+      [MSG]: () => ({ status: 200, body: { data: { messages, nextCursor: null, hasMore: false } } }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client
+      .waitForMessage({ inboxId: 'inbx_1', since: new Date(0), pollIntervalMs: 5, timeoutMs: 200 })
+      .catch((e) => e)
+    expect(err).toBeInstanceOf(PibxHttpError)
+    expect(err).not.toBeInstanceOf(PibxTimeoutError)
+  })
+})
+
+describe('403 names the scope the operation needs', () => {
+  it('createInbox asks for email_inboxes:create', async () => {
+    stub = await startStub({ 'POST /api/v1/emailInbox': () => ({ status: 403, body: { message: 'Forbidden' } }) })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client.createInbox({ email: 'qa@x.dev' }).catch((e) => e)
+    expect(err).toBeInstanceOf(PibxAuthError)
+    expect(err.message).toContain('email_inboxes:create')
+    expect(err.message).not.toContain('email_messages:read')
+  })
+
+  it('reads still ask for email_messages:read', async () => {
+    stub = await startStub({
+      'GET /api/v1/emailInbox/inbx_1/otp': () => ({ status: 403, body: {} }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client.waitForOtp({ inboxId: 'inbx_1', since: new Date(0), ...fast }).catch((e) => e)
+    expect(err.message).toContain('email_messages:read')
   })
 })

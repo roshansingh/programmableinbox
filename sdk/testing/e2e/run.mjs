@@ -5,31 +5,28 @@ import { startStub } from '../test-support/stub-server.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-// The OTP route plays a mailbox: the first request (the server-time lookup)
-// sees nothing yet; the next ones see a code created *after* that time.
-let calls = 0
+// The messages route answers the server-time lookup with an empty inbox; the
+// OTP route then plays a mailbox holding a code created *after* that time.
 const stub = await startStub({
-  'GET /api/v1/emailInbox/inbx_e2e/otp': (_req, url) => {
-    calls++
-    if (calls % 2 === 1 && url.searchParams.get('withinMinutes') === '1') {
-      return { status: 404, body: { message: 'No OTP' } }
-    }
-    return {
-      status: 200,
-      body: {
-        data: {
-          otp: '314159',
-          message: {
-            id: 'm',
-            subject: 'Your code',
-            from: 'noreply@openai.com',
-            extractedOtp: '314159',
-            createdAt: new Date(Date.now() + 60_000).toISOString(),
-          },
+  'GET /api/v1/emailInbox/inbx_e2e/messages': () => ({
+    status: 200,
+    body: { data: { messages: [], nextCursor: null, hasMore: false } },
+  }),
+  'GET /api/v1/emailInbox/inbx_e2e/otp': () => ({
+    status: 200,
+    body: {
+      data: {
+        otp: '314159',
+        message: {
+          id: 'm',
+          subject: 'Your code',
+          from: 'noreply@openai.com',
+          extractedOtp: '314159',
+          createdAt: new Date(Date.now() + 60_000).toISOString(),
         },
       },
-    }
-  },
+    },
+  }),
 })
 
 const env = {
