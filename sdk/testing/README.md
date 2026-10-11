@@ -3,6 +3,9 @@
 Read a [ProgrammableInbox](https://programmableinbox.com) inbox from your **Cypress** or
 **Playwright** tests: trigger an email, wait for the one-time code, type it in.
 
+> **PIBX** is short for ProgrammableInbox: it prefixes this package's environment variables
+> (`PIBX_API_KEY`), Cypress commands (`cy.pibxOtp`) and Playwright fixtures (`pibx`).
+
 ```ts
 // Playwright
 const { otp } = await pibx.otpAfter(() => page.getByRole('button', { name: 'Continue' }).click())

@@ -106,6 +106,13 @@ describe('getManifestVersion', () => {
     expect(version).toMatch(/^\d+\.\d+\.\d+/)
   })
 
+  it('reads the test-helpers package version from sdk/testing/package.json', () => {
+    expect(MANIFEST_PATHS.testing).toBe('sdk/testing/package.json')
+    expect(SDK_LANGUAGES).toContain('testing')
+    const pkg = JSON.parse(readFileSync(resolve(ROOT, 'sdk/testing/package.json'), 'utf8'))
+    expect(getManifestVersion('testing')).toBe(pkg.version)
+  })
+
   it('reads from the given root override', () => {
     expect(getManifestVersion('go', ROOT)).toBe(readFileSync(resolve(ROOT, MANIFEST_PATHS.go), 'utf8').trim())
   })
