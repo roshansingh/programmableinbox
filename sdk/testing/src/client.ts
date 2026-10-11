@@ -201,7 +201,17 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
     return data as T
   }
 
-  function failure(res: Response, path: string): Error {
+  /** The server's `{ message }` explanation, if the body has one. Never throws. */
+  async function serverMessage(res: Response): Promise<string | undefined> {
+    try {
+      const body = (await res.clone().json()) as { message?: unknown } | null
+      return typeof body?.message === 'string' ? body.message : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  function failure(res: Response, path: string, message?: string): Error {
     if (res.status === 401 || res.status === 403) {
       return new PibxAuthError(
         res.status,
@@ -209,11 +219,38 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
           + 'email_messages:read scope.',
       )
     }
-    return new PibxHttpError(res.status, path, `PIBX ${path} returned ${res.status}`)
+    return new PibxHttpError(
+      res.status,
+      path,
+      `PIBX ${path} returned ${res.status}${message ? `: ${message}` : ''}`,
+    )
   }
+
+  /**
+   * The server answers the *same* 404 status for "no such inbox" and for "no
+   * code yet", and tells them apart only in the body. Retrying the first for a
+   * minute (after `otpAfter` has already fired a real email) just hides a typo
+   * in the inbox id behind a timeout.
+   */
+  const NOT_FOUND_MESSAGE = 'Not found'
+  const inboxNotFound = (path: string) =>
+    new PibxHttpError(
+      404,
+      path,
+      `PIBX ${path} says the inbox was not found. Check the inbox id (PIBX_INBOX_ID) `
+        + 'and that the API key belongs to the same organization.',
+    )
 
   /** Statuses worth another attempt before the deadline. */
   const retryable = (s: number) => s === 404 || s === 429 || s >= 500
+
+  /** A non-2xx inside a poll: throw if retrying cannot help, else a not-done result. */
+  async function notOk(res: Response, path: string): Promise<Attempt<never>> {
+    const message = await serverMessage(res)
+    if (res.status === 404 && message === NOT_FOUND_MESSAGE) throw inboxNotFound(path)
+    if (!retryable(res.status)) throw failure(res, path, message)
+    return { done: false, lastStatus: res.status, lastMessage: message, retryAfterMs: retryAfterMs(res) }
+  }
 
   /** Maps a transient network failure inside an attempt to a retryable result. */
   async function guarded<T>(run: () => Promise<Attempt<T>>): Promise<Attempt<T>> {
@@ -257,10 +294,15 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
             if (Date.parse(data.message.createdAt) >= cutoff) {
               return { done: true, value: { otp: data.otp, message: data.message } }
             }
-            return { done: false, lastStatus: res.status }
+            return {
+              done: false,
+              lastStatus: res.status,
+              lastMessage:
+                `the newest code (created ${data.message.createdAt}) is older than since `
+                + `(${new Date(cutoff).toISOString()}); no new mail has arrived yet`,
+            }
           }
-          if (!retryable(res.status)) throw failure(res, path)
-          return { done: false, lastStatus: res.status, retryAfterMs: retryAfterMs(res) }
+          return notOk(res, path)
         }),
       {
         ...pollOptions(input),
@@ -294,10 +336,16 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
                 Date.parse(m.createdAt) >= cutoff
                 && (wantSubject === undefined || (m.subject ?? '').toLowerCase().includes(wantSubject)),
             )
-            return hit ? { done: true, value: hit } : { done: false, lastStatus: res.status }
+            if (hit) return { done: true, value: hit }
+            return {
+              done: false,
+              lastStatus: res.status,
+              lastMessage:
+                `${data.messages.length} message(s) found, none created at or after `
+                + `${new Date(cutoff).toISOString()} that match`,
+            }
           }
-          if (!retryable(res.status)) throw failure(res, path)
-          return { done: false, lastStatus: res.status, retryAfterMs: retryAfterMs(res) }
+          return notOk(res, path)
         }),
       {
         ...pollOptions(input),
@@ -312,6 +360,10 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
     // the scope every wait already requires. Any answer carries a Date header.
     const res = await callOnce('GET', path, { withinMinutes: '1' })
     if (res.status === 401 || res.status === 403) throw failure(res, path)
+    // Fail here, before the caller's trigger fires a real email at a typo'd id.
+    if (res.status === 404 && (await serverMessage(res)) === NOT_FOUND_MESSAGE) {
+      throw inboxNotFound(path)
+    }
     const header = res.headers.get('date')
     const ms = header === null ? Number.NaN : Date.parse(header)
     if (Number.isNaN(ms)) {
@@ -325,7 +377,7 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
     async createInbox(input) {
       const path = '/api/v1/emailInbox'
       const res = await callOnce('POST', path, undefined, input)
-      if (!res.ok) throw failure(res, path)
+      if (!res.ok) throw failure(res, path, await serverMessage(res))
       return readData<Inbox>(res, path)
     },
     waitForOtp,

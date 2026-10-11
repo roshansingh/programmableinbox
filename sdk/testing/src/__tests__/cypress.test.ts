@@ -70,6 +70,18 @@ describe('pibxTasks', () => {
     expect(stub.requests[0].headers.authorization).toBe('Bearer sk_live_cfg')
   })
 
+  it('removes the API key from config.env so Cypress does not ship it to the browser', async () => {
+    stub = await startStub(otpRoute('inbx_1'))
+    const config = { env: { PIBX_API_KEY: 'sk_live_secret', PIBX_BASE_URL: stub.url } }
+    const tasks = register(config)
+    // config.env is serialised to the browser (Cypress.env(), the Settings
+    // panel, the command log); the key must be gone before that happens.
+    expect(config.env.PIBX_API_KEY).toBeUndefined()
+    // ...yet the Node-side tasks still authenticate with it.
+    await tasks['pibx:waitForOtp']({ inboxId: 'inbx_1', since: '2026-01-01T00:00:00Z', timeoutMs: 200 })
+    expect(stub.requests[0].headers.authorization).toBe('Bearer sk_live_secret')
+  })
+
   it('defers the missing-key error to the first task call, not config load', async () => {
     const prev = process.env.PIBX_API_KEY
     delete process.env.PIBX_API_KEY

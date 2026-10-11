@@ -199,8 +199,79 @@ describe('waitForOtp', () => {
   })
 })
 
+describe('server diagnostics', () => {
+  const OTP = 'GET /api/v1/emailInbox/inbx_1/otp'
+
+  it('fails fast, naming the inbox, when the server says the inbox is not found', async () => {
+    stub = await startStub({ [OTP]: () => ({ status: 404, body: { message: 'Not found' } }) })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client.waitForOtp({ inboxId: 'inbx_1', since: new Date(0), ...fast }).catch((e) => e)
+    expect(err).toBeInstanceOf(PibxHttpError)
+    expect(err).not.toBeInstanceOf(PibxTimeoutError)
+    expect(err.message).toMatch(/inbx_1/)
+    expect(err.message).toMatch(/not found/i)
+    expect(stub.requests).toHaveLength(1)
+  })
+
+  it('serverNow throws on an unknown inbox so otpAfter never runs the trigger', async () => {
+    stub = await startStub({ [OTP]: () => ({ status: 404, body: { message: 'Not found' } }) })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    let ran = false
+    await expect(
+      client.otpAfter(() => { ran = true }, { inboxId: 'inbx_1', ...fast }),
+    ).rejects.toBeInstanceOf(PibxHttpError)
+    expect(ran).toBe(false)
+  })
+
+  it('still retries the ordinary "no code yet" 404 and reports the server message on timeout', async () => {
+    const message = 'No message with a one-time code has arrived in the last 15 minutes.'
+    stub = await startStub({ [OTP]: () => ({ status: 404, body: { message } }) })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client
+      .waitForOtp({ inboxId: 'inbx_1', since: new Date(0), pollIntervalMs: 5, timeoutMs: 40 })
+      .catch((e) => e)
+    expect(err).toBeInstanceOf(PibxTimeoutError)
+    expect(err.message).toContain(message)
+    expect(stub.requests.length).toBeGreaterThan(1)
+  })
+
+  it('says so when the newest code is older than since, instead of a bare "last status 200"', async () => {
+    stub = await startStub({
+      [OTP]: () => ({ status: 200, body: otpBody('111111', '2026-10-11T09:00:00Z') }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client
+      .waitForOtp({ inboxId: 'inbx_1', since: '2026-10-11T10:00:00Z', pollIntervalMs: 5, timeoutMs: 40 })
+      .catch((e) => e)
+    expect(err).toBeInstanceOf(PibxTimeoutError)
+    expect(err.message).toContain('older than since')
+    expect(err.message).toContain('2026-10-11T09:00:00Z')
+  })
+
+  it("keeps the server's explanation on a 400", async () => {
+    stub = await startStub({
+      [OTP]: () => ({ status: 400, body: { message: 'from must be at most 200 characters' } }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    const err = await client.waitForOtp({ inboxId: 'inbx_1', since: new Date(0), ...fast }).catch((e) => e)
+    expect(err).toBeInstanceOf(PibxHttpError)
+    expect(err.message).toContain('from must be at most 200 characters')
+  })
+
+  it('fails fast on an unknown inbox in waitForMessage too', async () => {
+    stub = await startStub({
+      'GET /api/v1/emailInbox/inbx_1/messages': () => ({ status: 404, body: { message: 'Not found' } }),
+    })
+    const client = createPibxClient({ apiKey: KEY, baseUrl: stub.url })
+    await expect(
+      client.waitForMessage({ inboxId: 'inbx_1', since: new Date(0), ...fast }),
+    ).rejects.toBeInstanceOf(PibxHttpError)
+    expect(stub.requests).toHaveLength(1)
+  })
+})
+
 describe('waitForMessage', () => {
-  const msg = (id: string, subject: string, createdAt: string) => ({
+  const msg =(id: string, subject: string, createdAt: string) => ({
     id, subject, from: 'a@b.c', extractedOtp: null, createdAt,
   })
 

@@ -82,6 +82,15 @@ describe('poll', () => {
     expect(seen).toEqual([5_000, 3_000, 1_000, 0])
   })
 
+  it('includes the last server message beside the status', async () => {
+    const clock = fakeClock()
+    const err = await poll(
+      async () => ({ done: false as const, lastStatus: 404, lastMessage: 'No message with a one-time code' }),
+      { timeoutMs: 0, intervalMs: 1, describe: 'a code', clock },
+    ).catch((e) => e)
+    expect(err.message).toContain('last status 404: No message with a one-time code')
+  })
+
   it('reports lastError in the timeout message when there is no status', async () => {
     const clock = fakeClock()
     const err = await poll(async () => ({ done: false as const, lastError: 'fetch failed' }), {

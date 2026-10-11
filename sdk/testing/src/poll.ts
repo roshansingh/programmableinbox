@@ -12,7 +12,14 @@ export const realClock: Clock = {
 
 export type Attempt<T> =
   | { done: true; value: T }
-  | { done: false; lastStatus?: number; lastError?: string; retryAfterMs?: number }
+  | {
+      done: false
+      lastStatus?: number
+      /** What the server (or the client's own comparison) said about why not yet. */
+      lastMessage?: string
+      lastError?: string
+      retryAfterMs?: number
+    }
 
 /**
  * Always makes at least one attempt, so `timeoutMs: 0` means "check once".
@@ -34,7 +41,7 @@ export async function poll<T>(
     if (remaining <= 0) {
       const detail =
         result.lastStatus !== undefined
-          ? ` (last status ${result.lastStatus})`
+          ? ` (last status ${result.lastStatus}${result.lastMessage ? `: ${result.lastMessage}` : ''})`
           : result.lastError !== undefined
             ? ` (last error: ${result.lastError})`
             : ''

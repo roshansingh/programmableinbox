@@ -19,6 +19,13 @@ const asString = (v: unknown) => (typeof v === 'string' && v !== '' ? v : undefi
  * including ones that never touch PIBX, and a missing key must not break those.
  */
 export function pibxTasks(on: OnTask, config: PibxCypressConfig, options: { fetch?: typeof fetch } = {}): void {
+  // Everything left in config.env is serialised to the browser: Cypress.env(),
+  // the open-mode Settings panel, the command log and videos. Take the key out
+  // *now*, into a closure only the Node-side tasks can see. The (mutated) config
+  // is what the user returns from setupNodeEvents.
+  const apiKey = asString(config.env.PIBX_API_KEY)
+  delete config.env.PIBX_API_KEY
+
   let client: PibxClient | undefined
   const get = () => {
     if (client) return client
@@ -29,9 +36,9 @@ export function pibxTasks(on: OnTask, config: PibxCypressConfig, options: { fetc
       throw new RangeError('PIBX_POLL_INTERVAL_MS must be a positive integer number of milliseconds')
     }
     client = createPibxClient({
-      // config.env carries cypress.env.json and CYPRESS_* variables. Falling
-      // through to undefined lets the core client consult process.env.
-      apiKey: asString(config.env.PIBX_API_KEY),
+      // Captured above. undefined lets the core client consult process.env,
+      // which is the channel that never reaches the browser at all.
+      apiKey,
       baseUrl: asString(config.env.PIBX_BASE_URL),
       inboxId: asString(config.env.PIBX_INBOX_ID),
       // Cypress coerces numeric env values, so this may arrive as a number.
