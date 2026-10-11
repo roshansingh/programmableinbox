@@ -18,7 +18,7 @@
 - Node 18+ (global `fetch`); `engines.node` is `>=18`.
 - `since` is a **required** argument on `waitForOtp` and `waitForMessage`; never defaulted.
 - `apiKey` defaults to `PIBX_API_KEY`, `baseUrl` to `PIBX_BASE_URL`, then `https://app.programmableinbox.com`. A missing key throws at construction naming `PIBX_API_KEY`.
-- Defaults: poll interval 2000 ms, timeout 60000 ms.
+- Defaults: poll interval **5000 ms** (so a full 60 s wait is ~12 requests), timeout 60000 ms. The interval is configurable at three levels, most specific wins: per call (`pollIntervalMs`), per client (`createPibxClient({ pollIntervalMs })`), then the `PIBX_POLL_INTERVAL_MS` environment variable. A client-level or env value that is set but not a positive integer throws at construction, never silently falls back.
 - 401/403 never retry; 404, 429 and 5xx retry until the deadline.
 - The package never auto-creates or auto-deletes inboxes. No site-specific (ChatGPT) helper.
 - Per `CLAUDE.md`: all work in a worktree; `npm run test` must pass before any PR; the suite's test count must not decrease.
@@ -33,7 +33,7 @@ Failure modes the spec implies but no obvious happy-path test exercises, most li
 4. **A `200` whose body is not the expected JSON** (an HTML error page from a proxy, or `data.otp` missing): must be a `PibxHttpError`, not a `TypeError` from reading `undefined`. Pinned in Task 2.
 5. **The API key leaking into an error message or `toString`**: errors carry status and path only. Pinned in Task 2.
 
-Also pinned: `timeoutMs: 0` still makes exactly one attempt (Task 1), and a `429` with `Retry-After` is honoured but never sleeps past the deadline (Task 1).
+Also pinned: `timeoutMs: 0` still makes exactly one attempt (Task 1), a `429` with `Retry-After` is honoured but never sleeps past the deadline (Task 1), and a set-but-invalid `PIBX_POLL_INTERVAL_MS` (`abc`, `0`, `-5`, `2.5`) throws at construction rather than becoming the default (Task 2).
 
 ---
 
@@ -410,7 +410,11 @@ git commit -m "feat(testing): scaffold @programmableinbox/testing with errors an
     id: string; subject: string | null; from: string; extractedOtp: string | null
     createdAt: string; [k: string]: unknown
   }
-  export interface ClientOptions { apiKey?: string; baseUrl?: string; fetch?: typeof fetch; clock?: Clock }
+  export interface ClientOptions {
+    apiKey?: string; baseUrl?: string; fetch?: typeof fetch; clock?: Clock
+    /** Default poll interval for every wait on this client. Positive integer ms. */
+    pollIntervalMs?: number
+  }
   export interface WaitOptions {
     inboxId: string; since: Date | string; from?: string
     timeoutMs?: number; pollIntervalMs?: number
@@ -636,6 +640,71 @@ describe('waitForOtp', () => {
 })
 ```
 
+Also append to `client.test.ts` (add `import type { Clock } from '../poll.js'` at the top):
+
+```ts
+function fakeClock(): Clock & { slept: number[] } {
+  let t = 0
+  const slept: number[] = []
+  return { slept, now: () => t, sleep: async (ms) => { slept.push(ms); t += ms } }
+}
+
+describe('poll interval configuration', () => {
+  const never = { 'GET /api/v1/emailInbox/inbx_1/otp': () => ({ status: 404, body: {} }) }
+  const wait = (client: ReturnType<typeof createPibxClient>, extra: object) =>
+    client.waitForOtp({ inboxId: 'inbx_1', since: new Date(0), ...extra }).catch(() => undefined)
+
+  async function withEnv(value: string | undefined, fn: () => Promise<void> | void) {
+    const prev = process.env.PIBX_POLL_INTERVAL_MS
+    if (value === undefined) delete process.env.PIBX_POLL_INTERVAL_MS
+    else process.env.PIBX_POLL_INTERVAL_MS = value
+    try {
+      await fn()
+    } finally {
+      if (prev === undefined) delete process.env.PIBX_POLL_INTERVAL_MS
+      else process.env.PIBX_POLL_INTERVAL_MS = prev
+    }
+  }
+
+  it('polls every 5 seconds by default', async () => {
+    stub = await startStub(never)
+    const clock = fakeClock()
+    await withEnv(undefined, () => wait(createPibxClient({ apiKey: KEY, baseUrl: stub!.url, clock }), { timeoutMs: 12_000 }))
+    expect(clock.slept).toEqual([5_000, 5_000, 2_000])
+  })
+
+  it('uses the client-level pollIntervalMs', async () => {
+    stub = await startStub(never)
+    const clock = fakeClock()
+    await wait(createPibxClient({ apiKey: KEY, baseUrl: stub.url, clock, pollIntervalMs: 3_000 }), { timeoutMs: 7_000 })
+    expect(clock.slept).toEqual([3_000, 3_000, 1_000])
+  })
+
+  it('lets a per-call pollIntervalMs override the client-level one', async () => {
+    stub = await startStub(never)
+    const clock = fakeClock()
+    await wait(createPibxClient({ apiKey: KEY, baseUrl: stub.url, clock, pollIntervalMs: 3_000 }), {
+      timeoutMs: 4_000,
+      pollIntervalMs: 2_000,
+    })
+    expect(clock.slept).toEqual([2_000, 2_000])
+  })
+
+  it('reads PIBX_POLL_INTERVAL_MS when no option is given', async () => {
+    stub = await startStub(never)
+    const clock = fakeClock()
+    await withEnv('10000', () => wait(createPibxClient({ apiKey: KEY, baseUrl: stub!.url, clock }), { timeoutMs: 20_000 }))
+    expect(clock.slept).toEqual([10_000, 10_000])
+  })
+
+  it.each(['abc', '0', '-5', '2.5'])('throws at construction for PIBX_POLL_INTERVAL_MS=%s', async (bad) => {
+    await withEnv(bad, () => {
+      expect(() => createPibxClient({ apiKey: KEY })).toThrow(/PIBX_POLL_INTERVAL_MS/)
+    })
+  })
+})
+```
+
 - [ ] **Step 3: Run to verify failure**
 
 Run: `npx vitest run --project node sdk/testing/src/__tests__/client.test.ts`
@@ -696,7 +765,7 @@ export interface PibxClient {
 
 const DEFAULT_BASE_URL = 'https://app.programmableinbox.com'
 const DEFAULT_TIMEOUT_MS = 60_000
-const DEFAULT_INTERVAL_MS = 2_000
+const DEFAULT_INTERVAL_MS = 5_000
 const OTP_WINDOW_MINUTES = '15'
 
 function sinceMs(since: Date | string): number {
@@ -707,6 +776,21 @@ function sinceMs(since: Date | string): number {
     )
   }
   return ms
+}
+
+function assertInterval(value: number, name: string): number {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new RangeError(`${name} must be a positive integer number of milliseconds`)
+  }
+  return value
+}
+
+/** Option wins over the environment, which wins over the default. Set-but-invalid throws. */
+function resolveDefaultInterval(explicit: number | undefined): number {
+  if (explicit !== undefined) return assertInterval(explicit, 'pollIntervalMs')
+  const raw = process.env.PIBX_POLL_INTERVAL_MS
+  if (raw === undefined || raw.trim() === '') return DEFAULT_INTERVAL_MS
+  return assertInterval(Number(raw), 'PIBX_POLL_INTERVAL_MS')
 }
 
 function retryAfterMs(res: Response): number | undefined {
@@ -726,6 +810,7 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
   const base = (options.baseUrl ?? process.env.PIBX_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
   const doFetch = options.fetch ?? fetch
   const clock = options.clock
+  const defaultInterval = resolveDefaultInterval(options.pollIntervalMs)
 
   async function call(method: string, path: string, query?: Record<string, string>, body?: unknown) {
     const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query)}` : ''
@@ -770,7 +855,7 @@ export function createPibxClient(options: ClientOptions = {}): PibxClient {
 
   const intervals = (o: WaitOptions) => ({
     timeoutMs: o.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    intervalMs: o.pollIntervalMs ?? DEFAULT_INTERVAL_MS,
+    intervalMs: o.pollIntervalMs ?? defaultInterval,
     clock,
   })
 
@@ -838,7 +923,7 @@ export { PibxAuthError, PibxError, PibxHttpError, PibxTimeoutError } from './err
 - [ ] **Step 5: Run to verify it passes, then commit**
 
 Run: `npx vitest run --project node sdk/testing/src/__tests__`
-Expected: PASS (poll 4 + client 11).
+Expected: PASS (poll 4 + client 16).
 
 ```bash
 git add sdk/testing
@@ -1112,6 +1197,12 @@ export function pibxTasks(on: OnTask, config: PibxCypressConfig, options: { fetc
       // through to undefined lets the core client consult process.env.
       apiKey: asString(config.env.PIBX_API_KEY),
       baseUrl: asString(config.env.PIBX_BASE_URL),
+      // Cypress coerces numeric env values to numbers; undefined falls through
+      // to the core client's own PIBX_POLL_INTERVAL_MS / default handling.
+      pollIntervalMs:
+        config.env.PIBX_POLL_INTERVAL_MS === undefined || config.env.PIBX_POLL_INTERVAL_MS === ''
+          ? undefined
+          : Number(config.env.PIBX_POLL_INTERVAL_MS),
       fetch: options.fetch,
     }))
 
@@ -1481,7 +1572,7 @@ Expected: lint clean; `no-raw-env` PASS. If `no-raw-env` still fails, it lists t
 
 - [ ] **Step 3: Write the package README**
 
-`sdk/testing/README.md` — sections, with the code from Tasks 2–5 as the examples: install (`npm i -D @programmableinbox/testing`), required key scopes (`email_messages:read`; `email_inboxes:create` only for one-time setup), env vars, a Cypress quick start (the `pibxTasks` line in `cypress.config.ts`, the one-line support import, and `cy.pibxNow()` then `cy.pibxWaitForOtp(...)`), a Playwright quick start (`base.extend<PibxFixtures>(pibxFixtures)`), and a "Gotchas" list: inbox addresses are permanent so never create per test; `since` is required and comes from a clock on the machine running the test, so keep it close to NTP time; `openai`/`chatgpt` are blocked in local parts. Link to `docs/guides/cypress-chatgpt-login.md`.
+`sdk/testing/README.md` — sections, with the code from Tasks 2–5 as the examples: install (`npm i -D @programmableinbox/testing`), required key scopes (`email_messages:read`; `email_inboxes:create` only for one-time setup), env vars, a Cypress quick start (the `pibxTasks` line in `cypress.config.ts`, the one-line support import, and `cy.pibxNow()` then `cy.pibxWaitForOtp(...)`), a Playwright quick start (`base.extend<PibxFixtures>(pibxFixtures)`), and a "Configuration" table (`PIBX_API_KEY`, `PIBX_BASE_URL`, `PIBX_POLL_INTERVAL_MS` — default 5000, raise it if you wait on slow senders to reduce request volume), and a "Gotchas" list: inbox addresses are permanent so never create per test; `since` is required and comes from a clock on the machine running the test, so keep it close to NTP time; `openai`/`chatgpt` are blocked in local parts. Link to `docs/guides/cypress-chatgpt-login.md`.
 
 - [ ] **Step 4: Add the package to `sdk/README.md`**
 
