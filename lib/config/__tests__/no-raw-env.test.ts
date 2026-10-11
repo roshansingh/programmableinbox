@@ -30,6 +30,10 @@ const ALLOWLIST = [
   /^test\//,
   /(^|\/)__tests__\//,
   /^scripts\//,
+  // Separate publishable package, run inside the user's own test process, so it
+  // cannot import the app's lib/config. It reads PIBX_API_KEY, PIBX_BASE_URL,
+  // PIBX_INBOX_ID and PIBX_POLL_INTERVAL_MS itself and validates them there.
+  /^sdk\/testing\//,
   // Generated Prisma client — regenerated on every `prisma generate`, and the
   // matches there are documentation comments.
   /^lib\/generated\//,

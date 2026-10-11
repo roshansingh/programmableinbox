@@ -21,7 +21,6 @@ type PibxAfterArgs = Omit<PibxWaitArgs, 'since'> & {
 }
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Cypress {
     // Must keep Cypress's own type parameter list so declaration merging applies.
     interface Chainable<Subject = any> {

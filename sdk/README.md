@@ -14,6 +14,13 @@ Generated client libraries for the [ProgrammableInbox v1 API](https://app.progra
 
 Every endpoint takes an API key created from the dashboard (`sk_live_...`) as a bearer token. Each language's README shows exactly how to set it.
 
+### Test helpers
+
+[`testing/`](testing/README.md) (`@programmableinbox/testing`) is **hand-written, not generated**,
+and `npm run sdk:generate` does not touch it. It wraps three API calls in Cypress commands and
+Playwright fixtures so end-to-end tests can wait for a one-time code. It has no dependency on the
+generated TypeScript SDK. Its version is independent and is not yet wired into the release workflow.
+
 ## Regenerating
 
 ```bash
