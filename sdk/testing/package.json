@@ -12,6 +12,13 @@
   "main": "./dist/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "cypress": ["./dist/cypress/index.d.ts"],
+      "cypress/support": ["./dist/cypress/support.d.ts"],
+      "playwright": ["./dist/playwright/index.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -37,7 +44,8 @@
   "sideEffects": ["./dist/cypress/support.js", "./dist/esm/cypress/support.js"],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.esm.json && node scripts/postbuild.mjs",
-    "test:e2e": "npm run build && node e2e/run.mjs",
+    "test:types": "npm run build && node scripts/check-consumer-types.mjs",
+    "test:e2e": "npm run test:types && node e2e/run.mjs",
     "prepare": "npm run build"
   },
   "peerDependencies": {

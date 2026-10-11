@@ -26,8 +26,10 @@ Cypress spec ──cy.pibxOtp──▶ Node process ──HTTPS──▶ PIBX  G
      └─cy.origin──▶ chatgpt.com ─ emails a code ─▶ your PIBX inbox
 ```
 
-The API key lives only in the Cypress Node process. It is never serialised into the browser,
-the spec, videos or screenshots.
+The API key lives only in the Cypress Node process. `pibxTasks` removes `PIBX_API_KEY` from
+`config.env` as it registers, so `Cypress.env()` in a spec cannot read it and it never reaches
+the Settings panel, the command log or videos. (Call it from `setupNodeEvents` and return the
+same `config`, as in step 3.)
 
 `cy.pibxOtp` reads the PIBX server's clock, runs the action you give it (the click that makes
 ChatGPT send the email), then waits only for a code that arrived **after** that moment. A code
@@ -46,8 +48,13 @@ left in the inbox by a previous run is never returned.
 npm i -D @programmableinbox/testing
 ```
 
-> Until the package is published to npm, install it from a checkout of this repository:
-> `npm i -D /path/to/repo/sdk/testing` (it builds on install).
+> Until the package is published to npm, install it from a checkout of this repository. Install
+> and build the package there first, because a folder install does not fetch its dev dependencies:
+>
+> ```bash
+> (cd /path/to/repo/sdk/testing && npm install)   # also builds it
+> npm i -D /path/to/repo/sdk/testing
+> ```
 
 ## 1. Create the inbox (once)
 
@@ -223,7 +230,9 @@ each other's code.
 | `PibxAuthError` (401) | Wrong or revoked key | Check `PIBX_API_KEY`; the key is shown once at creation. |
 | `PibxAuthError` (403) | Key lacks `email_messages:read` | Create a key with that scope. |
 | `PIBX API key is missing` / `No inbox id` | Variable not reaching Cypress | Use `cypress.env.json` or `CYPRESS_`-prefixed CI variables. |
-| `PibxTimeoutError`, last status 404 | Mail never arrived, or `from` too narrow | Open the PIBX dashboard; check the message's `From` and loosen `from`. |
+| `PibxHttpError` … `says the inbox was not found` | Wrong `PIBX_INBOX_ID`, or a key from a different organization | Copy the inbox id again; check the key and the inbox are in the same org. This fails immediately, before your action runs. |
+| `PibxTimeoutError`, `last status 404: No message with a one-time code…` | Mail never arrived, or `from` too narrow | Open the PIBX dashboard; check the message's `From` and loosen `from`. |
+| `PibxTimeoutError`, `last status 200: the newest code … is older than since` | An old code is still in the inbox and no new mail arrived | Same as above: the action may not have sent an email (selector, bot challenge). |
 | `PibxTimeoutError` with `last error: …` | PIBX unreachable | Check `PIBX_BASE_URL` and the network from the Cypress machine. |
 | Cypress sees a "Just a moment…" challenge page | Cloudflare bot check | Run headed, use a residential/office IP, rely on `cy.session` caching. Do not try to defeat the challenge from the test. |
 | `cy.origin` errors about `session` or `import` | Wrong nesting | `cy.session` outside, `cy.origin` inside, only `args` crossing in. |

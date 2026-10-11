@@ -43,8 +43,11 @@ Three variables cover everything. Set them in your shell, CI secrets, or (Cypres
 A set-but-invalid value (for example `PIBX_POLL_INTERVAL_MS=abc`) is an error that names the
 variable; it never silently becomes the default.
 
-The key is read in your Node process only. In Cypress it lives in the Node side and is never
-serialised into the browser, videos or screenshots.
+The key is used in your Node process only. In Cypress, `pibxTasks` **removes `PIBX_API_KEY` from
+`config.env`** as it registers, so `Cypress.env()` in a spec cannot read it and it never reaches
+the Settings panel, the command log or videos. Call `pibxTasks(on, config)` and return that same
+`config` from `setupNodeEvents`, as shown below. (Other `PIBX_*` values are not secret and stay in
+`config.env`.)
 
 ## Cypress
 
@@ -140,4 +143,4 @@ stalled connection can't hold a test past its deadline.
 - **Don't automate sites you aren't allowed to.** Check the target's terms and use a dedicated
   test account. This package does nothing about bot detection and won't.
 
-See the [step-by-step ChatGPT login guide](../../docs/guides/cypress-chatgpt-login.md).
+See the [step-by-step ChatGPT login guide](https://github.com/roshansingh/programmableinbox/blob/main/docs/guides/cypress-chatgpt-login.md).
