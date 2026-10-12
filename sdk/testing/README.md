@@ -146,4 +146,4 @@ stalled connection can't hold a test past its deadline.
 - **Don't automate sites you aren't allowed to.** Check the target's terms and use a dedicated
   test account. This package does nothing about bot detection and won't.
 
-See the [step-by-step ChatGPT login guide](https://github.com/roshansingh/programmableinbox/blob/main/docs/guides/cypress-chatgpt-login.md).
+See the [step-by-step ChatGPT login guide](https://docs.programmableinbox.com/testing/chatgpt-login).
