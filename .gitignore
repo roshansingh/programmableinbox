@@ -122,6 +122,9 @@ reports/
 /sdk/python/**/*.egg-info/
 /sdk/python/build/
 /sdk/python/.venv*/
+/sdk/testing/node_modules/
+/sdk/testing/dist/
+/sdk/testing/e2e/test-results/
 
 # Docs site (website/)
 website/node_modules/

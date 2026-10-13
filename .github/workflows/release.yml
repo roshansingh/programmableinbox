@@ -260,7 +260,7 @@ jobs:
       # central.sonatype.com — this is the only change needed to resume it,
       # the java steps below are untouched and still gated the same way.
       matrix:
-        lang: [python, typescript, csharp, go]
+        lang: [python, typescript, csharp, go, testing]
     steps:
       - uses: actions/checkout@v5
 
@@ -382,6 +382,41 @@ jobs:
         working-directory: sdk/typescript
         # --access public: @programmableinbox is a scoped name, which npm
         # defaults to restricted (private) unless told otherwise.
+        run: npm publish --access public
+
+      # --- Test helpers: @programmableinbox/testing (npm) ----------------
+      # Hand-written Cypress/Playwright helpers in sdk/testing — not generated,
+      # so `npm run sdk:generate` never touches it. Same OIDC-only publish as
+      # the TypeScript leg above: this job carries no NODE_AUTH_TOKEN.
+      #
+      # Same first-publish caveat too: npm's Trusted Publishing cannot create a
+      # package, only publish new versions of one that already exists on the
+      # registry. If @programmableinbox/testing has never been published, the
+      # first version must go out once by hand (`npm publish --access public
+      # --otp=<code>` from sdk/testing), after which the Trusted Publisher for
+      # this repo + release.yml takes over.
+      - uses: actions/setup-node@v6
+        if: matrix.lang == 'testing' && steps.status.outputs.published == 'false'
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: Build and verify test-helpers package
+        if: matrix.lang == 'testing' && steps.status.outputs.published == 'false'
+        working-directory: sdk/testing
+        # --ignore-scripts: devDependencies include Cypress, whose postinstall
+        # downloads a ~200 MB binary this job never runs (the typings ship in
+        # the npm package). It also skips `prepare`, so the build is explicit —
+        # test:types builds first, then type-checks the *built* package the way
+        # a consumer's tsconfig would under node10, node16 and bundler
+        # resolution, so a broken `typesVersions` cannot ship.
+        run: |
+          npm ci --ignore-scripts
+          npm run test:types
+          npm pack --dry-run
+      - name: Publish test helpers to npm
+        id: publish-testing
+        if: matrix.lang == 'testing' && steps.status.outputs.published == 'false' && env.DRY_RUN == 'false'
+        working-directory: sdk/testing
         run: npm publish --access public
 
       # --- Java (Maven Central) ------------------------------------------

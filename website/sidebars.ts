@@ -54,6 +54,14 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Testing',
+      items: [
+        'testing/overview',
+        'testing/chatgpt-login',
+      ],
+    },
+    {
+      type: 'category',
       label: 'MCP',
       items: [
         'mcp/setup',

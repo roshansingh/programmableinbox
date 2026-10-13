@@ -89,6 +89,9 @@ export default tseslint.config(
       'eslint.config.mjs',
       'test/**',
       'scripts/**',
+      // Separate publishable package that runs in the user's own test process,
+      // so it cannot import lib/config. Kept in step with no-raw-env.test.ts.
+      'sdk/testing/**',
       '**/__tests__/**',
     ],
     rules: { 'no-restricted-syntax': 'off' },

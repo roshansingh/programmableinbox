@@ -20,6 +20,7 @@ export const PACKAGE_IDENTITY = {
   typescript: { name: '@programmableinbox/sdk' },
   java: { groupId: 'com.programmableinbox', artifactId: 'sdk' },
   csharp: { id: 'ProgrammableInbox.Sdk' },
+  testing: { name: '@programmableinbox/testing' },
 }
 
 /** PyPI's per-release JSON endpoint 404s for a version that was never uploaded. */
@@ -81,6 +82,7 @@ const CHECKERS = {
   typescript: isNpmVersionPublished,
   java: isMavenVersionPublished,
   csharp: isNuGetVersionPublished,
+  testing: isNpmVersionPublished,
 }
 
 /** Look up whether `lang`'s package is already published at `version`. */
