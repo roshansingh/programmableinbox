@@ -12,6 +12,31 @@ const accept = (
 ) => acceptLlmOtp({ otp, evidence }, body)
 
 describe('acceptLlmOtp', () => {
+  describe('code printed just after the quoted evidence', () => {
+    const body =
+      'ChatGPT\n\nEnter this temporary verification code to continue:\n\n032078\n\nIf you were not trying to log in to ChatGPT, please reset your password here.'
+    const evidence = 'Enter this temporary verification code to continue:'
+
+    it('accepts a code on the next line when the evidence stops at the colon', () => {
+      expect(accept('032078', body, evidence)).toBe('032078')
+    })
+
+    it('rejects a code separated from the evidence by other text', () => {
+      const far = 'Enter this temporary verification code to continue:\n\nThanks for being with us.\n\n032078'
+      expect(accept('032078', far, evidence)).toBeNull()
+    })
+
+    it('still rejects when the evidence carries a promo word', () => {
+      const promo = 'Use this promo code to continue:\n\n032078'
+      expect(accept('032078', promo, 'Use this promo code to continue:')).toBeNull()
+    })
+
+    it('still needs a one-time-code signal in the evidence sentence', () => {
+      const plain = 'Thanks for shopping with us:\n\n032078'
+      expect(accept('032078', plain, 'Thanks for shopping with us:')).toBeNull()
+    })
+  })
+
   describe('the code itself', () => {
     it('accepts a code that appears verbatim in the body', () => {
       expect(accept('851079', 'Enter this temporary code to continue: 851079')).toBe('851079')
@@ -95,8 +120,9 @@ describe('acceptLlmOtp', () => {
       expect(accept('123456', body, 'Your one-time code is 123456')).toBeNull()
     })
 
-    it('must contain the code', () => {
-      expect(accept('123456', body, 'Your verification code:')).toBeNull()
+    it('must contain the code or end directly before it', () => {
+      expect(accept('123456', body, 'Your verification code:')).toBe('123456')
+      expect(accept('123456', 'Your verification code: 123456', 'Your verification')).toBeNull()
     })
 
     it('tolerates the whitespace differences html-to-text introduces', () => {
