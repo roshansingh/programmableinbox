@@ -67,5 +67,63 @@ describe('extractOtp', () => {
   it('rejects an alphanumeric token on the weak keyword tier (digits-only for bare "code"/"pin")', () => {
     expect(extractOtp('Your code: AB12CD')).toBeNull()
   })
-})
 
+  describe('subject-anchored bare code', () => {
+    const body = 'You can sign up by entering the code on the sign up page.\n\n727226\n\nSign in with Magic Link'
+
+    it('takes a code alone on its line when the subject names a one-time code', () => {
+      expect(extractOtp(body, 'Your Notion signup code')).toBe('727226')
+    })
+
+    it('takes a body that is only the code', () => {
+      expect(extractOtp('727226', 'Your Notion signup code')).toBe('727226')
+    })
+
+    it.each(['Your login code', 'Your verification code', 'Use passcode to continue', 'Your OTP'])(
+      'accepts the subject %j',
+      (subject) => {
+        expect(extractOtp('483920', subject)).toBe('483920')
+      },
+    )
+
+    it('recovers a code printed as two groups on its own line', () => {
+      expect(extractOtp('Enter this to continue\n\n482 913\n', 'Your login code')).toBe('482913')
+    })
+
+    it('needs the subject: the same body with no subject yields nothing', () => {
+      expect(extractOtp(body)).toBeNull()
+      expect(extractOtp(body, 'Welcome to Notion')).toBeNull()
+    })
+
+    it('does not treat a bare "code" or "token" in the subject as a signal', () => {
+      expect(extractOtp(body, 'Your code')).toBeNull()
+    })
+
+    it.each(['Your promo code', 'Your discount code is ready', 'Coupon code inside', 'Order number for your code'])(
+      'refuses when the subject reads as a promotion or order: %j',
+      (subject) => {
+        expect(extractOtp('727226', subject)).toBeNull()
+      },
+    )
+
+    it('refuses when two different tokens sit alone on their own lines', () => {
+      expect(extractOtp('727226\n\n2026', 'Your login code')).toBeNull()
+    })
+
+    it('accepts the same token repeated, since it is still one candidate', () => {
+      expect(extractOtp('727226\n\nSign in\n\n727226', 'Your login code')).toBe('727226')
+    })
+
+    it('ignores a token embedded in a sentence or a line of words', () => {
+      expect(extractOtp('Order 727226 shipped', 'Your login code')).toBeNull()
+    })
+
+    it('ignores a line with no digit', () => {
+      expect(extractOtp('Welcome\n\nNotion', 'Your login code')).toBeNull()
+    })
+
+    it('does not override a code the keyword tiers already found', () => {
+      expect(extractOtp('Your verification code is 111222\n\n333444', 'Your login code')).toBe('111222')
+    })
+  })
+})

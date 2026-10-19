@@ -235,6 +235,7 @@ export async function storeIncomingEmail(resendEmail: ResendEmailData, inboxEmai
       const { bodyText, extractedOtp, links } = deriveIngestionFields({
         text: resendEmail.text || '',
         html: resendEmail.html || '',
+        subject: resendEmail.subject,
       })
 
       message = await prisma.emailMessage.create({
