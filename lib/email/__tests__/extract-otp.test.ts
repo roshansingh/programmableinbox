@@ -126,4 +126,28 @@ describe('extractOtp', () => {
       expect(extractOtp('Your verification code is 111222\n\n333444', 'Your login code')).toBe('111222')
     })
   })
+
+  describe('filler between the keyword and the code', () => {
+    it('extracts a code after "to continue:" (ChatGPT login mail)', () => {
+      expect(
+        extractOtp('Enter this temporary verification code to continue:\n\n032078\n\nIf you were not trying to log in...'),
+      ).toBe('032078')
+    })
+
+    it.each([
+      ['Your verification code is below: 482913', '482913'],
+      ['Use this login code to sign in 482913', '482913'],
+      ['Enter the security code to proceed: 482913', '482913'],
+    ])('extracts from %j', (text, code) => {
+      expect(extractOtp(text)).toBe(code)
+    })
+
+    it('still requires a digit in the token after the filler', () => {
+      expect(extractOtp('Enter the verification code to continue: abcdef')).toBeNull()
+    })
+
+    it('does not skip arbitrary text between the keyword and a number', () => {
+      expect(extractOtp('Our verification code policy changed to 2024 standards')).toBeNull()
+    })
+  })
 })

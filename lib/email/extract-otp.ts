@@ -28,7 +28,13 @@ const STRONG_KEYWORDS =
   /(one[- ]?time password|verification code|security code|confirmation code|access code|authentication code|auth code|login code|passcode|pass code|\botp\b)/gi
 const WEAK_KEYWORDS = /(\bcode\b|\bpin\b)/gi
 
-const LOOSE_CONNECTOR = /^[\s]*(?:is\b|was\b)?[\s:=-]*/i
+// Strong tier only. After the optional is/was and separators, a short stock
+// phrase may sit between the keyword and the code ("... verification code to
+// continue:\n\n032078", "... code is below: 482913"). A closed list, not a
+// wildcard: skipping arbitrary words would let "verification code policy
+// changed to 2024" through. The token must still contain a digit.
+const LOOSE_CONNECTOR =
+  /^[\s]*(?:is\b|was\b)?[\s:=-]*(?:(?:below|to\s+(?:continue|proceed|sign\s?in|log\s?in|verify|confirm|finish|complete))\b[\s:=-]*)?/i
 const STRICT_CONNECTOR = /^[\s]*(?:is\b|was\b|[:=-])[\s:=-]*/i
 const TOKEN = /^[A-Za-z0-9]{4,10}\b/
 const DIGIT_TOKEN = /^\d{4,10}\b/
@@ -140,6 +146,10 @@ const LLM_OTP_EVIDENCE_MAX_LENGTH = 200
 // "Promo: 123456" precedes its token, whereas text after a code is usually the
 // next paragraph.
 const LLM_OTP_CONTEXT_WINDOW = 30
+// What may sit between the end of the quoted evidence and a code printed right
+// after it: separators only, so "…to continue: 032078" qualifies and a code
+// after another sentence does not.
+const EVIDENCE_TO_CODE_GAP = /^[\s:=-]{0,4}$/
 
 // What a one-time-code sentence looks like. Deliberately not a bare "code":
 // that is exactly the word a promo code shares, so it would make the check
@@ -274,8 +284,17 @@ export function acceptLlmOtp(
   )
   for (const match of body.matchAll(printed)) {
     const start = match.index ?? 0
-    if (start < evidenceStart || start + match[0].length > evidenceEnd) continue
-    const sentence = sentenceAround(body, start, start + match[0].length, evidenceStart, evidenceEnd)
+    const end = start + match[0].length
+    if (start < evidenceStart) continue
+    // Models often quote the instruction ("Enter this code to continue:") and
+    // stop before the code, which email layouts print on its own line. Whitespace
+    // is collapsed above, so that is a gap of separators only. The sentence is
+    // then read to the end of the code, so every signal and disqualifier check
+    // below still runs on the same text.
+    const inEvidence = end <= evidenceEnd
+    const followsEvidence = start >= evidenceEnd && EVIDENCE_TO_CODE_GAP.test(body.slice(evidenceEnd, start))
+    if (!inEvidence && !followsEvidence) continue
+    const sentence = sentenceAround(body, start, end, evidenceStart, Math.max(evidenceEnd, end))
     const bareCode = sentence.replace(/[\s-]/g, '') === code
     if (!hasOtpSignal(sentence, code) && !(subjectVouches && bareCode)) continue
     const before = body.slice(Math.max(0, start - LLM_OTP_CONTEXT_WINDOW), start)
