@@ -122,6 +122,20 @@ describe('extractOtp', () => {
       expect(extractOtp('Welcome\n\nNotion', 'Your login code')).toBeNull()
     })
 
+    it.each([
+      ['Promo code:\n727226'],
+      ['Use promo code:\nSAVE20'],
+      ['Your discount\n\n727226'],
+      ['Zip code\n\n90210'],
+      ['Redeem at checkout\n\nSAVE2024'],
+    ])('refuses a bare line that follows promotional context: %j', (body) => {
+      expect(extractOtp(body, 'Your login code')).toBeNull()
+    })
+
+    it('still returns the real code when a promo token is also on its own line', () => {
+      expect(extractOtp('Promo code:\nSAVE20\n\nYour sign-in\n\n727226', 'Your login code')).toBe('727226')
+    })
+
     it('does not override a code the keyword tiers already found', () => {
       expect(extractOtp('Your verification code is 111222\n\n333444', 'Your login code')).toBe('111222')
     })

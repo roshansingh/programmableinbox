@@ -98,13 +98,28 @@ function subjectAnchoredCode(bodyText: string, subject: string | null | undefine
   if (!subject || !subjectNamesOtp(subject)) return null
 
   const candidates = new Set<string>()
+  let offset = 0
   for (const line of bodyText.split(/\r?\n/)) {
-    const trimmed = line.trim()
-    if (!BARE_CODE_LINE.test(trimmed)) continue
-    const code = trimmed.replace(/[ -]/g, '')
-    if (code.length >= 4 && code.length <= 10 && /\d/.test(code)) candidates.add(code)
+    const lineStart = offset
+    offset += line.length + 1
+    const code = bareCodeOf(line)
+    if (!code) continue
+    // The same "this token is not a one-time code" context the keyword tiers
+    // and acceptLlmOtp refuse: a subject that says "login code" does not turn
+    // `Promo code:\nSAVE20` into one.
+    const before = bodyText.slice(Math.max(0, lineStart - LLM_OTP_CONTEXT_WINDOW), lineStart)
+    if (DISQUALIFYING_NEARBY.test(before) || EVIDENCE_DISQUALIFIERS.test(before)) continue
+    candidates.add(code)
   }
   return candidates.size === 1 ? [...candidates][0] : null
+}
+
+/** The contiguous code if `line` is nothing but a code (4-10 chars, a digit), else null. */
+function bareCodeOf(line: string): string | null {
+  const trimmed = line.trim()
+  if (!BARE_CODE_LINE.test(trimmed)) return null
+  const code = trimmed.replace(/[ -]/g, '')
+  return code.length >= 4 && code.length <= 10 && /\d/.test(code) ? code : null
 }
 
 function forwardToken(text: string, from: number, connector: RegExp, tokenPattern: RegExp): string | null {
@@ -226,6 +241,23 @@ const subjectNamesOtp = (subject: string) =>
   !EVIDENCE_DISQUALIFIERS.test(subject)
 
 /**
+ * Whether every place `code` is printed in the raw body is a line of its own.
+ * Whitespace is collapsed before the evidence checks, which loses the line
+ * breaks this needs, so it reads the original text. One occurrence inside prose
+ * ("Your order 727226 has shipped") fails it, even if another is on its own line.
+ */
+function isolatedInBody(bodyText: string, code: string): boolean {
+  const printed = new RegExp(`(?<![A-Za-z0-9])${code.split('').join(LLM_OTP_SEPARATOR)}(?![A-Za-z0-9])`)
+  let found = false
+  for (const line of bodyText.split(/\r?\n/)) {
+    if (!printed.test(line)) continue
+    if (bareCodeOf(line) !== code) return false
+    found = true
+  }
+  return found
+}
+
+/**
  * Gate for an OTP the LLM fallback proposes after extractOtp() found nothing
  * (lib/llm/enrichment.ts). The model is not trusted with the value, because
  * the result feeds findLatestOtp, whose callers (agents finishing a login)
@@ -264,9 +296,13 @@ export function acceptLlmOtp(
   const code = proposal.otp.replace(/[\s-]/g, '')
   if (!LLM_OTP_FORMAT.test(code) || !/\d/.test(code)) return null
 
-  // The subject can stand in for the signal only when the code is all its
-  // sentence says (see below), never to vouch for a code inside prose.
+  // The subject can stand in for the signal only when the code is printed on a
+  // line of its own and nowhere else (see isolatedInBody), never to vouch for a
+  // code inside prose. Judged on the body's real lines, not on the phrase the
+  // model quoted: quoting just the number would otherwise make any embedded
+  // number look isolated.
   const subjectVouches = !!subject && subjectNamesOtp(subject)
+  const isolated = subjectVouches && isolatedInBody(bodyText, code)
 
   const evidence = collapseWhitespace(proposal.evidence)
   if (evidence === '' || evidence.length > LLM_OTP_EVIDENCE_MAX_LENGTH) return null
@@ -295,8 +331,7 @@ export function acceptLlmOtp(
     const followsEvidence = start >= evidenceEnd && EVIDENCE_TO_CODE_GAP.test(body.slice(evidenceEnd, start))
     if (!inEvidence && !followsEvidence) continue
     const sentence = sentenceAround(body, start, end, evidenceStart, Math.max(evidenceEnd, end))
-    const bareCode = sentence.replace(/[\s-]/g, '') === code
-    if (!hasOtpSignal(sentence, code) && !(subjectVouches && bareCode)) continue
+    if (!hasOtpSignal(sentence, code) && !(subjectVouches && isolated)) continue
     const before = body.slice(Math.max(0, start - LLM_OTP_CONTEXT_WINDOW), start)
     if (!DISQUALIFYING_NEARBY.test(before)) return code
   }
