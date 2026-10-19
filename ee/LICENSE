@@ -2,7 +2,7 @@ ProgrammableInbox Enterprise Edition (EE) License (the "EE License")
 Copyright (c) 2026 Orbit Labs LLC ("Orbit Labs," doing business as "ProgrammableInbox").
 
 This directory ("ee/") contains, or is reserved for, commercial/enterprise functionality that
-is not covered by the AGPL-3.0 license applied to the rest of this repository (see the root
+is not covered by the MIT license applied to the rest of this repository (see the root
 LICENSE file).
 
 This software and associated documentation files (the "Software") may only be used in

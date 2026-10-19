@@ -7,3 +7,6 @@ typescriptThreePlus: true
 # is set per-language rather than once globally.
 gitUserId: roshansingh
 gitRepoId: programmableinbox
+
+# Emitted as package.json "license"; the SDK ships under the repo-root MIT license.
+licenseName: MIT

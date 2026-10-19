@@ -1,6 +1,6 @@
 # The commercial layer
 
-ProgrammableInbox is open core: the code in this repository is licensed under AGPL-3.0, with a
+ProgrammableInbox is open core: the code in this repository is licensed under the MIT License, with a
 carve-out for anything under `ee/` (see the root [LICENSE](../../LICENSE) and
 [`ee/README.md`](../../ee/README.md)). This doc describes the seam between the two, not the
 license itself.

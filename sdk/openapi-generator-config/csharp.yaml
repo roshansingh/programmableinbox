@@ -8,3 +8,6 @@ packageGuid: "{316EE9BB-A75F-4585-875A-8F342FDC7C29}"
 # is set per-language rather than once globally.
 gitUserId: roshansingh
 gitRepoId: programmableinbox
+
+# Emitted into the .csproj; the SDK ships under the repo-root MIT license.
+licenseId: MIT

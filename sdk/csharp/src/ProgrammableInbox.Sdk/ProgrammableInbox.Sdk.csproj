@@ -14,6 +14,7 @@
     <RootNamespace>ProgrammableInbox.Sdk</RootNamespace>
     <Version>0.2.0</Version>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\ProgrammableInbox.Sdk.xml</DocumentationFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/roshansingh/programmableinbox.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReleaseNotes>Minor update</PackageReleaseNotes>

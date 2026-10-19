@@ -87,10 +87,8 @@ describe.skipIf(ALREADY_STRIPPED)('commercial path manifest', () => {
   /**
    * The failure mode this prevents is Cal.com's: a third commercial directory
    * existed for years outside the paths its own LICENSE named, so by the plain
-   * text of that file it was AGPL. Enumerated carve-outs need a lint, not care.
-   *
-   * Skipped until a LICENSE lands — the repo has none yet, which is its own
-   * blocker (it is currently all-rights-reserved and unusable by anyone).
+   * text of that file it fell under the open-source license. Enumerated
+   * carve-outs need a lint, not care.
    */
   it.skipIf(!existsSync(resolve(ROOT, 'LICENSE')))(
     'names every path the LICENSE carve-out delegates',

@@ -54,5 +54,5 @@ same inbox you can.
   or jump straight to an [SDK](../sdks/overview).
 - Wiring up an agent? See [MCP Setup](../mcp/setup).
 
-Open source under [AGPL-3.0](https://github.com/roshansingh/programmableinbox/blob/main/LICENSE),
+Open source under the [MIT License](https://github.com/roshansingh/programmableinbox/blob/main/LICENSE),
 with an optional commercial layer.
