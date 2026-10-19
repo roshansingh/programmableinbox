@@ -19,3 +19,9 @@ scmUrl: "https://github.com/roshansingh/programmableinbox"
 # The top-level <project><url>, distinct from <scm><url> above — also
 # defaults to openapi-generator's own repo if left unset.
 artifactUrl: "https://github.com/roshansingh/programmableinbox"
+
+# The SDKs ship under the same MIT license as the rest of the open-source
+# repository (the root LICENSE). Without this the generated pom.xml declares
+# openapi-generator's default, Unlicense.
+licenseName: "MIT License"
+licenseUrl: "https://opensource.org/license/mit"
