@@ -14,6 +14,28 @@ Generated client libraries for the [ProgrammableInbox v1 API](https://app.progra
 
 Every endpoint takes an API key created from the dashboard (`sk_live_...`) as a bearer token. Each language's README shows exactly how to set it.
 
+### Test helpers
+
+[`testing/`](testing/README.md) (`@programmableinbox/testing`) is **hand-written, not generated**,
+and `npm run sdk:generate` does not touch it. It wraps three API calls in Cypress commands and
+Playwright fixtures so end-to-end tests can wait for a one-time code. It has no dependency on the
+generated TypeScript SDK. Its version (in `testing/package.json`) is independent of the others and
+is the source of truth for whether it releases, exactly like the generated SDKs: it is the `testing`
+entry in the `release.yml` matrix, and publishes only if that version is not already on npm. Bump
+it by hand in the PR that changes the package. The workflow installs it with `--ignore-scripts` and
+runs `npm run test:types` before publishing.
+
+npm's Trusted Publishing can only publish new versions of a package that already exists, so the
+very first version of `@programmableinbox/testing` must be published by hand (the manual script
+above covers only Python and TypeScript):
+
+```bash
+cd sdk/testing && npm install && npm publish --access public --otp=<code>
+```
+
+After that, add the Trusted Publisher for this repo and `release.yml` on npmjs.com and the tag
+workflow takes over.
+
 ## Regenerating
 
 ```bash

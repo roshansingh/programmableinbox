@@ -86,11 +86,23 @@ describe('isPublished', () => {
   it('dispatches to the right checker and package identity for each language', async () => {
     // Maven's "not found" is a 200 with numFound: 0, unlike the 404 the other
     // three registries use — see isMavenVersionPublished.
-    const notFoundStatusByLang: Record<string, number> = { python: 404, typescript: 404, java: 200, csharp: 404 }
+    const notFoundStatusByLang: Record<string, number> = {
+      python: 404,
+      typescript: 404,
+      java: 200,
+      csharp: 404,
+      testing: 404,
+    }
     for (const lang of Object.keys(PACKAGE_IDENTITY)) {
       const fetchImpl = fakeFetch(notFoundStatusByLang[lang], { response: { numFound: 0 } })
       await expect(isPublished(lang, '0.1.0', { fetchImpl })).resolves.toBe(false)
     }
+  })
+
+  it('looks the test-helpers package up on npm under its scoped name', async () => {
+    const fetchImpl = fakeFetch(404)
+    await expect(isPublished('testing', '0.1.0', { fetchImpl })).resolves.toBe(false)
+    expect(fetchImpl).toHaveBeenCalledWith('https://registry.npmjs.org/%40programmableinbox%2Ftesting/0.1.0')
   })
 
   it('throws for a language with no registry checker (e.g. go)', async () => {

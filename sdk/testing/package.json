@@ -1,0 +1,65 @@
+{
+  "name": "@programmableinbox/testing",
+  "version": "0.1.0",
+  "description": "Cypress and Playwright helpers for reading ProgrammableInbox inboxes in end-to-end tests",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/roshansingh/programmableinbox.git",
+    "directory": "sdk/testing"
+  },
+  "engines": { "node": ">=18" },
+  "files": ["dist", "README.md"],
+  "main": "./dist/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "cypress": ["./dist/cypress/index.d.ts"],
+      "cypress/support": ["./dist/cypress/support.d.ts"],
+      "playwright": ["./dist/playwright/index.d.ts"]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js"
+    },
+    "./cypress": {
+      "types": "./dist/cypress/index.d.ts",
+      "import": "./dist/esm/cypress/index.js",
+      "require": "./dist/cypress/index.js"
+    },
+    "./cypress/support": {
+      "types": "./dist/cypress/support.d.ts",
+      "import": "./dist/esm/cypress/support.js",
+      "require": "./dist/cypress/support.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright/index.d.ts",
+      "import": "./dist/esm/playwright/index.js",
+      "require": "./dist/playwright/index.js"
+    }
+  },
+  "sideEffects": ["./dist/cypress/support.js", "./dist/esm/cypress/support.js"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.esm.json && node scripts/postbuild.mjs",
+    "test:types": "npm run build && node scripts/check-consumer-types.mjs",
+    "test:e2e": "npm run test:types && node e2e/run.mjs",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40",
+    "cypress": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": { "optional": true },
+    "cypress": { "optional": true }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^20.0.0",
+    "cypress": "^13.0.0",
+    "typescript": "^5.0.0"
+  }
+}

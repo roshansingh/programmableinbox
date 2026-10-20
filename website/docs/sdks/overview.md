@@ -21,6 +21,10 @@ All four default to `https://app.programmableinbox.com`. Point at a
 self-hosted or local instance by overriding the base URL/host — each
 language page shows how.
 
+Writing end-to-end tests that need a one-time code? The hand-written
+[Testing SDK](../testing/overview) (`@programmableinbox/testing`) has Cypress
+commands and Playwright fixtures for exactly that.
+
 Authenticate every client with an API key from **Settings → API Keys** — see
 [Authentication & Scopes](../api-reference/authentication-and-scopes) for how
 scopes work.

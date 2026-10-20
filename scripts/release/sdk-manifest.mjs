@@ -28,6 +28,10 @@ export const MANIFEST_PATHS = {
   java: 'sdk/java/pom.xml',
   csharp: 'sdk/csharp/src/ProgrammableInbox.Sdk/ProgrammableInbox.Sdk.csproj',
   go: 'sdk/go/VERSION',
+  // Not a language: the hand-written Cypress/Playwright helpers package. It
+  // lives beside the generated SDKs and releases through the same matrix, so it
+  // is keyed here even though nothing about it is generated.
+  testing: 'sdk/testing/package.json',
 }
 
 export const SDK_LANGUAGES = Object.keys(MANIFEST_PATHS)
@@ -81,6 +85,7 @@ const PARSERS = {
   java: parsePomVersion,
   csharp: parseCsprojVersion,
   go: parseGoVersionFile,
+  testing: parsePackageJsonVersion,
 }
 
 /** Parse a version out of raw manifest content for the given language. */
