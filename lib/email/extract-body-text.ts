@@ -17,6 +17,16 @@ import { convert } from 'html-to-text'
 export const MAX_BODY_TEXT_LENGTH = 100_000
 
 /**
+ * A text part shorter than this is not trusted to be the whole message.
+ *
+ * Some senders ship a text alternative that is only the code ("727226") while the
+ * HTML carries the sentence around it. The OTP extractors need that sentence, so
+ * below this length the HTML is consulted too. Long enough to cover a bare code
+ * or a one-line stub; short enough that a genuine plain-text body is never second-guessed.
+ */
+export const MIN_TEXT_PART_LENGTH = 32
+
+/**
  * Options chosen for indexing, not for display.
  *
  * `<script>`, `<style>` and `<head>` are skipped by html-to-text's defaults, which
@@ -47,19 +57,20 @@ const CONVERT_OPTIONS = {
  * (most marketing, receipt and notification email) arrives with an empty text part,
  * so before this its entire body was searchable only as an HTML blob.
  *
+ * A text part under MIN_TEXT_PART_LENGTH is treated as a possible stub: the HTML
+ * text wins if it is longer, otherwise the sender's text is kept.
+ *
  * Returns null when there is no body at all, so the column distinguishes "no text"
  * from "not yet derived" for rows predating the feature.
  */
 export function deriveBodyText(input: { text: string; html: string }): string | null {
   const provided = input.text.trim()
-  if (provided) return truncate(provided)
+  if (provided.length >= MIN_TEXT_PART_LENGTH) return truncate(provided)
 
-  if (!input.html.trim()) return null
+  const extracted = input.html.trim() ? convert(input.html, CONVERT_OPTIONS).trim() : ''
+  if (extracted.length > provided.length) return truncate(extracted)
 
-  const extracted = convert(input.html, CONVERT_OPTIONS).trim()
-  if (!extracted) return null
-
-  return truncate(extracted)
+  return provided ? truncate(provided) : null
 }
 
 function truncate(value: string): string {

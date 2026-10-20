@@ -54,7 +54,10 @@ const PREFIX_WINDOW = 20
 const FORWARD_WINDOW = 40
 const BACKWARD_WINDOW = 40
 
-export function extractOtp(bodyText: string | null | undefined): string | null {
+export function extractOtp(
+  bodyText: string | null | undefined,
+  subject?: string | null,
+): string | null {
   if (!bodyText) return null
 
   for (const keywordMatch of bodyText.matchAll(STRONG_KEYWORDS)) {
@@ -72,7 +75,51 @@ export function extractOtp(bodyText: string | null | undefined): string | null {
     if (forward) return forward
   }
 
-  return null
+  return subjectAnchoredCode(bodyText, subject)
+}
+
+// A code alone on its line, for mail whose body names no keyword at all: the
+// sentence that says what the number is lives in the subject ("Your Notion
+// signup code"), and the body is the number in a box. Accepts one token, or
+// digits grouped by a single space/hyphen ("482 913"), and nothing embedded in
+// a sentence.
+const BARE_CODE_LINE = /^(?:[A-Za-z0-9]{4,10}|\d{2,5}(?:[ -]\d{2,5}){1,3})$/
+
+/**
+ * The last tier, consulted only when neither keyword tier matched. Two
+ * independent facts must hold, because either alone is a guess:
+ *  - the SUBJECT names a one-time code with an unambiguous phrase ("login
+ *    code", "OTP"; not a bare "code") and does not read as a promo or an order;
+ *  - the BODY has exactly one distinct token that sits alone on a line and
+ *    contains a digit. Two candidates (a code and a year, say) means we cannot
+ *    tell which is the code, so the answer is null rather than a coin flip.
+ */
+function subjectAnchoredCode(bodyText: string, subject: string | null | undefined): string | null {
+  if (!subject || !subjectNamesOtp(subject)) return null
+
+  const candidates = new Set<string>()
+  let offset = 0
+  for (const line of bodyText.split(/\r?\n/)) {
+    const lineStart = offset
+    offset += line.length + 1
+    const code = bareCodeOf(line)
+    if (!code) continue
+    // The same "this token is not a one-time code" context the keyword tiers
+    // and acceptLlmOtp refuse: a subject that says "login code" does not turn
+    // `Promo code:\nSAVE20` into one.
+    const before = bodyText.slice(Math.max(0, lineStart - LLM_OTP_CONTEXT_WINDOW), lineStart)
+    if (DISQUALIFYING_NEARBY.test(before) || EVIDENCE_DISQUALIFIERS.test(before)) continue
+    candidates.add(code)
+  }
+  return candidates.size === 1 ? [...candidates][0] : null
+}
+
+/** The contiguous code if `line` is nothing but a code (4-10 chars, a digit), else null. */
+function bareCodeOf(line: string): string | null {
+  const trimmed = line.trim()
+  if (!BARE_CODE_LINE.test(trimmed)) return null
+  const code = trimmed.replace(/[ -]/g, '')
+  return code.length >= 4 && code.length <= 10 && /\d/.test(code) ? code : null
 }
 
 function forwardToken(text: string, from: number, connector: RegExp, tokenPattern: RegExp): string | null {
@@ -129,7 +176,7 @@ const EVIDENCE_TO_CODE_GAP = /^[\s:=-]{0,4}$/
 // A token with letters in it (SAVE20, SPRING25) is the shape of a marketing
 // code, so it must clear the strong bar; a digits-only token may use either.
 const OTP_QUALIFIERS =
-  'verification|verify|security|confirmation|authentication|auth|log[- ]?in|sign[- ]?in|temporary|access|2fa|two[- ]factor|multi[- ]factor|one[- ]?time|single[- ]use'
+  'verification|verify|security|confirmation|authentication|auth|log[- ]?in|sign[- ]?in|sign[- ]?up|temporary|access|2fa|two[- ]factor|multi[- ]factor|one[- ]?time|single[- ]use'
 const OTP_NOUNS = 'code|password|pin|token'
 const OTP_SIGNAL_STANDALONE = /\b(?:otp|passcode|pass code)\b/i
 const OTP_SIGNAL_QUALIFIER = new RegExp(`\\b(?:${OTP_QUALIFIERS})\\b`, 'i')
@@ -185,6 +232,32 @@ const hasOtpSignal = (sentence: string, code: string) => {
 }
 
 /**
+ * Whether a subject line names a one-time code unambiguously: the strong form
+ * only (a compound like "login code", or OTP/passcode), never a bare "code",
+ * and never alongside promo/order wording.
+ */
+const subjectNamesOtp = (subject: string) =>
+  (OTP_SIGNAL_STANDALONE.test(subject) || OTP_SIGNAL_COMPOUND.test(subject)) &&
+  !EVIDENCE_DISQUALIFIERS.test(subject)
+
+/**
+ * Whether every place `code` is printed in the raw body is a line of its own.
+ * Whitespace is collapsed before the evidence checks, which loses the line
+ * breaks this needs, so it reads the original text. One occurrence inside prose
+ * ("Your order 727226 has shipped") fails it, even if another is on its own line.
+ */
+function isolatedInBody(bodyText: string, code: string): boolean {
+  const printed = new RegExp(`(?<![A-Za-z0-9])${code.split('').join(LLM_OTP_SEPARATOR)}(?![A-Za-z0-9])`)
+  let found = false
+  for (const line of bodyText.split(/\r?\n/)) {
+    if (!printed.test(line)) continue
+    if (bareCodeOf(line) !== code) return false
+    found = true
+  }
+  return found
+}
+
+/**
  * Gate for an OTP the LLM fallback proposes after extractOtp() found nothing
  * (lib/llm/enrichment.ts). The model is not trusted with the value, because
  * the result feeds findLatestOtp, whose callers (agents finishing a login)
@@ -201,6 +274,9 @@ const hasOtpSignal = (sentence: string, code: string) => {
  *    the *sentence it is printed in* reads as a one-time code (unambiguously
  *    so if the code contains letters). A signal in a neighbouring sentence of
  *    the same phrase does not count.
+ *    The one exception: when the subject names a one-time code unambiguously
+ *    (subjectNamesOtp) and the code is the whole of its sentence — a number in
+ *    a box, with the explanation in the subject — the subject is the signal.
  * 5. No disqualifying word (promo, zip, source, ...) sits just before the
  *    code in the body — the same list extractOtp() refuses.
  *
@@ -213,11 +289,20 @@ const hasOtpSignal = (sentence: string, code: string) => {
 export function acceptLlmOtp(
   proposal: { otp: string | null | undefined; evidence: string | null | undefined },
   bodyText: string | null | undefined,
+  subject?: string | null,
 ): string | null {
   if (!proposal.otp || !proposal.evidence || !bodyText) return null
 
   const code = proposal.otp.replace(/[\s-]/g, '')
   if (!LLM_OTP_FORMAT.test(code) || !/\d/.test(code)) return null
+
+  // The subject can stand in for the signal only when the code is printed on a
+  // line of its own and nowhere else (see isolatedInBody), never to vouch for a
+  // code inside prose. Judged on the body's real lines, not on the phrase the
+  // model quoted: quoting just the number would otherwise make any embedded
+  // number look isolated.
+  const subjectVouches = !!subject && subjectNamesOtp(subject)
+  const isolated = subjectVouches && isolatedInBody(bodyText, code)
 
   const evidence = collapseWhitespace(proposal.evidence)
   if (evidence === '' || evidence.length > LLM_OTP_EVIDENCE_MAX_LENGTH) return null
@@ -246,7 +331,7 @@ export function acceptLlmOtp(
     const followsEvidence = start >= evidenceEnd && EVIDENCE_TO_CODE_GAP.test(body.slice(evidenceEnd, start))
     if (!inEvidence && !followsEvidence) continue
     const sentence = sentenceAround(body, start, end, evidenceStart, Math.max(evidenceEnd, end))
-    if (!hasOtpSignal(sentence, code)) continue
+    if (!hasOtpSignal(sentence, code) && !(subjectVouches && isolated)) continue
     const before = body.slice(Math.max(0, start - LLM_OTP_CONTEXT_WINDOW), start)
     if (!DISQUALIFYING_NEARBY.test(before)) return code
   }

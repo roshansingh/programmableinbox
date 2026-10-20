@@ -264,4 +264,77 @@ describe('acceptLlmOtp', () => {
       expect(accept('851079', email, 'Your verification code is 851079.')).toBe('851079')
     })
   })
+
+  describe('the subject as the signal', () => {
+    // The shape deriveBodyText produces from the Notion HTML: the code on its own line.
+    const body =
+      'You can sign up by entering the code on the sign up page in Notion, or simply by clicking the magic link.\n\n727226\n\nSign in with Magic Link'
+    const withSubject = (subject: string | undefined, evidence: string) =>
+      acceptLlmOtp({ otp: '727226', evidence }, body, subject)
+
+    it('accepts a code that is a sentence on its own when the subject names a login code', () => {
+      expect(withSubject('Your Notion signup code', '727226')).toBe('727226')
+    })
+
+    it('accepts it when the quoted phrase runs from the previous sentence to the code', () => {
+      const evidence =
+        'You can sign up by entering the code on the sign up page in Notion, or simply by clicking the magic link. 727226'
+      expect(withSubject('Your Notion signup code', evidence)).toBe('727226')
+    })
+
+    it('rejects the same evidence without a subject', () => {
+      expect(withSubject(undefined, '727226')).toBeNull()
+      expect(withSubject('Welcome to Notion', '727226')).toBeNull()
+    })
+
+    it('rejects when the subject reads as a promotion', () => {
+      expect(withSubject('Your promo code', '727226')).toBeNull()
+    })
+
+    it('does not let the subject vouch for a code printed inside ordinary prose', () => {
+      expect(
+        acceptLlmOtp(
+          { otp: '727226', evidence: 'Your order 727226 has shipped' },
+          'Your order 727226 has shipped',
+          'Your login code',
+        ),
+      ).toBeNull()
+    })
+
+    it('does not let a token-only quote make an embedded number look isolated', () => {
+      expect(
+        acceptLlmOtp(
+          { otp: '727226', evidence: '727226' },
+          'Your order 727226 has shipped',
+          'Your login code',
+        ),
+      ).toBeNull()
+    })
+
+    it('refuses when the code is also printed inside prose elsewhere in the body', () => {
+      expect(
+        acceptLlmOtp(
+          { otp: '727226', evidence: '727226' },
+          'Your order 727226 has shipped\n\n727226',
+          'Your login code',
+        ),
+      ).toBeNull()
+    })
+
+    it('judges isolation on the body\'s own lines, so a token-only quote of a boxed code is accepted', () => {
+      expect(
+        acceptLlmOtp(
+          { otp: '727226', evidence: '727226' },
+          'Enter the code on the sign up page.\n\n727226\n\nSign in with Magic Link',
+          'Your Notion signup code',
+        ),
+      ).toBe('727226')
+    })
+
+    it('does not let the subject override a disqualifying word before the code', () => {
+      expect(
+        acceptLlmOtp({ otp: '727226', evidence: 'Promo: 727226' }, 'Promo: 727226', 'Your login code'),
+      ).toBeNull()
+    })
+  })
 })

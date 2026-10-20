@@ -16,11 +16,15 @@ export interface IngestionFields {
  * (test/llm-eval) call this rather than repeating the sequence, so they cannot
  * drift apart. None of it is gated behind the LLM plan or quota.
  */
-export function deriveIngestionFields(input: { text: string; html: string }): IngestionFields {
+export function deriveIngestionFields(input: {
+  text: string
+  html: string
+  subject?: string | null
+}): IngestionFields {
   const bodyText = deriveBodyText(input)
   return {
     bodyText,
-    extractedOtp: extractOtp(bodyText),
+    extractedOtp: extractOtp(bodyText, input.subject),
     links: classifyLinks(extractLinks(input)),
   }
 }

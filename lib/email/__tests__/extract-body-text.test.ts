@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveBodyText, MAX_BODY_TEXT_LENGTH } from '../extract-body-text'
+import { deriveBodyText, MAX_BODY_TEXT_LENGTH, MIN_TEXT_PART_LENGTH } from '../extract-body-text'
 
 describe('deriveBodyText', () => {
   it('prefers the sender-supplied text part over the html', () => {
@@ -27,6 +27,27 @@ describe('deriveBodyText', () => {
     })
 
     expect(result).toBe('from the html')
+  })
+
+  it('derives from the html when the text part is only a bare code', () => {
+    const result = deriveBodyText({
+      text: '727226',
+      html: '<p>You can sign up by entering the code on the sign up page.</p><pre>727226</pre>',
+    })
+
+    expect(result).toContain('You can sign up by entering the code')
+    expect(result).toContain('727226')
+  })
+
+  it('keeps a short text part when the html adds nothing longer', () => {
+    expect(deriveBodyText({ text: 'ok', html: '<p>ok</p>' })).toBe('ok')
+    expect(deriveBodyText({ text: 'ok', html: '<style>p{}</style>' })).toBe('ok')
+  })
+
+  it('keeps a text part at the minimum length without consulting the html', () => {
+    const text = 'x'.repeat(MIN_TEXT_PART_LENGTH)
+
+    expect(deriveBodyText({ text, html: '<p>' + 'y'.repeat(200) + '</p>' })).toBe(text)
   })
 
   it('does not index css from style blocks', () => {

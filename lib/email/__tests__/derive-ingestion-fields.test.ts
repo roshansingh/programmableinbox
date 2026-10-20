@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
 import { deriveIngestionFields } from '../derive-ingestion-fields'
 
@@ -46,5 +47,32 @@ describe('deriveIngestionFields', () => {
     expect(fields.links).toEqual([
       { url: 'https://shop.example.com/sale', label: 'Shop the sale', isCta: false, ctaConfidence: 'low' },
     ])
+  })
+
+  // Notion's login email, as received: the text alternative is only the code
+  // and the sentence around it exists only in the HTML.
+  describe('Notion signup email (stub text part, code only in a <pre>)', () => {
+    const html = readFileSync(new URL('./fixtures/notion-signup-code.html', import.meta.url), 'utf8')
+    const email = { text: '727226', html, subject: 'Your Notion signup code' }
+
+    it('derives the body text from the html and extracts the code', () => {
+      const fields = deriveIngestionFields(email)
+
+      expect(fields.bodyText).toContain('You can sign up by entering the code')
+      expect(fields.extractedOtp).toBe('727226')
+    })
+
+    it('extracts the code when the text part is absent entirely', () => {
+      expect(deriveIngestionFields({ ...email, text: '' }).extractedOtp).toBe('727226')
+    })
+
+    it('does not extract it without the subject', () => {
+      const { subject: _subject, ...withoutSubject } = email
+      expect(deriveIngestionFields(withoutSubject).extractedOtp).toBeNull()
+    })
+
+    it('does not extract it under an unrelated subject', () => {
+      expect(deriveIngestionFields({ ...email, subject: 'Welcome to Notion' }).extractedOtp).toBeNull()
+    })
   })
 })

@@ -227,7 +227,7 @@ async function enrichMessageInner(messageId: string): Promise<boolean> {
       const otpProposed = wantOtp && result.otp !== null
       const recoveredOtp =
         otpProposed && result.categories.includes('Security')
-          ? acceptLlmOtp({ otp: result.otp, evidence: result.otpEvidence }, promptText)
+          ? acceptLlmOtp({ otp: result.otp, evidence: result.otpEvidence }, promptText, message.subject)
           : null
       // Never log the code or its evidence: the code is a live credential.
       logger.info(
