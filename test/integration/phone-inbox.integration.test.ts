@@ -5,12 +5,16 @@ import { prisma } from '@/lib/db'
 import { createOrgWithUser, createSecondOrg } from './helpers/auth'
 import { jsonRequest, params } from './helpers/request'
 
+// A live number is unique across all organizations, so the default cannot be shared.
+let seeded = 0
+
 function seedPhoneInbox(orgId: string, userId: string, over: { phoneNumber?: string; countryCode?: string } = {}) {
+  seeded += 1
   return prisma.phoneInbox.create({
     data: {
       organizationId: orgId,
       userId,
-      phoneNumber: over.phoneNumber ?? '+15550000000',
+      phoneNumber: over.phoneNumber ?? `+1555000${String(seeded).padStart(4, '0')}`,
       countryCode: over.countryCode ?? 'US',
     },
   })
