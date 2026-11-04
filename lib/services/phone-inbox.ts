@@ -1,5 +1,6 @@
 import 'server-only'
 import { prisma } from '@/lib/db'
+import type { PhoneInboxStatus } from '@/lib/generated/prisma/client'
 import { MAX_UNPAGINATED_ROWS } from '@/lib/pagination/params'
 import type { OrgScope } from './scope'
 
@@ -9,7 +10,7 @@ import type { OrgScope } from './scope'
  * `failed` rows never held one; neither is something a user should see or be
  * billed a plan slot for.
  */
-const LIVE = { in: ['pending', 'active'] } as const
+const LIVE: { in: PhoneInboxStatus[] } = { in: ['pending', 'active'] }
 
 export function listPhoneInboxes(scope: OrgScope) {
   return prisma.phoneInbox.findMany({
