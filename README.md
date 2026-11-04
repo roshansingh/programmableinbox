@@ -9,7 +9,7 @@ Open source and self-hostable, so your mail never leaves your infrastructure.
 It's also reachable from an [MCP](https://modelcontextprotocol.io) client like Claude Code or
 Cursor, so an agent can read the same inbox you can.
 
-Open source under [AGPL-3.0](LICENSE), with an optional commercial layer under [`ee/`](ee/).
+Open source under the [MIT License](LICENSE), with an optional commercial layer under [`ee/`](ee/).
 
 ## Features
 
@@ -109,7 +109,7 @@ the integration suite that runs against a real Postgres instance.
 
 ## License
 
-The core of this repository is licensed under [AGPL-3.0](LICENSE). Code under [`ee/`](ee/), if
+The core of this repository is licensed under the [MIT License](LICENSE). Code under [`ee/`](ee/), if
 present, is licensed separately under [`ee/LICENSE`](ee/LICENSE) — see
 [commercial-layer.md](docs/architecture/commercial-layer.md) for how the two fit together. A
 build with `ee/` removed is a complete, fully functional open-source edition.
