@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { toOrgScope, toOwnerScope, toInboxWriteScope, toInboxDeleteScope } from '../scope'
+import {
+  toOrgScope,
+  toOwnerScope,
+  toInboxWriteScope,
+  toInboxDeleteScope,
+  toPhoneWriteScope,
+} from '../scope'
 
 const USER = {
   kind: 'user' as const,
@@ -158,5 +164,19 @@ describe('toInboxDeleteScope', () => {
 
   it('403s a user deleting in an organization they do not belong to', () => {
     expect(toInboxDeleteScope(USER, 'org_other').error?.status).toBe(403)
+  })
+})
+
+describe('toPhoneWriteScope', () => {
+  it('binds a member to the organization they name', () => {
+    const result = toPhoneWriteScope(USER, 'org_2')
+    expect(result.scope).toEqual({ organizationId: 'org_2', userId: 'user_1' })
+  })
+
+  it('403s a user naming an organization they do not belong to', async () => {
+    const result = toPhoneWriteScope(USER, 'org_other')
+    expect(result.scope).toBeUndefined()
+    expect(result.error?.status).toBe(403)
+    expect(await result.error!.json()).toEqual({ message: 'Not authorized for this organization' })
   })
 })
