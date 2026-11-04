@@ -81,6 +81,21 @@ export async function purchaseNumber(phoneNumber: string): Promise<PurchasedNumb
 }
 
 /**
+ * The sid of `phoneNumber` if this account holds it, else null.
+ *
+ * For recovering from a purchase whose answer was lost: Twilio may have sold the
+ * number and billed for it while we never learned its sid. Safe to act on only
+ * while the caller holds the reservation for that number, because the live-number
+ * index means nobody else can legitimately own it in the meantime.
+ */
+export async function findOwnedNumberSid(phoneNumber: string): Promise<string | null> {
+  const found = await callTwilio((client) =>
+    client.incomingPhoneNumbers.list({ phoneNumber, limit: 1 }),
+  )
+  return found[0]?.sid ?? null
+}
+
+/**
  * Hands a purchased number back to Twilio, which stops the monthly charge.
  *
  * A number Twilio no longer has counts as released: the goal state already

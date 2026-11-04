@@ -153,6 +153,8 @@ describe('POST /api/app/phoneInbox', () => {
     ['a digits-only number', { phoneNumber: '4155550100', countryCode: 'US' }],
     ['a number with formatting', { phoneNumber: '+1 (415) 555-0100', countryCode: 'US' }],
     ['an unsupported country', { phoneNumber: '+447700900123', countryCode: 'GB' }],
+    // The bypass: a valid country label wrapped around a number from elsewhere.
+    ['a non-North-American number labelled US', { phoneNumber: '+447700900123', countryCode: 'US' }],
   ])('400 for %s', async (_label, fields) => {
     const { org, token } = await createOrgWithUser()
 

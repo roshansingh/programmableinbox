@@ -7,7 +7,7 @@ import { countLivePhoneInboxes, listPhoneInboxes } from '@/lib/services/phone-in
 import { NumberUnavailableError, provisionPhoneInbox } from '@/lib/services/phone-provisioning'
 import { toOrgScope, toPhoneWriteScope } from '@/lib/services/scope'
 import { phonePlanGate, smsEnabledGate, smsFailureResponse } from '@/lib/sms/http'
-import { isE164, isSmsCountry } from '@/lib/sms/validation'
+import { isNanpNumber, isSmsCountry } from '@/lib/sms/validation'
 
 export const GET = withUser(async (request, principal) => {
   const organizationId = request.nextUrl.searchParams.get('organizationId')
@@ -36,8 +36,8 @@ export const POST = withUser(async (request, principal) => {
   if (!isSmsCountry(countryCode)) {
     return jsonError('countryCode must be US or CA', 400)
   }
-  if (!isE164(phoneNumber)) {
-    return jsonError('phoneNumber must be in E.164 format, e.g. +14155550100', 400)
+  if (!isNanpNumber(phoneNumber)) {
+    return jsonError('phoneNumber must be a US or Canadian number in E.164 format, e.g. +14155550100', 400)
   }
 
   const { scope, error } = toPhoneWriteScope(principal, organizationId)

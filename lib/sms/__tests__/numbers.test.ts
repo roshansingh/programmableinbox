@@ -4,6 +4,7 @@ import { SmsProviderError } from '../errors'
 const listMock = vi.fn()
 const createMock = vi.fn()
 const removeMock = vi.fn()
+const findMock = vi.fn()
 const availableMock = vi.fn((_country: string) => ({ local: { list: listMock } }))
 
 // `callTwilio` is the seam: the real one maps SDK failures into SmsProviderError,
@@ -12,7 +13,10 @@ const fakeClient = {
   availablePhoneNumbers: (country: string) => availableMock(country),
   incomingPhoneNumbers: Object.assign(
     (sid: string) => ({ remove: () => removeMock(sid) }),
-    { create: (...args: unknown[]) => createMock(...args) },
+    {
+      create: (...args: unknown[]) => createMock(...args),
+      list: (...args: unknown[]) => findMock(...args),
+    },
   ),
 }
 vi.mock('../twilio-client', () => ({
@@ -24,7 +28,7 @@ vi.mock('@/lib/config', () => ({
   requireSms: () => ({ accountSid: 'AC' + 'a'.repeat(32), authToken: 't', appBaseUrl }),
 }))
 
-import { purchaseNumber, releaseNumber, searchAvailableNumbers } from '../numbers'
+import { findOwnedNumberSid, purchaseNumber, releaseNumber, searchAvailableNumbers } from '../numbers'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -131,5 +135,20 @@ describe('releaseNumber', () => {
     removeMock.mockRejectedValue(new SmsProviderError('down', 'unavailable', 503, null))
 
     await expect(releaseNumber('PN' + 'b'.repeat(32))).rejects.toMatchObject({ kind: 'unavailable' })
+  })
+})
+
+describe('findOwnedNumberSid', () => {
+  it('asks Twilio whether the account holds this exact number and returns its sid', async () => {
+    findMock.mockResolvedValue([{ sid: 'PN' + 'c'.repeat(32), phoneNumber: '+14155550100' }])
+
+    expect(await findOwnedNumberSid('+14155550100')).toBe('PN' + 'c'.repeat(32))
+    expect(findMock).toHaveBeenCalledWith({ phoneNumber: '+14155550100', limit: 1 })
+  })
+
+  it('is null when the account does not hold it', async () => {
+    findMock.mockResolvedValue([])
+
+    expect(await findOwnedNumberSid('+14155550100')).toBeNull()
   })
 })

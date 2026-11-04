@@ -13,6 +13,18 @@ export function isE164(value: unknown): value is string {
   return typeof value === 'string' && E164_PATTERN.test(value)
 }
 
+/**
+ * A North American Numbering Plan number: `+1`, then an area code and exchange
+ * that each start 2–9. US and Canada share it, which is why this — not just
+ * "E.164" — is what a purchase must satisfy: epic #139 sells US and CA numbers
+ * only, and the platform account may be permitted to buy elsewhere.
+ */
+const NANP_PATTERN = /^\+1[2-9]\d{2}[2-9]\d{6}$/
+
+export function isNanpNumber(value: unknown): value is string {
+  return typeof value === 'string' && NANP_PATTERN.test(value)
+}
+
 /** A North American area code: exactly three digits. */
 export function isAreaCode(value: unknown): value is string {
   return typeof value === 'string' && /^\d{3}$/.test(value)

@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const purchaseMock = vi.fn()
 const releaseMock = vi.fn()
+const findMock = vi.fn()
 vi.mock('@/lib/sms/numbers', () => ({
   purchaseNumber: (...args: unknown[]) => purchaseMock(...args),
   releaseNumber: (...args: unknown[]) => releaseMock(...args),
+  findOwnedNumberSid: (...args: unknown[]) => findMock(...args),
 }))
 
 import { prisma } from '@/lib/db'
@@ -40,6 +42,8 @@ beforeEach(() => {
   purchaseMock.mockReset()
   releaseMock.mockReset()
   releaseMock.mockResolvedValue(undefined)
+  findMock.mockReset()
+  findMock.mockResolvedValue(null)
 })
 
 describe('provisionPhoneInbox', () => {
@@ -138,8 +142,8 @@ describe('provisionPhoneInbox', () => {
     const { scope } = await member()
     const number = freshNumber()
     purchaseMock.mockResolvedValue(purchased(number))
-    const realUpdate = prisma.phoneInbox.update.bind(prisma.phoneInbox)
-    vi.spyOn(prisma.phoneInbox, 'update').mockImplementation(((args: { data: { status?: string } }) => {
+    const realUpdate = prisma.phoneInbox.updateMany.bind(prisma.phoneInbox)
+    vi.spyOn(prisma.phoneInbox, 'updateMany').mockImplementation(((args: { data: { status?: string } }) => {
       if (args.data.status === 'active') return Promise.reject(new Error('connection lost'))
       return realUpdate(args as never)
     }) as never)
@@ -158,8 +162,8 @@ describe('provisionPhoneInbox', () => {
     const number = freshNumber()
     purchaseMock.mockResolvedValue(purchased(number))
     releaseMock.mockRejectedValue(new SmsProviderError('down', 'unavailable', 503, null))
-    const realUpdate = prisma.phoneInbox.update.bind(prisma.phoneInbox)
-    vi.spyOn(prisma.phoneInbox, 'update').mockImplementation(((args: { data: { status?: string } }) => {
+    const realUpdate = prisma.phoneInbox.updateMany.bind(prisma.phoneInbox)
+    vi.spyOn(prisma.phoneInbox, 'updateMany').mockImplementation(((args: { data: { status?: string } }) => {
       if (args.data.status === 'active') return Promise.reject(new Error('connection lost'))
       return realUpdate(args as never)
     }) as never)
@@ -170,6 +174,74 @@ describe('provisionPhoneInbox', () => {
 
     const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
     expect(row.status).toBe('failed')
+  })
+
+  it('releases a number Twilio sold us even though the purchase answer was lost', async () => {
+    const { scope } = await member()
+    const number = freshNumber()
+    purchaseMock.mockRejectedValue(new SmsProviderError('timed out', 'unavailable', null, null))
+    findMock.mockResolvedValue(sidFor(number))
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toMatchObject({ kind: 'unavailable' })
+
+    expect(findMock).toHaveBeenCalledWith(number)
+    expect(releaseMock).toHaveBeenCalledWith(sidFor(number))
+    const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
+    expect(row.status).toBe('failed')
+  })
+
+  it('does not look for a stray number after a refusal that proves nothing was bought', async () => {
+    const { scope } = await member()
+    purchaseMock.mockRejectedValue(new SmsProviderError('bad creds', 'auth', 401, 20003))
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: freshNumber(), countryCode: 'US' }),
+    ).rejects.toMatchObject({ kind: 'auth' })
+
+    expect(findMock).not.toHaveBeenCalled()
+  })
+
+  it('still fails the row and reports the original error if the stray-number check itself fails', async () => {
+    const { scope } = await member()
+    const number = freshNumber()
+    purchaseMock.mockRejectedValue(new SmsProviderError('timed out', 'unavailable', null, null))
+    findMock.mockRejectedValue(new SmsProviderError('still down', 'unavailable', 503, null))
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toMatchObject({ message: 'timed out' })
+
+    const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
+    expect(row.status).toBe('failed')
+  })
+
+  it('gives the number back if the reservation was cleared while Twilio was selling it', async () => {
+    const { scope } = await member()
+    const number = freshNumber()
+    purchaseMock.mockImplementation(async () => {
+      // The creator cleared the stuck reservation mid-purchase.
+      await prisma.phoneInbox.updateMany({ where: { phoneNumber: number }, data: { status: 'failed' } })
+      return purchased(number)
+    })
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toThrow(/cancelled/i)
+
+    expect(releaseMock).toHaveBeenCalledWith(sidFor(number))
+    const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
+    expect(row.status).toBe('failed')
+  })
+
+  it('rejects a number outside North America before touching Twilio or the database', async () => {
+    const { scope } = await member()
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: '+447700900123', countryCode: 'US' }),
+    ).rejects.toBeInstanceOf(RangeError)
+    expect(purchaseMock).not.toHaveBeenCalled()
   })
 })
 
@@ -229,6 +301,73 @@ describe('releasePhoneInbox', () => {
     const teammate = await createSecondOrg()
 
     await expect(releasePhoneInbox({ userId: teammate.user.id }, inbox.id)).resolves.toBe('not-found')
+    expect(releaseMock).not.toHaveBeenCalled()
+  })
+
+  async function stalePending() {
+    const m = await member()
+    const number = freshNumber()
+    const row = await prisma.phoneInbox.create({
+      data: {
+        organizationId: m.org.id,
+        userId: m.user.id,
+        phoneNumber: number,
+        countryCode: 'US',
+        status: 'pending',
+      },
+    })
+    await prisma.$executeRaw`UPDATE "phone_inboxes" SET "createdAt" = now() - interval '10 minutes' WHERE id = ${row.id}::uuid`
+    return { ...m, row, number }
+  }
+
+  it('lets the creator clear a reservation that has been stuck pending', async () => {
+    const { user, row, number } = await stalePending()
+    findMock.mockResolvedValue(sidFor(number))
+
+    await expect(releasePhoneInbox({ userId: user.id }, row.id)).resolves.toBe('released')
+
+    expect(releaseMock).toHaveBeenCalledWith(sidFor(number))
+    const after = await prisma.phoneInbox.findFirstOrThrow({
+      where: { id: row.id, deletedAt: { not: null } },
+    })
+    expect(after.status).toBe('failed')
+  })
+
+  it('frees the number and the plan slot when the stuck reservation never bought anything', async () => {
+    const { user, row, number } = await stalePending()
+
+    await expect(releasePhoneInbox({ userId: user.id }, row.id)).resolves.toBe('released')
+
+    expect(releaseMock).not.toHaveBeenCalled()
+    const other = await member()
+    purchaseMock.mockResolvedValue({ ...purchased(number), sid: 'PN' + 'e'.repeat(32) })
+    await expect(
+      provisionPhoneInbox(other.scope, { phoneNumber: number, countryCode: 'US' }),
+    ).resolves.toMatchObject({ status: 'active' })
+  })
+
+  it('leaves a recent pending reservation alone, since a purchase may still be in flight', async () => {
+    const m = await member()
+    const row = await prisma.phoneInbox.create({
+      data: {
+        organizationId: m.org.id,
+        userId: m.user.id,
+        phoneNumber: freshNumber(),
+        countryCode: 'US',
+        status: 'pending',
+      },
+    })
+
+    await expect(releasePhoneInbox({ userId: m.user.id }, row.id)).resolves.toBe('not-found')
+    expect((await prisma.phoneInbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('pending')
+  })
+
+  it('is not-found for a creator who has since left the organization, and releases nothing', async () => {
+    const { user, org, inbox } = await active()
+    await prisma.membership.deleteMany({ where: { userId: user.id, organizationId: org.id } })
+    releaseMock.mockClear()
+
+    await expect(releasePhoneInbox({ userId: user.id }, inbox.id)).resolves.toBe('not-found')
     expect(releaseMock).not.toHaveBeenCalled()
   })
 
