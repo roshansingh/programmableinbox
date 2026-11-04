@@ -74,7 +74,14 @@ function redact(text: string, secrets: readonly string[]): string {
  * hide.
  */
 export function mapTwilioError(err: unknown, secrets: readonly string[] = []): SmsProviderError {
-  if (err instanceof SmsProviderError) return err
+  if (err instanceof SmsProviderError) {
+    // Already mapped, but possibly without these secrets (e.g. by a nested
+    // mapper). Redact again and rebuild so neither message nor stack keeps them;
+    // return the same instance when nothing changed.
+    const message = redact(err.message, secrets)
+    if (message === err.message) return err
+    return new SmsProviderError(message, err.kind, err.status, err.twilioCode)
+  }
 
   const fields = (typeof err === 'object' && err !== null ? err : {}) as {
     status?: unknown

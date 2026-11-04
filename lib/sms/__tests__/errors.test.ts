@@ -71,6 +71,25 @@ describe('mapTwilioError', () => {
       expect(mapped.message).not.toContain(other)
     })
 
+    it('redacts newly supplied secrets when remapping an already-mapped error', () => {
+      const first = mapTwilioError(restException(401, `bad ${TOKEN}`))
+      expect(first.message).toContain(TOKEN)
+
+      const second = mapTwilioError(first, [TOKEN])
+
+      expect(second.message).not.toContain(TOKEN)
+      expect(second.stack).not.toContain(TOKEN)
+      expect(second).toBeInstanceOf(SmsProviderError)
+      expect(second.kind).toBe(first.kind)
+      expect(second.status).toBe(first.status)
+      expect(second.twilioCode).toBe(first.twilioCode)
+    })
+
+    it('returns an already-clean mapped error unchanged', () => {
+      const first = mapTwilioError(restException(401, 'bad credentials'), [TOKEN])
+      expect(mapTwilioError(first, [TOKEN])).toBe(first)
+    })
+
     it('does not keep the original error as a cause', () => {
       const mapped = mapTwilioError(restException(401, `bad ${TOKEN}`), [TOKEN])
       expect(mapped.cause).toBeUndefined()
