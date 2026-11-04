@@ -2,10 +2,9 @@ import 'server-only'
 import { prisma } from '@/lib/db'
 import logger from '@/lib/logger'
 import { SmsProviderError } from '@/lib/sms/errors'
-import { purchaseNumber, releaseNumber, type SmsCountry } from '@/lib/sms/numbers'
+import { purchaseNumber, releaseNumber } from '@/lib/sms/numbers'
+import { isE164, type SmsCountry } from '@/lib/sms/validation'
 import type { OwnerScope, PhoneWriteScope } from './scope'
-
-const E164 = /^\+[1-9]\d{7,14}$/
 
 /**
  * The number cannot be had: another request holds it, or Twilio no longer sells
@@ -50,7 +49,7 @@ export async function provisionPhoneInbox(
   scope: PhoneWriteScope,
   input: { phoneNumber: string; countryCode: SmsCountry },
 ) {
-  if (!E164.test(input.phoneNumber)) {
+  if (!isE164(input.phoneNumber)) {
     throw new RangeError('phoneNumber must be in E.164 format')
   }
 

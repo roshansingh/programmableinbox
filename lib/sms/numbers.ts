@@ -1,9 +1,9 @@
 import { requireSms } from '@/lib/config'
 import { SmsProviderError } from './errors'
 import { callTwilio } from './twilio-client'
+import type { SmsCountry } from './validation'
 
-/** Countries a number can be bought in (epic #139: US and CA only). */
-export type SmsCountry = 'US' | 'CA'
+export type { SmsCountry }
 
 export type AvailableNumber = {
   phoneNumber: string
