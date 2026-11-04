@@ -200,3 +200,80 @@ describe('assertConfig', () => {
     expect(() => assertConfig()).toThrow(/\.env\.example/)
   })
 })
+
+describe('assertConfig: SMS', () => {
+  const SID = 'AC' + 'a'.repeat(32)
+
+  function enableSms() {
+    process.env.SMS_ENABLED = 'true'
+    process.env.TWILIO_ACCOUNT_SID = SID
+    process.env.TWILIO_AUTH_TOKEN = 't'.repeat(32)
+  }
+
+  it('refuses to boot with SMS_ENABLED and no APP_BASE_URL', () => {
+    setValidEnv()
+    enableSms()
+    delete process.env.APP_BASE_URL
+
+    let message = ''
+    try {
+      assertConfig()
+    } catch (error) {
+      expect(error).toBeInstanceOf(ConfigError)
+      message = (error as Error).message
+    }
+
+    expect(message).toContain('APP_BASE_URL')
+    expect(message).toContain('SMS_ENABLED')
+  })
+
+  it('passes with SMS fully configured', () => {
+    setValidEnv()
+    enableSms()
+    process.env.APP_BASE_URL = 'https://app.example.com'
+
+    expect(() => assertConfig()).not.toThrow()
+  })
+
+  it('passes with SMS off and no APP_BASE_URL', () => {
+    setValidEnv()
+    delete process.env.APP_BASE_URL
+
+    expect(() => assertConfig()).not.toThrow()
+  })
+
+  it('does not report APP_BASE_URL twice when email verification already failed on it', () => {
+    setValidEnv()
+    enableSms()
+    process.env.EMAIL_VERIFICATION_ENABLED = 'true'
+    process.env.EMAIL_LINK_SIGNING_SECRET = 's'.repeat(32)
+    delete process.env.APP_BASE_URL
+
+    let message = ''
+    try {
+      assertConfig()
+    } catch (error) {
+      message = (error as Error).message
+    }
+
+    expect(message.match(/APP_BASE_URL is required/g)).toHaveLength(1)
+  })
+
+  it('does not blame APP_BASE_URL when it is set and email verification fails for another reason', () => {
+    setValidEnv()
+    enableSms()
+    process.env.APP_BASE_URL = 'https://app.example.com'
+    process.env.EMAIL_VERIFICATION_ENABLED = 'true'
+    delete process.env.EMAIL_LINK_SIGNING_SECRET
+
+    let message = ''
+    try {
+      assertConfig()
+    } catch (error) {
+      message = (error as Error).message
+    }
+
+    expect(message).toContain('EMAIL_LINK_SIGNING_SECRET')
+    expect(message).not.toContain('APP_BASE_URL')
+  })
+})

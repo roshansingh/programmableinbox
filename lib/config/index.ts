@@ -213,6 +213,47 @@ export function requireEmailVerification(): { secret: string; appBaseUrl: string
   return { secret: secret!.reveal(), appBaseUrl: appBaseUrl! }
 }
 
+/**
+ * Returns the Twilio credentials and the link origin, or throws naming
+ * whatever is missing (epic #139, issue #140).
+ *
+ * Throws while `SMS_ENABLED` is false even when the credentials happen to be
+ * set: an operator who has pasted them in ahead of switching the feature on has
+ * not decided to spend money at Twilio yet, so nothing may hand out a client.
+ * `assertConfig()` catches the ordinary misconfiguration at boot; this is the
+ * guard for the path that stays reachable afterwards — a caller that forgot to
+ * check `enabled` first. Same shape as {@link requireEmailVerification}.
+ */
+export function requireSms(): { accountSid: string; authToken: string; appBaseUrl: string } {
+  const { enabled, accountSid, authToken } = config.sms
+
+  if (!enabled) {
+    throw new ConfigError(
+      'SMS is not enabled. Set SMS_ENABLED=true (with TWILIO_ACCOUNT_SID, ' +
+        'TWILIO_AUTH_TOKEN and APP_BASE_URL) to use SMS inboxes.',
+      ['SMS_ENABLED'],
+    )
+  }
+
+  const appBaseUrl = config.emailVerification.appBaseUrl
+  const missing: string[] = []
+
+  if (accountSid === null) missing.push('TWILIO_ACCOUNT_SID')
+  if (authToken === null) missing.push('TWILIO_AUTH_TOKEN')
+  if (appBaseUrl === null) missing.push('APP_BASE_URL')
+
+  if (missing.length > 0) {
+    throw new ConfigError(
+      `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} required ` +
+        'when SMS_ENABLED is true. There is no default: the webhook URL Twilio ' +
+        'signs must come from operator configuration, not the request.',
+      missing,
+    )
+  }
+
+  return { accountSid: accountSid!, authToken: authToken!.reveal(), appBaseUrl: appBaseUrl! }
+}
+
 export const config: ConfigShape = Object.freeze(
   Object.defineProperties(
     {} as ConfigShape,
