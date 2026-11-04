@@ -264,6 +264,18 @@ the uniform response would hide why.
 Confirm issues no session. The user signs in afterwards, which proves the reset
 worked and keeps an emailed link from being convertible into a session.
 
+### Phone number provisioning (issue #141)
+
+A phone inbox is a real number bought from Twilio, never one a user typed in. The old flow inserted whatever digits it was given; every row that predates this was migrated to `released` (not deleted) by `*_phone_inbox_provisioning`, and the app lists only `pending` and `active`.
+
+- **Reserve → purchase → activate** (`lib/services/phone-provisioning.ts`). A `pending` row is inserted first, and the partial unique index on live numbers (`phone_inboxes_phoneNumber_live_key`, `WHERE status IN ('pending','active')`) makes that insert the arbiter: of two requests racing for one number, one insert wins and the other returns 409 without ever reaching Twilio. Buying first and recording after would let both pay. If the purchase is refused the row goes `failed`; if the *activating write* fails after a successful purchase, the number is released again so a paid number is never orphaned.
+- **The index is on `status`, not `deletedAt`.** A row soft-deleted but still `active` keeps holding its number, because the number is still ours at Twilio. Release goes through `status: 'released'`. `failed` and `released` rows hold nothing, so a retry or another organization can buy the number. The index is raw SQL; Prisma's differ does not flag it (checked with `migrate diff` against a migrated scratch database).
+- **Release on delete is Twilio-first** (`releasePhoneInbox`): a Twilio failure leaves the row `active` and the delete retryable, and a number Twilio no longer has counts as released, so a crash between the two steps heals on retry. There is no grace period and no sweeper — the number returns to the pool and anyone may buy it.
+- **Scopes.** Reads are `OrgScope` (organization-wide, `isOwner` in the serializer); buying takes a `PhoneWriteScope` (`toPhoneWriteScope`, user principals only, one membership-checked organization); releasing takes the creator-only `OwnerScope`. The three types are mutually unassignable (`scope.test-d.ts`). Another organization's inbox is a 404, never a 403. A phone inbox has no editable field, so there is no `PATCH`.
+- **Plan gates** are checked in order — membership, `phoneInboxesEnabled` (402), `phoneInboxes` count of live numbers (402), then `SMS_ENABLED` (503). `GET /api/app/phoneInbox/available` is gated like a purchase so inventory is not browsable by organizations that cannot buy from it. The paid plan has the feature on with a limit of two; Free is off.
+- **The webhook URL is set at purchase** from `APP_BASE_URL` (trailing slashes trimmed). The route it points at, `/api/webhooks/sms`, lands in #142; a number bought before then receives nothing.
+- **Provider failures never echo detail.** `smsFailureResponse` maps `rate-limited`/`unavailable` to 503 and every other `SmsProviderError` to 502 with a fixed message; the redacted original is already logged by `callTwilio`.
+
 ### Inbox creation policy (issue #98)
 
 Address *syntax* validation (`lib/email-address.ts`) never claimed to know which domains we can receive at, so creation used to accept any well-formed address. Two rules now sit on every write path, both in `lib/validation/inbox-policy.ts`:
