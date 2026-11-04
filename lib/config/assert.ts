@@ -64,6 +64,26 @@ export function assertConfig(): void {
     }
   }
 
+  // SMS needs APP_BASE_URL, but that variable belongs to the emailVerification
+  // domain (one domain per variable), so the requirement is stated here. The
+  // webhook URL registered with Twilio is built from it, and Twilio's signature
+  // covers that exact URL — deriving it from the request's Host would let
+  // whoever controls Host choose the URL being signed. Skipped when
+  // APP_BASE_URL has already been reported, so the operator does not see the
+  // same variable twice.
+  if (!variables.includes('APP_BASE_URL')) {
+    const sms = safeParse('sms')
+    const emailVerification = safeParse('emailVerification')
+
+    if (sms?.enabled && emailVerification?.appBaseUrl == null) {
+      failures.push(
+        'Invalid sms configuration:\n  - APP_BASE_URL is required when SMS_ENABLED is true ' +
+          '(the Twilio webhook URL is built from it, never from the request)',
+      )
+      variables.push('APP_BASE_URL')
+    }
+  }
+
   if (failures.length === 0) return
 
   throw new ConfigError(

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { Secret, config, resetConfigCache } from '../index'
+import { ConfigError, Secret, config, requireSms, resetConfigCache } from '../index'
 
 const UTC_URL = 'postgresql://u:p@h:5432/db?options=-c%20timezone%3DUTC'
 const originalEnv = { ...process.env }
@@ -129,5 +129,51 @@ describe('config accessors', () => {
       expect(error).toBeInstanceOf(ConfigError)
       expect((error as InstanceType<typeof ConfigError>).variables).toContain('LOG_LEVEL')
     }
+  })
+})
+
+describe('requireSms', () => {
+  const SID = 'AC' + 'a'.repeat(32)
+  const TOKEN = 't'.repeat(32)
+
+  function failure(): ConfigError {
+    try {
+      requireSms()
+    } catch (error) {
+      if (error instanceof ConfigError) return error
+      throw error
+    }
+    throw new Error('expected requireSms to throw')
+  }
+
+  it('throws naming SMS_ENABLED when SMS is off, even with credentials set', () => {
+    process.env.TWILIO_ACCOUNT_SID = SID
+    process.env.TWILIO_AUTH_TOKEN = TOKEN
+    process.env.APP_BASE_URL = 'https://app.example.com'
+    delete process.env.SMS_ENABLED
+
+    expect(failure().variables).toContain('SMS_ENABLED')
+  })
+
+  it('names APP_BASE_URL when it is the only thing missing', () => {
+    process.env.SMS_ENABLED = 'true'
+    process.env.TWILIO_ACCOUNT_SID = SID
+    process.env.TWILIO_AUTH_TOKEN = TOKEN
+    delete process.env.APP_BASE_URL
+
+    expect(failure().variables).toEqual(['APP_BASE_URL'])
+  })
+
+  it('returns the revealed credentials and the base URL when complete', () => {
+    process.env.SMS_ENABLED = 'true'
+    process.env.TWILIO_ACCOUNT_SID = SID
+    process.env.TWILIO_AUTH_TOKEN = TOKEN
+    process.env.APP_BASE_URL = 'https://app.example.com'
+
+    expect(requireSms()).toEqual({
+      accountSid: SID,
+      authToken: TOKEN,
+      appBaseUrl: 'https://app.example.com',
+    })
   })
 })
