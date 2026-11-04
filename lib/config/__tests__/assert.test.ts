@@ -258,4 +258,22 @@ describe('assertConfig: SMS', () => {
 
     expect(message.match(/APP_BASE_URL is required/g)).toHaveLength(1)
   })
+
+  it('does not blame APP_BASE_URL when it is set and email verification fails for another reason', () => {
+    setValidEnv()
+    enableSms()
+    process.env.APP_BASE_URL = 'https://app.example.com'
+    process.env.EMAIL_VERIFICATION_ENABLED = 'true'
+    delete process.env.EMAIL_LINK_SIGNING_SECRET
+
+    let message = ''
+    try {
+      assertConfig()
+    } catch (error) {
+      message = (error as Error).message
+    }
+
+    expect(message).toContain('EMAIL_LINK_SIGNING_SECRET')
+    expect(message).not.toContain('APP_BASE_URL')
+  })
 })

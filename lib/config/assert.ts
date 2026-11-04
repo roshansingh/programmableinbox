@@ -75,7 +75,11 @@ export function assertConfig(): void {
     const sms = safeParse('sms')
     const emailVerification = safeParse('emailVerification')
 
-    if (sms?.enabled && emailVerification?.appBaseUrl == null) {
+    // `emailVerification` is null when that domain failed to parse for a reason
+    // of its own (a missing signing secret, say), in which case APP_BASE_URL is
+    // unknown rather than absent — blaming it would name a variable that may be
+    // set and valid.
+    if (sms?.enabled && emailVerification !== null && emailVerification.appBaseUrl === null) {
       failures.push(
         'Invalid sms configuration:\n  - APP_BASE_URL is required when SMS_ENABLED is true ' +
           '(the Twilio webhook URL is built from it, never from the request)',

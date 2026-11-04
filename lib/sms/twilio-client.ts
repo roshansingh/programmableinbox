@@ -13,8 +13,15 @@ import { mapTwilioError } from './errors'
  * throws a `ConfigError` naming the variable when SMS is off or incomplete —
  * nothing here defaults or falls back.
  *
- * Automatic retry is limited to the SDK's own policy (429 and 5xx, with
- * backoff); a 4xx is the caller's mistake and retrying it only repeats it.
+ * Automatic retry is the SDK's own policy and covers **429 only** (with
+ * backoff, up to `maxRetries`). A 5xx or a network failure is *not* retried: it
+ * surfaces once as an `unavailable` `SmsProviderError`, and a caller that needs
+ * a retry on those must do it itself. A 4xx is the caller's mistake and
+ * retrying it only repeats it.
+ *
+ * Prefer {@link callTwilio}. Redaction of the account SID and auth token, and
+ * dropping the original error as `cause`, only protect callers that go through
+ * it — never log a raw error thrown from a client obtained directly here.
  */
 let client: twilio.Twilio | null = null
 
