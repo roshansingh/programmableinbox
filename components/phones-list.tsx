@@ -9,6 +9,7 @@ import { Plus, Phone, Copy, Trash2, ExternalLink } from 'lucide-react'
 import { CreatePhoneDialog } from "@/components/create-phone-dialog"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { getPhoneInboxes, deletePhoneInbox, type InboxPhone } from "@/lib/api/phones.api"
+import { formatPhoneNumber } from "@/lib/phone-format"
 import { useAuth } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
@@ -64,14 +65,6 @@ export function PhonesList() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const formatPhoneNumber = (phoneNumber: string, countryCode: string) => {
-    // Simple formatting - can be enhanced
-    if (countryCode === "US" && phoneNumber.length === 10) {
-      return `+1 (${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6)}`
-    }
-    return `+${countryCode} ${phoneNumber}`
   }
 
   if (isLoading) {
@@ -139,12 +132,17 @@ export function PhonesList() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm font-medium text-foreground">
-                        {formatPhoneNumber(phone.phoneNumber, phone.countryCode)}
+                        {formatPhoneNumber(phone.phoneNumber)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs border-border text-muted-foreground">
                           {phone.countryCode}
                         </Badge>
+                        {phone.status !== "active" && (
+                          <Badge variant="outline" className="text-xs border-border text-muted-foreground">
+                            Setting up
+                          </Badge>
+                        )}
                         <span className="text-muted-foreground">•</span>
                         <p className="text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(phone.createdAt), { addSuffix: true })}
@@ -158,7 +156,7 @@ export function PhonesList() {
                       size="icon"
                       onClick={(e) => {
                         e.preventDefault()
-                        copyToClipboard(formatPhoneNumber(phone.phoneNumber, phone.countryCode))
+                        copyToClipboard(formatPhoneNumber(phone.phoneNumber))
                       }}
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
                     >
@@ -171,18 +169,23 @@ export function PhonesList() {
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete phone inbox ${formatPhoneNumber(phone.phoneNumber, phone.countryCode)}`}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        setPhonePendingDelete(phone)
-                      }}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {/* Reads are organization-wide but releasing a number is
+                        creator-only, so a teammate's number gets no delete: the
+                        server would answer 404. */}
+                    {phone.isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete phone inbox ${formatPhoneNumber(phone.phoneNumber)}`}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setPhonePendingDelete(phone)
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </Link>
               ))}
@@ -208,9 +211,10 @@ export function PhonesList() {
           <>
             <span className="font-medium text-foreground">
               {phonePendingDelete &&
-                formatPhoneNumber(phonePendingDelete.phoneNumber, phonePendingDelete.countryCode)}
+                formatPhoneNumber(phonePendingDelete.phoneNumber)}
             </span>{" "}
-            will be deleted.
+            will be released back to the provider. This cannot be undone, and anyone may
+            buy the number afterwards.
           </>
         }
         onConfirm={() => phonePendingDelete ? handleDelete(phonePendingDelete.id) : undefined}

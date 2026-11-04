@@ -12,8 +12,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createPhoneInbox } from "@/lib/api/phones.api"
+import {
+  createPhoneInbox,
+  searchAvailablePhoneNumbers,
+  type AvailablePhoneNumber,
+  type PhoneCountry,
+} from "@/lib/api/phones.api"
+import { formatPhoneNumber } from "@/lib/phone-format"
 import { toast } from "sonner"
 
 interface CreatePhoneDialogProps {
@@ -23,52 +30,68 @@ interface CreatePhoneDialogProps {
   onSuccess?: () => void
 }
 
-const COUNTRY_CODES: Record<string, string> = {
-  US: "US",
-  UK: "GB",
-  CA: "CA",
-  AU: "AU",
-}
-
+/**
+ * Buys a real number. There is deliberately no field to type one: the server
+ * only sells numbers Twilio offers, so the user searches an area code and picks
+ * from the result. Mirrors `create-email-dialog.tsx` in shape — the user composes
+ * an address from constrained parts rather than supplying it.
+ */
 export function CreatePhoneDialog({ open, onOpenChange, organizationId, onSuccess }: CreatePhoneDialogProps) {
-  const [countryCode, setCountryCode] = useState("US")
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [country, setCountry] = useState<PhoneCountry>("US")
+  const [areaCode, setAreaCode] = useState("")
+  const [results, setResults] = useState<AvailablePhoneNumber[] | null>(null)
+  const [selected, setSelected] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [isBuying, setIsBuying] = useState(false)
 
-  const handleCreate = async () => {
+  const busy = isSearching || isBuying
+
+  // Changing what was searched invalidates the list: buying from a stale one
+  // would spend money on a number the user did not see under these criteria.
+  const resetResults = () => {
+    setResults(null)
+    setSelected("")
+  }
+
+  const handleSearch = async () => {
     if (!organizationId) {
       toast.error("Organization ID is required")
       return
     }
 
-    if (!phoneNumber.trim()) {
-      toast.error("Phone number is required")
-      return
-    }
-
-    // Remove any non-digit characters
-    const cleanPhoneNumber = phoneNumber.replace(/\D/g, '')
-
-    if (cleanPhoneNumber.length === 0) {
-      toast.error("Please enter a valid phone number")
-      return
-    }
-
-    setIsLoading(true)
+    setIsSearching(true)
+    resetResults()
     try {
-      await createPhoneInbox({
-        organizationId,
-        phoneNumber: cleanPhoneNumber,
-        countryCode: COUNTRY_CODES[countryCode] || countryCode,
-      })
-      toast.success("Phone inbox created successfully")
-      setPhoneNumber("")
+      setResults(await searchAvailablePhoneNumbers({ organizationId, country, areaCode }))
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to search for numbers")
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleBuy = async () => {
+    if (!organizationId || !selected) return
+
+    setIsBuying(true)
+    try {
+      await createPhoneInbox({ organizationId, phoneNumber: selected, countryCode: country })
+      toast.success("Phone number added")
+      setAreaCode("")
+      resetResults()
       onOpenChange(false)
       onSuccess?.()
     } catch (error: any) {
-      toast.error(error?.message || "Failed to create phone inbox")
+      toast.error(error?.message || "Failed to buy phone number")
+      // 409: someone else got it first. Drop it so it cannot be picked again;
+      // the rest of the list is still valid, so it stays, and nothing searches
+      // again behind the user's back.
+      if (error?.status === 409) {
+        setResults((current) => current?.filter((n) => n.phoneNumber !== selected) ?? null)
+        setSelected("")
+      }
     } finally {
-      setIsLoading(false)
+      setIsBuying(false)
     }
   }
 
@@ -76,53 +99,99 @@ export function CreatePhoneDialog({ open, onOpenChange, organizationId, onSucces
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-card text-card-foreground">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Create Phone Number</DialogTitle>
+          <DialogTitle className="text-foreground">Get a phone number</DialogTitle>
           <DialogDescription>
-            Generate a new temporary phone number for receiving SMS.
+            Search for an available number by area code, then pick one to receive SMS on.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="countryCode" className="text-foreground">Country Code *</Label>
-            <Select value={countryCode} onValueChange={setCountryCode} disabled={isLoading}>
-              <SelectTrigger id="countryCode" className="bg-background text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="US">United States (US)</SelectItem>
-                <SelectItem value="UK">United Kingdom (GB)</SelectItem>
-                <SelectItem value="CA">Canada (CA)</SelectItem>
-                <SelectItem value="AU">Australia (AU)</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+            <div className="grid gap-2">
+              <Label htmlFor="country" className="text-foreground">Country</Label>
+              <Select
+                value={country}
+                onValueChange={(value) => {
+                  setCountry(value as PhoneCountry)
+                  resetResults()
+                }}
+                disabled={busy}
+              >
+                <SelectTrigger id="country" className="bg-background text-foreground">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="US">United States (US)</SelectItem>
+                  <SelectItem value="CA">Canada (CA)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="areaCode" className="text-foreground">Area code</Label>
+              <Input
+                id="areaCode"
+                inputMode="numeric"
+                placeholder="415"
+                value={areaCode}
+                onChange={(e) => {
+                  setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 3))
+                  resetResults()
+                }}
+                className="bg-background text-foreground"
+                disabled={busy}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSearch}
+              disabled={busy || areaCode.length !== 3 || !organizationId}
+            >
+              {isSearching ? "Searching..." : "Search"}
+            </Button>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="phoneNumber" className="text-foreground">Phone Number *</Label>
-            <Input
-              id="phoneNumber"
-              type="tel"
-              placeholder="1234567890 (digits only)"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              className="bg-background text-foreground"
-              required
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground">
-              Enter phone number digits only (no formatting)
+
+          {results !== null && results.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No numbers available in that area code. Try another.
             </p>
+          )}
+
+          {results !== null && results.length > 0 && (
+            <RadioGroup value={selected} onValueChange={setSelected} className="max-h-60 gap-2 overflow-auto">
+              {results.map((n) => (
+                <div
+                  key={n.phoneNumber}
+                  className="flex items-center gap-3 rounded-md border border-border p-3"
+                >
+                  <RadioGroupItem id={`number-${n.phoneNumber}`} value={n.phoneNumber} disabled={busy} />
+                  <Label htmlFor={`number-${n.phoneNumber}`} className="flex flex-1 items-baseline justify-between gap-2">
+                    <span className="font-mono text-foreground">{formatPhoneNumber(n.phoneNumber)}</span>
+                    {(n.locality || n.region) && (
+                      <span className="text-xs text-muted-foreground">
+                        {[n.locality, n.region].filter(Boolean).join(", ")}
+                      </span>
+                    )}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          )}
+
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>This buys a real phone number for your organization. It can receive SMS only.</p>
+            <p>Deleting the inbox releases the number permanently — anyone may buy it afterwards.</p>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBuying}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleCreate} 
+          <Button
+            onClick={handleBuy}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={isLoading || !phoneNumber.trim() || !organizationId}
+            disabled={busy || !selected || !organizationId}
           >
-            {isLoading ? "Creating..." : "Create Number"}
+            {isBuying ? "Buying..." : "Buy number"}
           </Button>
         </DialogFooter>
       </DialogContent>

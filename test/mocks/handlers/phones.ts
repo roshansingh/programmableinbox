@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { mockPhones } from '../fixtures/phones'
+import { mockPhones, mockAvailableNumbers } from '../fixtures/phones'
 
 const BASE = 'http://localhost:4000/api'
 
@@ -8,18 +8,24 @@ export const phoneHandlers = [
     return HttpResponse.json({ data: [...mockPhones] })
   }),
 
+  http.get(`${BASE}/app/phoneInbox/available`, () => {
+    return HttpResponse.json({ data: [...mockAvailableNumbers] })
+  }),
+
   http.post(`${BASE}/app/phoneInbox`, async ({ request }) => {
     const body = (await request.json()) as { phoneNumber: string; countryCode: string; organizationId: string }
     const newPhone = {
       id: 'phone-new',
       organizationId: body.organizationId,
-      userId: 'user-1',
       phoneNumber: body.phoneNumber,
       countryCode: body.countryCode,
+      status: 'active',
+      capabilities: { sms: true, mms: false, voice: true },
+      isOwner: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    return HttpResponse.json({ data: newPhone })
+    return HttpResponse.json({ data: newPhone }, { status: 201 })
   }),
 
   http.delete(`${BASE}/app/phoneInbox/:id`, () => {
