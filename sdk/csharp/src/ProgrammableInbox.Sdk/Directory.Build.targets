@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Imported after ProgrammableInbox.Sdk.csproj, so these survive `sdk/generate.sh`,
+    which rewrites the .csproj wholesale (hardcoding Copyright to "No Copyright"
+    and offering no generator option to change it).
+    PackageLicenseExpression (MIT) names the license but carries no copyright
+    notice; MIT requires the notice to accompany copies, so ship the file too.
+  -->
+  <PropertyGroup>
+    <Copyright>Copyright (c) 2026 Orbit Labs LLC</Copyright>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+</Project>
