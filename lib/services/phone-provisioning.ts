@@ -2,15 +2,20 @@ import 'server-only'
 import { prisma } from '@/lib/db'
 import logger from '@/lib/logger'
 import { SmsProviderError } from '@/lib/sms/errors'
-import { findOwnedNumberSid, purchaseNumber, releaseNumber } from '@/lib/sms/numbers'
+import { findOwnedNumberSid, isNumberAvailable, purchaseNumber, releaseNumber } from '@/lib/sms/numbers'
 import { isNanpNumber, type SmsCountry } from '@/lib/sms/validation'
 import type { OwnerScope, PhoneWriteScope } from './scope'
 
 /**
  * How long a `pending` reservation is presumed to have a purchase in flight. A
- * purchase is one Twilio round trip, so a reservation older than this was
- * abandoned by a crash or restart and may be cleared by its creator. Younger
- * than this, deleting it could race the request that still owns it.
+ * purchase is one Twilio round trip, so a reservation untouched for longer than
+ * this was abandoned by a crash or restart and may be cleared by its creator.
+ * Younger than this, clearing it could race the request that still owns it.
+ *
+ * Staleness is measured on `updatedAt`, which doubles as a lease: a pending row
+ * is written once at creation, so `updatedAt` equals `createdAt` until a cleaner
+ * *claims* it by bumping `updatedAt`. That one conditional write is what makes
+ * "who may act on this reservation" a single atomic decision.
  */
 const STALE_PENDING_MS = 5 * 60 * 1000
 
@@ -47,21 +52,28 @@ async function markFailed(id: string): Promise<void> {
  * under that number.
  *
  * Safe because the caller owns the reservation: the live-number index means no
- * one else can legitimately hold this number meanwhile. Best effort for the same
- * reason as `markFailed`, but a failure here is logged with the number, since a
- * person then has to reconcile it by hand.
+ * one else can legitimately hold this number meanwhile.
+ *
+ * Returns whether the outcome is *confirmed* — nothing was held, or what was held
+ * has been released. `false` means the number may still be billed, and the caller
+ * must then leave the reservation `pending` rather than mark it `failed`: that
+ * row is the only record of the number, and `failed` would hide it, drop its
+ * lock, and put it out of `releasePhoneInbox`'s reach. Left `pending`, the
+ * creator can clear it once stale, and that path looks the number up again.
  */
-async function releaseStrayNumber(phoneNumber: string, phoneInboxId: string): Promise<void> {
+async function releaseStrayNumber(phoneNumber: string, phoneInboxId: string): Promise<boolean> {
   try {
     const sid = await findOwnedNumberSid(phoneNumber)
-    if (!sid) return
+    if (!sid) return true
     await releaseNumber(sid)
     logger.warn({ phoneNumber, twilioSid: sid, phoneInboxId }, 'released a number whose purchase answer was lost')
+    return true
   } catch (error) {
     logger.error(
       { error, phoneNumber, phoneInboxId },
       'could not confirm whether an uncertain purchase went through; the number may still be billed',
     )
+    return false
   }
 }
 
@@ -77,13 +89,17 @@ async function releaseStrayNumber(phoneNumber: string, phoneInboxId: string): Pr
  *    bought — a timeout, a dropped connection — is followed by a lookup, because
  *    Twilio may have sold the number without our ever learning its sid.
  * 3. **Activate.** Store the Twilio sid, but only while the row is still
- *    `pending`: if the reservation was cleared in the meantime the number is
- *    released rather than resurrecting a deleted row. If the write itself fails
- *    the number is already ours and billed, so it is released again rather than
- *    orphaned.
+ *    `pending` *and unclaimed* (`updatedAt` unchanged): if a cleanup took the
+ *    lease or retired the reservation in the meantime, the number is released
+ *    rather than attached to a row someone else is acting on. If the write itself
+ *    fails the number is already ours and billed, so it is released again rather
+ *    than orphaned.
  *
- * A crash between steps 2 and 3 leaves a `pending` row; its creator can clear it
- * with `releasePhoneInbox` once it is stale.
+ * Before step 1 the number must be in the country's SMS-capable local inventory.
+ * Whenever a cleanup cannot confirm that no number remains, the row stays
+ * `pending` instead of `failed` (see `releaseStrayNumber`). A crash between
+ * steps 2 and 3 likewise leaves a `pending` row; its creator can clear it with
+ * `releasePhoneInbox` once it is stale.
  */
 export async function provisionPhoneInbox(
   scope: PhoneWriteScope,
@@ -91,6 +107,13 @@ export async function provisionPhoneInbox(
 ) {
   if (!isNanpNumber(input.phoneNumber)) {
     throw new RangeError('phoneNumber must be a US or Canadian number in E.164 format')
+  }
+
+  // Syntax is not eligibility: `+1` also covers toll-free and Caribbean numbers,
+  // and the country label is client-supplied. Checked before reserving so a
+  // crafted request leaves no row behind.
+  if (!(await isNumberAvailable(input.countryCode, input.phoneNumber))) {
+    throw new NumberUnavailableError()
   }
 
   let reserved
@@ -123,15 +146,14 @@ export async function provisionPhoneInbox(
     // whose answer was lost.
     const refused =
       error instanceof SmsProviderError && (error.kind === 'auth' || error.kind === 'rate-limited')
-    if (!refused) await releaseStrayNumber(input.phoneNumber, reserved.id)
-
-    await markFailed(reserved.id)
+    const confirmed = refused || (await releaseStrayNumber(input.phoneNumber, reserved.id))
+    if (confirmed) await markFailed(reserved.id)
     throw error
   }
 
   try {
     const activated = await prisma.phoneInbox.updateMany({
-      where: { id: reserved.id, status: 'pending' },
+      where: { id: reserved.id, status: 'pending', updatedAt: reserved.updatedAt },
       data: { status: 'active', twilioSid: bought.sid, capabilities: bought.capabilities },
     })
     if (activated.count === 0) {
@@ -139,8 +161,10 @@ export async function provisionPhoneInbox(
     }
     return await prisma.phoneInbox.findUniqueOrThrow({ where: { id: reserved.id } })
   } catch (error) {
+    let released = false
     try {
       await releaseNumber(bought.sid)
+      released = true
     } catch (releaseError) {
       // Money is now leaking and a person has to reconcile it; say which number.
       logger.error(
@@ -148,7 +172,9 @@ export async function provisionPhoneInbox(
         'purchased number could not be released after the database write failed',
       )
     }
-    await markFailed(reserved.id)
+    // Only a confirmed release lets the row go `failed`; otherwise it stays
+    // `pending` so the number stays visible, locked, and clearable.
+    if (released) await markFailed(reserved.id)
     throw error
   }
 }
@@ -170,7 +196,12 @@ export async function provisionPhoneInbox(
  *
  * A `pending` row can be cleared too, but only once it is stale: it then has no
  * sid, so Twilio is asked what the account holds under that number and any hit
- * is released before the row is retired.
+ * is released before the row is retired. The cleaner first *claims* the row with
+ * a conditional write that bumps `updatedAt`. Two concurrent clean-ups therefore
+ * cannot both proceed (one loses the claim), and a purchase still completing
+ * cannot activate the row afterwards (its activation is conditional on the old
+ * `updatedAt`). The row stays `pending` — holding its number — until the clean-up
+ * finishes; a clean-up that dies mid-way simply lets the lease lapse for a retry.
  */
 export async function releasePhoneInbox(
   scope: OwnerScope,
@@ -182,7 +213,7 @@ export async function releasePhoneInbox(
       id,
       userId: scope.userId,
       organization: { memberships: { some: { userId: scope.userId } } },
-      OR: [{ status: 'active' }, { status: 'pending', createdAt: { lt: staleBefore } }],
+      OR: [{ status: 'active' }, { status: 'pending', updatedAt: { lt: staleBefore } }],
     },
   })
   if (!inbox) return 'not-found'
@@ -190,6 +221,12 @@ export async function releasePhoneInbox(
   const now = new Date()
 
   if (inbox.status === 'pending') {
+    const claim = await prisma.phoneInbox.updateMany({
+      where: { id, status: 'pending', updatedAt: inbox.updatedAt },
+      data: { updatedAt: now },
+    })
+    if (claim.count === 0) return 'not-found'
+
     const sid = await findOwnedNumberSid(inbox.phoneNumber)
     if (sid) await releaseNumber(sid)
     await prisma.phoneInbox.updateMany({

@@ -47,6 +47,32 @@ export async function searchAvailableNumbers(
 }
 
 /**
+ * Whether `phoneNumber` is, right now, in `country`'s SMS-capable local inventory.
+ *
+ * This is the server-side eligibility check a purchase must pass. Syntax cannot
+ * establish it: `+1` also covers toll-free, premium and Caribbean numbers, none
+ * of which the product sells, and the country label is client-supplied. Asking
+ * the same inventory the search dialog draws from ties the label to the number
+ * and keeps a hand-built request to the numbers a user could have picked.
+ *
+ * `contains` is anchored with a trailing `$` (Twilio's "match the end" meta
+ * character) on the ten-digit national number, so it holds whether Twilio
+ * matches against national digits or E.164, and the result is still compared
+ * for an exact match.
+ */
+export async function isNumberAvailable(country: SmsCountry, phoneNumber: string): Promise<boolean> {
+  const national = phoneNumber.replace(/^\+1/, '')
+  const found = await callTwilio((client) =>
+    client.availablePhoneNumbers(country).local.list({
+      contains: `${national}$`,
+      smsEnabled: true,
+      limit: 5,
+    }),
+  )
+  return found.some((n) => n.phoneNumber === phoneNumber)
+}
+
+/**
  * Buys `phoneNumber` and points its inbound-SMS webhook at this deployment.
  *
  * The URL is built from `APP_BASE_URL`, never from a request: Twilio signs the

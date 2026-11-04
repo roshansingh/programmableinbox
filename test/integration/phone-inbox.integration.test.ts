@@ -3,10 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const searchMock = vi.fn()
 const purchaseMock = vi.fn()
 const releaseMock = vi.fn()
+const availableMock = vi.fn()
 vi.mock('@/lib/sms/numbers', () => ({
   searchAvailableNumbers: (...args: unknown[]) => searchMock(...args),
   purchaseNumber: (...args: unknown[]) => purchaseMock(...args),
   releaseNumber: (...args: unknown[]) => releaseMock(...args),
+  isNumberAvailable: (...args: unknown[]) => availableMock(...args),
+  findOwnedNumberSid: async () => null,
 }))
 
 import { GET, POST } from '@/app/api/app/phoneInbox/route'
@@ -91,6 +94,8 @@ beforeEach(() => {
   purchaseMock.mockReset()
   releaseMock.mockReset()
   releaseMock.mockResolvedValue(undefined)
+  availableMock.mockReset()
+  availableMock.mockResolvedValue(true)
 })
 
 afterEach(() => CommercialProvider.reset())
@@ -208,6 +213,17 @@ describe('POST /api/app/phoneInbox', () => {
 
     expect(res.status).toBe(409)
     expect((await res.json()).message).toBe('That number is no longer available')
+  })
+
+  it('409, and buys nothing, for a well-formed number the local inventory does not offer', async () => {
+    const { org, token } = await createOrgWithUser()
+    availableMock.mockResolvedValue(false)
+
+    // A crafted request: +1 shaped, labelled US, but toll-free.
+    const res = await post(token, { organizationId: org.id, phoneNumber: '+18005550100', countryCode: 'US' })
+
+    expect(res.status).toBe(409)
+    expect(purchaseMock).not.toHaveBeenCalled()
   })
 
   it('409 when another organization already holds the number, without calling Twilio', async () => {

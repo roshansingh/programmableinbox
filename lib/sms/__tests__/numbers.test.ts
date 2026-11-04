@@ -28,7 +28,7 @@ vi.mock('@/lib/config', () => ({
   requireSms: () => ({ accountSid: 'AC' + 'a'.repeat(32), authToken: 't', appBaseUrl }),
 }))
 
-import { findOwnedNumberSid, purchaseNumber, releaseNumber, searchAvailableNumbers } from '../numbers'
+import { findOwnedNumberSid, isNumberAvailable, purchaseNumber, releaseNumber, searchAvailableNumbers } from '../numbers'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -150,5 +150,27 @@ describe('findOwnedNumberSid', () => {
     findMock.mockResolvedValue([])
 
     expect(await findOwnedNumberSid('+14155550100')).toBeNull()
+  })
+})
+
+describe('isNumberAvailable', () => {
+  it('asks the country local, SMS-capable inventory for this exact number, end-anchored', async () => {
+    listMock.mockResolvedValue([{ phoneNumber: '+14165550100' }])
+
+    expect(await isNumberAvailable('CA', '+14165550100')).toBe(true)
+    expect(availableMock).toHaveBeenCalledWith('CA')
+    expect(listMock).toHaveBeenCalledWith({ contains: '4165550100$', smsEnabled: true, limit: 5 })
+  })
+
+  it('is false when the inventory does not offer it, e.g. toll-free, Caribbean or taken', async () => {
+    listMock.mockResolvedValue([])
+
+    expect(await isNumberAvailable('US', '+18005550100')).toBe(false)
+  })
+
+  it('is false when only different numbers come back', async () => {
+    listMock.mockResolvedValue([{ phoneNumber: '+14155550199' }])
+
+    expect(await isNumberAvailable('US', '+14155550100')).toBe(false)
   })
 })

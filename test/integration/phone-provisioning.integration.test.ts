@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const purchaseMock = vi.fn()
 const releaseMock = vi.fn()
 const findMock = vi.fn()
+const availableMock = vi.fn()
 vi.mock('@/lib/sms/numbers', () => ({
   purchaseNumber: (...args: unknown[]) => purchaseMock(...args),
   releaseNumber: (...args: unknown[]) => releaseMock(...args),
   findOwnedNumberSid: (...args: unknown[]) => findMock(...args),
+  isNumberAvailable: (...args: unknown[]) => availableMock(...args),
 }))
 
 import { prisma } from '@/lib/db'
@@ -44,6 +46,8 @@ beforeEach(() => {
   releaseMock.mockResolvedValue(undefined)
   findMock.mockReset()
   findMock.mockResolvedValue(null)
+  availableMock.mockReset()
+  availableMock.mockResolvedValue(true)
 })
 
 describe('provisionPhoneInbox', () => {
@@ -157,7 +161,7 @@ describe('provisionPhoneInbox', () => {
     expect(row.status).toBe('failed')
   })
 
-  it('still marks the row failed if that compensating release also fails', async () => {
+  it('keeps the reservation pending, still locking the number, if that compensating release also fails', async () => {
     const { scope } = await member()
     const number = freshNumber()
     purchaseMock.mockResolvedValue(purchased(number))
@@ -172,8 +176,14 @@ describe('provisionPhoneInbox', () => {
       provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
     ).rejects.toThrow('connection lost')
 
+    // A paid number we could not give back must stay visible and recoverable,
+    // not be hidden behind `failed` with its lock dropped.
     const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
-    expect(row.status).toBe('failed')
+    expect(row.status).toBe('pending')
+    const rival = await member()
+    await expect(
+      provisionPhoneInbox(rival.scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toBeInstanceOf(NumberUnavailableError)
   })
 
   it('releases a number Twilio sold us even though the purchase answer was lost', async () => {
@@ -203,7 +213,7 @@ describe('provisionPhoneInbox', () => {
     expect(findMock).not.toHaveBeenCalled()
   })
 
-  it('still fails the row and reports the original error if the stray-number check itself fails', async () => {
+  it('keeps the reservation pending and reports the original error if the stray-number check itself fails', async () => {
     const { scope } = await member()
     const number = freshNumber()
     purchaseMock.mockRejectedValue(new SmsProviderError('timed out', 'unavailable', null, null))
@@ -214,7 +224,7 @@ describe('provisionPhoneInbox', () => {
     ).rejects.toMatchObject({ message: 'timed out' })
 
     const row = await prisma.phoneInbox.findFirstOrThrow({ where: { phoneNumber: number } })
-    expect(row.status).toBe('failed')
+    expect(row.status).toBe('pending')
   })
 
   it('gives the number back if the reservation was cleared while Twilio was selling it', async () => {
@@ -235,6 +245,25 @@ describe('provisionPhoneInbox', () => {
     expect(row.status).toBe('failed')
   })
 
+  it('gives the number back if a cleanup claimed the reservation while Twilio was selling it', async () => {
+    const { scope } = await member()
+    const number = freshNumber()
+    purchaseMock.mockImplementation(async () => {
+      // A cleanup took the lease: the row is still pending but no longer ours.
+      await prisma.phoneInbox.updateMany({
+        where: { phoneNumber: number },
+        data: { updatedAt: new Date(Date.now() + 60_000) },
+      })
+      return purchased(number)
+    })
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toThrow(/cancelled/i)
+
+    expect(releaseMock).toHaveBeenCalledWith(sidFor(number))
+  })
+
   it('rejects a number outside North America before touching Twilio or the database', async () => {
     const { scope } = await member()
 
@@ -242,6 +271,20 @@ describe('provisionPhoneInbox', () => {
       provisionPhoneInbox(scope, { phoneNumber: '+447700900123', countryCode: 'US' }),
     ).rejects.toBeInstanceOf(RangeError)
     expect(purchaseMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a syntactically valid number the local inventory does not offer, without reserving it', async () => {
+    const { scope } = await member()
+    const number = '+18005550100' // toll-free: NANP-shaped, never in the local inventory
+    availableMock.mockResolvedValue(false)
+
+    await expect(
+      provisionPhoneInbox(scope, { phoneNumber: number, countryCode: 'US' }),
+    ).rejects.toBeInstanceOf(NumberUnavailableError)
+
+    expect(availableMock).toHaveBeenCalledWith('US', number)
+    expect(purchaseMock).not.toHaveBeenCalled()
+    expect(await prisma.phoneInbox.count({ where: { phoneNumber: number } })).toBe(0)
   })
 })
 
@@ -316,7 +359,7 @@ describe('releasePhoneInbox', () => {
         status: 'pending',
       },
     })
-    await prisma.$executeRaw`UPDATE "phone_inboxes" SET "createdAt" = now() - interval '10 minutes' WHERE id = ${row.id}::uuid`
+    await prisma.$executeRaw`UPDATE "phone_inboxes" SET "createdAt" = now() - interval '10 minutes', "updatedAt" = now() - interval '10 minutes' WHERE id = ${row.id}::uuid`
     return { ...m, row, number }
   }
 
@@ -344,6 +387,22 @@ describe('releasePhoneInbox', () => {
     await expect(
       provisionPhoneInbox(other.scope, { phoneNumber: number, countryCode: 'US' }),
     ).resolves.toMatchObject({ status: 'active' })
+  })
+
+  it('lets only one of two concurrent clean-ups of a stuck reservation reach Twilio', async () => {
+    const { user, row, number } = await stalePending()
+    findMock.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return sidFor(number)
+    })
+
+    const outcomes = await Promise.all([
+      releasePhoneInbox({ userId: user.id }, row.id),
+      releasePhoneInbox({ userId: user.id }, row.id),
+    ])
+
+    expect([...outcomes].sort()).toEqual(['not-found', 'released'])
+    expect(releaseMock).toHaveBeenCalledTimes(1)
   })
 
   it('leaves a recent pending reservation alone, since a purchase may still be in flight', async () => {
