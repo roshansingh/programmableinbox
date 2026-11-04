@@ -1,6 +1,6 @@
 import twilio from 'twilio'
 import { requireSms } from '@/lib/config'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { mapTwilioError } from './errors'
 
 /**

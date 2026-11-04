@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const twilioCtor = vi.fn((..._args: unknown[]) => ({ marker: 'twilio-client' }))
 vi.mock('twilio', () => ({ default: (...args: unknown[]) => twilioCtor(...args) }))
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn() } }))
+const loggerError = vi.fn()
+vi.mock('@/lib/logger', () => ({ default: { error: (...args: unknown[]) => loggerError(...args) } }))
 
 import { ConfigError, resetConfigCache } from '@/lib/config'
 import { callTwilio, getTwilio, resetTwilioClientForTests } from '../twilio-client'
@@ -91,6 +92,7 @@ describe('callTwilio', () => {
     expect(error).toBeInstanceOf(SmsProviderError)
     expect((error as SmsProviderError).kind).toBe('auth')
     expect((error as SmsProviderError).twilioCode).toBe(20003)
+    expect(loggerError).toHaveBeenCalledWith({ error }, 'twilio request failed')
   })
 
   it('redacts the configured credentials from a mapped error', async () => {
