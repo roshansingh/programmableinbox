@@ -641,6 +641,59 @@ const ProductAnalyticsSchema = z
     host: v.POSTHOG_HOST ?? null,
   }))
 
+/**
+ * SMS inboxes over Twilio (epic #139, issue #140). Receive-only.
+ *
+ * Off by default, on the `COMMERCIAL_ENABLED` precedent: provisioning numbers
+ * spends real money at Twilio, so it must be a decision an operator takes, not
+ * something an upgrade turns on.
+ *
+ * One set of credentials for every deployment. A hosted deployment points them
+ * at the one platform Twilio account (no subaccounts: each would carry its own
+ * auth token and force a lookup before a webhook signature could be checked); a
+ * self-hosted operator points them at their own account. The two modes differ
+ * in plan quota, not in how credentials are resolved.
+ *
+ * Twilio API keys (`SK...`) are not supported — webhook signatures are keyed on
+ * the account auth token, so the token is needed regardless. The SID is
+ * therefore pinned to the `AC` account shape, which also turns the easy mistake
+ * of pasting an API key SID here into a boot failure.
+ *
+ * `APP_BASE_URL` is also required when this is on, but it is owned by the
+ * `emailVerification` domain (a variable may appear in only one), so that
+ * requirement is asserted in `assertConfig()` instead of here.
+ */
+const SmsSchema = z
+  .object({
+    SMS_ENABLED: zBool.optional(),
+    TWILIO_ACCOUNT_SID: zNonEmpty
+      .optional()
+      .refine((v) => !v || /^AC[0-9a-fA-F]{32}$/.test(v), {
+        message:
+          'must be a Twilio Account SID (AC followed by 32 hex characters); ' +
+          'API keys (SK...) are not supported',
+      }),
+    TWILIO_AUTH_TOKEN: zSecret().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.SMS_ENABLED) return
+
+    for (const name of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'] as const) {
+      if (!v[name]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: 'is required when SMS_ENABLED is true',
+        })
+      }
+    }
+  })
+  .transform((v) => ({
+    enabled: v.SMS_ENABLED ?? false,
+    accountSid: v.TWILIO_ACCOUNT_SID ?? null,
+    authToken: v.TWILIO_AUTH_TOKEN ?? null,
+  }))
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -742,6 +795,10 @@ export const DOMAIN_SCHEMAS = {
   productAnalytics: {
     schema: ProductAnalyticsSchema,
     vars: ['PRODUCT_ANALYTICS_ENABLED', 'POSTHOG_API_KEY', 'POSTHOG_HOST'],
+  },
+  sms: {
+    schema: SmsSchema,
+    vars: ['SMS_ENABLED', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
   },
 } as const satisfies Record<string, { schema: z.ZodTypeAny; vars: readonly string[] }>
 
