@@ -9,7 +9,7 @@ const NUMBER = '+14155550100'
 function insert(
   orgId: string,
   userId: string,
-  over: { phoneNumber?: string; status?: Status; twilioSid?: string | null; deletedAt?: Date } = {},
+  over: { phoneNumber?: string; status?: Status; providerId?: string | null; deletedAt?: Date } = {},
 ) {
   return prisma.phoneInbox.create({
     data: {
@@ -18,7 +18,7 @@ function insert(
       phoneNumber: over.phoneNumber ?? NUMBER,
       countryCode: 'US',
       status: over.status ?? 'active',
-      twilioSid: over.twilioSid ?? null,
+      providerId: over.providerId ?? null,
       deletedAt: over.deletedAt,
     },
   })
@@ -65,7 +65,7 @@ describe('PhoneInbox live-number uniqueness', () => {
     expect(await codeOf(insert(a.org.id, a.user.id, { status: 'pending' }))).toBeUndefined()
   })
 
-  it('allows many rows with no twilioSid', async () => {
+  it('allows many rows with no providerId', async () => {
     const a = await createOrgWithUser()
     await insert(a.org.id, a.user.id, { phoneNumber: '+14155550101', status: 'pending' })
 
@@ -82,13 +82,13 @@ describe('PhoneInbox live-number uniqueness', () => {
     expect(await codeOf(insert(b.org.id, b.user.id))).toBe('P2002')
   })
 
-  it('rejects a reused twilioSid', async () => {
+  it('rejects a reused providerId', async () => {
     const a = await createOrgWithUser()
-    await insert(a.org.id, a.user.id, { phoneNumber: '+14155550103', twilioSid: 'PN' + 'a'.repeat(32) })
+    await insert(a.org.id, a.user.id, { phoneNumber: '+14155550103', providerId: 'PN' + 'a'.repeat(32) })
 
     expect(
       await codeOf(
-        insert(a.org.id, a.user.id, { phoneNumber: '+14155550104', twilioSid: 'PN' + 'a'.repeat(32) }),
+        insert(a.org.id, a.user.id, { phoneNumber: '+14155550104', providerId: 'PN' + 'a'.repeat(32) }),
       ),
     ).toBe('P2002')
   })

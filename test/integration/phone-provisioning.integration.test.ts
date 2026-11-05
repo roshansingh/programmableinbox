@@ -64,7 +64,7 @@ describe('provisionPhoneInbox', () => {
       phoneNumber: number,
       countryCode: 'US',
       status: 'active',
-      twilioSid: sidFor(number),
+      providerId: sidFor(number),
       capabilities: { sms: true, mms: false, voice: true },
     })
   })

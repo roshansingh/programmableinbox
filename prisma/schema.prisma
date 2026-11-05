@@ -166,8 +166,8 @@ model PhoneInbox {
   /// E.164, e.g. `+14155550100`.
   phoneNumber    String
   countryCode    String
-  /// Twilio's `PN…` handle for the purchased number. Null until purchase succeeds.
-  twilioSid      String?  @unique
+  /// The SMS provider's id for the purchased number (a Twilio `PN…` sid today). Null until purchase succeeds.
+  providerId     String?  @unique
   status         PhoneInboxStatus @default(pending)
   /// `{ sms, mms, voice }` as Twilio reported them at purchase.
   capabilities   Json?

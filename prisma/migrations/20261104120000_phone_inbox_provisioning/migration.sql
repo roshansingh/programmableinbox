@@ -6,12 +6,12 @@
 CREATE TYPE "PhoneInboxStatus" AS ENUM ('pending', 'active', 'released', 'failed');
 
 ALTER TABLE "phone_inboxes"
-  ADD COLUMN "twilioSid"    TEXT,
+  ADD COLUMN "providerId"   TEXT,
   ADD COLUMN "status"       "PhoneInboxStatus" NOT NULL DEFAULT 'pending',
   ADD COLUMN "capabilities" JSONB,
   ADD COLUMN "releasedAt"   TIMESTAMPTZ(3);
 
-CREATE UNIQUE INDEX "phone_inboxes_twilioSid_key" ON "phone_inboxes"("twilioSid");
+CREATE UNIQUE INDEX "phone_inboxes_providerId_key" ON "phone_inboxes"("providerId");
 
 -- Backfill, BEFORE the index exists. Every row that predates this migration was
 -- typed in by hand: no Twilio call, no ownership check, and nothing uniquely
@@ -20,7 +20,7 @@ CREATE UNIQUE INDEX "phone_inboxes_twilioSid_key" ON "phone_inboxes"("twilioSid"
 -- destroyed; the app lists only pending and active rows.
 UPDATE "phone_inboxes"
    SET "status" = 'released', "releasedAt" = now()
- WHERE "twilioSid" IS NULL;
+ WHERE "providerId" IS NULL;
 
 -- One live holder per number, across all organizations.
 --

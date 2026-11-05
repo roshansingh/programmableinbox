@@ -7,7 +7,7 @@ const ROW = {
   userId: 'user_1',
   phoneNumber: '+14155550100',
   countryCode: 'US',
-  twilioSid: 'PN' + 'a'.repeat(32),
+  providerId: 'PN' + 'a'.repeat(32),
   status: 'active' as const,
   capabilities: { sms: true, mms: false, voice: false },
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -36,7 +36,7 @@ describe('serializeAppPhoneInbox', () => {
 
   it('does not expose the Twilio sid or the raw creator id', () => {
     const out = serializeAppPhoneInbox(ROW, 'user_2')
-    expect(out).not.toHaveProperty('twilioSid')
+    expect(out).not.toHaveProperty('providerId')
     expect(out).not.toHaveProperty('userId')
   })
 

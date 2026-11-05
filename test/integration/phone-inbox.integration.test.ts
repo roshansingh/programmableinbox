@@ -54,7 +54,7 @@ function seedPhoneInbox(
       phoneNumber,
       countryCode: 'US',
       status,
-      twilioSid: status === 'active' ? 'PN' + phoneNumber.replace(/\D/g, '').padEnd(32, '0') : null,
+      providerId: status === 'active' ? 'PN' + phoneNumber.replace(/\D/g, '').padEnd(32, '0') : null,
     },
   })
 }
@@ -131,12 +131,12 @@ describe('POST /api/app/phoneInbox', () => {
       isOwner: true,
       capabilities: { sms: true, mms: false, voice: true },
     })
-    expect(data).not.toHaveProperty('twilioSid')
+    expect(data).not.toHaveProperty('providerId')
     expect(purchaseMock).toHaveBeenCalledWith(number)
 
     const row = await prisma.phoneInbox.findUniqueOrThrow({ where: { id: data.id } })
     expect(row.userId).toBe(user.id)
-    expect(row.twilioSid).not.toBeNull()
+    expect(row.providerId).not.toBeNull()
   })
 
   it('403 in an org you do not belong to, and buys nothing', async () => {
@@ -454,7 +454,7 @@ describe('DELETE /api/app/phoneInbox/[id]', () => {
     const res = await del(token, inbox.id)
 
     expect(res.status).toBe(204)
-    expect(releaseMock).toHaveBeenCalledWith(inbox.twilioSid)
+    expect(releaseMock).toHaveBeenCalledWith(inbox.providerId)
     const row = await prisma.phoneInbox.findFirstOrThrow({ where: { id: inbox.id, deletedAt: { not: null } } })
     expect(row.status).toBe('released')
     expect(row.phoneNumber).toBe(inbox.phoneNumber)

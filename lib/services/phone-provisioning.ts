@@ -66,7 +66,7 @@ async function releaseStrayNumber(phoneNumber: string, phoneInboxId: string): Pr
     const sid = await findOwnedNumberSid(phoneNumber)
     if (!sid) return true
     await releaseNumber(sid)
-    logger.warn({ phoneNumber, twilioSid: sid, phoneInboxId }, 'released a number whose purchase answer was lost')
+    logger.warn({ phoneNumber, providerId: sid, phoneInboxId }, 'released a number whose purchase answer was lost')
     return true
   } catch (error) {
     logger.error(
@@ -154,7 +154,7 @@ export async function provisionPhoneInbox(
   try {
     const activated = await prisma.phoneInbox.updateMany({
       where: { id: reserved.id, status: 'pending', updatedAt: reserved.updatedAt },
-      data: { status: 'active', twilioSid: bought.sid, capabilities: bought.capabilities },
+      data: { status: 'active', providerId: bought.sid, capabilities: bought.capabilities },
     })
     if (activated.count === 0) {
       throw new Error('The reservation was cancelled while the number was being bought')
@@ -168,7 +168,7 @@ export async function provisionPhoneInbox(
     } catch (releaseError) {
       // Money is now leaking and a person has to reconcile it; say which number.
       logger.error(
-        { error: releaseError, twilioSid: bought.sid, phoneInboxId: reserved.id },
+        { error: releaseError, providerId: bought.sid, phoneInboxId: reserved.id },
         'purchased number could not be released after the database write failed',
       )
     }
@@ -236,8 +236,8 @@ export async function releasePhoneInbox(
     return 'released'
   }
 
-  if (!inbox.twilioSid) return 'not-found'
-  await releaseNumber(inbox.twilioSid)
+  if (!inbox.providerId) return 'not-found'
+  await releaseNumber(inbox.providerId)
   await prisma.phoneInbox.update({
     where: { id },
     data: { status: 'released', releasedAt: now, deletedAt: now },

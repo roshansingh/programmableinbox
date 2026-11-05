@@ -4,7 +4,7 @@
  *
  * `isOwner` exists because reads are organization-wide while release is
  * creator-only: a teammate sees numbers they cannot delete. The raw `userId`
- * and the Twilio `twilioSid` are not exposed.
+ * and the provider's `providerId` are not exposed.
  */
 type PhoneInboxRow = {
   id: string
