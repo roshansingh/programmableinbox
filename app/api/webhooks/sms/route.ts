@@ -26,9 +26,10 @@ function emptyTwiml(): NextResponse {
  * it marks the intent so the structural guards can tell "deliberately open" from
  * "someone forgot the wrapper".
  *
- * Status codes are chosen for Twilio's retry behaviour. Anything retrying cannot
- * fix — an unknown number, a full quota, a duplicate — answers 200. A failure that
- * a retry could fix (the database) answers 500.
+ * Anything a retry cannot fix — an unknown number, a full quota, a duplicate —
+ * answers 200. A failure a retry could fix (the database) answers 500, which
+ * allows a redelivery but does not promise one: whether Twilio retries a 5xx on an
+ * SMS webhook is configuration-dependent and unverified.
  */
 export const POST = withPublic(async (request: NextRequest) => {
   try {
