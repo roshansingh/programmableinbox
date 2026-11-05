@@ -43,14 +43,14 @@ async function limitsOf(code: string) {
 }
 
 describe('enabling phone inboxes on the paid plan', () => {
-  it('turns phone inboxes on for Pro with a limit of two, leaving its other limits alone', async () => {
+  it('turns phone inboxes on for Pro with a limit of one, leaving its other limits alone', async () => {
     await seedPreviousPlans()
 
     await prisma.$executeRawUnsafe(readFileSync(MIGRATION, 'utf8'))
 
     expect(await limitsOf('pro')).toMatchObject({
       phoneInboxesEnabled: true,
-      phoneInboxes: 2,
+      phoneInboxes: 1,
       emailInboxes: 2,
       overQuotaBehavior: 'overage',
     })

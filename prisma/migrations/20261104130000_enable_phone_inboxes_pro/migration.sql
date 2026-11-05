@@ -19,6 +19,6 @@
 -- Only takes effect when COMMERCIAL_ENABLED=true and SMS_ENABLED=true. Raising or
 -- lowering the count later is a one-field UPDATE with no migration.
 UPDATE "plans"
-   SET "limits" = "limits" || '{"phoneInboxesEnabled": true, "phoneInboxes": 2}'::jsonb,
+   SET "limits" = "limits" || '{"phoneInboxesEnabled": true, "phoneInboxes": 1}'::jsonb,
        "updatedAt" = CURRENT_TIMESTAMP
  WHERE "code" = 'pro';

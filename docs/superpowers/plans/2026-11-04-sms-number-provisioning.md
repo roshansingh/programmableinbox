@@ -26,7 +26,7 @@
 1. **Unique index covers `pending` and `active` only** (`WHERE status IN ('pending','active')`), not "everything but released" as the spec wrote. A `failed` row holds no number and must not block a retry.
 2. **Existing rows are backfilled to `released`**, not deleted. They were typed in by hand, have no `twilioSid`, and the user confirmed none belong to real users. Non-destructive, and the list filters them out.
 3. **`PATCH /api/app/phoneInbox/[id]` is removed.** A real number is immutable, and there is no other editable field. `updatePhoneInbox` is removed from the client with it.
-4. **Plan enablement is the last task.** Pro gets `phoneInboxesEnabled: true, phoneInboxes: 2`; Free stays off. A one-row data change if the numbers are wrong.
+4. **Plan enablement is the last task.** Pro gets `phoneInboxesEnabled: true, phoneInboxes: 1`; Free stays off. A one-row data change if the numbers are wrong.
 5. **No `AppConfig` key** for SMS. A disabled deployment answers 503 with a corrective message that the dialog shows.
 
 ## Review Focus
@@ -158,8 +158,8 @@ Behaviour of `releasePhoneInbox`: find owner-scoped `active` row (none → `'not
 ### Task 7: Enable on paid plans, docs
 
 **Files:**
-- Create: `prisma/migrations/20261104130000_enable_phone_inboxes_pro/migration.sql` (read `20260808093000_use_commercial_plans` for the plan row shape; set `phoneInboxesEnabled: true, phoneInboxes: 2` on the paid plan only)
+- Create: `prisma/migrations/20261104130000_enable_phone_inboxes_pro/migration.sql` (read `20260808093000_use_commercial_plans` for the plan row shape; set `phoneInboxesEnabled: true, phoneInboxes: 1` on the paid plan only)
 - Modify: `CLAUDE.md` (provisioning flow, the unique-index rule, release-on-delete, `PhoneWriteScope`), `.env.example` only if a variable changed (none expected)
-- Test: an integration or unit assertion that the Free plan still resolves `phoneInboxesEnabled: false` and Pro resolves `true` with `phoneInboxes: 2`
+- Test: an integration or unit assertion that the Free plan still resolves `phoneInboxesEnabled: false` and Pro resolves `true` with `phoneInboxes: 1`
 
 - [ ] **Step 1:** Failing plan-resolution test. **Step 2:** Run; FAIL. **Step 3:** Write the migration and docs. **Step 4:** Run the full `npm run test`, `npm run test:integration`, `npm run lint`, `npm run build` (no SMS env) — all green. **Step 5:** Commit.
