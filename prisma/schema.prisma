@@ -149,12 +149,35 @@ model EmailInbox {
   @@map("email_inboxes")
 }
 
+/// Lifecycle of a provisioned number (issue #141). `pending` is a reservation
+/// made before Twilio is called; `failed` holds no number; `released` has been
+/// handed back to Twilio and may be bought again by anyone.
+enum PhoneInboxStatus {
+  pending
+  active
+  released
+  failed
+}
+
 model PhoneInbox {
   id             String   @id @default(uuid(7)) @db.Uuid
   organizationId String   @db.Uuid
   userId         String   @db.Uuid
+  /// E.164, e.g. `+14155550100`.
   phoneNumber    String
   countryCode    String
+  /// The SMS provider's id for the purchased number (a Twilio `PN…` sid today). Null until purchase succeeds.
+  providerId     String?  @unique
+  status         PhoneInboxStatus @default(pending)
+  /// `{ sms, mms, voice }` as Twilio reported them at purchase.
+  capabilities   Json?
+  releasedAt     DateTime? @db.Timestamptz(3)
+  /// Uniqueness of a *live* number is enforced by a partial unique index that
+  /// Prisma's schema language cannot express:
+  ///   CREATE UNIQUE INDEX "phone_inboxes_phoneNumber_live_key"
+  ///     ON "phone_inboxes"("phoneNumber") WHERE "status" IN ('pending','active');
+  /// See prisma/migrations/*_phone_inbox_provisioning. `deletedAt` alone does
+  /// not free a number — release goes through `status`.
   deletedAt      DateTime? @db.Timestamptz(3)
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @db.Timestamptz(3)

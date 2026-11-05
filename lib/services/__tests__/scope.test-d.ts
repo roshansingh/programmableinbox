@@ -2,11 +2,13 @@ import { expectTypeOf, test } from 'vitest'
 import {
   toOwnerScope,
   toMessageReadScope,
+  toPhoneWriteScope,
   type InboxDeleteScope,
   type InboxWriteScope,
   type MessageReadScope,
   type OrgScope,
   type OwnerScope,
+  type PhoneWriteScope,
 } from '../scope'
 import {
   createInbox,
@@ -122,4 +124,19 @@ test('setMessageStarred is unreachable with a message read scope', () => {
 
 test('deleteMessage is unreachable with a message read scope', () => {
   expectTypeOf<MessageReadScope>().not.toExtend<Parameters<typeof deleteMessage>[0]>()
+})
+
+/**
+ * Buying a number spends real money, so the scope that authorises it must not
+ * be interchangeable with the ones that merely rename or read.
+ */
+test('a phone write scope is not an owner scope or an inbox write scope', () => {
+  expectTypeOf<PhoneWriteScope>().not.toExtend<OwnerScope>()
+  expectTypeOf<PhoneWriteScope>().not.toExtend<InboxWriteScope>()
+  expectTypeOf<OwnerScope>().not.toExtend<PhoneWriteScope>()
+  expectTypeOf<InboxWriteScope>().not.toExtend<PhoneWriteScope>()
+})
+
+test('an api key principal cannot produce a phone write scope', () => {
+  expectTypeOf<ApiKeyPrincipal>().not.toExtend<Parameters<typeof toPhoneWriteScope>[0]>()
 })

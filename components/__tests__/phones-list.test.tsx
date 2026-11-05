@@ -71,6 +71,27 @@ describe('PhonesList', () => {
       expect(deletedIds).toEqual([])
     })
 
+    it('warns that deleting releases the number for good before asking to confirm', async () => {
+      const { user } = render(<PhonesList />)
+
+      await user.click(await screen.findByRole('button', { name: deleteButtonName }))
+
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent(/released/i)
+      expect(dialog).toHaveTextContent(/cannot be undone|permanent/i)
+    })
+
+    it("offers no delete on a teammate's number, which the server would 404", async () => {
+      render(<PhonesList />)
+
+      await screen.findByText('+1 (555) 987-6543')
+
+      expect(
+        screen.queryByRole('button', { name: 'Delete phone inbox +1 (555) 987-6543' }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: deleteButtonName })).toBeInTheDocument()
+    })
+
     it('deletes the phone inbox once the modal is confirmed', async () => {
       const { user } = render(<PhonesList />)
 

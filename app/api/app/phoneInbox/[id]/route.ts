@@ -1,58 +1,42 @@
-import { prisma } from '@/lib/db'
 import { withUser } from '@/lib/auth/with-auth'
 import { jsonSuccess, jsonError } from '@/lib/api-helpers'
+import logger from '@/lib/logger'
+import { serializeAppPhoneInbox } from '@/lib/serializers/app/phone-inbox'
+import { getPhoneInbox } from '@/lib/services/phone-inbox'
+import { releasePhoneInbox } from '@/lib/services/phone-provisioning'
+import { toOrgScope, toOwnerScope } from '@/lib/services/scope'
+import { smsFailureResponse } from '@/lib/sms/http'
 
-type RouteContext = { params: Promise<{ id: string }> }
+// There is deliberately no PATCH: a purchased number is immutable, and a phone
+// inbox has no other editable field.
 
-export const GET = withUser<{ id: string }>(async (request, principal, { params }) => {
-
+export const GET = withUser<{ id: string }>(async (_request, principal, { params }) => {
   const { id } = await params
 
-  const inbox = await prisma.phoneInbox.findUnique({ where: { id } })
-  if (!inbox || inbox.userId !== principal.userId) {
-    return jsonError('Not found', 404)
-  }
+  const { scope, error } = toOrgScope(principal)
+  if (error) return error
 
-  return jsonSuccess(inbox)
+  // Another organization's inbox is a 404 rather than a 403: whether an id
+  // exists elsewhere is not something this caller is entitled to learn.
+  const inbox = await getPhoneInbox(scope, id)
+  if (!inbox) return jsonError('Not found', 404)
+
+  return jsonSuccess(serializeAppPhoneInbox(inbox, principal.userId))
 })
 
-export const PATCH = withUser<{ id: string }>(async (request, principal, { params }) => {
-
+export const DELETE = withUser<{ id: string }>(async (_request, principal, { params }) => {
   const { id } = await params
-
-  const inbox = await prisma.phoneInbox.findUnique({ where: { id } })
-  if (!inbox || inbox.userId !== principal.userId) {
-    return jsonError('Not found', 404)
-  }
 
   try {
-    const { phoneNumber, countryCode } = await request.json()
-
-    const updated = await prisma.phoneInbox.update({
-      where: { id },
-      data: {
-        ...(phoneNumber !== undefined && { phoneNumber }),
-        ...(countryCode !== undefined && { countryCode }),
-      },
-    })
-
-    return jsonSuccess(updated)
-  } catch {
+    // Releases the number at Twilio, which stops the monthly charge, and cannot
+    // be undone: the number goes back into the pool and anyone may buy it.
+    const outcome = await releasePhoneInbox(toOwnerScope(principal), id)
+    if (outcome === 'not-found') return jsonError('Not found', 404)
+    return new Response(null, { status: 204 })
+  } catch (err) {
+    const mapped = smsFailureResponse(err)
+    if (mapped) return mapped
+    logger.error({ error: err }, 'phone inbox release failed')
     return jsonError('Internal server error', 500)
   }
-})
-
-export const DELETE = withUser<{ id: string }>(async (request, principal, { params }) => {
-
-  const { id } = await params
-
-  const inbox = await prisma.phoneInbox.findUnique({ where: { id } })
-  if (!inbox || inbox.userId !== principal.userId) {
-    return jsonError('Not found', 404)
-  }
-
-  // Soft delete (F8).
-  await prisma.phoneInbox.update({ where: { id }, data: { deletedAt: new Date() } })
-
-  return new Response(null, { status: 204 })
 })

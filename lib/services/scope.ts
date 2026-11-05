@@ -228,6 +228,38 @@ export function toInboxDeleteScope(
 }
 
 /**
+ * Who can BUY a phone number (issue #141). Its own type because it is the one
+ * capability here that spends real money, and because it must name exactly one
+ * organization: `organizationId` is not nullable, unlike `InboxWriteScope`.
+ *
+ * Only a `UserPrincipal` can produce one — there is no API key route that
+ * provisions. Releasing a number is a separate, creator-only act and takes an
+ * `OwnerScope`. The `__scope` phantom keeps all three mutually unassignable;
+ * `scope.test-d.ts` fails without it.
+ */
+export type PhoneWriteScope = {
+  organizationId: string
+  userId: string
+  readonly __scope?: 'phoneWrite'
+}
+
+export type PhoneWriteScopeResult =
+  | { scope: PhoneWriteScope; error?: never }
+  | { scope?: never; error: Response }
+
+/** The single place a user becomes a phone-write scope, membership-checked. */
+export function toPhoneWriteScope(
+  principal: UserPrincipal,
+  organizationId: string,
+): PhoneWriteScopeResult {
+  const memberOf = principal.memberships.map((m) => m.organizationId)
+  if (!memberOf.includes(organizationId)) {
+    return { error: jsonError('Not authorized for this organization', 403) }
+  }
+  return { scope: { organizationId, userId: principal.userId } }
+}
+
+/**
  * The one implementation both wrappers share.
  *
  * Private, so the untyped shape it returns can never reach a service — every
