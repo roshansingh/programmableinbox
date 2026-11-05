@@ -18,6 +18,7 @@ import type { PlanLimits } from '@/lib/commercial/plan-limits'
  */
 const LIMIT_KEY: Partial<Record<QuotaMetric, keyof PlanLimits>> = {
   'emails.processed': 'incomingEmailsPerPeriod',
+  'sms.received': 'incomingSmsPerPeriod',
   'emails.sent': 'outboundEmailsPerPeriod',
   'llm.enrichments': 'llmEnrichmentsPerPeriod',
   'automation.runs': 'automationRunsPerPeriod',

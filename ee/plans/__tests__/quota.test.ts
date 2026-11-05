@@ -108,6 +108,21 @@ describe('PostgresQuota.consume', () => {
     expect((await quota.consume('org-1', 'emails.processed', 1)).limit).toBe(1000)
   })
 
+  it('limits received SMS by incomingSmsPerPeriod, independently of email', async () => {
+    const quota = await quotaWith({ incomingSmsPerPeriod: 500, incomingEmailsPerPeriod: 1000 })
+
+    expect((await quota.consume('org-1', 'sms.received', 1)).limit).toBe(500)
+  })
+
+  it('never denies the report-only sms.dropped counter', async () => {
+    const quota = await quotaWith({ incomingSmsPerPeriod: 0 })
+
+    const result = await quota.consume('org-1', 'sms.dropped', 1)
+
+    expect(result.allowed).toBe(true)
+    expect(result.limit).toBeNull()
+  })
+
   /**
    * A zero limit means "none allowed" and must not be read as unlimited —
    * `null` and `0` are both falsy, which is the bug this guards.
