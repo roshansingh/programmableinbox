@@ -96,6 +96,17 @@ describe('GET /api/app/usage', () => {
     expect(body.data.usage.map((u: { metric: string }) => u.metric)).toContain('emails.dropped')
   })
 
+  it('reports received and dropped SMS alongside email', async () => {
+    await configure()
+    const { GET } = await import('../route')
+
+    const body = await (await GET(request(), ctx)).json()
+
+    const metrics = body.data.usage.map((u: { metric: string }) => u.metric)
+    expect(metrics).toContain('sms.received')
+    expect(metrics).toContain('sms.dropped')
+  })
+
   it('carries the plan so the UI can render limits alongside usage', async () => {
     await configure()
     const { GET } = await import('../route')
