@@ -25,7 +25,7 @@
 - `threadId` is the deterministic string `${phoneInboxId}:${from}`: no lookup, no race, unlike email's "first message id".
 - Only `active` inboxes receive. A message to a `pending` number in the instant before activation is dropped (logged).
 - A genuine store failure returns 500 (after refund) so Twilio may retry; unknown number, over-quota, duplicate and SMS-disabled-for-that-number return 200 so it does not.
-- Pro gets `incomingSmsPerPeriod: 500`. Phone numbers cost money; this is a one-field update.
+- Pro gets `incomingSmsPerPeriod: 500`. Phone numbers cost money; this is a one-field update. Review found Pro's `overage` mode would have made this a display value only, so `sms.received` is hard-capped in `ee/plans/quota.ts`, and ingestion drops everything for a plan without `phoneInboxesEnabled`.
 
 ## Review Focus
 
@@ -41,7 +41,7 @@
 
 **Files:** Modify `prisma/schema.prisma`; Create `prisma/migrations/20261105090000_phone_messages/migration.sql`; Test `test/integration/phone-message-schema.integration.test.ts`.
 
-**Interfaces:** Produces model `PhoneMessage { id uuid, phoneInboxId, organizationId, from, to, body, mediaCount Int @default(0), externalId, threadId, extractedOtp String?, createdAt, deletedAt? }`, `@@unique([externalId, phoneInboxId])`, `@@index([phoneInboxId, createdAt])`, `@@index([threadId, createdAt])`, `@@map("phone_messages")`; relations from `PhoneInbox.messages` and `Organization`.
+**Interfaces:** Produces model `PhoneMessage { id uuid, phoneInboxId, organizationId, from, to, body, mediaCount Int @default(0), externalId, threadId, extractedOtp String?, createdAt, deletedAt? }`, `externalId @unique` (changed from `(externalId, phoneInboxId)` after review: a replayed sid must not be stored again in the next holder's inbox), `@@index([phoneInboxId, createdAt])`, `@@index([threadId, createdAt])`, `@@map("phone_messages")`; relations from `PhoneInbox.messages` and `Organization`.
 
 - [ ] Write the schema test: duplicate `(externalId, phoneInboxId)` rejected with P2002; same `externalId` on a different inbox allowed; deleting the inbox cascades messages.
 - [ ] Run it; expect FAIL (model missing).

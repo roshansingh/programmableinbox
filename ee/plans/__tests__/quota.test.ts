@@ -108,6 +108,35 @@ describe('PostgresQuota.consume', () => {
     expect((await quota.consume('org-1', 'emails.processed', 1)).limit).toBe(1000)
   })
 
+  /**
+   * Overage is billed for email (Stripe metered usage) and for nothing else. An
+   * SMS "overage" would be Twilio spend against a fixed fee, so received SMS is
+   * capped whatever the plan's overQuotaBehavior says. The guarded statement is
+   * the one containing the `<=` comparison, so the SQL text is what tells the two
+   * paths apart here.
+   */
+  const sqlOf = (call: number) => (mockQueryRaw.mock.calls[call][0] as readonly string[]).join('?')
+
+  it('caps received SMS even on an overage plan', async () => {
+    mockQueryRaw.mockResolvedValue([])
+    const quota = await quotaWith({ incomingSmsPerPeriod: 500, overQuotaBehavior: 'overage' })
+
+    const result = await quota.consume('org-1', 'sms.received', 1)
+
+    expect(sqlOf(0)).toContain('<=')
+    expect(result.allowed).toBe(false)
+    expect(result.limit).toBe(500)
+  })
+
+  it('still lets email run past its cap on an overage plan', async () => {
+    mockQueryRaw.mockResolvedValue([{ value: 1200 }])
+    const quota = await quotaWith({ incomingEmailsPerPeriod: 1000, overQuotaBehavior: 'overage' })
+
+    await quota.consume('org-1', 'emails.processed', 1)
+
+    expect(sqlOf(0)).not.toContain('<=')
+  })
+
   it('limits received SMS by incomingSmsPerPeriod, independently of email', async () => {
     const quota = await quotaWith({ incomingSmsPerPeriod: 500, incomingEmailsPerPeriod: 1000 })
 

@@ -3,7 +3,10 @@ import { withPublic } from '@/lib/auth/with-auth'
 import { ConfigError, requireSms } from '@/lib/config'
 import logger from '@/lib/logger'
 import { storeIncomingSms } from '@/lib/services/phone-ingest'
-import { parseInboundSms, verifyTwilioSignature } from '@/lib/sms/webhook'
+import { parseInboundSms, smsWebhookUrl, verifyTwilioSignature } from '@/lib/sms/webhook'
+
+/** Far above any real Twilio delivery (a few hundred bytes to a few KB). */
+const MAX_REQUEST_BYTES = 64 * 1024
 
 /**
  * Empty TwiML: "received, do nothing". Receive-only means this route never
@@ -32,8 +35,9 @@ function emptyTwiml(): NextResponse {
  * SMS webhook is configuration-dependent and unverified.
  */
 export const POST = withPublic(async (request: NextRequest) => {
+  let appBaseUrl: string
   try {
-    requireSms()
+    appBaseUrl = requireSms().appBaseUrl
   } catch (error) {
     if (error instanceof ConfigError) {
       logger.warn({ error }, 'Inbound SMS received while SMS is not configured')
@@ -42,13 +46,27 @@ export const POST = withPublic(async (request: NextRequest) => {
     throw error
   }
 
+  // Checked before the body is read: this route is public, and the body is
+  // buffered and parsed before the signature can be verified. A real delivery is
+  // a few hundred bytes; the cap is generous and exists only to refuse a flood.
+  const declaredLength = Number(request.headers.get('content-length') ?? 0)
+  if (declaredLength > MAX_REQUEST_BYTES) {
+    return NextResponse.json({ message: 'Payload too large' }, { status: 413 })
+  }
+
   // Parsed from the raw body: the signature covers the decoded params, and
   // Twilio sends them form-encoded. A repeated key keeps its last value, which
   // can only make verification fail, never pass.
   const params = Object.fromEntries(new URLSearchParams(await request.text()))
 
   if (!verifyTwilioSignature(request.headers.get('x-twilio-signature'), params)) {
-    logger.warn({ messageSid: params.MessageSid }, 'Invalid Twilio signature')
+    // Twilio signs the URL stored on the number at purchase. If APP_BASE_URL has
+    // changed since, every number fails here at once; naming the URL we checked
+    // against is what makes that findable.
+    logger.warn(
+      { messageSid: params.MessageSid, expectedUrl: smsWebhookUrl(appBaseUrl) },
+      'Invalid Twilio signature',
+    )
     return NextResponse.json({ message: 'Invalid signature' }, { status: 401 })
   }
 
@@ -59,8 +77,10 @@ export const POST = withPublic(async (request: NextRequest) => {
 
   try {
     await storeIncomingSms(message)
-  } catch {
-    // Already logged, and the quota unit already refunded, by the service.
+  } catch (error) {
+    // The service logs a failed insert, but a failure before it (the lookup, the
+    // plan, the quota) escapes unlogged; without this an outage is a bare 500.
+    logger.error({ error, messageSid: message.externalId }, 'Failed to process inbound SMS')
     return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 })
   }
 

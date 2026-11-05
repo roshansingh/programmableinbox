@@ -46,9 +46,31 @@ export async function storeIncomingSms(msg: ParsedInboundSms): Promise<IngestOut
 
   // Resolved once and threaded through every quota call, as email does.
   const plan = await CommercialProvider.plans.resolve(inbox.organizationId)
+
+  // A subscription that lapses resolves to a plan without phone inboxes, but the
+  // number stays active at Twilio until someone releases it, and a plan with no
+  // SMS limit key means "unlimited". The feature flag is what stops that traffic.
+  if (!plan.limits.phoneInboxesEnabled) {
+    await CommercialProvider.quota.increment(inbox.organizationId, 'sms.dropped', 1, plan)
+    logger.warn(
+      { phoneInboxId: inbox.id, organizationId: inbox.organizationId, externalId: msg.externalId, planCode: plan.planCode },
+      'Inbound SMS dropped: the organization plan does not include phone inboxes',
+    )
+    return 'dropped'
+  }
+
   const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'sms.received', 1, plan)
 
   if (!quota.allowed) {
+    // Twilio's retry of a message we already stored is refused too, once the cap
+    // is reached. It is not a loss: reporting it as one would inflate the very
+    // number the dashboard shows as "messages lost".
+    const existing = await prisma.phoneMessage.findUnique({
+      where: { externalId: msg.externalId },
+      select: { id: true },
+    })
+    if (existing) return 'duplicate'
+
     // Dropped, not stored-and-flagged: it cannot be recovered by upgrading.
     // `sms.dropped` is what lets the dashboard say how much was lost.
     await CommercialProvider.quota.increment(inbox.organizationId, 'sms.dropped', 1, plan)
@@ -80,7 +102,16 @@ export async function storeIncomingSms(msg: ParsedInboundSms): Promise<IngestOut
     })
     return 'stored'
   } catch (error) {
-    await CommercialProvider.quota.refund(inbox.organizationId, 'sms.received', 1, plan)
+    // The refund is best effort. If it throws too (likely in the same outage),
+    // letting it escape would replace the error that explains the failure.
+    try {
+      await CommercialProvider.quota.refund(inbox.organizationId, 'sms.received', 1, plan)
+    } catch (refundError) {
+      logger.error(
+        { error: refundError, organizationId: inbox.organizationId, externalId: msg.externalId },
+        'Could not refund an inbound SMS quota unit',
+      )
+    }
 
     if (isUniqueViolation(error, 'externalId')) {
       logger.info({ phoneInboxId: inbox.id, externalId: msg.externalId }, 'Duplicate inbound SMS skipped')

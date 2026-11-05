@@ -15,7 +15,12 @@ vi.mock('@/lib/services/phone-ingest', async (importOriginal) => {
   }
 })
 
+vi.mock('@/lib/logger', () => ({
+  default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+
 import { POST } from '@/app/api/webhooks/sms/route'
+import logger from '@/lib/logger'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { prisma } from '@/lib/db'
 import { withConfigEnv, setConfigEnv } from '@/test/config'
@@ -72,6 +77,8 @@ async function seedActiveInbox() {
 
 beforeEach(() => {
   failStore = false
+  vi.mocked(logger.error).mockClear()
+  vi.mocked(logger.warn).mockClear()
 })
 afterEach(() => CommercialProvider.reset())
 
@@ -176,5 +183,43 @@ describe('POST /api/webhooks/sms', () => {
     const res = await POST(request())
 
     expect(res.status).toBe(500)
+  })
+
+  // Failures before the insert (lookup, plan, quota) are not logged by the
+  // service, so the route has to; otherwise an outage is a 500 with no trace.
+  it('logs the failure and the MessageSid when storing fails', async () => {
+    await seedActiveInbox()
+    failStore = true
+
+    await POST(request())
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ messageSid: fields.MessageSid }),
+      expect.any(String),
+    )
+  })
+
+  // Twilio signs the URL stored on the number at purchase. If APP_BASE_URL has
+  // since changed, every number starts failing here; the configured URL in the
+  // log is what makes that findable.
+  it('logs the URL it verified against when a signature fails', async () => {
+    await POST(request(fields, { signature: 'bogus' }))
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedUrl: URL_ }),
+      expect.any(String),
+    )
+  })
+
+  it('refuses an oversized body with 413 before reading it', async () => {
+    const big = new NextRequest(URL_, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': '5000000' },
+      body: 'x',
+    })
+
+    const res = await POST(big)
+
+    expect(res.status).toBe(413)
   })
 })

@@ -89,6 +89,12 @@ describe('parseInboundSms', () => {
     expect(parseInboundSms({ ...params, Body: 'a\u0000b\u0000' })?.body).toBe('ab')
   })
 
+  it('strips NUL bytes from the identifying fields too, so none can make the insert throw', () => {
+    expect(
+      parseInboundSms({ ...params, MessageSid: 'SM\u0000x', From: '3\u00002665', To: '+1415\u00005550100' }),
+    ).toMatchObject({ externalId: 'SMx', from: '32665', to: '+14155550100' })
+  })
+
   it('caps an oversized body rather than rejecting it', () => {
     const parsed = parseInboundSms({ ...params, Body: 'x'.repeat(MAX_BODY_LENGTH + 500) })
 

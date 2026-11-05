@@ -17,7 +17,9 @@ CREATE TABLE "phone_messages" (
 );
 
 -- Twilio re-sends a delivery under the same MessageSid; this is the dedupe key.
-CREATE UNIQUE INDEX "phone_messages_externalId_phoneInboxId_key" ON "phone_messages"("externalId", "phoneInboxId");
+-- Unique on its own rather than per inbox: a MessageSid is globally unique, and a
+-- re-sent delivery must not be stored again if the number has since changed hands.
+CREATE UNIQUE INDEX "phone_messages_externalId_key" ON "phone_messages"("externalId");
 CREATE INDEX "phone_messages_phoneInboxId_createdAt_idx" ON "phone_messages"("phoneInboxId", "createdAt");
 CREATE INDEX "phone_messages_threadId_createdAt_idx" ON "phone_messages"("threadId", "createdAt");
 CREATE INDEX "phone_messages_organizationId_idx" ON "phone_messages"("organizationId");

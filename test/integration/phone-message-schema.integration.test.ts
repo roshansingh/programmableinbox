@@ -52,13 +52,16 @@ describe('PhoneMessage', () => {
     expect(await codeOf(message(box))).toBe('P2002')
   })
 
-  it('allows the same externalId on a different inbox', async () => {
+  // MessageSid is globally unique at Twilio, and signatures carry no timestamp, so
+  // a re-sent or replayed delivery can arrive after the number has changed hands.
+  // Uniqueness per inbox would store it a second time, in the new holder's inbox.
+  it('rejects the same externalId on a different inbox', async () => {
     const a = await createOrgWithUser()
     const one = await inbox(a.org.id, a.user.id, '+14155550100')
     const two = await inbox(a.org.id, a.user.id, '+14155550101')
     await message(one)
 
-    expect(await codeOf(message(two))).toBeUndefined()
+    expect(await codeOf(message(two))).toBe('P2002')
   })
 
   it('is removed with its inbox', async () => {

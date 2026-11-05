@@ -12,7 +12,10 @@ const NUMBER = '+14155550100'
 type Call = { op: 'consume' | 'refund' | 'increment'; metric: QuotaMetric; organizationId: string }
 
 /** Records what the service asks of the quota; `allow` decides `consume`. */
-function useQuota(allow = true) {
+function useQuota(
+  allow = true,
+  opts: { limits?: Partial<typeof UNLIMITED>; refundFails?: boolean } = {},
+) {
   const calls: Call[] = []
   const result = (): QuotaResult => ({ allowed: allow, limit: allow ? null : 0, used: 0, resetsAt: null })
   const quota: IQuota = {
@@ -22,6 +25,7 @@ function useQuota(allow = true) {
     },
     refund: async (organizationId, metric) => {
       calls.push({ op: 'refund', metric, organizationId })
+      if (opts.refundFails) throw new Error('refund failed: redis/db unreachable')
     },
     increment: async (organizationId, metric) => {
       calls.push({ op: 'increment', metric, organizationId })
@@ -34,7 +38,7 @@ function useQuota(allow = true) {
       resolve: async () => ({
         planCode: 'test',
         planName: 'Test',
-        limits: UNLIMITED,
+        limits: { ...UNLIMITED, ...opts.limits },
         periodStart: null,
         periodEnd: null,
       }),
@@ -165,6 +169,53 @@ describe('storeIncomingSms', () => {
     const [row] = await prisma.phoneMessage.findMany()
     expect(row.phoneInboxId).toBe(second.inbox.id)
     expect(row.organizationId).toBe(second.org.id)
+  })
+
+  // A cancelled subscription resolves to Free, but the number stays active at
+  // Twilio. Free has no SMS limit key (which means "unlimited"), so the plan's
+  // feature flag is what has to stop the traffic.
+  it('drops everything for an organization whose plan has no phone inboxes, without consuming quota', async () => {
+    const calls = useQuota(true, { limits: { phoneInboxesEnabled: false } })
+    const { org } = await seedInbox()
+
+    expect(await storeIncomingSms(sms())).toBe('dropped')
+
+    expect(await prisma.phoneMessage.count()).toBe(0)
+    expect(calls).toEqual([{ op: 'increment', metric: 'sms.dropped', organizationId: org.id }])
+  })
+
+  // Twilio's MessageSid is globally unique and signatures never expire, so a
+  // re-sent or replayed delivery can arrive after the number changed hands.
+  it('does not store a re-sent MessageSid in the next holder of the number', async () => {
+    const first = await seedInbox('active')
+    await storeIncomingSms(sms())
+    await prisma.phoneInbox.update({ where: { id: first.inbox.id }, data: { status: 'released' } })
+    const second = await seedInbox('active')
+
+    expect(await storeIncomingSms(sms())).toBe('duplicate')
+
+    expect(await prisma.phoneMessage.count({ where: { phoneInboxId: second.inbox.id } })).toBe(0)
+  })
+
+  // At the cap, Twilio's retry of a message we already stored is refused by
+  // `consume`. Reporting it as dropped would inflate the "lost" number with a
+  // message the organization has.
+  it('reports a re-sent, already-stored message as a duplicate even when quota is exhausted', async () => {
+    await seedInbox()
+    useQuota(true)
+    await storeIncomingSms(sms())
+    const calls = useQuota(false)
+
+    expect(await storeIncomingSms(sms())).toBe('duplicate')
+
+    expect(calls.filter((c) => c.op === 'increment')).toEqual([])
+  })
+
+  it('rethrows the storage error, not a refund error, when both fail', async () => {
+    useQuota(true, { refundFails: true })
+    await seedInbox()
+
+    await expect(storeIncomingSms(sms({ body: 'a\u0000b' }))).rejects.toThrow(/0x00|invalid byte|null/i)
   })
 
   it('gives the unit back and rethrows when the insert fails for any other reason', async () => {

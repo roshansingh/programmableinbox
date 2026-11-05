@@ -205,8 +205,11 @@ model PhoneMessage {
   body           String
   /// MMS media is not stored; only how many attachments were dropped.
   mediaCount     Int       @default(0)
-  /// Twilio's `MessageSid`. Twilio re-sends the same sid when it retries a delivery.
-  externalId     String
+  /// Twilio's `MessageSid`: globally unique, and re-sent on a retry. Unique on its
+  /// own, not per inbox: signatures never expire, so a re-sent or replayed delivery
+  /// can arrive after the number changed hands, and a per-inbox key would store it
+  /// a second time in the new holder's inbox.
+  externalId     String   @unique
   /// `${phoneInboxId}:${from}` — one thread per counterparty, computable without a lookup.
   threadId       String
   /// Populated by enrichment (#146); never by ingestion.
@@ -217,7 +220,6 @@ model PhoneMessage {
   phoneInbox   PhoneInbox   @relation(fields: [phoneInboxId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([externalId, phoneInboxId])
   @@index([phoneInboxId, createdAt])
   @@index([threadId, createdAt])
   @@index([organizationId])

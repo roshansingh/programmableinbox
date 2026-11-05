@@ -50,9 +50,17 @@ function nonNegativeInt(value: string | undefined): number {
   return value !== undefined && /^\d+$/.test(value) ? Number(value) : 0
 }
 
+/**
+ * Postgres rejects U+0000 in `text`, which would turn one odd message into a 500.
+ * Applied to every stored field, not just the body: Twilio signs these values, so
+ * a NUL elsewhere is unlikely, but the cost of being wrong is a refused message.
+ */
+function stripNul(value: string | undefined): string {
+  return (value ?? '').replace(/\u0000/g, '')
+}
+
 function cleanBody(raw: string | undefined): string {
-  // Postgres rejects U+0000 in `text`, which would turn one odd message into a 500.
-  let body = (raw ?? '').replace(/\u0000/g, '')
+  let body = stripNul(raw)
   if (body.length > MAX_BODY_LENGTH) {
     body = body.slice(0, MAX_BODY_LENGTH)
     // Do not leave half of a surrogate pair at the cut.
@@ -70,9 +78,9 @@ function cleanBody(raw: string | undefined): string {
  * survives. `null` means the request lacks what identifies a message at all.
  */
 export function parseInboundSms(params: Record<string, string>): ParsedInboundSms | null {
-  const externalId = params.MessageSid?.trim()
-  const from = params.From?.trim()
-  const to = params.To?.trim()
+  const externalId = stripNul(params.MessageSid).trim()
+  const from = stripNul(params.From).trim()
+  const to = stripNul(params.To).trim()
   if (!externalId || !from || !to) return null
 
   return {
