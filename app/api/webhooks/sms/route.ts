@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { withPublic } from '@/lib/auth/with-auth'
+import { ConfigError, requireSms } from '@/lib/config'
+import logger from '@/lib/logger'
+import { storeIncomingSms } from '@/lib/services/phone-ingest'
+import { parseInboundSms, verifyTwilioSignature } from '@/lib/sms/webhook'
+
+/**
+ * Empty TwiML: "received, do nothing". Receive-only means this route never
+ * replies, and a reply here would be an outbound SMS we neither bill for nor
+ * rate-limit.
+ */
+function emptyTwiml(): NextResponse {
+  return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response/>', {
+    status: 200,
+    headers: { 'Content-Type': 'text/xml' },
+  })
+}
+
+/**
+ * Inbound SMS from Twilio (issue #142).
+ *
+ * Unauthenticated by design: Twilio has no bearer credential to present, so the
+ * handler authenticates the *request* instead, by `X-Twilio-Signature` over the
+ * configured webhook URL (`lib/sms/webhook.ts`). `withPublic` carries no behavior;
+ * it marks the intent so the structural guards can tell "deliberately open" from
+ * "someone forgot the wrapper".
+ *
+ * Status codes are chosen for Twilio's retry behaviour. Anything retrying cannot
+ * fix — an unknown number, a full quota, a duplicate — answers 200. A failure that
+ * a retry could fix (the database) answers 500.
+ */
+export const POST = withPublic(async (request: NextRequest) => {
+  try {
+    requireSms()
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      logger.warn({ error }, 'Inbound SMS received while SMS is not configured')
+      return NextResponse.json({ message: 'SMS is not enabled' }, { status: 503 })
+    }
+    throw error
+  }
+
+  // Parsed from the raw body: the signature covers the decoded params, and
+  // Twilio sends them form-encoded. A repeated key keeps its last value, which
+  // can only make verification fail, never pass.
+  const params = Object.fromEntries(new URLSearchParams(await request.text()))
+
+  if (!verifyTwilioSignature(request.headers.get('x-twilio-signature'), params)) {
+    logger.warn({ messageSid: params.MessageSid }, 'Invalid Twilio signature')
+    return NextResponse.json({ message: 'Invalid signature' }, { status: 401 })
+  }
+
+  const message = parseInboundSms(params)
+  if (!message) {
+    return NextResponse.json({ message: 'Missing MessageSid, From or To' }, { status: 400 })
+  }
+
+  try {
+    await storeIncomingSms(message)
+  } catch {
+    // Already logged, and the quota unit already refunded, by the service.
+    return NextResponse.json({ message: 'Webhook processing failed' }, { status: 500 })
+  }
+
+  return emptyTwiml()
+})
