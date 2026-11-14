@@ -17,7 +17,7 @@
 # `.github/workflows/release.yml`'s no-ee guardrail is the belt-and-suspenders
 # check that this actually held.
 
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 # DATABASE_URL is unused by `prisma generate` and `next build`, but
@@ -40,7 +40,7 @@ RUN rm -f instrumentation.ts && mv instrumentation.foss.ts instrumentation.ts
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 # DATABASE_URL is unused by `prisma generate` and `next build`, but
@@ -17,7 +17,7 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
