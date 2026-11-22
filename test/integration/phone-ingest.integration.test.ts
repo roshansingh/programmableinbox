@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommercialProvider } from '@/lib/commercial/provider'
 import { UNLIMITED } from '@/lib/commercial/plan-limits'
 import type { IQuota, QuotaMetric, QuotaResult } from '@/lib/commercial/interfaces'
@@ -71,7 +71,10 @@ async function seedInbox(
   return { inbox, org: a.org }
 }
 
-afterEach(() => CommercialProvider.reset())
+afterEach(() => {
+  vi.restoreAllMocks()
+  CommercialProvider.reset()
+})
 beforeEach(() => useQuota())
 
 describe('storeIncomingSms', () => {
@@ -116,7 +119,7 @@ describe('storeIncomingSms', () => {
     expect(calls).toEqual([{ op: 'consume', metric: 'sms.received', organizationId: org.id }])
   })
 
-  it('stores one row and gives the unit back when Twilio re-sends the same MessageSid', async () => {
+  it('stores one row and spends no quota when Twilio re-sends an already-stored MessageSid', async () => {
     const calls = useQuota()
     const { org } = await seedInbox()
 
@@ -124,6 +127,24 @@ describe('storeIncomingSms', () => {
     expect(await storeIncomingSms(sms())).toBe('duplicate')
 
     expect(await prisma.phoneMessage.count()).toBe(1)
+    // Consuming first and refunding after would hold a unit while the retry is in
+    // flight, so a different message arriving at the cap would be dropped for good.
+    expect(calls.filter((c) => c.op === 'consume')).toEqual([
+      { op: 'consume', metric: 'sms.received', organizationId: org.id },
+    ])
+    expect(calls.filter((c) => c.op === 'refund')).toEqual([])
+  })
+
+  it('gives the unit back when a concurrent delivery of the same MessageSid wins the insert', async () => {
+    const calls = useQuota()
+    const { org } = await seedInbox()
+    await storeIncomingSms(sms())
+    calls.length = 0
+    // Both deliveries passed the existence check before either inserted.
+    vi.spyOn(prisma.phoneMessage, 'findUnique').mockResolvedValueOnce(null)
+
+    expect(await storeIncomingSms(sms())).toBe('duplicate')
+
     expect(calls.filter((c) => c.op === 'refund')).toEqual([
       { op: 'refund', metric: 'sms.received', organizationId: org.id },
     ])

@@ -59,17 +59,20 @@ export async function storeIncomingSms(msg: ParsedInboundSms): Promise<IngestOut
     return 'dropped'
   }
 
+  // Checked before consuming, not after: a retry that consumed a unit and refunded
+  // it on the unique violation would hold that unit for the interval in between,
+  // and a different message arriving at the cap would be refused for good. Only a
+  // truly concurrent delivery of the same sid still reaches the refund below, which
+  // cannot be closed without quota and insert sharing a transaction.
+  const existing = await prisma.phoneMessage.findUnique({
+    where: { externalId: msg.externalId },
+    select: { id: true },
+  })
+  if (existing) return 'duplicate'
+
   const quota = await CommercialProvider.quota.consume(inbox.organizationId, 'sms.received', 1, plan)
 
   if (!quota.allowed) {
-    // Twilio's retry of a message we already stored is refused too, once the cap
-    // is reached. It is not a loss: reporting it as one would inflate the very
-    // number the dashboard shows as "messages lost".
-    const existing = await prisma.phoneMessage.findUnique({
-      where: { externalId: msg.externalId },
-      select: { id: true },
-    })
-    if (existing) return 'duplicate'
 
     // Dropped, not stored-and-flagged: it cannot be recovered by upgrading.
     // `sms.dropped` is what lets the dashboard say how much was lost.

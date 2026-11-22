@@ -222,4 +222,30 @@ describe('POST /api/webhooks/sms', () => {
 
     expect(res.status).toBe(413)
   })
+
+  it('refuses a chunked body over the cap that declares no content-length', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(16 * 1024))
+    let sent = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // 1 MB in total, far over the cap; stops being read once refused.
+        if (sent >= 64) return controller.close()
+        sent += 1
+        controller.enqueue(chunk)
+      },
+    })
+    const chunked = new NextRequest(URL_, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+      // @ts-expect-error required by undici for a streamed request body
+      duplex: 'half',
+    })
+    expect(chunked.headers.get('content-length')).toBeNull()
+
+    const res = await POST(chunked)
+
+    expect(res.status).toBe(413)
+    expect(sent).toBeLessThan(64)
+  })
 })

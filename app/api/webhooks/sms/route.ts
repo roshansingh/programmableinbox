@@ -9,6 +9,29 @@ import { parseInboundSms, smsWebhookUrl, verifyTwilioSignature } from '@/lib/sms
 const MAX_REQUEST_BYTES = 64 * 1024
 
 /**
+ * The request body as text, or `null` once it exceeds `limit` bytes. Counts bytes
+ * as they arrive and cancels the stream at the limit, so an oversized body is
+ * never held in memory whole, whatever `Content-Length` claimed.
+ */
+async function readBodyWithin(request: NextRequest, limit: number): Promise<string | null> {
+  if (!request.body) return ''
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > limit) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+/**
  * Empty TwiML: "received, do nothing". Receive-only means this route never
  * replies, and a reply here would be an outbound SMS we neither bill for nor
  * rate-limit.
@@ -46,18 +69,23 @@ export const POST = withPublic(async (request: NextRequest) => {
     throw error
   }
 
-  // Checked before the body is read: this route is public, and the body is
-  // buffered and parsed before the signature can be verified. A real delivery is
-  // a few hundred bytes; the cap is generous and exists only to refuse a flood.
+  // This route is public and the body is buffered and parsed before the
+  // signature can be verified. A real delivery is a few hundred bytes; the cap is
+  // generous and exists only to refuse a flood. The declared length refuses early;
+  // the byte count while reading is what holds when a chunked request declares none.
   const declaredLength = Number(request.headers.get('content-length') ?? 0)
   if (declaredLength > MAX_REQUEST_BYTES) {
+    return NextResponse.json({ message: 'Payload too large' }, { status: 413 })
+  }
+  const rawBody = await readBodyWithin(request, MAX_REQUEST_BYTES)
+  if (rawBody === null) {
     return NextResponse.json({ message: 'Payload too large' }, { status: 413 })
   }
 
   // Parsed from the raw body: the signature covers the decoded params, and
   // Twilio sends them form-encoded. A repeated key keeps its last value, which
   // can only make verification fail, never pass.
-  const params = Object.fromEntries(new URLSearchParams(await request.text()))
+  const params = Object.fromEntries(new URLSearchParams(rawBody))
 
   if (!verifyTwilioSignature(request.headers.get('x-twilio-signature'), params)) {
     // Twilio signs the URL stored on the number at purchase. If APP_BASE_URL has
