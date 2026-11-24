@@ -98,3 +98,75 @@ export async function createPhoneInbox(data: CreateInboxPhoneRequest): Promise<I
 export async function deletePhoneInbox(id: string): Promise<void> {
   return apiClient.delete<void>(`/app/phoneInbox/${id}`)
 }
+
+/** Mirrors serializeAppPhoneMessage. */
+export interface PhoneMessage {
+  id: string
+  phoneInboxId: string
+  /** As the carrier presented it: E.164, a short code such as `32665`, or an alphanumeric sender. */
+  from: string
+  to: string
+  /** Empty for an MMS that carried only media. */
+  body: string
+  /** MMS media is not stored; this is how many attachments were dropped. */
+  mediaCount: number
+  threadId: string
+  extractedOtp: string | null
+  isRead: boolean
+  createdAt: string
+}
+
+/** Mirrors serializeAppPhoneThread: a thread's latest message plus its counts. */
+export interface PhoneThread extends PhoneMessage {
+  threadCount: number
+  unreadCount: number
+}
+
+interface PageParams {
+  cursor?: string
+  limit?: number
+}
+
+function pageQuery(params: PageParams & { threadId?: string }): string {
+  const query = new URLSearchParams()
+  if (params.threadId) query.append('threadId', params.threadId)
+  if (params.cursor) query.append('cursor', params.cursor)
+  if (params.limit) query.append('limit', params.limit.toString())
+  const text = query.toString()
+  return text ? `?${text}` : ''
+}
+
+/**
+ * One row per counterparty, newest thread first.
+ * GET /app/phoneInbox/{id}/messages
+ */
+export async function getPhoneThreads(
+  inboxId: string,
+  params: PageParams = {},
+): Promise<{ threads: PhoneThread[]; nextCursor: string | null; hasMore: boolean }> {
+  return apiClient.get(`/app/phoneInbox/${inboxId}/messages${pageQuery(params)}`)
+}
+
+/**
+ * One thread's messages, newest first; `cursor` continues backwards to older ones.
+ * GET /app/phoneInbox/{id}/messages?threadId=
+ */
+export async function getPhoneThreadMessages(
+  inboxId: string,
+  threadId: string,
+  params: PageParams = {},
+): Promise<{ messages: PhoneMessage[]; nextCursor: string | null; hasMore: boolean }> {
+  return apiClient.get(`/app/phoneInbox/${inboxId}/messages${pageQuery({ ...params, threadId })}`)
+}
+
+/**
+ * Marks every message in a thread read (or unread). Inbox-wide, not per user.
+ * PATCH /app/phoneInbox/{id}/messages
+ */
+export async function setPhoneThreadRead(
+  inboxId: string,
+  threadId: string,
+  isRead: boolean,
+): Promise<{ updated: number }> {
+  return apiClient.patch(`/app/phoneInbox/${inboxId}/messages`, { threadId, isRead })
+}

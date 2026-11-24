@@ -36,6 +36,13 @@ async function codeOf(promise: Promise<unknown>): Promise<string | undefined> {
 }
 
 describe('PhoneMessage', () => {
+  it('starts unread', async () => {
+    const a = await createOrgWithUser()
+    const row = await message(await inbox(a.org.id, a.user.id, '+14155550100'))
+
+    expect(row.isRead).toBe(false)
+  })
+
   it('defaults mediaCount to 0 and extractedOtp to null', async () => {
     const a = await createOrgWithUser()
     const row = await message(await inbox(a.org.id, a.user.id, '+14155550100'))

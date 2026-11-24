@@ -214,6 +214,9 @@ model PhoneMessage {
   threadId       String
   /// Populated by enrichment (#146); never by ingestion.
   extractedOtp   String?
+  /// Inbox-wide, not per user (like `EmailMessage.isRead`, #138). The dashboard only
+  /// ever flips it a thread at a time.
+  isRead         Boolean   @default(false)
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
   deletedAt      DateTime? @db.Timestamptz(3)
 
