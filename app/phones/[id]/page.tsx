@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Phone, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Copy, Phone, RefreshCw } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -72,18 +72,28 @@ export default function PhoneMessagesPage() {
   // Bumped every time the list is replaced. A "Load more" started against an
   // earlier list carries a cursor that no longer continues anything.
   const listGeneration = useRef(0)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollToNewest = useRef(false)
+
+  useEffect(() => {
+    if (!scrollToNewest.current) return
+    scrollToNewest.current = false
+    bottomRef.current?.scrollIntoView?.({ block: "end" })
+  }, [messages])
 
   const loadThreads = useCallback(async () => {
-    listGeneration.current += 1
+    const generation = ++listGeneration.current
     try {
       const [inboxRow, page] = await Promise.all([getPhoneInbox(inboxId), getPhoneThreads(inboxId)])
+      // A slower, earlier load must not overwrite a newer one.
+      if (generation !== listGeneration.current) return
       setInbox(inboxRow)
       setThreads(page.threads)
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
       setStatus("ready")
     } catch {
-      setStatus("error")
+      if (generation === listGeneration.current) setStatus("error")
     }
   }, [inboxId])
 
@@ -96,13 +106,23 @@ export default function PhoneMessagesPage() {
     const generation = listGeneration.current
     setIsLoadingMore(true)
     try {
-      const page = await getPhoneThreads(inboxId, { cursor: nextCursor })
+      // The first page is fetched again alongside the next one. Threads are ordered
+      // by their latest message, so a text that arrives in a thread the user has
+      // not reached yet moves it above the cursor: it is on neither the page they
+      // already have nor the one they asked for, and would otherwise be missing
+      // until a manual refresh. Newer copies of threads already shown win.
+      const [page, first] = await Promise.all([
+        getPhoneThreads(inboxId, { cursor: nextCursor }),
+        getPhoneThreads(inboxId),
+      ])
       if (generation !== listGeneration.current) return
-      // A thread that received a text while the page was loading now sits on the
-      // first page as well; keep the copy already shown.
       setThreads((prev) => {
-        const have = new Set(prev.map((t) => t.threadId))
-        return [...prev, ...page.threads.filter((t) => !have.has(t.threadId))]
+        const byId = new Map(prev.map((t) => [t.threadId, t]))
+        for (const t of first.threads) byId.set(t.threadId, t)
+        for (const t of page.threads) if (!byId.has(t.threadId)) byId.set(t.threadId, t)
+        return [...byId.values()].sort(
+          (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+        )
       })
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
@@ -120,6 +140,9 @@ export default function PhoneMessagesPage() {
     try {
       const page = await getPhoneThreadMessages(inboxId, threadId, { cursor })
       if (selectedRef.current !== threadId) return
+      // Opening or refreshing lands on the newest message (the one a one-time code
+      // is in); loading older ones above must not move the view.
+      if (!cursor) scrollToNewest.current = true
       // Newest first: an older page goes after what is already held.
       setMessages((prev) => (cursor ? [...prev, ...page.messages] : page.messages))
       setMessagesCursor(page.hasMore ? page.nextCursor : null)
@@ -157,6 +180,15 @@ export default function PhoneMessagesPage() {
     selectedRef.current = null
     setShowThreadList(true)
     setSelectedThreadId(null)
+  }
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      toast.success("Code copied")
+    } catch {
+      toast.error("Failed to copy code")
+    }
   }
 
   const refresh = async () => {
@@ -218,7 +250,13 @@ export default function PhoneMessagesPage() {
                 {status === "error" && (
                   <p className="p-4 text-sm text-destructive">Could not load messages. Try refreshing.</p>
                 )}
-                {status === "ready" && threads.length === 0 && (
+                {/* A pending number is not receiving: the webhook answers 200 and discards the text. */}
+                {inbox?.status === "pending" && (
+                  <p className="m-2 rounded-md border border-border bg-muted/50 p-3 text-sm text-foreground">
+                    This number is still being set up. Texts sent to it are not received until setup finishes.
+                  </p>
+                )}
+                {status === "ready" && threads.length === 0 && inbox?.status !== "pending" && (
                   <p className="p-4 text-sm text-muted-foreground">
                     No messages yet. Texts sent to this number will appear here.
                   </p>
@@ -227,6 +265,7 @@ export default function PhoneMessagesPage() {
                   <button
                     key={thread.threadId}
                     onClick={() => openThread(thread)}
+                    aria-current={selectedThreadId === thread.threadId ? "true" : undefined}
                     className={cn(
                       "w-full flex items-start gap-3 p-3 rounded-lg transition-colors text-left",
                       selectedThreadId === thread.threadId ? "bg-accent" : "hover:bg-muted/50"
@@ -253,6 +292,7 @@ export default function PhoneMessagesPage() {
                         </p>
                         {thread.unreadCount > 0 && (
                           <Badge
+                            role="img"
                             aria-label={`${thread.unreadCount} unread`}
                             className="bg-primary text-primary-foreground h-5 min-w-5 px-1.5 text-xs shrink-0"
                           >
@@ -299,6 +339,16 @@ export default function PhoneMessagesPage() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-foreground truncate">{selectedFrom}</h3>
                     </div>
+                    {/* The list pane's Refresh is hidden on small screens while a conversation is open. */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => void refresh()}
+                      className="shrink-0"
+                      aria-label="Refresh conversation"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
 
@@ -331,10 +381,23 @@ export default function PhoneMessagesPage() {
                           {!message.body && message.mediaCount === 0 && (
                             <p className="text-xs italic text-muted-foreground">(empty message)</p>
                           )}
+                          {message.extractedOtp && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2 font-mono"
+                              aria-label={`Copy code ${message.extractedOtp}`}
+                              onClick={() => void copyCode(message.extractedOtp as string)}
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              {message.extractedOtp}
+                            </Button>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">{ago(message.createdAt)}</p>
                         </div>
                       </div>
                     ))}
+                    <div ref={bottomRef} />
                   </div>
                 </ScrollArea>
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, onTestFinished, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { useParams } from 'next/navigation'
 import { render, screen, waitFor, within } from '@/test/test-utils'
@@ -302,6 +302,120 @@ describe('PhoneMessagesPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /load more/i })).toBeEnabled())
     expect(screen.getByText('Your code is 481516')).toBeInTheDocument()
     expect(screen.queryByText(/could not load messages/i)).not.toBeInTheDocument()
+  })
+
+  it('shows a thread that moved to the top while the next page was loading', async () => {
+    // The server cannot return a thread on page 2 that is already on page 1; it
+    // can move one from page 2 onto page 1 after the user has scrolled past, and
+    // then page 2 simply no longer contains it.
+    let firstPageCalls = 0
+    server.use(
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}`, () => HttpResponse.json({ data: inbox })),
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, ({ request }) => {
+        if (new URL(request.url).searchParams.get('cursor')) {
+          return HttpResponse.json({ data: { threads: [], nextCursor: null, hasMore: false } })
+        }
+        firstPageCalls += 1
+        const moved = thread({ id: 'm7', from: '55555', threadId: `${INBOX_ID}:55555`, body: 'code that just arrived' })
+        return HttpResponse.json({
+          data: {
+            threads: firstPageCalls === 1 ? [thread()] : [moved, thread()],
+            nextCursor: 'CURSOR1',
+            hasMore: true,
+          },
+        })
+      }),
+    )
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByRole('button', { name: /load more/i }))
+
+    expect(await screen.findByText('code that just arrived')).toBeInTheDocument()
+    expect(screen.getAllByText('Your code is 481516')).toHaveLength(1)
+  })
+
+  it('scrolls a thread to its newest message when opened, but not when older ones load', async () => {
+    const scroll = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
+    onTestFinished(() => {
+      Element.prototype.scrollIntoView = original
+    })
+    serve({
+      threads: [thread({ body: 'newest text' })],
+      messages: [message({ id: 'n', body: 'newest text' })],
+      messagesHasMore: true,
+      olderMessages: [message({ id: 'o', body: 'older text', createdAt: '2026-10-01T10:00:00.000Z' })],
+    })
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByText('newest text'))
+    await screen.findByTestId('thread-messages')
+    await waitFor(() => expect(scroll).toHaveBeenCalled())
+    const afterOpen = scroll.mock.calls.length
+
+    await user.click(await screen.findByRole('button', { name: /load older/i }))
+    await screen.findByText('older text')
+
+    expect(scroll.mock.calls.length).toBe(afterOpen)
+  })
+
+  it('can refresh the open conversation from the conversation pane', async () => {
+    serve({ messages: [message({ body: 'first version' })] })
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByText('Your code is 481516'))
+    await screen.findByText('first version')
+
+    serve({ messages: [message({ id: 'z', body: 'newer code 222333' }), message({ body: 'first version' })] })
+    await user.click(screen.getByRole('button', { name: 'Refresh conversation' }))
+
+    expect(await screen.findByText('newer code 222333')).toBeInTheDocument()
+  })
+
+  it('shows a one-time code with a copy button once enrichment has extracted it', async () => {
+    serve({ messages: [message({ body: 'Your code is 481516', extractedOtp: '481516' })] })
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByText('Your code is 481516'))
+
+    await user.click(await screen.findByRole('button', { name: /copy code 481516/i }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('481516')
+  })
+
+  it('offers no copy button for a message without an extracted code', async () => {
+    serve()
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByText('Your code is 481516'))
+    await screen.findByTestId('thread-messages')
+
+    expect(screen.queryByRole('button', { name: /copy code/i })).not.toBeInTheDocument()
+  })
+
+  it('warns that a number still being set up is not receiving texts', async () => {
+    server.use(
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}`, () =>
+        HttpResponse.json({ data: { ...inbox, status: 'pending' } }),
+      ),
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, () =>
+        HttpResponse.json({ data: { threads: [], nextCursor: null, hasMore: false } }),
+      ),
+    )
+
+    render(<PhoneMessagesPage />)
+
+    expect(await screen.findByText(/still being set up/i)).toBeInTheDocument()
+    expect(screen.queryByText(/texts sent to this number will appear here/i)).not.toBeInTheDocument()
+  })
+
+  it('marks the selected conversation for assistive technology', async () => {
+    serve()
+    const { user } = render(<PhoneMessagesPage />)
+    const row = (await screen.findByText('Your code is 481516')).closest('button')!
+    expect(row).not.toHaveAttribute('aria-current')
+
+    await user.click(row)
+
+    expect(row).toHaveAttribute('aria-current', 'true')
   })
 
   it('picks up newly arrived texts when refreshed', async () => {

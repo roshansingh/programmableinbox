@@ -148,7 +148,7 @@ export async function getPhoneThreads(
 }
 
 /**
- * One thread's messages, oldest first.
+ * One thread's messages, newest first; `cursor` continues backwards to older ones.
  * GET /app/phoneInbox/{id}/messages?threadId=
  */
 export async function getPhoneThreadMessages(

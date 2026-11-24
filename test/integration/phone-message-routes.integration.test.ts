@@ -293,3 +293,41 @@ describe('PATCH /api/app/phoneInbox/[id]/messages (mark a thread read)', () => {
     expect(res.status).toBe(401)
   })
 })
+
+describe('malformed input is rejected, not thrown', () => {
+  const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64url')
+
+  it('answers 404 for an inbox id that is not a UUID', async () => {
+    const a = await createOrgWithUser()
+
+    expect((await list('abc', a.token)).status).toBe(404)
+    expect((await markRead('abc', a.token, { threadId: 'x', isRead: true })).status).toBe(404)
+  })
+
+  it('answers 400 for a cursor whose id is not a UUID, on both read paths', async () => {
+    const a = await createOrgWithUser()
+    const inbox = await seedInbox(a.org.id, a.user.id)
+    const cursor = encodeURIComponent(b64('1700000000000|not-a-uuid'))
+
+    expect((await list(inbox.id, a.token, `?cursor=${cursor}`)).status).toBe(400)
+    expect((await list(inbox.id, a.token, `?threadId=x&cursor=${cursor}`)).status).toBe(400)
+  })
+
+  it('answers 400 for a cursor instant Postgres cannot store, on both read paths', async () => {
+    const a = await createOrgWithUser()
+    const inbox = await seedInbox(a.org.id, a.user.id)
+    const cursor = encodeURIComponent(b64('-8000000000000000|00000000-0000-7000-8000-000000000000'))
+
+    expect((await list(inbox.id, a.token, `?cursor=${cursor}`)).status).toBe(400)
+    expect((await list(inbox.id, a.token, `?threadId=x&cursor=${cursor}`)).status).toBe(400)
+  })
+
+  it('answers 400 for a threadId containing a NUL byte or an empty threadId', async () => {
+    const a = await createOrgWithUser()
+    const inbox = await seedInbox(a.org.id, a.user.id)
+
+    expect((await list(inbox.id, a.token, '?threadId=a%00b')).status).toBe(400)
+    expect((await list(inbox.id, a.token, '?threadId=')).status).toBe(400)
+    expect((await markRead(inbox.id, a.token, { threadId: 'a\u0000b', isRead: true })).status).toBe(400)
+  })
+})
