@@ -38,6 +38,7 @@ const POLL_INTERVAL_MS = 60_000
 
 const METRIC_LABELS: Record<string, string> = {
   'emails.processed': 'incoming emails',
+  'sms.received': 'incoming texts',
   'emails.sent': 'sent emails',
   'llm.enrichments': 'AI enrichments',
   'automation.runs': 'automation runs',

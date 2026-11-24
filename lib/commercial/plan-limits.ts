@@ -47,6 +47,7 @@ export const PlanLimitsSchema = z.object({
 
   // ── metered per billing period ───────────────────────────────────────────
   incomingEmailsPerPeriod: count,
+  incomingSmsPerPeriod: count,
   outboundEmailsPerPeriod: count,
   llmEnrichmentsPerPeriod: count,
   automationRunsPerPeriod: count,

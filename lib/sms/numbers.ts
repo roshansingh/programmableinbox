@@ -2,6 +2,7 @@ import { requireSms } from '@/lib/config'
 import { SmsProviderError } from './errors'
 import { callTwilio } from './twilio-client'
 import type { SmsCountry } from './validation'
+import { smsWebhookUrl } from './webhook'
 
 export type { SmsCountry }
 
@@ -19,9 +20,6 @@ export type PurchasedNumber = {
 
 /** Twilio caps a search page at its own limit; 20 is plenty for a pick list. */
 const SEARCH_LIMIT = 20
-
-/** Where Twilio posts inbound SMS. Built in `purchaseNumber`; the route lands in #142. */
-const WEBHOOK_PATH = '/api/webhooks/sms'
 
 /**
  * Local, SMS-capable numbers in `areaCode`. The caller validates the area code
@@ -87,7 +85,7 @@ export async function isNumberAvailable(country: SmsCountry, phoneNumber: string
  */
 export async function purchaseNumber(phoneNumber: string): Promise<PurchasedNumber> {
   const { appBaseUrl } = requireSms()
-  const smsUrl = `${appBaseUrl.replace(/\/+$/, '')}${WEBHOOK_PATH}`
+  const smsUrl = smsWebhookUrl(appBaseUrl)
 
   const bought = await callTwilio((client) =>
     client.incomingPhoneNumbers.create({ phoneNumber, smsUrl, smsMethod: 'POST' }),

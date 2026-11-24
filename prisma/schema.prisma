@@ -56,6 +56,7 @@ model Organization {
   memberships   Membership[]
   emailInboxes  EmailInbox[]
   phoneInboxes  PhoneInbox[]
+  phoneMessages PhoneMessage[]
   apiKeys       ApiKey[]
   webhooks      Webhook[]
   emailMessages EmailMessage[]
@@ -184,10 +185,45 @@ model PhoneInbox {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     PhoneMessage[]
 
   @@index([organizationId])
   @@index([userId])
   @@map("phone_inboxes")
+}
+
+/// An inbound SMS (receive-only: there is no direction column because nothing is
+/// ever sent). `from` is whatever the sender presented and is *not* always E.164 —
+/// OTPs commonly arrive from short codes (`32665`) or alphanumeric senders.
+model PhoneMessage {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  phoneInboxId   String    @db.Uuid
+  organizationId String    @db.Uuid
+  from           String
+  /// The inbox's number, E.164, as Twilio addressed it.
+  to             String
+  body           String
+  /// MMS media is not stored; only how many attachments were dropped.
+  mediaCount     Int       @default(0)
+  /// Twilio's `MessageSid`: globally unique, and re-sent on a retry. Unique on its
+  /// own, not per inbox: signatures never expire, so a re-sent or replayed delivery
+  /// can arrive after the number changed hands, and a per-inbox key would store it
+  /// a second time in the new holder's inbox.
+  externalId     String   @unique
+  /// `${phoneInboxId}:${from}` — one thread per counterparty, computable without a lookup.
+  threadId       String
+  /// Populated by enrichment (#146); never by ingestion.
+  extractedOtp   String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  deletedAt      DateTime? @db.Timestamptz(3)
+
+  phoneInbox   PhoneInbox   @relation(fields: [phoneInboxId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([phoneInboxId, createdAt])
+  @@index([threadId, createdAt])
+  @@index([organizationId])
+  @@map("phone_messages")
 }
 
 model ApiKey {

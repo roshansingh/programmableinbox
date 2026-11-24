@@ -36,6 +36,9 @@ export const SELF_HOSTED_PLAN_CODE = 'self_hosted'
 export type QuotaMetric =
   | 'emails.processed'
   | 'emails.dropped'
+  /** Inbound SMS accepted (limited by `incomingSmsPerPeriod`) and, report-only, dropped past the cap. */
+  | 'sms.received'
+  | 'sms.dropped'
   | 'emails.sent'
   | 'llm.enrichments'
   | 'automation.runs'

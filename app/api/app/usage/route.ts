@@ -15,6 +15,8 @@ import type { QuotaMetric } from '@/lib/commercial/interfaces'
 const REPORTED_METRICS: QuotaMetric[] = [
   'emails.processed',
   'emails.dropped',
+  'sms.received',
+  'sms.dropped',
   'emails.sent',
   'llm.enrichments',
   'automation.runs',

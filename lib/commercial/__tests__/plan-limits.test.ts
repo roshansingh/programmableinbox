@@ -91,6 +91,7 @@ describe('UNLIMITED', () => {
       'automations',
       'members',
       'incomingEmailsPerPeriod',
+      'incomingSmsPerPeriod',
       'outboundEmailsPerPeriod',
       'llmEnrichmentsPerPeriod',
       'automationRunsPerPeriod',

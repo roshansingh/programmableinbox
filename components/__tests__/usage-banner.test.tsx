@@ -81,6 +81,18 @@ describe('UsageBanner', () => {
     expect(screen.getByText(/800 of 1000 incoming emails/i)).toBeInTheDocument()
   })
 
+  it('names received SMS in plain words', async () => {
+    getUsageMock.mockResolvedValue({
+      organizationId: 'org_1',
+      plan: FREE_PLAN,
+      usage: [metric({ metric: 'sms.received', limit: 500, used: 450 })],
+    })
+
+    render(<UsageBanner />)
+
+    expect(await screen.findByText(/450 of 500 incoming texts/i)).toBeInTheDocument()
+  })
+
   /**
    * The warning has to state the consequence, not just the number. On a `drop`
    * plan reaching the cap destroys mail irreversibly, so a user who only learns

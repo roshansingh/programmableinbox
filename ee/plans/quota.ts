@@ -18,12 +18,23 @@ import type { PlanLimits } from '@/lib/commercial/plan-limits'
  */
 const LIMIT_KEY: Partial<Record<QuotaMetric, keyof PlanLimits>> = {
   'emails.processed': 'incomingEmailsPerPeriod',
+  'sms.received': 'incomingSmsPerPeriod',
   'emails.sent': 'outboundEmailsPerPeriod',
   'llm.enrichments': 'llmEnrichmentsPerPeriod',
   'automation.runs': 'automationRunsPerPeriod',
   'webhook.deliveries': 'webhookDeliveriesPerPeriod',
   'api.requests': 'apiRequestsPerPeriod',
 }
+
+/**
+ * Metrics that are refused at their limit even on an `overage` plan.
+ *
+ * `overage` means "keep going and bill the excess", which is only true where
+ * something bills it: email overage is reported to Stripe. Nothing bills SMS, so
+ * "overage" would be inbound traffic paid for at Twilio against a fixed fee,
+ * with no ceiling. Received SMS is therefore always capped.
+ */
+const HARD_CAPPED: ReadonlySet<QuotaMetric> = new Set<QuotaMetric>(['sms.received'])
 
 function limitFor(limits: PlanLimits, metric: QuotaMetric): number | null {
   const key = LIMIT_KEY[metric]
@@ -60,8 +71,10 @@ export class PostgresQuota implements IQuota {
     const { periodStart, periodEnd } = this.period(plan)
 
     // Unlimited, report-only, or a plan that bills overage rather than
-    // refusing: consume unconditionally and never deny.
-    const unguarded = limit === null || plan.limits.overQuotaBehavior === 'overage'
+    // refusing: consume unconditionally and never deny. A hard-capped metric is
+    // guarded whatever the plan says (see HARD_CAPPED).
+    const unguarded =
+      limit === null || (plan.limits.overQuotaBehavior === 'overage' && !HARD_CAPPED.has(metric))
 
     const rows = unguarded
       ? await this.upsertUnguarded(organizationId, metric, periodStart, periodEnd, quantity)
