@@ -94,10 +94,12 @@ const MESSAGE_SELECT = {
 } as const
 
 /**
- * One thread's messages, oldest first: a thread reads top to bottom. The cursor
- * comparison has to match that direction or pagination skips or repeats rows.
- * `phoneInboxId` is bound as well as `threadId`, so a thread id belonging to
- * another inbox returns nothing even though it is only a string.
+ * One thread's messages, newest first. The newest message is the one that matters
+ * for a one-time-code inbox, so the first page must hold it however long the
+ * thread is; the client reverses a page for display and pages backwards for older
+ * ones. The cursor comparison has to match that direction or pagination skips or
+ * repeats rows. `phoneInboxId` is bound as well as `threadId`, so a thread id
+ * belonging to another inbox returns nothing even though it is only a string.
  */
 export async function listThreadMessages(
   scope: OrgScope,
@@ -110,15 +112,15 @@ export async function listThreadMessages(
   const where: Prisma.PhoneMessageWhereInput = { phoneInboxId: inboxId, threadId, deletedAt: null }
   if (opts.cursor) {
     where.OR = [
-      { createdAt: { gt: opts.cursor.createdAt } },
-      { createdAt: opts.cursor.createdAt, id: { gt: opts.cursor.id } },
+      { createdAt: { lt: opts.cursor.createdAt } },
+      { createdAt: opts.cursor.createdAt, id: { lt: opts.cursor.id } },
     ]
   }
 
   const rows = await prisma.phoneMessage.findMany({
     where,
     select: MESSAGE_SELECT,
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: opts.limit + 1,
   })
   return page(rows, opts.limit)

@@ -160,7 +160,7 @@ describe('GET /api/app/phoneInbox/[id]/messages (threads)', () => {
 })
 
 describe('GET /api/app/phoneInbox/[id]/messages?threadId=', () => {
-  it("returns one thread's messages, oldest first", async () => {
+  it("returns one thread's messages, newest first", async () => {
     const a = await createOrgWithUser()
     const inbox = await seedInbox(a.org.id, a.user.id)
     await msg(inbox, '32665', '2026-11-01T12:00:00Z', { body: 'second' })
@@ -172,11 +172,11 @@ describe('GET /api/app/phoneInbox/[id]/messages?threadId=', () => {
       await list(inbox.id, a.token, `?threadId=${encodeURIComponent(`${inbox.id}:32665`)}`)
     ).json()
 
-    expect(data.messages.map((m: { body: string }) => m.body)).toEqual(['first', 'second'])
+    expect(data.messages.map((m: { body: string }) => m.body)).toEqual(['second', 'first'])
     expect(data.threads).toBeUndefined()
   })
 
-  it('pages a long thread forward without gaps', async () => {
+  it('pages a long thread backwards from the newest without gaps', async () => {
     const a = await createOrgWithUser()
     const inbox = await seedInbox(a.org.id, a.user.id)
     for (let i = 0; i < 5; i++) await msg(inbox, '32665', `2026-11-01T10:0${i}:00Z`, { body: `m${i}` })
@@ -190,7 +190,7 @@ describe('GET /api/app/phoneInbox/[id]/messages?threadId=', () => {
     ).data
 
     expect([...first.messages, ...second.messages].map((m: { body: string }) => m.body)).toEqual([
-      'm0', 'm1', 'm2', 'm3', 'm4',
+      'm4', 'm3', 'm2', 'm1', 'm0',
     ])
     expect(second.hasMore).toBe(false)
   })

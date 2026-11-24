@@ -52,23 +52,43 @@ function serve(opts: {
   threads?: unknown[]
   hasMore?: boolean
   nextCursor?: string | null
+  /** The newest page of a thread, newest first, as the API returns it. */
   messages?: unknown[]
+  messagesHasMore?: boolean
+  /** What `?threadId=&cursor=` returns: the next-older page, newest first. */
+  olderMessages?: unknown[]
+  /** Threads on the second page of the list. */
+  pageTwoThreads?: unknown[]
+  /** Holds the second page of the list back until released. */
+  pageTwoGate?: Promise<void>
 } = {}) {
   server.use(
     http.get(`${BASE}/app/phoneInbox/${INBOX_ID}`, () => HttpResponse.json({ data: inbox })),
-    http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, ({ request }) => {
+    http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, async ({ request }) => {
       const url = new URL(request.url)
       threadRequests.push(url.search)
       if (url.searchParams.get('threadId')) {
+        if (url.searchParams.get('cursor')) {
+          return HttpResponse.json({
+            data: { messages: opts.olderMessages ?? [], nextCursor: null, hasMore: false },
+          })
+        }
         return HttpResponse.json({
-          data: { messages: opts.messages ?? [message()], nextCursor: null, hasMore: false },
+          data: {
+            messages: opts.messages ?? [message()],
+            nextCursor: opts.messagesHasMore ? 'OLDER1' : null,
+            hasMore: opts.messagesHasMore ?? false,
+          },
         })
       }
       const cursor = url.searchParams.get('cursor')
       if (cursor) {
+        await opts.pageTwoGate
         return HttpResponse.json({
           data: {
-            threads: [thread({ id: 'm9', from: '99999', threadId: `${INBOX_ID}:99999`, body: 'older thread' })],
+            threads: opts.pageTwoThreads ?? [
+              thread({ id: 'm9', from: '99999', threadId: `${INBOX_ID}:99999`, body: 'older thread' }),
+            ],
             nextCursor: null,
             hasMore: false,
           },
@@ -143,19 +163,21 @@ describe('PhoneMessagesPage', () => {
     expect(await screen.findByText(/could not load messages/i)).toBeInTheDocument()
   })
 
-  it("loads a thread's messages when it is selected and marks it read", async () => {
+  it("loads a thread's messages when it is selected, oldest at the top, and marks it read", async () => {
+    // The API sends newest first; the page shows a conversation top to bottom.
     serve({
       messages: [
-        message({ id: 'a', body: 'first text', createdAt: '2026-11-02T09:00:00.000Z' }),
         message({ id: 'b', body: 'second text', createdAt: '2026-11-02T10:00:00.000Z' }),
+        message({ id: 'a', body: 'first text', createdAt: '2026-11-02T09:00:00.000Z' }),
       ],
     })
     const { user } = render(<PhoneMessagesPage />)
 
     await user.click(await screen.findByText('Your code is 481516'))
 
-    expect(await screen.findByText('first text')).toBeInTheDocument()
-    expect(screen.getByText('second text')).toBeInTheDocument()
+    const first = await screen.findByText('first text')
+    const second = screen.getByText('second text')
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await waitFor(() =>
       expect(patchBodies).toEqual([{ threadId: `${INBOX_ID}:32665`, isRead: true }]),
     )
@@ -194,6 +216,92 @@ describe('PhoneMessagesPage', () => {
 
     const pane = await screen.findByTestId('thread-messages')
     expect(await within(pane).findByText(/2 attachments not stored/i)).toBeInTheDocument()
+  })
+
+  it('opens a long thread on its newest messages and loads older ones above them', async () => {
+    serve({
+      threads: [thread({ body: 'newest text' })],
+      messages: [message({ id: 'n', body: 'newest text', createdAt: '2026-11-02T10:00:00.000Z' })],
+      messagesHasMore: true,
+      olderMessages: [message({ id: 'o', body: 'much older text', createdAt: '2026-10-01T10:00:00.000Z' })],
+    })
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByText('newest text'))
+    const pane = await screen.findByTestId('thread-messages')
+    expect(await within(pane).findByText('newest text')).toBeInTheDocument()
+    expect(within(pane).queryByText('much older text')).not.toBeInTheDocument()
+
+    await user.click(within(pane).getByRole('button', { name: /load older/i }))
+
+    const older = await within(pane).findByText('much older text')
+    const newest = within(pane).getByText('newest text')
+    expect(older.compareDocumentPosition(newest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(threadRequests.some((q) => q.includes('cursor=OLDER1'))).toBe(true)
+    expect(within(pane).queryByRole('button', { name: /load older/i })).not.toBeInTheDocument()
+  })
+
+  it('does not list a thread twice when it moved to the first page while more were loading', async () => {
+    serve({
+      hasMore: true,
+      nextCursor: 'CURSOR1',
+      pageTwoThreads: [thread({ body: 'Your code is 481516' })],
+    })
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByRole('button', { name: /load more/i }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument())
+    expect(screen.getAllByText('Your code is 481516')).toHaveLength(1)
+  })
+
+  it('drops a Load more response that arrives after a refresh replaced the list', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    serve({ hasMore: true, nextCursor: 'CURSOR1', pageTwoGate: gate })
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByRole('button', { name: /load more/i }))
+
+    serve({ threads: [thread({ id: 'm5', body: 'after refresh' })] })
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByText('after refresh')).toBeInTheDocument()
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(screen.queryByText('older thread')).not.toBeInTheDocument()
+    expect(screen.getByText('after refresh')).toBeInTheDocument()
+  })
+
+  it('does not call an empty text an attachment', async () => {
+    serve({ threads: [thread({ body: '', mediaCount: 0 })] })
+
+    render(<PhoneMessagesPage />)
+
+    expect(await screen.findByText('(empty message)')).toBeInTheDocument()
+    expect(screen.queryByText(/0 attachments/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps the loaded threads when Load more fails', async () => {
+    serve({ hasMore: true, nextCursor: 'CURSOR1' })
+    server.use(
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, ({ request }) => {
+        if (new URL(request.url).searchParams.get('cursor')) {
+          return HttpResponse.json({ message: 'boom' }, { status: 500 })
+        }
+        return HttpResponse.json({
+          data: { threads: [thread()], nextCursor: 'CURSOR1', hasMore: true },
+        })
+      }),
+    )
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByRole('button', { name: /load more/i }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /load more/i })).toBeEnabled())
+    expect(screen.getByText('Your code is 481516')).toBeInTheDocument()
+    expect(screen.queryByText(/could not load messages/i)).not.toBeInTheDocument()
   })
 
   it('picks up newly arrived texts when refreshed', async () => {

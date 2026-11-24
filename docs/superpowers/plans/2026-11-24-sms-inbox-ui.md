@@ -51,11 +51,11 @@
 
 **Interfaces:**
 - `listPhoneThreads(scope: OrgScope, inboxId, {limit, cursor}) → {threads: ThreadHead[], nextCursor, hasMore} | null`; `ThreadHead` = latest message row + `threadCount`, `unreadCount`.
-- `listThreadMessages(scope, inboxId, threadId, {limit, cursor}) → {messages, nextCursor, hasMore} | null` (oldest first).
+- `listThreadMessages(scope, inboxId, threadId, {limit, cursor}) → {messages, nextCursor, hasMore} | null` (newest first after review; the page reverses for display).
 - `markThreadRead(scope: MessageReadScope, inboxId, threadId, isRead) → {updated: number} | null`.
 - `GET ...?threadId=&cursor=&limit=` returns `{ threads | messages, nextCursor, hasMore }`; `PATCH` body `{threadId: string, isRead: boolean}` returns `{ updated }`; invalid body 400.
 
-- [ ] Write the integration tests (real Postgres, signed-in user cookie via existing helpers): threads newest first with `threadCount`/`unreadCount`; deleted rows excluded; cursor pages without gaps with equal `createdAt`; thread messages oldest first; PATCH marks only that thread's messages in that inbox; other-organization inbox 404 on both; bad body 400; released inbox 404.
+- [ ] Write the integration tests (real Postgres, signed-in user cookie via existing helpers): threads newest first with `threadCount`/`unreadCount`; deleted rows excluded; cursor pages without gaps with equal `createdAt`; thread messages newest first; PATCH marks only that thread's messages in that inbox; other-organization inbox 404 on both; bad body 400; released inbox 404.
 - [ ] Run; expect FAIL. Implement (raw SQL for the thread head query with `DISTINCT ON`, `::uuid` casts, epoch-ms cursor compare, hand-written `deletedAt IS NULL`). Run; expect PASS. Commit.
 
 ### Task 3: Client and page
@@ -64,7 +64,7 @@
 
 **Interfaces:** `getPhoneThreads(inboxId, {cursor?, limit?})`, `getPhoneThreadMessages(inboxId, threadId, {cursor?, limit?})`, `setPhoneThreadRead(inboxId, threadId, isRead)`; types `PhoneMessage`, `PhoneThread`.
 
-- [ ] Tests (MSW): shows the inbox's real number and thread list from the API; selecting a thread loads its messages oldest first; opening an unread thread calls PATCH and clears its badge; load-more fetches the next page; empty inbox state; API error state with a toast; short-code sender renders; media-only message shows an attachment note; no compose input.
+- [ ] Tests (MSW): shows the inbox's real number and thread list from the API; selecting a thread loads its messages (shown oldest at the top); opening an unread thread calls PATCH and clears its badge; load-more fetches the next page; empty inbox state; API error state with a toast; short-code sender renders; media-only message shows an attachment note; no compose input.
 - [ ] Run; expect FAIL. Implement. Run; expect PASS. Commit.
 
 ### Task 4: Docs and full verification

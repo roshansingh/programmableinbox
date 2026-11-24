@@ -9,7 +9,7 @@ import { toMessageReadScope, toOrgScope } from '@/lib/services/scope'
 
 /**
  * Without `threadId`: one row per counterparty, newest thread first. With it: that
- * thread's messages, oldest first. Same cursor and `limit` as the email routes.
+ * thread's messages, newest first. Same cursor and `limit` as the email routes.
  */
 export const GET = withUser<{ id: string }>(async (request, principal, { params }) => {
   const { id } = await params

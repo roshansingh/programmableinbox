@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Phone, RefreshCw } from 'lucide-react'
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   getPhoneInbox,
   getPhoneThreads,
@@ -36,6 +37,12 @@ function attachmentNote(count: number): string {
   return `${count} attachment${count === 1 ? "" : "s"} not stored`
 }
 
+/** What a thread row previews: the text, else the media note, else a marker, never a blank or "0 attachments". */
+function preview(body: string, mediaCount: number): string {
+  if (body) return body
+  return mediaCount > 0 ? attachmentNote(mediaCount) : "(empty message)"
+}
+
 export default function PhoneMessagesPage() {
   const params = useParams()
   const router = useRouter()
@@ -49,6 +56,10 @@ export default function PhoneMessagesPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  // Kept on its own: a refresh replaces the thread list, and the open thread may
+  // not be on its first page, which would blank the header.
+  const [selectedFrom, setSelectedFrom] = useState("")
+  // Newest first, exactly as the API returns it; reversed for display.
   const [messages, setMessages] = useState<PhoneMessage[]>([])
   const [messagesCursor, setMessagesCursor] = useState<string | null>(null)
   const [messagesLoading, setMessagesLoading] = useState(false)
@@ -58,8 +69,12 @@ export default function PhoneMessagesPage() {
   // A slow response for a thread the user has already left must not overwrite
   // the one now on screen.
   const selectedRef = useRef<string | null>(null)
+  // Bumped every time the list is replaced. A "Load more" started against an
+  // earlier list carries a cursor that no longer continues anything.
+  const listGeneration = useRef(0)
 
   const loadThreads = useCallback(async () => {
+    listGeneration.current += 1
     try {
       const [inboxRow, page] = await Promise.all([getPhoneInbox(inboxId), getPhoneThreads(inboxId)])
       setInbox(inboxRow)
@@ -78,14 +93,22 @@ export default function PhoneMessagesPage() {
 
   const loadMoreThreads = async () => {
     if (!nextCursor || isLoadingMore) return
+    const generation = listGeneration.current
     setIsLoadingMore(true)
     try {
       const page = await getPhoneThreads(inboxId, { cursor: nextCursor })
-      setThreads((prev) => [...prev, ...page.threads])
+      if (generation !== listGeneration.current) return
+      // A thread that received a text while the page was loading now sits on the
+      // first page as well; keep the copy already shown.
+      setThreads((prev) => {
+        const have = new Set(prev.map((t) => t.threadId))
+        return [...prev, ...page.threads.filter((t) => !have.has(t.threadId))]
+      })
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
     } catch {
-      setStatus("error")
+      // The threads already loaded are still good; do not replace them with an error.
+      toast.error("Failed to load more conversations")
     } finally {
       setIsLoadingMore(false)
     }
@@ -97,6 +120,7 @@ export default function PhoneMessagesPage() {
     try {
       const page = await getPhoneThreadMessages(inboxId, threadId, { cursor })
       if (selectedRef.current !== threadId) return
+      // Newest first: an older page goes after what is already held.
       setMessages((prev) => (cursor ? [...prev, ...page.messages] : page.messages))
       setMessagesCursor(page.hasMore ? page.nextCursor : null)
     } catch {
@@ -112,6 +136,7 @@ export default function PhoneMessagesPage() {
   const openThread = (thread: PhoneThread) => {
     selectedRef.current = thread.threadId
     setSelectedThreadId(thread.threadId)
+    setSelectedFrom(thread.from)
     setShowThreadList(false)
     setMessages([])
     setMessagesCursor(null)
@@ -139,8 +164,6 @@ export default function PhoneMessagesPage() {
     const open = selectedRef.current
     if (open) await loadThreadMessages(open)
   }
-
-  const selectedThread = threads.find((t) => t.threadId === selectedThreadId)
 
   return (
     <div className="flex h-screen bg-background">
@@ -226,7 +249,7 @@ export default function PhoneMessagesPage() {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm text-muted-foreground truncate flex-1">
-                          {thread.body || attachmentNote(thread.mediaCount)}
+                          {preview(thread.body, thread.mediaCount)}
                         </p>
                         {thread.unreadCount > 0 && (
                           <Badge
@@ -270,11 +293,11 @@ export default function PhoneMessagesPage() {
                     </Button>
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                        {initials(selectedThread?.from ?? "")}
+                        {initials(selectedFrom)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate">{selectedThread?.from}</h3>
+                      <h3 className="font-semibold text-foreground truncate">{selectedFrom}</h3>
                     </div>
                   </div>
                 </div>
@@ -287,7 +310,16 @@ export default function PhoneMessagesPage() {
                     {messagesLoading && messages.length === 0 && (
                       <p className="text-sm text-muted-foreground">Loading…</p>
                     )}
-                    {messages.map((message) => (
+                    {messagesCursor && (
+                      <Button
+                        variant="outline"
+                        onClick={() => void loadThreadMessages(selectedThreadId, messagesCursor)}
+                        disabled={messagesLoading}
+                      >
+                        Load older messages
+                      </Button>
+                    )}
+                    {[...messages].reverse().map((message) => (
                       <div key={message.id} className="flex justify-start">
                         <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%]">
                           {message.body && (
@@ -296,19 +328,13 @@ export default function PhoneMessagesPage() {
                           {message.mediaCount > 0 && (
                             <p className="text-xs italic text-muted-foreground">{attachmentNote(message.mediaCount)}</p>
                           )}
+                          {!message.body && message.mediaCount === 0 && (
+                            <p className="text-xs italic text-muted-foreground">(empty message)</p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">{ago(message.createdAt)}</p>
                         </div>
                       </div>
                     ))}
-                    {messagesCursor && (
-                      <Button
-                        variant="outline"
-                        onClick={() => void loadThreadMessages(selectedThreadId, messagesCursor)}
-                        disabled={messagesLoading}
-                      >
-                        Load newer messages
-                      </Button>
-                    )}
                   </div>
                 </ScrollArea>
 
