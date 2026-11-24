@@ -293,6 +293,16 @@ A phone inbox is a real number bought from Twilio, never one a user typed in. Th
 - **Dedupe and quota copy the email path** (`lib/services/phone-ingest.ts`). The unique `(externalId, phoneInboxId)` key is Twilio's `MessageSid`, which Twilio re-sends on retry. `sms.received` is consumed *before* the insert and refunded on a duplicate or a failed insert; over quota it is dropped and `sms.dropped` (report-only, no limit key) is incremented. The cap is `incomingSmsPerPeriod`; the paid plan has 500 and self-hosted is unlimited by construction. **`sms.received` is hard-capped even on an `overage` plan** (`HARD_CAPPED` in `ee/plans/quota.ts`): Pro is `overage`, which means "keep going and bill the excess", and email overage is reported to Stripe but nothing bills SMS, so honouring `overage` would be uncapped Twilio spend against a fixed fee. A message that Twilio re-sends after the cap is reached is reported as `duplicate`, not `dropped`, when its sid is already stored.
 - **`extractedOtp` is a column only.** Ingestion never fills it; extraction is #146.
 
+### Phone inbox UI (issue #143)
+
+`app/phones/[id]/page.tsx` reads real data from `GET /api/app/phoneInbox/[id]/messages`: with no `threadId` it returns one row per counterparty (newest first, with `threadCount` and `unreadCount`), with one it returns that thread's messages oldest first. Same `(createdAt, id)` keyset cursor and `limit` as the email routes. `PATCH` on the same path takes `{ threadId, isRead }`.
+
+- **Read state is a column per message but a thread-level action.** `PhoneMessage.isRead` is inbox-wide, like email's (#138), and `PATCH` flips every live message in one thread. Opening an unread thread marks it read; the badge clears optimistically and is put back if the request fails. Marking takes `MessageReadScope`, so any member of the organization can do it, not only the creator.
+- **Soft deletes are filtered by hand.** `PhoneMessage` is not in `SOFT_DELETE_MODELS`, so the soft-delete extension does not apply and the raw thread query writes `"deletedAt" IS NULL` itself, as `grouped-query.ts` does for email. Nothing soft-deletes a phone message yet (releasing a number leaves them in place, and the inbox is no longer browsable once it is `released`), so this is a guard for the day something does.
+- **No search and no compose box.** Phone messages have no search vector, and the product is receive-only. The page says so in one line rather than leaving a disabled input.
+- **There is no live update.** A Refresh button re-fetches; nothing polls. A new text appears after a refresh or reload.
+- **The inbox must be `pending` or `active`** to be read: the lookup is the same `getPhoneInbox` the list uses, so another organization's inbox and a released number are both a 404.
+
 ### Inbox creation policy (issue #98)
 
 Address *syntax* validation (`lib/email-address.ts`) never claimed to know which domains we can receive at, so creation used to accept any well-formed address. Two rules now sit on every write path, both in `lib/validation/inbox-policy.ts`:
