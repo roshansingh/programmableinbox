@@ -72,6 +72,14 @@ export default function PhoneMessagesPage() {
   // Bumped every time the list is replaced. A "Load more" started against an
   // earlier list carries a cursor that no longer continues anything.
   const listGeneration = useRef(0)
+  // The same idea for the open conversation: an "older messages" page fetched
+  // before a refresh carries a cursor into a page that has since been replaced.
+  const messagesGeneration = useRef(0)
+  // Mirrors `threads` synchronously, so code that runs right after a list load
+  // (marking the open thread read) sees that load's counts, not last render's.
+  const threadsRef = useRef<PhoneThread[]>([])
+  const pendingListLoads = useRef(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollToNewest = useRef(false)
 
@@ -81,21 +89,34 @@ export default function PhoneMessagesPage() {
     bottomRef.current?.scrollIntoView?.({ block: "end" })
   }, [messages])
 
+  const applyThreads = useCallback((update: (prev: PhoneThread[]) => PhoneThread[]) => {
+    threadsRef.current = update(threadsRef.current)
+    setThreads(threadsRef.current)
+  }, [])
+
   const loadThreads = useCallback(async () => {
     const generation = ++listGeneration.current
+    pendingListLoads.current += 1
+    setIsRefreshing(true)
     try {
       const [inboxRow, page] = await Promise.all([getPhoneInbox(inboxId), getPhoneThreads(inboxId)])
       // A slower, earlier load must not overwrite a newer one.
       if (generation !== listGeneration.current) return
       setInbox(inboxRow)
-      setThreads(page.threads)
+      applyThreads(() => page.threads)
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
       setStatus("ready")
+      // The list was just replaced: a "Load more" begun against the old one holds a
+      // cursor that no longer continues anything, so it must not be applied.
+      listGeneration.current += 1
     } catch {
       if (generation === listGeneration.current) setStatus("error")
+    } finally {
+      pendingListLoads.current -= 1
+      if (pendingListLoads.current === 0) setIsRefreshing(false)
     }
-  }, [inboxId])
+  }, [inboxId, applyThreads])
 
   useEffect(() => {
     void loadThreads()
@@ -116,7 +137,7 @@ export default function PhoneMessagesPage() {
         getPhoneThreads(inboxId),
       ])
       if (generation !== listGeneration.current) return
-      setThreads((prev) => {
+      applyThreads((prev) => {
         const byId = new Map(prev.map((t) => [t.threadId, t]))
         for (const t of first.threads) byId.set(t.threadId, t)
         for (const t of page.threads) if (!byId.has(t.threadId)) byId.set(t.threadId, t)
@@ -134,27 +155,45 @@ export default function PhoneMessagesPage() {
     }
   }
 
+  const setThreadUnread = (threadId: string, unreadCount: number) =>
+    applyThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, unreadCount } : t)))
+
+  /**
+   * Called only once the thread's newest page has actually loaded, so a failed
+   * attempt to view a thread does not mark it read. The badge clears optimistically
+   * and is put back if the server did not take it: a badge that says read while
+   * the stored state says unread would be wrong on the next load.
+   */
+  const markOpenThreadRead = (threadId: string) => {
+    const unread = threadsRef.current.find((t) => t.threadId === threadId)?.unreadCount ?? 0
+    if (unread === 0) return
+    setThreadUnread(threadId, 0)
+    setPhoneThreadRead(inboxId, threadId, true).catch(() => setThreadUnread(threadId, unread))
+  }
+
   const loadThreadMessages = async (threadId: string, cursor?: string) => {
+    // A first page (opening, refreshing) starts a new generation; an older page
+    // inherits the current one, and is dropped if a refresh replaced it meanwhile.
+    const generation = cursor ? messagesGeneration.current : ++messagesGeneration.current
+    const current = () => selectedRef.current === threadId && generation === messagesGeneration.current
     setMessagesLoading(true)
     setMessagesError(false)
     try {
       const page = await getPhoneThreadMessages(inboxId, threadId, { cursor })
-      if (selectedRef.current !== threadId) return
+      if (!current()) return
       // Opening or refreshing lands on the newest message (the one a one-time code
       // is in); loading older ones above must not move the view.
       if (!cursor) scrollToNewest.current = true
       // Newest first: an older page goes after what is already held.
       setMessages((prev) => (cursor ? [...prev, ...page.messages] : page.messages))
       setMessagesCursor(page.hasMore ? page.nextCursor : null)
+      if (!cursor) markOpenThreadRead(threadId)
     } catch {
-      if (selectedRef.current === threadId) setMessagesError(true)
+      if (current()) setMessagesError(true)
     } finally {
-      if (selectedRef.current === threadId) setMessagesLoading(false)
+      if (current()) setMessagesLoading(false)
     }
   }
-
-  const setThreadUnread = (threadId: string, unreadCount: number) =>
-    setThreads((prev) => prev.map((t) => (t.threadId === threadId ? { ...t, unreadCount } : t)))
 
   const openThread = (thread: PhoneThread) => {
     selectedRef.current = thread.threadId
@@ -164,16 +203,6 @@ export default function PhoneMessagesPage() {
     setMessages([])
     setMessagesCursor(null)
     void loadThreadMessages(thread.threadId)
-
-    if (thread.unreadCount > 0) {
-      // Optimistic, and put back if the server did not take it: a badge that says
-      // read while the stored state says unread would be wrong on the next load.
-      const unread = thread.unreadCount
-      setThreadUnread(thread.threadId, 0)
-      setPhoneThreadRead(inboxId, thread.threadId, true).catch(() =>
-        setThreadUnread(thread.threadId, unread),
-      )
-    }
   }
 
   const backToList = () => {
@@ -309,7 +338,7 @@ export default function PhoneMessagesPage() {
                       variant="outline"
                       className="w-full"
                       onClick={() => void loadMoreThreads()}
-                      disabled={isLoadingMore}
+                      disabled={isLoadingMore || isRefreshing}
                     >
                       {isLoadingMore ? "Loading…" : "Load more"}
                     </Button>

@@ -61,6 +61,10 @@ function serve(opts: {
   pageTwoThreads?: unknown[]
   /** Holds the second page of the list back until released. */
   pageTwoGate?: Promise<void>
+  /** Holds the first page of the list back until released. */
+  firstPageGate?: Promise<void>
+  /** Holds the next-older page of a thread back until released. */
+  olderGate?: Promise<void>
 } = {}) {
   server.use(
     http.get(`${BASE}/app/phoneInbox/${INBOX_ID}`, () => HttpResponse.json({ data: inbox })),
@@ -69,6 +73,7 @@ function serve(opts: {
       threadRequests.push(url.search)
       if (url.searchParams.get('threadId')) {
         if (url.searchParams.get('cursor')) {
+          await opts.olderGate
           return HttpResponse.json({
             data: { messages: opts.olderMessages ?? [], nextCursor: null, hasMore: false },
           })
@@ -94,6 +99,7 @@ function serve(opts: {
           },
         })
       }
+      await opts.firstPageGate
       return HttpResponse.json({
         data: {
           threads: opts.threads ?? [thread()],
@@ -416,6 +422,95 @@ describe('PhoneMessagesPage', () => {
     await user.click(row)
 
     expect(row).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('cannot start Load more while a refresh is replacing the list', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    serve({ hasMore: true, nextCursor: 'CURSOR1' })
+    const { user } = render(<PhoneMessagesPage />)
+    const loadMore = await screen.findByRole('button', { name: /load more/i })
+
+    serve({ hasMore: true, nextCursor: 'CURSOR2', firstPageGate: gate })
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    // Its cursor belongs to the list being replaced, so a page fetched with it
+    // would be appended to the new list and could skip a thread at the boundary.
+    expect(loadMore).toBeDisabled()
+    release()
+    await waitFor(() => expect(screen.getByRole('button', { name: /load more/i })).toBeEnabled())
+  })
+
+  it('drops an older page of a thread that arrives after the thread was refreshed', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    serve({
+      threads: [thread({ body: 'newest text' })],
+      messages: [message({ id: 'n', body: 'newest text' })],
+      messagesHasMore: true,
+      olderMessages: [message({ id: 'o', body: 'stale older text', createdAt: '2026-10-01T10:00:00.000Z' })],
+      olderGate: gate,
+    })
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByText('newest text'))
+    await user.click(await screen.findByRole('button', { name: /load older/i }))
+
+    serve({
+      threads: [thread({ body: 'newest text' })],
+      messages: [message({ id: 'z', body: 'arrived meanwhile' }), message({ id: 'n', body: 'newest text' })],
+    })
+    await user.click(screen.getByRole('button', { name: 'Refresh conversation' }))
+    await screen.findByText('arrived meanwhile')
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    // The cursor it used belonged to the replaced page: appending would leave a gap.
+    expect(screen.queryByText('stale older text')).not.toBeInTheDocument()
+  })
+
+  it('leaves a thread unread when its messages could not be loaded', async () => {
+    server.use(
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}`, () => HttpResponse.json({ data: inbox })),
+      http.get(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, ({ request }) => {
+        if (new URL(request.url).searchParams.get('threadId')) {
+          return HttpResponse.json({ message: 'boom' }, { status: 500 })
+        }
+        return HttpResponse.json({ data: { threads: [thread()], nextCursor: null, hasMore: false } })
+      }),
+      http.patch(`${BASE}/app/phoneInbox/${INBOX_ID}/messages`, async ({ request }) => {
+        patchBodies.push(await request.json())
+        return HttpResponse.json({ data: { updated: 1 } })
+      }),
+    )
+    const { user } = render(<PhoneMessagesPage />)
+
+    await user.click(await screen.findByText('Your code is 481516'))
+
+    expect(await screen.findByText(/could not load this conversation/i)).toBeInTheDocument()
+    // Viewing it failed, so it was not read.
+    expect(screen.getByLabelText('1 unread')).toBeInTheDocument()
+    expect(patchBodies).toEqual([])
+  })
+
+  it('marks a text that arrives in the open conversation read when it is refreshed', async () => {
+    serve()
+    const { user } = render(<PhoneMessagesPage />)
+    await user.click(await screen.findByText('Your code is 481516'))
+    await waitFor(() => expect(patchBodies).toHaveLength(1))
+
+    serve({
+      threads: [thread({ unreadCount: 1, threadCount: 2 })],
+      messages: [message({ id: 'z', body: 'second code 999000' }), message()],
+    })
+    await user.click(screen.getByRole('button', { name: 'Refresh conversation' }))
+
+    expect(await screen.findByText('second code 999000')).toBeInTheDocument()
+    await waitFor(() => expect(patchBodies).toHaveLength(2))
+    await waitFor(() => expect(screen.queryByLabelText('1 unread')).not.toBeInTheDocument())
   })
 
   it('picks up newly arrived texts when refreshed', async () => {
