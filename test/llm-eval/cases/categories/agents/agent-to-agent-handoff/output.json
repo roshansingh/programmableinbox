@@ -1,0 +1,52 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:39.213Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Agents"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "samples": 11,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Agents"
+          ],
+          "count": 9
+        },
+        {
+          "value": [
+            "Notifications"
+          ],
+          "count": 2
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 11
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:46.010Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

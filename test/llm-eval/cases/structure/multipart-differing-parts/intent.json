@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Promotions"
+  ],
+  "otp": null,
+  "note": "the text part is a stub and live ingestion prefers it, so the model sees only the stub (known gap)"
+}

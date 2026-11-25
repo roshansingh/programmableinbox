@@ -1,0 +1,359 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://events.example.com/",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://events.example.com/summer-fest",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n1",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n2",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n3",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n4",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n5",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n6",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n7",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n8",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n9",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n10",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n11",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n12",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://events.example.com/summer-fest/tickets",
+          "label": "Get your ticket",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://events.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:27.826Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://events.example.com/",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://events.example.com/summer-fest",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n1",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n2",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n3",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n4",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n5",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n6",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n7",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n8",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n9",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n10",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n11",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://social.example.com/n12",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://events.example.com/summer-fest/tickets",
+          "label": "Get your ticket",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://events.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Friday at 10 AM"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://events.example.com/": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://events.example.com/summer-fest": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n1": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n2": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n3": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n4": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n5": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n6": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n7": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n8": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n9": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n10": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n11": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://social.example.com/n12": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://events.example.com/summer-fest/tickets": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          }
+        ],
+        "https://events.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:34.706Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

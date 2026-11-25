@@ -1,0 +1,112 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://support.example.com/survey/48211?rating=good",
+          "label": "😀",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://support.example.com/survey/48211?rating=okay",
+          "label": "😐",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://support.example.com/survey/48211?rating=bad",
+          "label": "🙁",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:31.746Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Support"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://support.example.com/survey/48211?rating=good",
+          "label": "😀",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://support.example.com/survey/48211?rating=okay",
+          "label": "😐",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://support.example.com/survey/48211?rating=bad",
+          "label": "🙁",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Support"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://support.example.com/survey/48211?rating=good": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://support.example.com/survey/48211?rating=okay": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://support.example.com/survey/48211?rating=bad": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:39.035Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

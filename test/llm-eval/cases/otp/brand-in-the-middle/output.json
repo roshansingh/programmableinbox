@@ -1,0 +1,46 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:46.810Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": "AC482913",
+    "categories": [
+      "Security"
+    ],
+    "metadata": {
+      "links": [],
+      "timestamps": []
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "AC482913",
+          "count": 9
+        }
+      ],
+      "links": {}
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:52.491Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

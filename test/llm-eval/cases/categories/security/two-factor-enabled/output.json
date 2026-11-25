@@ -1,0 +1,72 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://accounts.example.com/security",
+          "label": "Manage security settings",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:44.678Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Security"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://accounts.example.com/security",
+          "label": "Manage security settings",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 12"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Security"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://accounts.example.com/security": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:50.185Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

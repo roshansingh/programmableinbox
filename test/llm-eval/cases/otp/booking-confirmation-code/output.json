@@ -1,0 +1,94 @@
+{
+  "withoutLlm": {
+    "extractedOtp": "HK7X2M",
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://air.example.com/manage",
+          "label": "Manage booking",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://air.example.com/check-in",
+          "label": "Check in online",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:40.069Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": "HK7X2M",
+    "categories": [
+      "Travel"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://air.example.com/manage",
+          "label": "Manage booking",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://air.example.com/check-in",
+          "label": "Check in online",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "October 14 at 08:35",
+        "October 14 at 20:50"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Travel"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "HK7X2M",
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://air.example.com/manage": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://air.example.com/check-in": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:46.804Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

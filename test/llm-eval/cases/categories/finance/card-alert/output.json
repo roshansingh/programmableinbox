@@ -1,0 +1,121 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://bank.example.com/activity",
+          "label": "Review activity",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://bank.example.com/report-fraud",
+          "label": "This wasn't me",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:29.841Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Finance"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://bank.example.com/activity",
+          "label": "Review activity",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://bank.example.com/report-fraud",
+          "label": "This wasn't me",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 12 at 3:41 PM"
+      ]
+    },
+    "samples": 24,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Finance"
+          ],
+          "count": 21
+        },
+        {
+          "value": [
+            "Finance",
+            "Receipts"
+          ],
+          "count": 2
+        },
+        {
+          "value": [
+            "Finance",
+            "Urgent"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 24
+        }
+      ],
+      "links": {
+        "https://bank.example.com/activity": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 13
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ],
+        "https://bank.example.com/report-fraud": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 21
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 3
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:48.854Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

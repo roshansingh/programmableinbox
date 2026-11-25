@@ -1,4 +1,4 @@
-import type { LLMProvider } from './types'
+import { MAX_COMPLETION_TOKENS, type LLMProvider } from './types'
 import { config, resetConfigCache, type LlmProviderName } from '@/lib/config'
 import { AnthropicAdapter } from './providers/anthropic'
 import { OpenAICompatAdapter } from './providers/openai-compat'
@@ -66,6 +66,22 @@ function buildProvider(): LLMProvider | null {
     case 'openrouter':
       return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl)
     case 'ollama':
-      return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl, { think: false })
+      // This adapter talks to Ollama's OpenAI-compatible /v1 endpoint, which
+      // ignores some parameters that work on native /api/chat and on OpenAI,
+      // so this body names the ones /v1 honours (measured on Ollama 0.32.5):
+      //  - `reasoning_effort: 'none'`, not `think: false`. qwen3:0.6b still
+      //    emitted ~1,300 chars of hidden reasoning per call with `think`
+      //    (~3s, up to ~11s, against ~0.5s with this flag).
+      //  - `max_tokens`, because `max_completion_tokens` (which the adapter
+      //    also sends) is ignored. Without a bound, one runaway generation held
+      //    the server's only slot for 5 minutes and stalled the requests queued
+      //    behind it; a CPU host decodes slower, so the stall would be worse.
+      //  - `temperature: 0`. Left unset Ollama samples at 1.0, so the same
+      //    email got different answers run to run; extraction should not vary.
+      return new OpenAICompatAdapter(key, resolvedModel, resolvedBaseUrl, {
+        reasoning_effort: 'none',
+        max_tokens: MAX_COMPLETION_TOKENS,
+        temperature: 0,
+      })
   }
 }

@@ -1,0 +1,272 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/flash-sale",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/flash-sale?utm_source=email",
+          "label": "Shop now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/women",
+          "label": "Shop women",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/men",
+          "label": "Shop men",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/home",
+          "label": "Shop home",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/privacy",
+          "label": "Privacy policy",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:13.812Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/flash-sale",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/flash-sale?utm_source=email",
+          "label": "Shop now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/women",
+          "label": "Shop women",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/men",
+          "label": "Shop men",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/home",
+          "label": "Shop home",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/preferences",
+          "label": "Manage preferences",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/privacy",
+          "label": "Privacy policy",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "Ends Sunday at midnight",
+        "Sale prices end Sunday at 11:59 PM ET"
+      ]
+    },
+    "samples": 11,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 11
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 11
+        }
+      ],
+      "links": {
+        "https://shop.example.com/": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 7
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 4
+          }
+        ],
+        "https://shop.example.com/flash-sale": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 10
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 1
+          }
+        ],
+        "https://shop.example.com/flash-sale?utm_source=email": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ],
+        "https://shop.example.com/women": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
+          }
+        ],
+        "https://shop.example.com/men": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
+          }
+        ],
+        "https://shop.example.com/home": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 6
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 5
+          }
+        ],
+        "https://shop.example.com/preferences": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ],
+        "https://shop.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ],
+        "https://shop.example.com/privacy": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:23.864Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

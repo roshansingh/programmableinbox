@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { RUN_MODES } from './types'
-import type { Action, RunMode, SectionMeta, Snapshot, StoredOutput, StoredSection } from './types'
+import type { Action, Observed, RunMode, SectionMeta, Snapshot, StoredOutput, StoredSection } from './types'
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -29,8 +29,12 @@ export function readStoredOutput(file: string): StoredOutput | null {
   return output
 }
 
-export function toSection(snapshot: Snapshot, meta: SectionMeta): StoredSection {
-  return { ...snapshot, _generated: meta }
+export function toSection(
+  snapshot: Snapshot,
+  meta: SectionMeta,
+  extras?: { samples: number; observed: Observed },
+): StoredSection {
+  return { ...snapshot, ...extras, _generated: meta }
 }
 
 /** Read-merge-write: replaces only `mode`'s section and always writes withoutLlm first. */

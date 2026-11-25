@@ -63,6 +63,41 @@ describe('discoverCases', () => {
     expect(ids()).toEqual(['otp'])
   })
 
+  it('treats a folder with only an email.txt as a case (text-only mail)', () => {
+    touch('plain/email.txt', 'hello')
+
+    const [found] = discoverCases(root)
+
+    expect(found.id).toBe('plain')
+    expect(found.htmlPath).toBeNull()
+    expect(found.textPath).toBe(path.join(root, 'plain', 'email.txt'))
+  })
+
+  it('finds both parts of a multipart case', () => {
+    touch('multi/email.html', '<p>hi</p>')
+    touch('multi/email.txt', 'hi')
+
+    const [found] = discoverCases(root)
+
+    expect(found.htmlPath).toBe(path.join(root, 'multi', 'email.html'))
+    expect(found.textPath).toBe(path.join(root, 'multi', 'email.txt'))
+  })
+
+  it('locates the optional subject.txt and intent.json, and nulls them when absent', () => {
+    touch('with/email.html')
+    touch('with/subject.txt', 'Re: hi')
+    touch('with/intent.json', '{}')
+    touch('without/email.html')
+
+    // discoverCases sorts by id, and 'with' sorts before 'without'.
+    const [withBoth, without] = discoverCases(root)
+
+    expect(withBoth.subjectPath).toBe(path.join(root, 'with', 'subject.txt'))
+    expect(withBoth.intentPath).toBe(path.join(root, 'with', 'intent.json'))
+    expect(without.subjectPath).toBeNull()
+    expect(without.intentPath).toBeNull()
+  })
+
   it('returns no cases for an empty root and throws for a missing one', () => {
     expect(ids()).toEqual([])
     expect(() => discoverCases(path.join(root, 'nope'))).toThrow(/does not exist/)

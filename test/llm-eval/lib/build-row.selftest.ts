@@ -59,6 +59,40 @@ describe('buildRow', () => {
 
     expect(row.extractedOtp).toBeNull()
   })
+
+  it('uses an explicit subject over the <title>', () => {
+    const row = buildRow({ id: 'x', caseId: 'otp', html: OTP_HTML, subject: 'Fwd: Re: code' })
+
+    expect(row.subject).toBe('Fwd: Re: code')
+  })
+
+  it('falls back to the <title> when the subject is null', () => {
+    const row = buildRow({ id: 'x', caseId: 'otp', html: OTP_HTML, subject: null })
+
+    expect(row.subject).toBe('Your Acme verification code')
+  })
+
+  it('builds a text-only row: the text part is the body and bare URLs become links', () => {
+    const row = buildRow({
+      id: 'x',
+      caseId: 'notifications/export',
+      html: '',
+      text: 'Your export is ready. Download: https://app.example.com/exports/9f3a',
+    })
+
+    expect(row.text).toContain('Your export is ready')
+    expect(row.html).toBe('')
+    expect(row.bodyText).toContain('Your export is ready')
+    expect(row.metadata.links.map((l) => l.url)).toEqual(['https://app.example.com/exports/9f3a'])
+    expect(row.subject).toBe('export')
+  })
+
+  it('prefers the text part as the body when both parts exist (as live ingestion does)', () => {
+    const row = buildRow({ id: 'x', caseId: 'm', html: '<p>rich body</p>', text: 'stub text' })
+
+    expect(row.bodyText).toBe('stub text')
+    expect(row.html).toBe('<p>rich body</p>')
+  })
 })
 
 describe('toSnapshot', () => {

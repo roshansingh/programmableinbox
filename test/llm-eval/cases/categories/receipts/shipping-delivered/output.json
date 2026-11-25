@@ -1,0 +1,93 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/orders/48291345/photo",
+          "label": "View delivery photo",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/orders/48291345",
+          "label": "Order details",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:29.414Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Receipts"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/orders/48291345/photo",
+          "label": "View delivery photo",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/orders/48291345",
+          "label": "Order details",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "2:14 PM"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Receipts"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://shop.example.com/orders/48291345/photo": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ],
+        "https://shop.example.com/orders/48291345": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:35.914Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

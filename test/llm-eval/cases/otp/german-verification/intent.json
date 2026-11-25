@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Security"
+  ],
+  "otp": "483920",
+  "note": "non-English: the regex keywords and the LLM guard are English-only (known gap)"
+}

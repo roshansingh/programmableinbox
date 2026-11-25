@@ -1,0 +1,72 @@
+{
+  "withoutLlm": {
+    "extractedOtp": "482913",
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/offer",
+          "label": "Shop now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:52.497Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": "482913",
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/offer",
+          "label": "Shop now",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "September 30"
+      ]
+    },
+    "samples": 9,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 9
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": "482913",
+          "count": 9
+        }
+      ],
+      "links": {
+        "https://shop.example.com/offer": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 9
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:57.454Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

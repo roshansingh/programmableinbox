@@ -1,0 +1,81 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://status.example.com/incidents/8f2a",
+          "label": "View status page",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:06.932Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Notifications",
+      "Urgent"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://status.example.com/incidents/8f2a",
+          "label": "View status page",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "14:05 UTC"
+      ]
+    },
+    "samples": 15,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Notifications",
+            "Urgent"
+          ],
+          "count": 15
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 15
+        }
+      ],
+      "links": {
+        "https://status.example.com/incidents/8f2a": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:17.266Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

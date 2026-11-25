@@ -1,0 +1,101 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://air.example.com/itinerary",
+          "label": "View itinerary",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://air.example.com/check-in",
+          "label": "Check in",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:39.039Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Travel"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://air.example.com/itinerary",
+          "label": "View itinerary",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://air.example.com/check-in",
+          "label": "Check in",
+          "isCta": true,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": [
+        "October 21 at 10:15",
+        "October 21 at 13:30"
+      ]
+    },
+    "samples": 16,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Travel"
+          ],
+          "count": 16
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 16
+        }
+      ],
+      "links": {
+        "https://air.example.com/itinerary": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 15
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 1
+          }
+        ],
+        "https://air.example.com/check-in": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 16
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:51.705Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

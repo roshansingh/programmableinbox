@@ -1,0 +1,146 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/summer-sale",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/swim",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/sandals",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:14.921Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Promotions"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://shop.example.com/summer-sale",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://shop.example.com/swim",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/sandals",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://shop.example.com/unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 11,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Promotions"
+          ],
+          "count": 11
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 11
+        }
+      ],
+      "links": {
+        "https://shop.example.com/summer-sale": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 11
+          }
+        ],
+        "https://shop.example.com/swim": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 2
+          }
+        ],
+        "https://shop.example.com/sandals": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 2
+          }
+        ],
+        "https://shop.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 9
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 2
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:50:22.284Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

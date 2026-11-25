@@ -1,0 +1,7 @@
+{
+  "categories": [
+    "Primary"
+  ],
+  "otp": null,
+  "note": "a static gate code shared by a friend is not a one-time code (judgement; the regex stores it)"
+}

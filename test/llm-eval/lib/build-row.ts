@@ -36,16 +36,25 @@ export function deriveSubject(html: string, fallback: string): string {
 
 /**
  * The row live ingestion would have created for this email, using the same
- * shared extraction (`deriveIngestionFields`) the webhook route uses. The
- * email is HTML-only: there is no text part, exactly like HTML-only mail.
+ * shared extraction (`deriveIngestionFields`) the webhook route uses. Without
+ * `text` the email is HTML-only, exactly like HTML-only mail; with it, the row
+ * is a multipart message (or text-only, when `html` is empty).
  */
-export function buildRow(input: { id: string; caseId: string; html: string }): EvalRow {
-  const { bodyText, extractedOtp, links } = deriveIngestionFields({ text: '', html: input.html })
+export function buildRow(input: {
+  id: string
+  caseId: string
+  html: string
+  text?: string
+  /** Overrides the derived subject (from subject.txt). */
+  subject?: string | null
+}): EvalRow {
+  const text = input.text ?? ''
+  const { bodyText, extractedOtp, links } = deriveIngestionFields({ text, html: input.html })
   return {
     id: input.id,
     organizationId: EVAL_ORGANIZATION_ID,
-    subject: deriveSubject(input.html, path.posix.basename(input.caseId)),
-    text: '',
+    subject: input.subject ?? deriveSubject(input.html, path.posix.basename(input.caseId)),
+    text,
     html: input.html,
     bodyText,
     extractedOtp,

@@ -10,7 +10,11 @@ export interface CaseDir {
   /** Path relative to the cases root, with `/` separators. */
   id: string
   dir: string
-  htmlPath: string
+  /** At least one of `htmlPath` and `textPath` is non-null: that is what makes a folder a case. */
+  htmlPath: string | null
+  textPath: string | null
+  subjectPath: string | null
+  intentPath: string | null
   outputPath: string
 }
 
@@ -39,7 +43,26 @@ export interface SectionMeta {
   model: string | null
 }
 
-export type StoredSection = Snapshot & { _generated?: SectionMeta }
+/** One distinct answer and how many baseline samples gave it. */
+export interface Counted<T> {
+  value: T
+  count: number
+}
+
+/** The two link fields the model can change (enrichment sets `ctaConfidence: 'high'` on each link it judges). */
+export interface LinkState {
+  isCta: boolean
+  ctaConfidence: 'high' | 'low'
+}
+
+/** Every answer seen while generating a withLlm baseline, by field. Links are keyed by URL. */
+export interface Observed {
+  categories: Counted<string[]>[]
+  extractedOtp: Counted<string | null>[]
+  links: Record<string, Counted<LinkState>[]>
+}
+
+export type StoredSection = Snapshot & { _generated?: SectionMeta; samples?: number; observed?: Observed }
 
 export interface StoredOutput {
   withoutLlm?: StoredSection
@@ -55,6 +78,8 @@ export interface Diff {
 export interface Comparison {
   failures: Diff[]
   informational: Diff[]
+  /** Passing but noteworthy, e.g. an answer the baseline saw only rarely. Never fails a run. */
+  warnings?: string[]
 }
 
 export interface RunRecord {
@@ -63,5 +88,6 @@ export interface RunRecord {
   status: Status
   failures: Diff[]
   informational: Diff[]
+  warnings?: string[]
   notes: string[]
 }

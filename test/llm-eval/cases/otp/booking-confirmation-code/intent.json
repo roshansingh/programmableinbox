@@ -1,0 +1,5 @@
+{
+  "categories": ["Travel"],
+  "otp": null,
+  "note": "'confirmation code' here is a booking reference, not a one-time code; the regex stores it as an OTP (known gap)"
+}

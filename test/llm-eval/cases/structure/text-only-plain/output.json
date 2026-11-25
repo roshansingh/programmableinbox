@@ -1,0 +1,125 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://app.example.com/exports/9f3a1c",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://example.com/support",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:51:02.305Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Primary"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://app.example.com/exports/9f3a1c",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://example.com/support",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 22,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 11
+        },
+        {
+          "value": [
+            "Notifications"
+          ],
+          "count": 6
+        },
+        {
+          "value": [],
+          "count": 3
+        },
+        {
+          "value": [
+            "Notifications",
+            "Primary"
+          ],
+          "count": 1
+        },
+        {
+          "value": [
+            "Notifications",
+            "Support"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 22
+        }
+      ],
+      "links": {
+        "https://app.example.com/exports/9f3a1c": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 19
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 3
+          }
+        ],
+        "https://example.com/support": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 19
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 3
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:51:19.207Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

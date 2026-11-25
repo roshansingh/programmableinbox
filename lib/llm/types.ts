@@ -144,6 +144,14 @@ export type EnrichOptions = {
   extractOtp?: boolean
 }
 
+/**
+ * Output budget for one enrichment call. The JSON answer is well under 200
+ * tokens, so this is a runaway bound, not a target. Shared so that a provider
+ * whose endpoint ignores `max_completion_tokens` (Ollama's /v1 — see
+ * factory.ts) can be handed the same number under the name it does honour.
+ */
+export const MAX_COMPLETION_TOKENS = 1024
+
 export interface LLMProvider {
   enrich(
     subject: string,

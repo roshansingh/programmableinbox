@@ -1,0 +1,5 @@
+{
+  "categories": ["Security"],
+  "otp": "483920",
+  "note": "one digit per table cell; the body-text extraction joins the cells into one token, so the regex finds it (a regression guard, not a gap)"
+}

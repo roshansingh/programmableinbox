@@ -1,0 +1,110 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://ci.example.com/acme/api/builds/4821",
+          "label": "View build",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://git.example.com/acme/api/commit/3fa9c1",
+          "label": "View diff",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:35.312Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Notifications"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://ci.example.com/acme/api/builds/4821",
+          "label": "View build",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://git.example.com/acme/api/commit/3fa9c1",
+          "label": "View diff",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 18,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Notifications"
+          ],
+          "count": 14
+        },
+        {
+          "value": [
+            "Support"
+          ],
+          "count": 3
+        },
+        {
+          "value": [
+            "Primary"
+          ],
+          "count": 1
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 18
+        }
+      ],
+      "links": {
+        "https://ci.example.com/acme/api/builds/4821": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 18
+          }
+        ],
+        "https://git.example.com/acme/api/commit/3fa9c1": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 17
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 1
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:48:48.450Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

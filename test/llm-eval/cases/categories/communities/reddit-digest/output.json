@@ -1,0 +1,245 @@
+{
+  "withoutLlm": {
+    "extractedOtp": null,
+    "categories": [],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/1a2b3c",
+          "label": "I replaced three subscriptions with one mini PC",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/4d5e6f",
+          "label": "PSA: check your backups actually restore",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/7g8h9i",
+          "label": "What are you running behind a reverse proxy?",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/0j1k2l",
+          "label": "My home dashboard, two years on",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/3m4n5o",
+          "label": "Weekly question thread",
+          "isCta": false,
+          "ctaConfidence": "low"
+        },
+        {
+          "url": "https://forum.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/settings/email",
+          "label": "Email settings",
+          "isCta": false,
+          "ctaConfidence": "low"
+        }
+      ],
+      "timestamps": []
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:04.273Z",
+      "model": null
+    }
+  },
+  "withLlm": {
+    "extractedOtp": null,
+    "categories": [
+      "Communities"
+    ],
+    "metadata": {
+      "links": [
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/1a2b3c",
+          "label": "I replaced three subscriptions with one mini PC",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/4d5e6f",
+          "label": "PSA: check your backups actually restore",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/7g8h9i",
+          "label": "What are you running behind a reverse proxy?",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/0j1k2l",
+          "label": "My home dashboard, two years on",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/r/selfhosted/comments/3m4n5o",
+          "label": "Weekly question thread",
+          "isCta": true,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/unsubscribe",
+          "label": "Unsubscribe",
+          "isCta": false,
+          "ctaConfidence": "high"
+        },
+        {
+          "url": "https://forum.example.com/settings/email",
+          "label": "Email settings",
+          "isCta": false,
+          "ctaConfidence": "high"
+        }
+      ],
+      "timestamps": []
+    },
+    "samples": 12,
+    "observed": {
+      "categories": [
+        {
+          "value": [
+            "Communities"
+          ],
+          "count": 12
+        }
+      ],
+      "extractedOtp": [
+        {
+          "value": null,
+          "count": 12
+        }
+      ],
+      "links": {
+        "https://forum.example.com/r/selfhosted/comments/1a2b3c": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 8
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ],
+        "https://forum.example.com/r/selfhosted/comments/4d5e6f": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 8
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ],
+        "https://forum.example.com/r/selfhosted/comments/7g8h9i": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 8
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ],
+        "https://forum.example.com/r/selfhosted/comments/0j1k2l": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 8
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ],
+        "https://forum.example.com/r/selfhosted/comments/3m4n5o": [
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 8
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 4
+          }
+        ],
+        "https://forum.example.com/unsubscribe": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 12
+          }
+        ],
+        "https://forum.example.com/settings/email": [
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "high"
+            },
+            "count": 7
+          },
+          {
+            "value": {
+              "isCta": true,
+              "ctaConfidence": "high"
+            },
+            "count": 3
+          },
+          {
+            "value": {
+              "isCta": false,
+              "ctaConfidence": "low"
+            },
+            "count": 2
+          }
+        ]
+      }
+    },
+    "_generated": {
+      "at": "2026-09-20T03:49:15.889Z",
+      "model": "openai:gpt-4o-mini"
+    }
+  }
+}

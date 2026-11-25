@@ -4,9 +4,15 @@ import type { RunMode, RunRecord, Status } from './types'
 
 export class Report {
   private records: RunRecord[] = []
+  private baselineNotes: Array<{ caseId: string; unstable: string[]; intent: string[] }> = []
 
   record(record: RunRecord): void {
     this.records.push(record)
+  }
+
+  /** Facts about a case's stored baseline. Purely informational: never affects a status or the exit code. */
+  recordBaseline(caseId: string, notes: { unstable: string[]; intent: string[] }): void {
+    this.baselineNotes.push({ caseId, ...notes })
   }
 
   hasFailures(): boolean {
@@ -48,10 +54,14 @@ export class Report {
     }
 
     // FAIL and GENERATED always get details. A PASS gets a block only when it
-    // has informational diffs (printed, never failing) — and then only those
-    // diffs, not its notes.
+    // has informational diffs or warnings (printed, never failing) — and then
+    // only those, not its notes.
     const detailed = this.records.filter(
-      (record) => record.status === 'fail' || record.status === 'generated' || record.informational.length > 0,
+      (record) =>
+        record.status === 'fail' ||
+        record.status === 'generated' ||
+        record.informational.length > 0 ||
+        (record.warnings?.length ?? 0) > 0,
     )
     if (detailed.length > 0) {
       lines.push('', 'Details')
@@ -60,7 +70,23 @@ export class Report {
         lines.push(`${record.status.toUpperCase()}  ${record.caseId} [${record.mode}]`)
         for (const diff of record.failures) lines.push(`    ${formatDiff(diff)}`)
         for (const diff of record.informational) lines.push(`    (informational) ${formatDiff(diff)}`)
+        for (const warning of record.warnings ?? []) lines.push(`    (warning) ${warning}`)
         if (showNotes) for (const note of record.notes) lines.push(`    ${note}`)
+      }
+    }
+
+    const unstable = this.baselineNotes.filter((entry) => entry.unstable.length > 0)
+    if (unstable.length > 0) {
+      lines.push('', 'Unstable baselines (the model gave more than one answer while the baseline was generated)')
+      for (const entry of unstable) lines.push(`  ${entry.caseId}: ${entry.unstable.join(', ')}`)
+    }
+
+    const disagreements = this.baselineNotes.filter((entry) => entry.intent.length > 0)
+    if (disagreements.length > 0) {
+      lines.push('', 'Baseline vs intent (informational; never fails a run)')
+      for (const entry of disagreements) {
+        lines.push(`  ${entry.caseId}`)
+        for (const line of entry.intent) lines.push(`    ${line}`)
       }
     }
 
